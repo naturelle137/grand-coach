@@ -1235,10 +1235,55 @@ fn debriefing_details_open_and_close_without_touching_the_game() {
             == 0
     );
     assert_eq!(view(&harness), before, "closing changes nothing");
+    // The table of the decision is shown, its history one click away
+    // (issue #47); neither changes the game or the score sheet.
+    assert!(
+        harness
+            .query_all_by_label_contains("Deine Karten vor dem Zug")
+            .count()
+            > 0
+    );
+    assert!(harness.query_all_by_label_contains("Damals: du in").count() > 0);
+    let history = |harness: &mut Harness<'_, GrandCoachApp>| {
+        harness
+            .get_all_by_label("Verlauf bis zu dieser Entscheidung")
+            .next()
+            .unwrap()
+            .click();
+        harness.run_steps(4);
+    };
+    assert_eq!(
+        harness.query_all_by_label_contains("Reizverlauf:").count(),
+        0
+    );
+    history(&mut harness);
+    assert!(harness.query_all_by_label_contains("Reizverlauf:").count() > 0);
+    assert_eq!(
+        view(&harness),
+        before,
+        "opening the history changes nothing"
+    );
+    assert_eq!(view(&harness).sheet, before.sheet);
+    history(&mut harness);
+    assert_eq!(
+        harness.query_all_by_label_contains("Reizverlauf:").count(),
+        0
+    );
+    assert_eq!(
+        view(&harness),
+        before,
+        "closing the history changes nothing"
+    );
     // English, too.
     harness.state_mut().set_language(Language::En);
     harness.run_steps(3);
     assert!(harness.query_all_by_label("Analysis details").count() > 0);
+    assert!(
+        harness
+            .query_all_by_label("History up to this decision")
+            .count()
+            > 0
+    );
     assert!(
         harness
             .query_all_by_label_contains("The lesson does not explain the model's rating")

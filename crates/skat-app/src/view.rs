@@ -121,6 +121,38 @@ pub struct ResultView {
     pub points: [i32; 3],
 }
 
+/// A completed trick with players instead of seats.
+pub(crate) fn trick_view(t: &CompletedTrick, dealer: PlayerId) -> TrickView {
+    TrickView {
+        cards: (0..3)
+            .map(|i| PlayedCard {
+                player: PlayerId::on_seat(t.seat_of(i), dealer),
+                card: t.cards[i],
+            })
+            .collect(),
+        winner: PlayerId::on_seat(t.winner, dealer),
+        augen: t.augen(),
+    }
+}
+
+/// The cards of the trick in progress with the players who played them.
+pub(crate) fn current_trick(view: &PlayerView, dealer: PlayerId) -> Vec<PlayedCard> {
+    let Some(leader) = view.current_trick.leader else {
+        return Vec::new();
+    };
+    view.current_trick
+        .cards
+        .iter()
+        .enumerate()
+        .filter_map(|(i, c)| {
+            c.map(|card| PlayedCard {
+                player: PlayerId::on_seat(Seat::from_index(leader.index() + i), dealer),
+                card,
+            })
+        })
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_view(
     config: &SessionConfig,
@@ -151,29 +183,6 @@ pub(crate) fn build_view(
             total: totals[p.index()],
         }
     });
-    let trick_view = |t: &CompletedTrick| TrickView {
-        cards: (0..3)
-            .map(|i| PlayedCard {
-                player: player(t.seat_of(i)),
-                card: t.cards[i],
-            })
-            .collect(),
-        winner: player(t.winner),
-        augen: t.augen(),
-    };
-    let current_trick = view
-        .current_trick
-        .cards
-        .iter()
-        .enumerate()
-        .filter_map(|(i, c)| {
-            let leader = view.current_trick.leader?;
-            c.map(|card| PlayedCard {
-                player: player(Seat::from_index(leader.index() + i)),
-                card,
-            })
-        })
-        .collect();
     let game_over = view.current_seat.is_none();
     let result = view.result.map(|result| {
         let by_seat = result.seeger_fabian();
@@ -204,8 +213,8 @@ pub(crate) fn build_view(
         hand: sort_hand(view.hand, game),
         own_skat: view.own_skat.map(|s| sort_hand(s, game)),
         declarer_cards: view.declarer_cards.map(|s| sort_hand(s, game)),
-        current_trick,
-        last_trick: view.tricks.last().map(trick_view),
+        current_trick: current_trick(view, dealer),
+        last_trick: view.tricks.last().map(|t| trick_view(t, dealer)),
         tricks_played: view.tricks.len() as u8,
         legal_actions: if series_finished {
             Vec::new()

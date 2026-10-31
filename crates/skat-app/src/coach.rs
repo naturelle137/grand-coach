@@ -18,6 +18,8 @@ use skat_coach::{
 };
 use skat_core::{Action, PlayerView};
 
+use crate::context::DecisionContext;
+
 /// How much the coach says on its own (D-08).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CoachLevel {
@@ -173,6 +175,16 @@ impl CoachResult {
     pub fn explanation(&self) -> Option<&Explanation> {
         self.outcome.as_deref().ok()
     }
+    /// A failed result for the decision of `job` (crate tests only).
+    #[cfg(test)]
+    pub(crate) fn failed(job: &CoachJob) -> CoachResult {
+        CoachResult {
+            key: job.key,
+            budget: job.budget,
+            seed: job.seed,
+            outcome: Err(Unavailable::Failed),
+        }
+    }
 }
 
 /// Why there is no advice for the current decision.
@@ -247,6 +259,17 @@ pub struct LastMove {
     pub lesson: Option<LessonContent>,
 }
 
+/// One primary moment of the debriefing with what the human saw when
+/// deciding (issue #47).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DebriefingMoment {
+    /// The moment: decision, lesson and the model's reading.
+    pub moment: Moment,
+    /// The human's view of the table at that decision, taken before the
+    /// move; never the final hand or a later fact.
+    pub context: DecisionContext,
+}
+
 /// The end-of-game debriefing (D-49).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Debriefing {
@@ -256,8 +279,8 @@ pub enum Debriefing {
         remaining: u32,
     },
     /// Zero to three primary moments with a supported lesson, one per
-    /// concept, in game order.
-    Ready(Vec<Moment>),
+    /// concept, in game order, each with its decision's snapshot.
+    Ready(Vec<DebriefingMoment>),
 }
 
 /// The coach's part of the table view.
@@ -292,7 +315,16 @@ pub struct CoachView {
 pub(crate) struct Queued {
     key: DecisionKey,
     view: Box<PlayerView>,
-    action: Action,
+    context: Box<DecisionContext>,
+}
+
+/// The review of an own decision with the snapshot taken when it was
+/// played.
+#[derive(Clone, Debug)]
+pub(crate) struct Reviewed {
+    pub(crate) key: DecisionKey,
+    pub(crate) review: MoveReview,
+    pub(crate) context: Box<DecisionContext>,
 }
 
 /// Coach state of a session.
@@ -315,8 +347,8 @@ pub(crate) struct CoachState {
     pub(crate) acknowledged: Vec<(DecisionKey, Action)>,
     /// Own decisions of this game still to analyse, oldest first.
     pub(crate) queue: Vec<Queued>,
-    /// Reviews of this game's own decisions.
-    pub(crate) reviews: Vec<(DecisionKey, MoveReview)>,
+    /// Reviews of this game's own decisions, each with its snapshot.
+    pub(crate) reviews: Vec<Reviewed>,
     /// The last own move of this game.
     pub(crate) last_move: Option<(DecisionKey, LastMove)>,
 }
@@ -338,7 +370,7 @@ impl CoachState {
         }
     }
 
-    /// Forgets the notes and reviews of the finished game.
+    /// Forgets the notes, reviews and snapshots of the finished game.
     pub(crate) fn game_changed(&mut self) {
         self.decision_changed();
         self.queue.clear();
@@ -434,11 +466,14 @@ impl CoachState {
     }
 
     /// Records the human's own action at `key` from `view` (before it is
-    /// applied): reviewed now if the analysis is there, queued otherwise.
-    pub(crate) fn record(&mut self, key: DecisionKey, view: &PlayerView, action: Action) {
+    /// applied), with its snapshot `context`: reviewed now if the analysis
+    /// is there, queued otherwise.
+    pub(crate) fn record(&mut self, key: DecisionKey, view: &PlayerView, context: DecisionContext) {
         if self.settings.level == CoachLevel::Off {
             return;
         }
+        let action = context.action;
+        let context = Box::new(context);
         let mut last = LastMove {
             action,
             bid: view.bid,
@@ -448,7 +483,7 @@ impl CoachState {
         };
         match self.result(key).map(|r| r.outcome.clone()) {
             Some(Ok(e)) => {
-                if let Some((note, lesson)) = self.store_review(key, &e, action) {
+                if let Some((note, lesson)) = self.store_review(key, &e, context) {
                     last.note = Some(note);
                     last.lesson = lesson;
                 }
@@ -458,24 +493,35 @@ impl CoachState {
             Some(Err(Unavailable::Cancelled)) | None => self.queue.push(Queued {
                 key,
                 view: Box::new(view.clone()),
-                action,
+                context,
             }),
         }
         self.last_move = Some((key, last));
     }
 
-    /// Stores the review of `action`; its note and lesson.
+    /// Stores the review of the action of `context`, with that snapshot;
+    /// its note and lesson.
     fn store_review(
         &mut self,
         key: DecisionKey,
         e: &Explanation,
-        action: Action,
+        context: Box<DecisionContext>,
     ) -> Option<(Note, Option<LessonContent>)> {
-        let r = review(e, action)?;
+        let r = review(e, context.action)?;
         let lesson = r.lesson_for(self.settings.focus).map(|t| t.content.clone());
         let out = (r.note(), lesson);
-        self.reviews.push((key, r));
+        self.reviews.push(Reviewed {
+            key,
+            review: r,
+            context,
+        });
         Some(out)
+    }
+
+    /// Number of own decisions still to analyse (crate tests only).
+    #[cfg(test)]
+    pub(crate) fn queue_len(&self) -> usize {
+        self.queue.len()
     }
 
     /// The oldest queued review job.
@@ -503,7 +549,7 @@ impl CoachState {
             }
             Ok(e) => {
                 let q = self.queue.remove(i);
-                self.store_review(q.key, e, q.action)
+                self.store_review(q.key, e, q.context)
                     .unwrap_or((Note::Uncertain, None))
             }
         };
@@ -523,10 +569,20 @@ impl CoachState {
                 remaining: self.queue.len() as u32,
             };
         }
-        let mut reviews = self.reviews.clone();
-        reviews.sort_by_key(|(k, _)| k.actions);
-        let reviews: Vec<MoveReview> = reviews.into_iter().map(|(_, r)| r).collect();
-        Debriefing::Ready(moments(&reviews, self.settings.focus))
+        let mut reviewed: Vec<&Reviewed> = self.reviews.iter().collect();
+        reviewed.sort_by_key(|r| r.key.actions);
+        let reviews: Vec<MoveReview> = reviewed.iter().map(|r| r.review.clone()).collect();
+        // Each moment keeps the snapshot of its own decision, matched by
+        // its position in `reviews`.
+        Debriefing::Ready(
+            moments(&reviews, self.settings.focus)
+                .into_iter()
+                .map(|moment| DebriefingMoment {
+                    context: (*reviewed[moment.index].context).clone(),
+                    moment,
+                })
+                .collect(),
+        )
     }
 
     pub(crate) fn job(&self, key: DecisionKey, view: PlayerView) -> CoachJob {

@@ -210,7 +210,8 @@ short note (`Good`, `AboutEqual`, `SomewhatWeaker`, `ClearlyWeaker`,
 three teachable moments (D-58, section below). The warning (`Warning`)
 carries only the chosen option and its loss.
 
-Each moment's summary names the trick and decision, the chosen action and
+Each moment shows the table of its decision (D-59). Its summary names
+the trick and decision, the chosen action and
 the model's judgement as the model's ("the model rates it clearly lower
 than …"; for an unfinished analysis that there is no rating); for a good
 moment also the trap the model rates clearly lower, without claiming the
@@ -273,9 +274,42 @@ not a validated optimum. Changing the focus after the game re-selects from
 the stored reviews without a new analysis. Fixtures:
 `skat-coach/tests/focus.rs`, `skat-app/tests/coach.rs`.
 
-Limits: concepts are the six shipped lessons; the debriefing does not
-repeat the trick or hand at the decision (historical context is #47); no
-progress or adaptation is stored.
+Limits: concepts are the six shipped lessons; no progress or adaptation
+is stored.
+
+## Decision snapshots (D-59)
+
+Each debriefing moment shows the table as the player saw it at that
+decision (issue #47). When the human acts, `skat-app` builds a
+`DecisionContext` from the human's own `PlayerView` before the action is
+applied: game number and decision, dealer and the seat of each player,
+phase, own hand (twelve cards while discarding), cards per player,
+bidding, bid, declarer, Hand or pickup, contract, Kontra/Re, the own
+discarded Skat after Drücken, an Ouvert declarer's cards once revealed,
+the completed tricks, the trick in progress and the chosen action. It is
+plain serde data and contains no other hand, no unrevealed Skat and
+nothing that happened later; a full `Game` is never kept.
+
+Lifecycle: the snapshot travels with the decision, in the review queue
+(played before the analysis finished) and with the stored review.
+`moments` reports each moment's position in the reviews (`Moment::index`),
+so `Debriefing::Ready` pairs it with its own snapshot
+(`DebriefingMoment`). A cancelled analysis keeps decision and snapshot
+queued; a failed one keeps no review; a result for another game or budget
+is rejected. The next game drops queue, reviews and snapshots; at most
+one snapshot per own decision of the current game is kept.
+
+The moment card shows decision and trick, seat, role and dealer, bid or
+contract, Kontra, the own Skat and open cards if known then, the hand
+with the chosen card(s) marked and the trick so far with the players'
+names; "History up to this decision" (collapsed) lists the bidding and
+the completed tricks. Seat names in the lesson and details follow the
+snapshot. Opening or closing sections changes neither game nor score.
+Out of scope (#12): saved replays, alternative continuations, open mode.
+Fixtures: `skat-app/src/tests.rs` (hidden-card substitution, own Skat,
+Ouvert reveal, failed reviews and cleanup), `skat-app/tests/coach.rs`
+(queued, cancelled, out-of-order and stale reviews; serde),
+`gui-egui/src/coach.rs` (a hand-written snapshot rendered in de/en).
 
 ## Session lifecycle (`skat-app`)
 
