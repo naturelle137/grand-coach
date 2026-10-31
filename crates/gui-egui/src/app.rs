@@ -21,6 +21,8 @@ use crate::text;
 
 const CARD: Vec2 = Vec2::new(78.0, 117.0);
 const SMALL_CARD: Vec2 = Vec2::new(44.0, 66.0);
+/// Cards of a debriefing moment: ten fit the coach panel's width.
+const MOMENT_CARD: Vec2 = Vec2::new(30.0, 45.0);
 /// Gap between the cards of the trick triangle.
 const TRICK_GAP: f32 = 8.0;
 /// Height of the player name below a trick card.
@@ -504,6 +506,12 @@ impl GrandCoachApp {
             if let Some(d) = debriefing {
                 show_lines(ui, &d.lines);
                 for (n, m) in d.moments.into_iter().enumerate() {
+                    show_lines(ui, std::slice::from_ref(&m.title));
+                    self.situation(ui, &m.situation);
+                    // The public history before the decision, collapsed.
+                    egui::CollapsingHeader::new(&m.situation.history_title)
+                        .id_salt(("moment_history", view.game_number, n))
+                        .show(ui, |ui| show_lines(ui, &m.situation.history));
                     show_lines(ui, &m.summary);
                     // The lesson's evidence, collapsed by default.
                     egui::CollapsingHeader::new(&m.lesson_title)
@@ -516,6 +524,40 @@ impl GrandCoachApp {
                 }
             }
             show_lines(ui, &lines);
+        });
+    }
+
+    /// The table of a debriefing moment as the player saw it then (issue
+    /// #47): facts, the hand with the chosen cards marked, and the trick in
+    /// progress with the players' names. Display only.
+    fn situation(&self, ui: &mut egui::Ui, s: &coach::SituationText) {
+        show_lines(ui, &s.lines);
+        ui.label(RichText::new(&s.hand_label).small());
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 2.0;
+            for &card in &s.hand {
+                let response = self.card_image(ui, card, MOMENT_CARD);
+                if s.chosen.contains(&card) {
+                    ui.painter().rect_stroke(
+                        response.rect.expand(1.0),
+                        3.0,
+                        egui::Stroke::new(2.0, ui.visuals().selection.stroke.color),
+                        egui::StrokeKind::Outside,
+                    );
+                }
+            }
+        });
+        if s.trick_label.is_empty() {
+            return;
+        }
+        ui.label(RichText::new(&s.trick_label).small());
+        ui.horizontal(|ui| {
+            for (player, card) in &s.trick {
+                ui.vertical(|ui| {
+                    self.card_image(ui, *card, MOMENT_CARD);
+                    ui.label(RichText::new(player).small());
+                });
+            }
         });
     }
 
@@ -1164,10 +1206,10 @@ impl GrandCoachApp {
         }
     }
 
-    fn card_image(&self, ui: &mut egui::Ui, card: Card, size: Vec2) {
+    fn card_image(&self, ui: &mut egui::Ui, card: Card, size: Vec2) -> egui::Response {
         let label = text::card(&self.i18n, card);
         ui.add(egui::Image::new(cards::image(&self.face(card))).fit_to_exact_size(size))
-            .on_hover_text(label);
+            .on_hover_text(label)
     }
 
     // ----------------------------------------------------------------------

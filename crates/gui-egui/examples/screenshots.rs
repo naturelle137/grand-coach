@@ -71,6 +71,13 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("coach-debriefing-en", coach_debriefing_en),
     ("coach-debriefing-narrow", coach_debriefing_details),
     ("coach-debriefing-en-narrow", coach_debriefing_en),
+    ("coach-debriefing-history", coach_debriefing_history),
+    ("coach-debriefing-history-narrow", coach_debriefing_history),
+    ("coach-debriefing-history-en", coach_debriefing_history_en),
+    (
+        "coach-debriefing-history-en-narrow",
+        coach_debriefing_history_en,
+    ),
     ("coach-warning", coach_warning),
     ("coach-focus", coach_focus),
     ("coach-no-lesson", coach_no_lesson),
@@ -454,7 +461,45 @@ fn coach_debriefing_en(harness: &mut Harness<'_, GrandCoachApp>) {
     open_details(harness, "Analysis details");
 }
 
-/// Opens the details of the debriefing's first moment.
+/// The debriefing scrolled to its last moment, a card-play decision: the
+/// table of that decision (hand, trick so far) and its history up to the
+/// decision open (issue #47).
+fn coach_debriefing_history(harness: &mut Harness<'_, GrandCoachApp>) {
+    coach_debriefing(harness);
+    open_last(
+        harness,
+        "Verlauf bis zu dieser Entscheidung",
+        "Analysedetails",
+    );
+}
+
+/// The same in English.
+fn coach_debriefing_history_en(harness: &mut Harness<'_, GrandCoachApp>) {
+    coach_debriefing(harness);
+    harness.state_mut().set_language(Language::En);
+    harness.run_steps(4);
+    open_last(harness, "History up to this decision", "Analysis details");
+}
+
+/// Opens the collapsed section `label` of the debriefing's last moment and
+/// scrolls the panel down to `below`, the last line after it.
+fn open_last(harness: &mut Harness<'_, GrandCoachApp>, label: &str, below: &str) {
+    let last = |harness: &Harness<'_, GrandCoachApp>, label: &str| {
+        harness
+            .get_all_by_label(label)
+            .last()
+            .expect("a moment with a history")
+            .scroll_to_me();
+    };
+    last(harness, label);
+    harness.run_steps(4);
+    harness.get_all_by_label(label).last().unwrap().click();
+    harness.run_steps(4);
+    last(harness, below);
+    harness.run_steps(4);
+}
+
+/// Opens the collapsed section `label` of the debriefing's first moment.
 fn open_details(harness: &mut Harness<'_, GrandCoachApp>, label: &str) {
     harness
         .get_all_by_label(label)

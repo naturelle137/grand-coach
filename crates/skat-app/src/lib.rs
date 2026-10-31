@@ -32,6 +32,7 @@
 //! ```
 
 mod coach;
+mod context;
 mod series;
 mod session;
 mod sort;
@@ -41,8 +42,9 @@ mod view;
 
 pub use coach::{
     Advice, CoachEvent, CoachJob, CoachLevel, CoachResult, CoachSettings, CoachView, Debriefing,
-    LastMove, Pending, Unavailable,
+    DebriefingMoment, LastMove, Pending, Unavailable,
 };
+pub use context::DecisionContext;
 pub use series::{GameRecord, ScoreSheet, SeriesResult};
 pub use session::{
     AppError, AppEvent, Command, OpponentJob, OpponentMove, Opponents, PlayerId, SeriesLength,

@@ -31,8 +31,11 @@ adds the pre-play lessons on own hand structure and legal game values
 coarse. Package F (#46, D-58) adds one optional learning focus, lesson-backed
 automatic hints with a neutral comparison question, skipping, and debriefing
 moments chosen by lesson, focus and concept
-([coach.md](coach.md#focus-and-teachable-moments-d-58)). No learner UAT has
-been run yet.
+([coach.md](coach.md#focus-and-teachable-moments-d-58)). Package G (#47,
+D-59) shows each debriefing moment with the hand, trick, bidding and
+history the player saw at that decision, from a permitted snapshot
+([coach.md](coach.md#decision-snapshots-d-59)). No learner UAT has been
+run yet.
 
 The milestones build on each other (see the architecture in
 [vision.md](vision.md)). A milestone is done when its "Done when …" holds.

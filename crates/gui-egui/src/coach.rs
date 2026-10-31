@@ -8,16 +8,18 @@
 //! exact facts such as counted cards, Augen and bid values always do. A
 //! debriefing moment shows a short summary without any estimate; the
 //! comparison, figures, facts and assumptions are its details (D-52).
+//! Each moment shows the table as the player saw it at that decision, from
+//! its snapshot only (issue #47).
 
 use skat_app::coach_model::{
     Abstich, Amount, Assumption, Basis, CardClass, Certainty, ComparedOption, Concept,
     Consideration, ContractValue, Decision, Estimate, Follow, Hints, Judgement, LessonContent,
-    Moment, MomentKind, MoveReview, Note, Objective, Observation, Overtake, Place, Range, Reach,
-    Reason, Role, Situation, SkatState, Spitzen, Stage, Structure, TrumpfSets, Warning,
+    MomentKind, MoveReview, Note, Objective, Observation, Overtake, Place, Range, Reach, Reason,
+    Role, Situation, SkatState, Spitzen, Stage, Structure, TrumpfSets, Warning,
 };
 use skat_app::{
-    Action, CardSet, Contract, Debriefing, GameType, LastMove, PlayerId, Seat, TableView,
-    Unavailable,
+    Action, Card, CardSet, Contract, Debriefing, DebriefingMoment, DecisionContext, GameType,
+    LastMove, Phase, PlayerId, Seat, TableView, Unavailable,
 };
 
 use crate::i18n::I18n;
@@ -1135,10 +1137,173 @@ fn chosen(i18n: &I18n, r: &MoveReview, name: &dyn Fn(Action) -> String) -> Strin
     )
 }
 
-/// One moment of the debriefing: a short summary, its lesson's evidence
-/// and its analysis details.
+/// The table at a debriefing moment as the player saw it then (issue
+/// #47): from the decision's snapshot only, never the final hand or a
+/// later fact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SituationText {
+    /// Seat, role and dealer; bid or contract; Kontra; own Skat and open
+    /// cards when known then.
+    pub lines: Vec<Line>,
+    /// Label of the hand.
+    pub hand_label: String,
+    /// The player's cards before the move, in display order.
+    pub hand: Vec<Card>,
+    /// The cards of the chosen action (played or discarded), marked in
+    /// the hand.
+    pub chosen: Vec<Card>,
+    /// Label of the trick in progress; empty before card play.
+    pub trick_label: String,
+    /// The trick in progress then: player name and card, in play order.
+    pub trick: Vec<(String, Card)>,
+    /// Heading of the history; collapsed by default.
+    pub history_title: String,
+    /// The bidding and the completed tricks before the decision.
+    pub history: Vec<Line>,
+}
+
+/// The table of the moment's snapshot as text and cards.
+fn situation(i18n: &I18n, role: Role, c: &DecisionContext) -> SituationText {
+    let name = |p: PlayerId| text::player(i18n, p);
+    let card_of = |p: PlayerId, card: Card| {
+        i18n.tf(
+            "coach-context-card",
+            &[
+                ("player", name(p).into()),
+                ("card", text::card(i18n, card).into()),
+            ],
+        )
+    };
+    // Already in display order.
+    let cards = |cards: &[Card]| {
+        let names: Vec<String> = cards.iter().map(|&c| text::card(i18n, c)).collect();
+        names.join(", ")
+    };
+    let mut lines = vec![line(
+        i18n.tf(
+            "coach-context-position",
+            &[
+                ("seat", text::seat(i18n, c.seat(PlayerId::HUMAN)).into()),
+                ("role", self::role(i18n, role).into()),
+                ("dealer", name(c.dealer).into()),
+            ],
+        ),
+        Style::Normal,
+    )];
+    lines.push(line(
+        match (c.declarer, c.contract) {
+            (Some(p), Some(k)) => i18n.tf(
+                "coach-context-contract",
+                &[
+                    ("game", text::contract(i18n, k).into()),
+                    ("player", name(p).into()),
+                    ("value", c.bid.into()),
+                ],
+            ),
+            (Some(p), None) => i18n.tf(
+                "coach-context-declarer",
+                &[("player", name(p).into()), ("value", c.bid.into())],
+            ),
+            _ if c.bid > 0 => i18n.tf("coach-context-bid", &[("value", c.bid.into())]),
+            _ => i18n.t("coach-context-no-bid"),
+        },
+        Style::Normal,
+    ));
+    if let Some(level) = text::kontra(i18n, c.kontra) {
+        lines.push(line(
+            i18n.tf("coach-context-kontra", &[("level", level.into())]),
+            Style::Normal,
+        ));
+    }
+    if let Some(skat) = &c.own_skat {
+        lines.push(line(
+            i18n.tf("coach-context-own-skat", &[("cards", cards(skat).into())]),
+            Style::Normal,
+        ));
+    }
+    if let (Some(open), Some(p)) = (&c.declarer_cards, c.declarer) {
+        lines.push(line(
+            i18n.tf(
+                "coach-context-open",
+                &[("player", name(p).into()), ("cards", cards(open).into())],
+            ),
+            Style::Normal,
+        ));
+    }
+    let trick_label = match c.trick() {
+        Some(t) if c.current_trick.is_empty() => {
+            i18n.tf("coach-context-lead", &[("trick", t.into())])
+        }
+        Some(t) => i18n.tf("coach-context-trick", &[("trick", t.into())]),
+        None => String::new(),
+    };
+    let mut history = vec![line(
+        if c.bidding.is_empty() {
+            i18n.t("coach-context-no-calls")
+        } else {
+            let calls: Vec<String> = c
+                .bidding
+                .iter()
+                .map(|&(p, call)| {
+                    i18n.tf(
+                        "coach-context-call",
+                        &[
+                            ("player", name(p).into()),
+                            ("call", text::call(i18n, call).into()),
+                        ],
+                    )
+                })
+                .collect();
+            i18n.tf("coach-context-calls", &[("calls", calls.join(", ").into())])
+        },
+        Style::Normal,
+    )];
+    if c.phase == Phase::Spiel && c.tricks.is_empty() {
+        history.push(line(i18n.t("coach-context-no-tricks"), Style::Normal));
+    }
+    for (n, t) in c.tricks.iter().enumerate() {
+        let played: Vec<String> = t.cards.iter().map(|p| card_of(p.player, p.card)).collect();
+        history.push(line(
+            i18n.tf(
+                "coach-context-past-trick",
+                &[
+                    ("trick", (n + 1).into()),
+                    ("cards", played.join(", ").into()),
+                    ("winner", name(t.winner).into()),
+                    ("augen", t.augen.into()),
+                ],
+            ),
+            Style::Normal,
+        ));
+    }
+    SituationText {
+        lines,
+        hand_label: i18n.t("coach-context-hand"),
+        hand: c.hand.clone(),
+        chosen: match c.action {
+            Action::Play(card) => vec![card],
+            Action::Discard(cards) => cards.iter().collect(),
+            _ => Vec::new(),
+        },
+        trick_label,
+        trick: c
+            .current_trick
+            .iter()
+            .map(|p| (name(p.player), p.card))
+            .collect(),
+        history_title: i18n.t("coach-context-history"),
+        history,
+    }
+}
+
+/// One moment of the debriefing: a short summary, the table then, its
+/// lesson's evidence and its analysis details.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MomentText {
+    /// Trick and decision (and the focus mark).
+    pub title: Line,
+    /// The table as the player saw it at the decision.
+    pub situation: SituationText,
     /// What was decided, how the model rates it and the lesson's checking
     /// question; never an estimate.
     pub summary: Vec<Line>,
@@ -1155,12 +1320,21 @@ pub struct MomentText {
 /// choice and the model's judgement, then the moment's lesson (question
 /// context, evidence, exception, transfer question), and says honestly
 /// that the lesson does not explain the model's rating: score differences
-/// are no cause and stay in the details (D-52).
-fn moment(i18n: &I18n, view: &TableView, m: &Moment, figures: bool) -> MomentText {
+/// are no cause and stay in the details (D-52). The table, trick number
+/// and seat labels come from the moment's snapshot (issue #47).
+fn moment(i18n: &I18n, view: &TableView, dm: &DebriefingMoment, figures: bool) -> MomentText {
+    let (m, c) = (&dm.moment, &dm.context);
     let r = &m.review;
+    // Seat names in the lesson and the facts follow the seats of the
+    // decision's game, whatever the table shows now.
+    let mut view = view.clone();
+    for p in &mut view.players {
+        p.seat = c.seat(p.player);
+    }
+    let view = &view;
     let name = |a: Action| action_at(i18n, r.bid, r.hand_game, a);
     let mut what = decision(i18n, r.decision);
-    if let Some(trick) = r.trick {
+    if let Some(trick) = c.trick() {
         what = format!(
             "{} · {what}",
             i18n.tf("coach-moment-trick", &[("trick", trick.into())])
@@ -1169,10 +1343,8 @@ fn moment(i18n: &I18n, view: &TableView, m: &Moment, figures: bool) -> MomentTex
     if m.focused {
         what = format!("{what} · {}", i18n.t("coach-moment-focus"));
     }
-    let mut summary = vec![
-        line(what, Style::Heading),
-        line(chosen(i18n, r, &name), Style::Strong),
-    ];
+    let title = line(what, Style::Heading);
+    let mut summary = vec![line(chosen(i18n, r, &name), Style::Strong)];
     let trap = r.trap.as_ref().filter(|_| m.kind == MomentKind::Good);
     if let Some(trap) = trap {
         summary.push(line(
@@ -1246,6 +1418,8 @@ fn moment(i18n: &I18n, view: &TableView, m: &Moment, figures: bool) -> MomentTex
             .map(below),
     );
     MomentText {
+        title,
+        situation: situation(i18n, r.role, c),
         summary,
         lesson_title,
         lesson: evidence,
@@ -1317,10 +1491,10 @@ pub fn unavailable(i18n: &I18n, reason: Unavailable) -> String {
 mod tests {
     use super::*;
     use crate::i18n::Language;
-    use skat_app::coach_model::{self as model, Explanation};
+    use skat_app::coach_model::{self as model, Explanation, Moment};
     use skat_app::{
-        Budget, Card, CoachLevel, CoachSettings, Command, Level, Opponents, Phase, Rank, Seat,
-        SeriesLength, Session, SessionConfig, Suit,
+        Budget, Call, Card, CoachLevel, CoachSettings, Command, KontraLevel, Level, Opponents,
+        Phase, PlayedCard, Rank, Seat, SeriesLength, Session, SessionConfig, Suit, TrickView,
     };
 
     /// Explanations of the human's card-play decisions in a seeded series.
@@ -1369,6 +1543,55 @@ mod tests {
         out
     }
 
+    /// Each moment with the snapshot `context` makes for its chosen action.
+    fn with_contexts(
+        moments: Vec<Moment>,
+        context: impl Fn(Action) -> DecisionContext,
+    ) -> Vec<DebriefingMoment> {
+        moments
+            .into_iter()
+            .map(|moment| DebriefingMoment {
+                context: DecisionContext {
+                    action: moment.review.chosen.action,
+                    ..context(moment.review.chosen.action)
+                },
+                moment,
+            })
+            .collect()
+    }
+
+    /// The snapshot of the human's decision shown by `view`.
+    fn context_of(view: &TableView) -> DecisionContext {
+        DecisionContext {
+            game_number: view.game_number,
+            actions: 0,
+            dealer: view.dealer,
+            seats: view.players.map(|p| p.seat),
+            phase: view.phase,
+            hand: view.hand.clone(),
+            hand_sizes: view.players.map(|p| p.cards),
+            bidding: view.bidding.clone(),
+            bid: view.bid,
+            declarer: view.declarer,
+            hand_game: view.hand_game,
+            contract: view.contract,
+            kontra: view.kontra,
+            own_skat: view.own_skat.clone(),
+            declarer_cards: view.declarer_cards.clone(),
+            // Only the last trick is on the table; the count is right.
+            tricks: vec![
+                view.last_trick.clone().unwrap_or(TrickView {
+                    cards: Vec::new(),
+                    winner: PlayerId::HUMAN,
+                    augen: 0,
+                });
+                usize::from(view.tricks_played)
+            ],
+            current_trick: view.current_trick.clone(),
+            action: Action::Pass,
+        }
+    }
+
     fn joined(lines: &[Line]) -> String {
         lines
             .iter()
@@ -1389,7 +1612,7 @@ mod tests {
             .iter()
             .filter_map(|&a| model::review(e, a))
             .collect();
-        let moments = model::moments(&reviews, None);
+        let moments = with_contexts(model::moments(&reviews, None), |_| context_of(view));
         out.push(flat(&debriefing(
             i18n,
             view,
@@ -1403,6 +1626,9 @@ mod tests {
     fn flat(d: &DebriefingText) -> Vec<Line> {
         let mut out = d.lines.clone();
         for m in &d.moments {
+            out.push(m.title.clone());
+            out.extend(m.situation.lines.iter().cloned());
+            out.extend(m.situation.history.iter().cloned());
             out.extend(m.summary.iter().cloned());
             out.push(line(m.lesson_title.clone(), Style::Heading));
             out.extend(m.lesson.iter().cloned());
@@ -1679,12 +1905,216 @@ mod tests {
         }
     }
 
+    const fn card(suit: Suit, rank: Rank) -> Card {
+        Card::new(suit, rank)
+    }
+
+    /// The hand of the fixture decision: six cards before trick 5.
+    const FIXTURE_HAND: [Card; 6] = [
+        BEST,
+        card(Suit::Pik, Rank::Dame),
+        TRAP,
+        card(Suit::Herz, Rank::Koenig),
+        MIDDLE,
+        card(Suit::Karo, Rank::Zehn),
+    ];
+
+    /// The snapshot of the fixture decision: game 1, player 1 (Links) deals,
+    /// so the human sits in Mittelhand and Rechts in Vorhand. Rechts won
+    /// the bidding at 18, plays Grand with Kontra, has won the first four
+    /// tricks and led Herz-Ass to trick 5.
+    fn fixture_context(action: Action) -> DecisionContext {
+        let (human, left, right) = (PlayerId::HUMAN, PlayerId(1), PlayerId(2));
+        let trick = |cards: [Card; 3], augen| TrickView {
+            cards: [right, human, left]
+                .into_iter()
+                .zip(cards)
+                .map(|(player, card)| PlayedCard { player, card })
+                .collect(),
+            winner: right,
+            augen,
+        };
+        DecisionContext {
+            game_number: 1,
+            actions: 17,
+            dealer: left,
+            seats: [Seat::Mittelhand, Seat::Hinterhand, Seat::Vorhand],
+            phase: Phase::Spiel,
+            hand: FIXTURE_HAND.to_vec(),
+            hand_sizes: [6, 6, 5],
+            bidding: vec![
+                (human, Call::Bid(18)),
+                (right, Call::Hold(18)),
+                (human, Call::Pass),
+                (left, Call::Pass),
+            ],
+            bid: 18,
+            declarer: Some(right),
+            hand_game: Some(false),
+            contract: Some(Contract::new(
+                skat_app::Announcement::plain(GameType::Grand),
+                false,
+            )),
+            kontra: KontraLevel::Kontra,
+            own_skat: None,
+            declarer_cards: None,
+            tricks: vec![
+                trick(
+                    [
+                        card(Suit::Kreuz, Rank::Ass),
+                        card(Suit::Kreuz, Rank::Sieben),
+                        card(Suit::Kreuz, Rank::Zehn),
+                    ],
+                    21,
+                ),
+                trick(
+                    [
+                        card(Suit::Pik, Rank::Bube),
+                        card(Suit::Karo, Rank::Bube),
+                        card(Suit::Karo, Rank::Sieben),
+                    ],
+                    4,
+                ),
+                trick(
+                    [
+                        card(Suit::Pik, Rank::Ass),
+                        card(Suit::Pik, Rank::Acht),
+                        card(Suit::Pik, Rank::Zehn),
+                    ],
+                    21,
+                ),
+                trick(
+                    [
+                        card(Suit::Karo, Rank::Ass),
+                        card(Suit::Karo, Rank::Acht),
+                        card(Suit::Karo, Rank::Koenig),
+                    ],
+                    15,
+                ),
+            ],
+            current_trick: vec![PlayedCard {
+                player: right,
+                card: card(Suit::Herz, Rank::Ass),
+            }],
+            action,
+        }
+    }
+
+    #[test]
+    fn a_moment_shows_the_table_of_its_decision_not_the_current_one() {
+        // The current table: a new deal, the human in Vorhand, no bid.
+        let view = table();
+        assert_eq!(view.players[0].seat, Seat::Vorhand);
+        assert_ne!(view.hand, FIXTURE_HAND);
+        for (language, expected) in [
+            (
+                Language::De,
+                [
+                    "Stich 5 · Karte spielen",
+                    "Damals: du in Mittelhand, du bist Gegenspieler; Geber Links.",
+                    "Spiel: Grand von Rechts, gereizt bis 18",
+                    "Angesagt: Kontra",
+                    "Deine Karten vor dem Zug:",
+                    "Stich 5 bis dahin:",
+                    "Rechts",
+                    "Verlauf bis zu dieser Entscheidung",
+                    "Reizverlauf: Du 18, Rechts Ja (18), Du Passe, Links Passe",
+                    "Stich 1: Rechts Kreuz-Ass, Du Kreuz-Sieben, Links Kreuz-Zehn – Rechts sticht (21 Augen)",
+                    "Stich 4: Rechts Karo-Ass, Du Karo-Acht, Links Karo-König – Rechts sticht (15 Augen)",
+                    "Links hat vermutlich etwa einen der",
+                ],
+            ),
+            (
+                Language::En,
+                [
+                    "Trick 5 · Play a card",
+                    "Then: you in Middlehand, you are a defender; dealer Left.",
+                    "Game: Grand by Right, bid 18",
+                    "Announced: Kontra",
+                    "Your cards before the move:",
+                    "Trick 5 so far:",
+                    "Right",
+                    "History up to this decision",
+                    "Bidding so far: You 18, Right Yes (18), You Pass, Left Pass",
+                    "Trick 1: Right Ace of Clubs, You Seven of Clubs, Left Ten of Clubs – Right takes it (21 card points)",
+                    "Trick 4: Right Ace of Diamonds, You Eight of Diamonds, Left King of Diamonds – Right takes it (15 card points)",
+                    "Left probably holds about one of",
+                ],
+            ),
+        ] {
+            let i18n = I18n::new(language);
+            let d = debriefing(&i18n, &view, &ready(&[weak()]), false);
+            let m = &d.moments[0];
+            let s = &m.situation;
+            assert_eq!(m.title.text, expected[0]);
+            assert_eq!(texts(&s.lines), expected[1..4]);
+            assert_eq!(s.hand_label, expected[4]);
+            assert_eq!(s.hand, FIXTURE_HAND);
+            assert_eq!(s.chosen, [TRAP], "the chosen card is marked");
+            assert_eq!(s.trick_label, expected[5]);
+            let led = card(Suit::Herz, Rank::Ass);
+            assert_eq!(s.trick, [(expected[6].to_owned(), led)]);
+            assert_eq!(s.history_title, expected[7]);
+            assert_eq!(s.history.len(), 5, "the bidding and four tricks");
+            assert_eq!(s.history[0].text, expected[8]);
+            assert_eq!(s.history[1].text, expected[9]);
+            assert_eq!(s.history[4].text, expected[10]);
+            // The facts name the seats of that game: Hinterhand was Links.
+            assert!(joined(&m.details).contains(expected[11]), "{:?}", m.details);
+        }
+    }
+
+    #[test]
+    fn a_situation_before_card_play_shows_no_trick_and_what_was_known() {
+        let i18n = I18n::new(Language::De);
+        let skat = vec![card(Suit::Herz, Rank::Acht), card(Suit::Karo, Rank::Neun)];
+        let c = DecisionContext {
+            phase: Phase::Ansage,
+            hand: FIXTURE_HAND.to_vec(),
+            bidding: vec![(PlayerId::HUMAN, Call::Bid(18)), (PlayerId(2), Call::Pass)],
+            declarer: Some(PlayerId::HUMAN),
+            contract: None,
+            kontra: KontraLevel::None,
+            own_skat: Some(skat),
+            tricks: Vec::new(),
+            current_trick: Vec::new(),
+            ..fixture_context(Action::Pass)
+        };
+        let s = situation(&i18n, Role::Declarer, &c);
+        assert_eq!(
+            texts(&s.lines),
+            [
+                "Damals: du in Mittelhand, du bist Alleinspieler; Geber Links.",
+                "Alleinspieler: Du, gereizt bis 18",
+                "Gedrückt: Herz-Acht, Karo-Neun",
+            ]
+        );
+        assert!(s.trick_label.is_empty() && s.trick.is_empty() && s.chosen.is_empty());
+        assert_eq!(texts(&s.history), ["Reizverlauf: Du 18, Rechts Passe"]);
+        // Ouvert cards and the lead of a trick.
+        let open = vec![card(Suit::Kreuz, Rank::Ass)];
+        let c = DecisionContext {
+            own_skat: None,
+            declarer_cards: Some(open),
+            tricks: Vec::new(),
+            current_trick: Vec::new(),
+            ..fixture_context(Action::Play(BEST))
+        };
+        let s = situation(&i18n, Role::Defender, &c);
+        assert_eq!(s.lines[3].text, "Offene Karten von Rechts: Kreuz-Ass");
+        assert_eq!(s.trick_label, "Du spielst Stich 1 an.");
+        assert_eq!(texts(&s.history)[1], "Noch kein Stich gespielt.");
+    }
+
     fn table() -> TableView {
         Session::new(SessionConfig::default()).view()
     }
 
     fn ready(reviews: &[model::MoveReview]) -> Debriefing {
-        Debriefing::Ready(model::moments(reviews, None))
+        Debriefing::Ready(with_contexts(
+            model::moments(reviews, None),
+            fixture_context,
+        ))
     }
 
     /// Estimated figures of the fixture, as the frontend formats them.
@@ -1776,11 +2206,12 @@ mod tests {
             let d = debriefing(&i18n, &view, &ready(&[weak()]), false);
             assert_eq!(d.moments.len(), 1);
             let summary = &d.moments[0].summary;
-            assert_eq!(texts(&summary[..2]), [head, chosen]);
+            let title = d.moments[0].title.text.as_str();
+            assert_eq!((title, summary[0].text.as_str()), (head, chosen));
             let (title, questions, evidence) = lesson_lines(&i18n, &view);
             assert!(!questions.is_empty() && !evidence.is_empty());
             // The checking question in the summary, the evidence apart.
-            assert_eq!(summary[2..summary.len() - 1], questions[..]);
+            assert_eq!(summary[1..summary.len() - 1], questions[..]);
             assert_eq!(summary.last().unwrap().text, apart);
             assert_eq!(d.moments[0].lesson_title, title);
             assert_eq!(d.moments[0].lesson, evidence);
@@ -1796,8 +2227,10 @@ mod tests {
         for language in Language::ALL {
             let i18n = I18n::new(language);
             let reviews = [uncertain()];
-            let focused =
-                Debriefing::Ready(model::moments(&reviews, Some(Concept::RemainingTrumpf)));
+            let focused = Debriefing::Ready(with_contexts(
+                model::moments(&reviews, Some(Concept::RemainingTrumpf)),
+                fixture_context,
+            ));
             for (d, focus) in [(ready(&reviews), false), (focused, true)] {
                 let d = debriefing(&i18n, &view, &d, true);
                 assert_eq!(d.moments.len(), 1);
@@ -1807,9 +2240,12 @@ mod tests {
                     "coach-moment-chosen-provisional",
                     &[("action", text::card(&i18n, TRAP).into())],
                 );
-                assert_eq!(summary[1].text, provisional);
+                assert_eq!(summary[0].text, provisional);
                 assert_eq!(
-                    summary[0].text.ends_with(&i18n.t("coach-moment-focus")),
+                    d.moments[0]
+                        .title
+                        .text
+                        .ends_with(&i18n.t("coach-moment-focus")),
                     focus
                 );
                 assert_no_estimates(&joined(summary));
@@ -1836,7 +2272,7 @@ mod tests {
                 );
                 let trap = i18n.tf("coach-moment-trap", &[("trap", name(TRAP).into())]);
                 let texts: Vec<&str> = m.summary.iter().map(|l| l.text.as_str()).collect();
-                assert_eq!(texts[1..3], [chosen.as_str(), trap.as_str()]);
+                assert_eq!(texts[0..2], [chosen.as_str(), trap.as_str()]);
                 assert_eq!(
                     texts.last().copied(),
                     Some(i18n.t("coach-moment-no-reason").as_str())
@@ -1868,7 +2304,7 @@ mod tests {
                 let chosen: Vec<String> = d
                     .moments
                     .iter()
-                    .map(|m| m.summary[1].text.clone())
+                    .map(|m| m.summary[0].text.clone())
                     .collect();
                 let name = |c| text::card(&i18n, c);
                 assert!(chosen[0].contains(&name(BEST)), "{chosen:?}");

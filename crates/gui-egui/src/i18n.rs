@@ -257,6 +257,13 @@ mod tests {
                     "trumps",
                     "way",
                     "focus",
+                    "seat",
+                    "role",
+                    "dealer",
+                    "level",
+                    "calls",
+                    "call",
+                    "winner",
                 ] {
                     args.set(name, "x");
                 }

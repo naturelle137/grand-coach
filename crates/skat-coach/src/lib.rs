@@ -979,6 +979,9 @@ pub struct Moment {
     pub lesson: LessonContent,
     /// The decision.
     pub review: MoveReview,
+    /// Position of the decision in the `reviews` passed to [`moments`], so
+    /// a caller can attach what it kept about that decision (issue #47).
+    pub index: usize,
 }
 
 /// The primary moments of a game's own decisions (`reviews` in game
@@ -1037,6 +1040,7 @@ pub fn moments(reviews: &[MoveReview], focus: Option<Concept>) -> Vec<Moment> {
             focused: Some(taught.concept) == focus,
             lesson: taught.content.clone(),
             review: reviews[i].clone(),
+            index: i,
         })
         .collect()
 }

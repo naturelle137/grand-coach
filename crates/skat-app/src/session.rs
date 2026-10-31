@@ -11,6 +11,7 @@ use skat_core::{Action, Event, Game, Phase, RuleConfig, RuleError, Seat};
 use crate::coach::{
     CoachEvent, CoachJob, CoachResult, CoachSettings, CoachState, DecisionKey, Pending,
 };
+use crate::context::DecisionContext;
 use crate::series::{GameRecord, ScoreSheet, SeriesResult};
 use crate::view::{TableView, build_view};
 
@@ -288,7 +289,7 @@ pub struct Session {
     sheet: ScoreSheet,
     finished: bool,
     /// The live coach; it never influences deals or opponents.
-    coach: CoachState,
+    pub(crate) coach: CoachState,
 }
 
 impl Session {
@@ -441,7 +442,8 @@ impl Session {
     fn play_own(&mut self, key: DecisionKey, action: Action) -> Result<Vec<AppEvent>, AppError> {
         self.game.validate(action).map_err(AppError::Rule)?;
         let view = self.game.view(PlayerId::HUMAN.seat(self.dealer));
-        self.coach.record(key, &view, action);
+        let context = DecisionContext::new(key, self.dealer, &view, action);
+        self.coach.record(key, &view, context);
         self.apply(action)
     }
 

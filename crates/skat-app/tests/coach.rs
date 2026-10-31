@@ -9,8 +9,8 @@
 use skat_app::coach_model::{Concept, Judgement, Note, Stage, Status, hints_for};
 use skat_app::{
     Action, Advice, AppError, AppEvent, Budget, Cancel, CoachEvent, CoachLevel, CoachSettings,
-    Command, Debriefing, Level, Opponents, Pending, Phase, SeriesLength, Session, SessionConfig,
-    TableView, Unavailable,
+    Command, Debriefing, DebriefingMoment, DecisionContext, Level, Opponents, Pending, Phase,
+    SeriesLength, Session, SessionConfig, TableView, Unavailable,
 };
 
 /// Cheap but complete for card play late in a game.
@@ -720,6 +720,7 @@ fn debriefing_shows_teachable_moments_after_the_game() {
     // Zero to three moments, each with a supported lesson of its own
     // concept, never forced, in game order.
     assert!(moments.len() <= 3);
+    let moments: Vec<_> = moments.into_iter().map(|m| m.moment).collect();
     let mut concepts: Vec<Concept> = moments.iter().map(|m| m.concept).collect();
     concepts.dedup();
     assert_eq!(concepts.len(), moments.len(), "one per concept");
@@ -743,7 +744,7 @@ fn debriefing_shows_teachable_moments_after_the_game() {
     assert_eq!(game_part(&s.view()), before);
     assert!(matches!(
         s.view().coach.debriefing,
-        Some(Debriefing::Ready(m)) if m.iter().all(|m| !m.focused)
+        Some(Debriefing::Ready(m)) if m.iter().all(|m| !m.moment.focused)
     ));
     // The next game starts afresh; explicit choices, the focus included,
     // stay.
@@ -926,4 +927,167 @@ fn warnings_keep_their_semantics_with_any_focus_and_level() {
         s.execute(Command::ProceedAnyway).unwrap();
         assert_ne!(game_part(&s.view()), before);
     }
+}
+
+/// What the table showed the human at one own decision, and the action.
+#[derive(Clone, Debug)]
+struct Seen {
+    view: TableView,
+    action: Action,
+}
+
+/// `true` if `c` is exactly the snapshot of `seen`: the hand, trick,
+/// bidding, contract, seats and choice of that moment.
+fn matches(c: &DecisionContext, seen: &Seen) -> bool {
+    let v = &seen.view;
+    c.action == seen.action
+        && c.game_number == v.game_number
+        && c.dealer == v.dealer
+        && c.phase == v.phase
+        && c.hand == v.hand
+        && c.current_trick == v.current_trick
+        && c.tricks.last() == v.last_trick.as_ref()
+        && c.tricks.len() == usize::from(v.tricks_played)
+        && c.bid == v.bid
+        && c.bidding == v.bidding
+        && c.declarer == v.declarer
+        && c.hand_game == v.hand_game
+        && c.contract == v.contract
+        && c.kontra == v.kontra
+        && c.own_skat == v.own_skat
+        && c.declarer_cards == v.declarer_cards
+        && v.players.iter().all(|p| {
+            c.seat(p.player) == p.seat
+                && c.player(p.seat) == p.player
+                && c.hand_sizes[p.player.index()] == p.cards
+        })
+}
+
+/// Checks that every moment carries the snapshot of its own decision,
+/// in game order, consistent with its review; returns the matched
+/// decisions.
+fn check_moments(moments: &[DebriefingMoment], seen: &[Seen]) -> Vec<usize> {
+    let mut at = Vec::new();
+    for m in moments {
+        let found: Vec<usize> = (0..seen.len())
+            .filter(|&i| matches(&m.context, &seen[i]))
+            .collect();
+        assert_eq!(found.len(), 1, "exactly one decision: {:?}", m.context);
+        let r = &m.moment.review;
+        assert_eq!(r.chosen.action, m.context.action);
+        assert_eq!((r.bid, r.hand_game), (m.context.bid, m.context.hand_game));
+        assert_eq!(r.trick, m.context.trick());
+        at.push(found[0]);
+    }
+    assert!(at.is_sorted(), "game order: {at:?}");
+    at
+}
+
+/// Plays one game to its end without finishing any coach analysis: the
+/// jobs for the current decisions are returned, newest last.
+fn play_unanalysed(s: &mut Session) -> (Vec<Seen>, Vec<skat_app::CoachJob>) {
+    let (mut seen, mut jobs) = (Vec::new(), Vec::new());
+    loop {
+        s.run_opponents();
+        let view = s.view();
+        if view.legal_actions.is_empty() {
+            return (seen, jobs);
+        }
+        let job = s.coach_job().expect("an analysis is due");
+        assert!(!job.is_review(), "the current decision first");
+        jobs.push(job);
+        let action = simple_action(&view);
+        seen.push(Seen { view, action });
+        s.execute(Command::Act(action)).unwrap();
+    }
+}
+
+#[test]
+fn queued_and_interrupted_reviews_keep_their_own_snapshots() {
+    let (mut checked, mut partial, mut preplay) = (0, 0, 0);
+    let mut s = session(2, true);
+    s.set_coach_budget(TINY);
+    set(&mut s, CoachLevel::EveryMove, false);
+    while checked < 4 || partial == 0 || preplay == 0 {
+        assert!(!s.view().series_finished, "{checked} {partial} {preplay}");
+        let (seen, jobs) = play_unanalysed(&mut s);
+        assert_eq!(
+            s.view().coach.debriefing,
+            Some(Debriefing::Computing {
+                remaining: jobs.len() as u32
+            })
+        );
+        // Interrupted: a cancelled analysis keeps its decision queued.
+        let cancel = Cancel::new();
+        cancel.cancel();
+        for job in jobs.iter().rev() {
+            assert!(s.finish_coach(job.run(Some(&cancel))).unwrap().is_empty());
+        }
+        assert!(matches!(
+            s.view().coach.debriefing,
+            Some(Debriefing::Computing { remaining }) if remaining as usize == jobs.len()
+        ));
+        // Finished newest first: each still meets its own decision.
+        for job in jobs.iter().rev() {
+            s.finish_coach(job.run(None)).unwrap();
+        }
+        assert!(s.coach_job().is_none(), "nothing left to analyse");
+        let Some(Debriefing::Ready(moments)) = s.view().coach.debriefing else {
+            panic!("debriefing ready");
+        };
+        for i in check_moments(&moments, &seen) {
+            checked += 1;
+            partial += usize::from(!seen[i].view.current_trick.is_empty());
+            preplay += usize::from(seen[i].view.phase != Phase::Spiel);
+        }
+        // Serialisable plain data, unchanged by a round trip. The snapshots
+        // hold no floats and survive JSON text exactly; the reviews' floats
+        // lose their last digit in serde_json's text parser, so the whole
+        // view goes through a JSON value.
+        for m in &moments {
+            let json = serde_json::to_string(&m.context).unwrap();
+            assert_eq!(
+                serde_json::from_str::<DecisionContext>(&json).unwrap(),
+                m.context
+            );
+        }
+        let view = s.view();
+        let value = serde_json::to_value(&view).unwrap();
+        assert_eq!(serde_json::from_value::<TableView>(value).unwrap(), view);
+        // The final hand is not the hand of any moment.
+        if let Some(m) = moments.iter().find(|m| !m.context.hand.is_empty()) {
+            assert_ne!(m.context.hand, view.hand);
+        }
+        s.execute(Command::NextGame).unwrap();
+    }
+}
+
+#[test]
+fn reviews_never_cross_into_the_next_game() {
+    let mut s = session(3, false);
+    s.set_coach_budget(TINY);
+    set(&mut s, CoachLevel::EveryMove, false);
+    let (_, old) = play_unanalysed(&mut s);
+    assert!(!old.is_empty());
+    let number = s.view().game_number;
+    s.execute(Command::NextGame).unwrap();
+    // The new game starts without the old queue, reviews or snapshots.
+    assert_eq!(s.view().coach.debriefing, None);
+    assert!(s.coach_job().is_none_or(|j| !j.is_review()));
+    // Stale: a late result of the old game is rejected and stored nowhere.
+    for job in &old {
+        assert_eq!(
+            s.finish_coach(job.run(None)),
+            Err(AppError::StaleCoachResult)
+        );
+    }
+    let (seen, jobs) = play_unanalysed(&mut s);
+    for job in &jobs {
+        s.finish_coach(job.run(None)).unwrap();
+    }
+    let Some(Debriefing::Ready(moments)) = s.view().coach.debriefing else {
+        panic!("debriefing ready");
+    };
+    check_moments(&moments, &seen);
+    assert!(moments.iter().all(|m| m.context.game_number == number + 1));
 }

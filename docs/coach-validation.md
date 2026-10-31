@@ -5,8 +5,8 @@ Status: protocol prepared for M5 (issue
 2026-10-31. Shipped lessons: `proven-void` and `remaining-trumpf` (#43,
 D-55), `trumpf-vulnerability` and `partner-overtake` (#44, D-56),
 `hand-structure` and `game-value` (#45, D-57); focus and
-moment selection without new lessons (#46, D-58); no
-learner session has been run. M8 execution: issue
+moment selection without new lessons (#46, D-58); historical decision
+snapshots in the debriefing (#47, D-59); no learner session has been run. M8 execution: issue
 [#54](https://github.com/naturelle137/grand-coach/issues/54). Concept:
 [coach-didactics.md](coach-didactics.md); contract:
 [analysis.md](analysis.md#evidence-for-lessons).
