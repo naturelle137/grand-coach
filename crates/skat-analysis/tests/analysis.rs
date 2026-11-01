@@ -12,7 +12,7 @@ use skat_analysis::sampling::Place;
 use skat_analysis::sampling::World;
 use skat_analysis::{
     Analysis, Budget, Cancel, CardClass, Estimate, Status, analyze, analyze_forgetful,
-    analyze_known,
+    analyze_known, with_max_threads,
 };
 use skat_core::{
     Action, Announcement, CardSet, Deal, Game, GameType, Phase, PlayerView, RuleConfig, Seat, Suit,
@@ -369,6 +369,11 @@ fn same_inputs_same_result() {
     let b = analyze(&view, SMALL, 11, None).unwrap();
     assert_eq!(a, b);
     assert_eq!(a.effort.seed, 11);
+    // A thread limit changes the scheduling, not the result.
+    let one = with_max_threads(std::num::NonZeroUsize::MIN, || {
+        analyze(&view, SMALL, 11, None).unwrap()
+    });
+    assert_eq!(a, one);
 }
 
 #[test]
