@@ -32,7 +32,8 @@ fn hyper() -> Hyper {
     Hyper {
         hidden: 16,
         batch: 32,
-        epochs: 3,
+        epochs: 6,
+        learning_rate: 1e-2,
         ..Hyper::default()
     }
 }
@@ -121,6 +122,23 @@ fn examples_are_the_card_play_decisions_with_their_targets() {
         spread |= t.len() > 1 && t.iter().all(|&p| p > 0.0);
     }
     assert!(spread, "complete analyses give soft targets");
+    // Option targets: the teacher's expected points and win chance per
+    // legal action; with `value_mix` 1 the value is the chosen option's.
+    let mut with_options = 0;
+    for row in 0..e.rows() {
+        let range = e.offsets[row]..e.offsets[row + 1];
+        assert!(
+            e.option_win[range.clone()]
+                .iter()
+                .all(|w| (0.0..=1.0).contains(w))
+        );
+        if e.has_options[row] {
+            with_options += 1;
+            let chosen = range.start + e.chosen[row] as usize;
+            assert_eq!(e.value[row], e.option_score[chosen]);
+        }
+    }
+    assert!(with_options > 0);
     assert_ne!(e.value, data.train.value);
 }
 
@@ -129,7 +147,7 @@ fn training_is_reproducible_and_resumes_exactly() {
     let a = run(&scratch("a"), None);
     let b = run(&scratch("b"), None);
     assert_eq!(a.stop, TrainStop::Finished);
-    assert_eq!(a.state.logs.len(), 3);
+    assert_eq!(a.state.logs.len(), 6);
     assert_eq!(a.model, b.model, "same recipe, same model");
     let first = a.state.logs.first().unwrap().train_loss;
     let last = a.state.logs.last().unwrap().train_loss;
@@ -141,7 +159,7 @@ fn training_is_reproducible_and_resumes_exactly() {
     assert_eq!(part.stop, TrainStop::Stopped);
     assert_eq!(part.state.logs.len(), 1);
     let resumed = run(&dir, None);
-    assert_eq!(resumed.state.logs.len(), 3);
+    assert_eq!(resumed.state.logs.len(), 6);
     assert_eq!(resumed.model, a.model, "resuming changes nothing");
     let losses = |t: &Trained| -> Vec<f64> { t.state.logs.iter().map(|l| l.train_loss).collect() };
     assert_eq!(losses(&resumed), losses(&a));

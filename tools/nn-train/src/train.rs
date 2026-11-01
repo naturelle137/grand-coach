@@ -12,6 +12,10 @@
 //! - **Value**: the seat's final Seeger-Fabian points, mixed with the
 //!   expected score of the chosen option when the teacher's analysis is
 //!   complete (share `value_mix`).
+//! - **Options** (when the teacher's analysis is complete): for every legal
+//!   action the teacher's expected Seeger-Fabian points (squared error,
+//!   weight `score_weight`) and win chance (cross-entropy on the win logit,
+//!   weight `win_weight`). Weights 0 train the policy and value only.
 //!
 //! The only model input is the encoded [`PlayerView`](skat_core::PlayerView)
 //! of the record; final points and option values are targets.
@@ -46,7 +50,7 @@ use crate::selfplay::{DecisionKind, DecisionRecord, Split};
 use crate::shards::{Manifest, read_manifest, read_shard};
 
 /// Version of the training recipe and run-directory layout.
-pub const TRAIN_FORMAT: u32 = 1;
+pub const TRAIN_FORMAT: u32 = 2;
 
 /// Phases the trained model decides; everything else stays Classic.
 pub const PHASES: Phases = Phases::SPIEL;
@@ -79,6 +83,10 @@ pub struct Hyper {
     /// Temperature of the soft teacher distribution in Seeger-Fabian
     /// points.
     pub soft_temperature: f32,
+    /// Weight of the option score loss (expected points per action).
+    pub score_weight: f32,
+    /// Weight of the option win-chance loss.
+    pub win_weight: f32,
     /// Seed of the initial weights and the example order.
     pub seed: u64,
 }
@@ -94,6 +102,8 @@ impl Default for Hyper {
             value_mix: 0.5,
             soft_weight: 0.0,
             soft_temperature: 5.0,
+            score_weight: 1.0,
+            win_weight: 1.0,
             seed: 0,
         }
     }
@@ -141,7 +151,18 @@ pub struct Metrics {
     /// Root mean squared error of the value against its target, in
     /// points.
     pub value_rmse: f64,
-    /// The training loss: policy loss plus weighted scaled value error.
+    /// Legal actions with a teacher option value.
+    pub options: usize,
+    /// Root mean squared error of the option scores against the teacher's,
+    /// in points.
+    pub score_rmse: f64,
+    /// Cross-entropy of the option win chances against the teacher's.
+    pub win_loss: f64,
+    /// Share of examples with teacher options where the action with the
+    /// highest predicted score is the teacher's.
+    pub score_agreement: f64,
+    /// The training loss: policy loss plus the weighted value, score and
+    /// win losses.
     pub loss: f64,
 }
 
@@ -259,6 +280,27 @@ pub struct Examples {
     pub chosen: Vec<u32>,
     /// Value target per row.
     pub value: Vec<f32>,
+    /// `true` if the row has teacher option values.
+    pub has_options: Vec<bool>,
+    /// Teacher's expected points per legal action (0 without options).
+    pub option_score: Vec<f32>,
+    /// Teacher's win chance per legal action (0 without options).
+    pub option_win: Vec<f32>,
+}
+
+/// Tensors of a batch.
+struct Batch {
+    features: Tensor<2>,
+    /// 0 for legal, -1e9 for illegal actions.
+    mask: Tensor<2>,
+    policy: Tensor<2>,
+    value: Tensor<2>,
+    /// 1 for legal actions with a teacher option value, else 0.
+    option_mask: Tensor<2>,
+    score: Tensor<2>,
+    win: Tensor<2>,
+    /// Number of ones in `option_mask`.
+    options: usize,
 }
 
 impl Examples {
@@ -294,6 +336,15 @@ impl Examples {
         let complete = r.teacher.status == Some(Status::Complete)
             && r.teacher.options.len() == legal.len()
             && r.teacher.options.iter().all(|o| o.estimate.is_some());
+        let wins: Vec<f64> = if complete {
+            r.teacher
+                .options
+                .iter()
+                .map(|o| o.estimate.expect("complete").win_chance)
+                .collect()
+        } else {
+            vec![0.0; legal.len()]
+        };
         let scores: Vec<f64> = if complete {
             r.teacher
                 .options
@@ -323,6 +374,14 @@ impl Examples {
             final_points
         };
         self.features.extend(encode(&r.view));
+        self.has_options.push(complete);
+        if complete {
+            self.option_score.extend(scores.iter().map(|&x| x as f32));
+        } else {
+            self.option_score
+                .extend(std::iter::repeat_n(0.0, legal.len()));
+        }
+        self.option_win.extend(wins.iter().map(|&x| x as f32));
         self.legal.extend(legal);
         self.target.extend(target);
         self.offsets.push(self.legal.len());
@@ -331,29 +390,42 @@ impl Examples {
         true
     }
 
-    /// Tensors for the rows `rows`: features, mask (0 legal, -1e9
-    /// illegal), dense policy target and value target.
-    fn batch(&self, rows: &[usize], device: &Device) -> [Tensor<2>; 4] {
+    /// Tensors for the rows `rows`.
+    fn batch(&self, rows: &[usize], device: &Device) -> Batch {
         let n = rows.len();
         let mut features = Vec::with_capacity(n * FEATURES);
         let mut mask = vec![-1e9f32; n * ACTIONS];
         let mut target = vec![0.0f32; n * ACTIONS];
+        let mut option_mask = vec![0.0f32; n * ACTIONS];
+        let mut score = vec![0.0f32; n * ACTIONS];
+        let mut win = vec![0.0f32; n * ACTIONS];
         let mut value = Vec::with_capacity(n);
+        let mut options = 0;
         for (b, &r) in rows.iter().enumerate() {
             features.extend_from_slice(&self.features[r * FEATURES..][..FEATURES]);
             for i in self.offsets[r]..self.offsets[r + 1] {
-                let a = self.legal[i] as usize;
-                mask[b * ACTIONS + a] = 0.0;
-                target[b * ACTIONS + a] = self.target[i];
+                let a = b * ACTIONS + self.legal[i] as usize;
+                mask[a] = 0.0;
+                target[a] = self.target[i];
+                if self.has_options[r] {
+                    option_mask[a] = 1.0;
+                    score[a] = self.option_score[i];
+                    win[a] = self.option_win[i];
+                    options += 1;
+                }
             }
             value.push(self.value[r]);
         }
-        [
-            tensor(features, [n, FEATURES], device),
-            tensor(mask, [n, ACTIONS], device),
-            tensor(target, [n, ACTIONS], device),
-            tensor(value, [n, 1], device),
-        ]
+        Batch {
+            features: tensor(features, [n, FEATURES], device),
+            mask: tensor(mask, [n, ACTIONS], device),
+            policy: tensor(target, [n, ACTIONS], device),
+            value: tensor(value, [n, 1], device),
+            option_mask: tensor(option_mask, [n, ACTIONS], device),
+            score: tensor(score, [n, ACTIONS], device),
+            win: tensor(win, [n, ACTIONS], device),
+            options,
+        }
     }
 }
 
@@ -468,6 +540,8 @@ pub fn initial(shape: NetShape, seed: u64) -> PolicyValueNet {
         (shape.hidden, shape.hidden),
         (shape.hidden, shape.actions),
         (shape.hidden, 1),
+        (shape.hidden, shape.actions),
+        (shape.hidden, shape.actions),
     ];
     // Values in the order `from_weights` consumes them: per layer the
     // weight matrix, then the bias.
@@ -509,62 +583,129 @@ fn from_record(shape: NetShape, bytes: Vec<u8>, device: &Device) -> io::Result<P
         .map_err(|e| io::Error::other(e.to_string()))
 }
 
-/// Policy cross-entropy and scaled squared value error per row.
-fn losses(
-    net: &PolicyValueNet,
-    [features, mask, target, value]: [Tensor<2>; 4],
-) -> (Tensor<2>, Tensor<2>, Tensor<2>, Tensor<2>) {
-    let (logits, predicted) = net.forward(features);
-    let logits = logits + mask;
-    let policy = (log_softmax(logits.clone(), 1) * target).sum_dim(1).neg();
-    let value_error = (predicted.clone() - value) / VALUE_SCALE;
-    (policy, value_error.powi_scalar(2), logits, predicted)
+/// Losses of a batch, summed per row (`[n, 1]`), with the raw outputs.
+struct Losses {
+    /// Policy cross-entropy.
+    policy: Tensor<2>,
+    /// Scaled squared value error.
+    value: Tensor<2>,
+    /// Scaled squared option score errors, summed over the row's options.
+    score: Tensor<2>,
+    /// Option win cross-entropies, summed over the row's options.
+    win: Tensor<2>,
+    /// Masked policy logits.
+    logits: Tensor<2>,
+    /// Predicted option scores.
+    scores: Tensor<2>,
+    /// Option entries in the batch.
+    options: usize,
+}
+
+impl Losses {
+    /// The training loss of the batch.
+    fn total(self, hyper: &Hyper) -> Tensor<1> {
+        let per_option = 1.0 / self.options.max(1) as f32;
+        let mut loss = self.policy.mean() + self.value.mean() * hyper.value_weight;
+        if hyper.score_weight > 0.0 {
+            loss = loss + self.score.sum() * (hyper.score_weight * per_option);
+        }
+        if hyper.win_weight > 0.0 {
+            loss = loss + self.win.sum() * (hyper.win_weight * per_option);
+        }
+        loss
+    }
+}
+
+fn losses(net: &PolicyValueNet, b: Batch) -> Losses {
+    let o = net.forward_all(b.features);
+    let logits = o.policy + b.mask;
+    let policy = (log_softmax(logits.clone(), 1) * b.policy).sum_dim(1).neg();
+    let value = ((o.value - b.value) / VALUE_SCALE).powi_scalar(2);
+    let score = (((o.score.clone() - b.score) / VALUE_SCALE).powi_scalar(2)
+        * b.option_mask.clone())
+    .sum_dim(1);
+    // Binary cross-entropy with logits, numerically stable:
+    // max(x, 0) - x t + ln(1 + e^-|x|).
+    let x = o.win;
+    let bce = x.clone().clamp_min(0.0) - x.clone() * b.win + (x.abs().neg().exp() + 1.0).log();
+    let win = (bce * b.option_mask).sum_dim(1);
+    Losses {
+        policy,
+        value,
+        score,
+        win,
+        logits,
+        scores: o.score,
+        options: b.options,
+    }
+}
+
+fn sum(t: Tensor<2>) -> f64 {
+    t.into_data()
+        .try_to_vec::<f32>()
+        .expect("f32")
+        .iter()
+        .map(|&x| f64::from(x))
+        .sum()
+}
+
+/// Index within `legal` of the highest entry of `row` (ties: first).
+fn best(row: &[f32], legal: &[u32]) -> usize {
+    let mut best = 0;
+    for (i, &a) in legal.iter().enumerate() {
+        if row[a as usize] > row[legal[best] as usize] {
+            best = i;
+        }
+    }
+    best
 }
 
 /// Metrics of `net` (on the CPU, no autodiff) on `examples`.
 pub fn evaluate(net: &PolicyValueNet, examples: &Examples, hyper: &Hyper) -> Metrics {
     let device = Device::flex();
     let rows = examples.rows();
-    let (mut policy_sum, mut value_sum, mut agree) = (0.0f64, 0.0f64, 0usize);
+    let (mut policy_sum, mut value_sum, mut score_sum, mut win_sum) = (0.0, 0.0, 0.0, 0.0);
+    let (mut agree, mut score_agree, mut options, mut with_options) = (0, 0, 0, 0);
     let all: Vec<usize> = (0..rows).collect();
     for chunk in all.chunks(EVAL_BATCH) {
-        let (policy, value, logits, _) = losses(net, examples.batch(chunk, &device));
-        policy_sum += policy
-            .into_data()
-            .try_to_vec::<f32>()
-            .expect("f32")
-            .iter()
-            .map(|&x| f64::from(x))
-            .sum::<f64>();
-        value_sum += value
-            .into_data()
-            .try_to_vec::<f32>()
-            .expect("f32")
-            .iter()
-            .map(|&x| f64::from(x))
-            .sum::<f64>();
-        let logits = logits.into_data().try_to_vec::<f32>().expect("f32");
+        let l = losses(net, examples.batch(chunk, &device));
+        options += l.options;
+        policy_sum += sum(l.policy);
+        value_sum += sum(l.value);
+        score_sum += sum(l.score);
+        win_sum += sum(l.win);
+        let logits = l.logits.into_data().try_to_vec::<f32>().expect("f32");
+        let scores = l.scores.into_data().try_to_vec::<f32>().expect("f32");
         for (b, &r) in chunk.iter().enumerate() {
-            let row = &logits[b * ACTIONS..][..ACTIONS];
             let legal = &examples.legal[examples.offsets[r]..examples.offsets[r + 1]];
-            let mut best = 0;
-            for (i, &a) in legal.iter().enumerate() {
-                if row[a as usize] > row[legal[best] as usize] {
-                    best = i;
-                }
+            let chosen = examples.chosen[r] as usize;
+            agree += usize::from(best(&logits[b * ACTIONS..][..ACTIONS], legal) == chosen);
+            if examples.has_options[r] {
+                with_options += 1;
+                score_agree +=
+                    usize::from(best(&scores[b * ACTIONS..][..ACTIONS], legal) == chosen);
             }
-            agree += usize::from(best as u32 == examples.chosen[r]);
         }
     }
     let n = rows.max(1) as f64;
+    let per_option = options.max(1) as f64;
     let policy_loss = policy_sum / n;
     let value_mse = value_sum / n;
+    let score_mse = score_sum / per_option;
+    let win_loss = win_sum / per_option;
     Metrics {
         examples: rows,
         policy_loss,
         agreement: agree as f64 / n,
         value_rmse: value_mse.sqrt() * f64::from(VALUE_SCALE),
-        loss: policy_loss + f64::from(hyper.value_weight) * value_mse,
+        options,
+        score_rmse: score_mse.sqrt() * f64::from(VALUE_SCALE),
+        win_loss,
+        score_agreement: score_agree as f64 / with_options.max(1) as f64,
+        loss: policy_loss
+            + f64::from(hyper.value_weight) * value_mse
+            + f64::from(hyper.score_weight) * score_mse
+            + f64::from(hyper.win_weight) * win_loss,
     }
 }
 
@@ -680,8 +821,7 @@ pub fn train(
         let began = Instant::now();
         let (mut sum, mut batches) = (0.0f64, 0usize);
         for chunk in order(rows, hyper.seed, epoch).chunks(hyper.batch.max(1)) {
-            let (policy, value, _, _) = losses(&net, data.train.batch(chunk, device));
-            let loss = policy.mean() + value.mean() * hyper.value_weight;
+            let loss = losses(&net, data.train.batch(chunk, device)).total(hyper);
             sum += f64::from(loss.clone().into_scalar::<f32>());
             batches += 1;
             let grads = GradientsParams::from_grads(loss.backward(), &net);

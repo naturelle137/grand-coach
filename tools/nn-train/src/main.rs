@@ -15,8 +15,9 @@
 //! cargo run --locked --release -p nn-train -- verify DIR
 //! cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR...
 //!     [--hidden N] [--batch N] [--lr X] [--epochs N] [--value-weight X]
-//!     [--value-mix X] [--soft-weight X] [--soft-temperature X] [--seed N]
-//!     [--minutes N] [--device cpu|vulkan]
+//!     [--value-mix X] [--soft-weight X] [--soft-temperature X]
+//!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
+//!     [--device cpu|vulkan]
 //! ```
 //!
 //! `smoke` is the stack smoke test of #69: it encodes the decisions of
@@ -396,6 +397,8 @@ fn train(args: &[String]) {
         value_mix: flag(args, "--value-mix", d.value_mix),
         soft_weight: flag(args, "--soft-weight", d.soft_weight),
         soft_temperature: flag(args, "--soft-temperature", d.soft_temperature),
+        score_weight: flag(args, "--score-weight", d.score_weight),
+        win_weight: flag(args, "--win-weight", d.win_weight),
         seed: flag(args, "--seed", d.seed),
     };
     let minutes: f64 = flag(args, "--minutes", 60.0);
@@ -429,13 +432,17 @@ fn train(args: &[String]) {
         |log| {
             println!(
                 "epoch {:3}: train loss {:.4}, validation loss {:.4}, policy {:.4}, \
-                 agreement {:.2} %, value RMSE {:.1}, {:.0} s",
+                 agreement {:.2} %, value RMSE {:.1}, score RMSE {:.1}, win loss {:.4}, \
+                 score agreement {:.2} %, {:.0} s",
                 log.epoch,
                 log.train_loss,
                 log.validation.loss,
                 log.validation.policy_loss,
                 100.0 * log.validation.agreement,
                 log.validation.value_rmse,
+                log.validation.score_rmse,
+                log.validation.win_loss,
+                100.0 * log.validation.score_agreement,
                 log.seconds
             );
             true
@@ -478,12 +485,16 @@ fn train(args: &[String]) {
         ("test", manifest.test),
     ] {
         println!(
-            "{name}: {} examples, loss {:.4}, policy {:.4}, agreement {:.2} %, value RMSE {:.1}",
+            "{name}: {} examples, loss {:.4}, policy {:.4}, agreement {:.2} %, value RMSE {:.1}, \
+             score RMSE {:.1}, win loss {:.4}, score agreement {:.2} %",
             m.examples,
             m.loss,
             m.policy_loss,
             100.0 * m.agreement,
-            m.value_rmse
+            m.value_rmse,
+            m.score_rmse,
+            m.win_loss,
+            100.0 * m.score_agreement
         );
     }
     println!(
@@ -568,7 +579,7 @@ fn main() {
             eprintln!(
                 "       nn-train train OUT_DIR DATA_DIR... [--hidden N] [--batch N] [--lr X] \
                  [--epochs N] [--value-weight X] [--value-mix X] [--soft-weight X] \
-                 [--soft-temperature X] [--seed N] [--minutes N] [--device cpu|vulkan]"
+                 [--soft-temperature X] [--score-weight X] [--win-weight X] [--seed N] [--minutes N] [--device cpu|vulkan]"
             );
             std::process::exit(2);
         }

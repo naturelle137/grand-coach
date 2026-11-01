@@ -30,8 +30,9 @@ use crate::actions::{ACTIONS, action_index};
 use crate::encoder::{ENCODER_VERSION, FEATURES, encode, phase_index};
 use crate::net::{NetShape, PolicyValueNet};
 
-/// Version of the model file layout.
-pub const FORMAT_VERSION: u16 = 1;
+/// Version of the model file layout. Version 2 added the option heads
+/// (expected points and win chance per action).
+pub const FORMAT_VERSION: u16 = 2;
 
 /// Size of the model file header; the weights follow it.
 pub const HEADER_BYTES: usize = 24;
@@ -152,18 +153,56 @@ pub enum Fallback {
     IllegalChoice(Action),
 }
 
-/// A model's choice for one decision. The probabilities and the value are
-/// model estimates: never exact, never Monte-Carlo samples.
+/// How a model picks its action.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Choice {
+    /// The most probable action of the policy head.
+    #[default]
+    Policy,
+    /// The action with the highest expected points of the option heads.
+    Score,
+}
+
+/// The option heads' estimate for one legal action.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OptionEstimate {
+    /// The action.
+    pub action: Action,
+    /// Expected Seeger-Fabian points of the acting seat after it.
+    pub score: f32,
+    /// Probability that the acting seat's party wins after it.
+    pub win_chance: f32,
+}
+
+/// A model's choice for one decision. The probabilities, the value and the
+/// option estimates are model estimates: never exact, never Monte-Carlo
+/// samples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Evaluation {
-    /// The chosen legal action: the most probable one, ties to the first
-    /// in the view's order.
+    /// The chosen legal action by the [`Choice`]; ties go to the first in
+    /// the view's order.
     pub action: Action,
     /// Probability of each legal action, in the view's order; illegal
     /// actions are masked out before normalisation.
     pub policy: Vec<(Action, f32)>,
     /// Estimated Seeger-Fabian points of the acting seat for this game.
     pub value: f32,
+    /// Option estimates of each legal action, in the view's order.
+    pub options: Vec<OptionEstimate>,
+}
+
+/// Raw network outputs for one feature vector.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RawOutputs {
+    /// One policy logit per action.
+    pub logits: Vec<f32>,
+    /// The value.
+    pub value: f32,
+    /// Expected points per action.
+    pub score: Vec<f32>,
+    /// Win logit per action.
+    pub win: Vec<f32>,
 }
 
 /// Serialises `net` with `header` into a model file.
@@ -295,18 +334,30 @@ impl NeuralModel {
     ///
     /// If `features` does not hold [`FEATURES`] numbers.
     pub fn forward(&self, features: Vec<f32>) -> (Vec<f32>, f32) {
+        let o = self.forward_all(features);
+        (o.logits, o.value)
+    }
+
+    /// Every raw network output for `features`.
+    ///
+    /// # Panics
+    ///
+    /// If `features` does not hold [`FEATURES`] numbers.
+    pub fn forward_all(&self, features: Vec<f32>) -> RawOutputs {
         let input: Tensor<2> =
             Tensor::from_data(TensorData::new(features, [1, FEATURES]), &self.device);
-        let (logits, value) = self.net.forward(input);
-        let logits = logits
-            .into_data()
-            .try_to_vec::<f32>()
-            .expect("the network outputs f32");
-        let value = value
-            .into_data()
-            .try_to_vec::<f32>()
-            .expect("the network outputs f32");
-        (logits, value[0])
+        let o = self.net.forward_all(input);
+        let vec = |t: Tensor<2>| {
+            t.into_data()
+                .try_to_vec::<f32>()
+                .expect("the network outputs f32")
+        };
+        RawOutputs {
+            logits: vec(o.policy),
+            value: vec(o.value)[0],
+            score: vec(o.score),
+            win: vec(o.win),
+        }
     }
 
     /// The model's decision for `view`. Only the view is read (D-23).
@@ -316,6 +367,17 @@ impl NeuralModel {
     /// The reason to fall back to Classic: an uncovered phase, no decision
     /// to take, a non-finite output, or a choice that is not legal.
     pub fn evaluate(&self, view: &PlayerView) -> Result<Evaluation, Fallback> {
+        self.evaluate_with(view, Choice::Policy)
+    }
+
+    /// The model's decision for `view`, picked by `choice`. Only the view
+    /// is read (D-23).
+    ///
+    /// # Errors
+    ///
+    /// As [`NeuralModel::evaluate`]; a non-finite option estimate of a
+    /// legal action also falls back.
+    pub fn evaluate_with(&self, view: &PlayerView, choice: Choice) -> Result<Evaluation, Fallback> {
         if view.legal_actions.is_empty() {
             return Err(Fallback::NoDecision);
         }
@@ -327,15 +389,36 @@ impl NeuralModel {
             .iter()
             .map(|&a| action_index(a).ok_or(Fallback::UnknownAction(a)))
             .collect::<Result<Vec<usize>, Fallback>>()?;
-        let (logits, value) = self.forward(encode(view));
-        if !value.is_finite() {
+        let raw = self.forward_all(encode(view));
+        if !raw.value.is_finite() {
             return Err(Fallback::NonFinite);
         }
-        let policy = masked_softmax(&logits, &indices).ok_or(Fallback::NonFinite)?;
+        let policy = masked_softmax(&raw.logits, &indices).ok_or(Fallback::NonFinite)?;
+        let options: Vec<OptionEstimate> = view
+            .legal_actions
+            .iter()
+            .zip(&indices)
+            .map(|(&action, &i)| OptionEstimate {
+                action,
+                score: raw.score[i],
+                win_chance: 1.0 / (1.0 + (-raw.win[i]).exp()),
+            })
+            .collect();
+        if options
+            .iter()
+            .any(|o| !o.score.is_finite() || !o.win_chance.is_finite())
+        {
+            return Err(Fallback::NonFinite);
+        }
+        let ranking: Vec<f32> = match choice {
+            Choice::Policy => policy.clone(),
+            Choice::Score => options.iter().map(|o| o.score).collect(),
+        };
         Ok(Evaluation {
-            action: choose(view, &policy, &indices)?,
+            action: choose(view, &ranking, &indices)?,
             policy: view.legal_actions.iter().copied().zip(policy).collect(),
-            value,
+            value: raw.value,
+            options,
         })
     }
 }
@@ -353,7 +436,7 @@ pub fn masked_softmax(logits: &[f32], indices: &[usize]) -> Option<Vec<f32>> {
     Some(exp.into_iter().map(|e| e / total).collect())
 }
 
-/// The most probable legal action (ties: first in the view's order),
+/// The legal action ranked highest (ties: first in the view's order),
 /// checked once more against the view's legal actions.
 fn choose(view: &PlayerView, policy: &[f32], indices: &[usize]) -> Result<Action, Fallback> {
     let mut best = 0;

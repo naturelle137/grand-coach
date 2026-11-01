@@ -15,7 +15,9 @@
 //! for tuning, e.g. `s6t4` (suffix `p`: analysis in card
 //! play and Kontra/Re only; `d`: also Hand, Drücken and announcement), or a
 //! learned model `nn:<path>[@<level>]` (D-07): the model file at `<path>`
-//! decides and the Classic `<level>` (default `easy`) takes every fallback.
+//! decides and the Classic `<level>` (default `easy`) takes every fallback;
+//! `nnq:` instead of `nn:` picks the action with the highest expected
+//! points of the model's option heads instead of the policy.
 //! Kontra/Re is on.
 //!
 //! Prints a Markdown summary: the mean per-deal difference of Seeger-Fabian
@@ -31,7 +33,7 @@ use rand_chacha::rand_core::{Rng, SeedableRng};
 use skat_ai::arena::{DealComparison, Interval, Tally, compare_with};
 use skat_ai::{Budget, Cancel, Decision, Level, NeuralOpponent, Opponent, Player, Profile};
 use skat_core::{PlayerView, RuleConfig, Seat};
-use skat_nn::NeuralModel;
+use skat_nn::{Choice, NeuralModel};
 
 /// Key of the deal seeds of each suite; tuning and validation never share
 /// deals.
@@ -80,7 +82,7 @@ fn profile(spec: &str) -> Profile {
 #[derive(Clone)]
 enum Side {
     Classic(Profile),
-    Neural(Arc<NeuralModel>, Profile),
+    Neural(Arc<NeuralModel>, Profile, Choice),
 }
 
 enum Seated {
@@ -99,36 +101,40 @@ impl Player for Seated {
 
 impl Side {
     fn parse(spec: &str) -> Side {
-        let Some(rest) = spec.strip_prefix("nn:") else {
+        let (rest, choice) = if let Some(rest) = spec.strip_prefix("nnq:") {
+            (rest, Choice::Score)
+        } else if let Some(rest) = spec.strip_prefix("nn:") {
+            (rest, Choice::Policy)
+        } else {
             return Side::Classic(profile(spec));
         };
         let (path, fallback) = rest.rsplit_once('@').unwrap_or((rest, "easy"));
         let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
         let hash = skat_nn::sha256(&bytes);
         let model = NeuralModel::load(&bytes, &hash).unwrap_or_else(|e| panic!("{path}: {e:?}"));
-        Side::Neural(Arc::new(model), profile(fallback))
+        Side::Neural(Arc::new(model), profile(fallback), choice)
     }
 
     fn seat(&self, seed: u64) -> Seated {
         match self {
             Side::Classic(p) => Seated::Classic(Opponent { profile: *p, seed }),
-            Side::Neural(model, p) => Seated::Neural(NeuralOpponent::new(
-                Ok(model.clone()),
-                Opponent { profile: *p, seed },
-            )),
+            Side::Neural(model, p, choice) => Seated::Neural(
+                NeuralOpponent::new(Ok(model.clone()), Opponent { profile: *p, seed })
+                    .with_choice(*choice),
+            ),
         }
     }
 
     fn describe(&self) -> String {
         match self {
             Side::Classic(p) => describe(p),
-            Side::Neural(model, p) => {
+            Side::Neural(model, p, choice) => {
                 let hash: String = model.sha256()[..8]
                     .iter()
                     .map(|b| format!("{b:02x}"))
                     .collect();
                 format!(
-                    "learned model {hash}…, hidden width {}, fallback {}",
+                    "learned model {hash}…, hidden width {}, choice {choice:?}, fallback {}",
                     model.header().shape.hidden,
                     describe(p)
                 )
