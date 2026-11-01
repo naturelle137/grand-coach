@@ -928,7 +928,9 @@ fn considerations(
 fn basis(i18n: &I18n, basis: &Basis, assumptions: &[Assumption], figures: bool) -> Vec<Line> {
     let mut out = vec![line(i18n.t("coach-section-basis"), Style::Heading)];
     out.push(line(
-        if basis.enumerated {
+        if basis.known {
+            i18n.t("coach-basis-known")
+        } else if basis.enumerated {
             i18n.t("coach-basis-exact")
         } else if figures {
             i18n.tf(
@@ -950,6 +952,7 @@ fn basis(i18n: &I18n, basis: &Basis, assumptions: &[Assumption], figures: bool) 
                     Assumption::DoubleDummyPlay => "coach-assumption-double-dummy",
                     Assumption::ContinuationPolicy => "coach-assumption-policy",
                     Assumption::BidAsLimit => "coach-assumption-bid-limit",
+                    Assumption::KnownDeal => "coach-assumption-known",
                 })
             ),
             Style::Weak,
@@ -1874,6 +1877,7 @@ mod tests {
                 planned: 24,
                 enumerated: false,
                 effective_samples: 20.0,
+                known: false,
             },
             assumptions: vec![Assumption::UniformHiddenCards, Assumption::DoubleDummyPlay],
             evidence: model::Evidence {

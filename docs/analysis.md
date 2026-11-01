@@ -13,10 +13,14 @@ in the code (`crates/skat-analysis`).
 - The only bridges from a real game to full knowledge are
   `Position::from_omniscient(&OmniscientView)` and
   `World::from_omniscient(&OmniscientView)`, for open mode, post-game
-  analysis (M7) and the Mephisto opponent (D-41). Their names and argument
-  type make every use visible.
+  analysis (M7), the Mephisto opponent (D-41) and God Mode (D-62). Their
+  names and argument type make every use visible.
 - `analyze_known(view, world, budget, cancel)` evaluates every option in
-  one given distribution, exactly. `analyze_forgetful(view, forgotten,
+  one given distribution, exactly. Its estimates are marked
+  `Effort::known` and its assumptions name `KnownDeal` instead of uniform
+  hidden cards and bidding evidence; its inferences stay those of the
+  seat's own information set (`budget.samples` distributions, seed 0), so
+  they say what the seat could deduce without seeing the cards. `analyze_forgetful(view, forgotten,
   budget, seed, cancel)` is `analyze` for a seat that does not remember
   where some played cards went (Goldfish, [ai.md](ai.md#goldfish)).
 - Results are plain data (serde behind the feature `serde`): estimates,

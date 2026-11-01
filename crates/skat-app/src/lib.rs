@@ -54,7 +54,7 @@ pub use skat_ai::{Budget, Cancel, Level};
 /// Structured coach explanations (D-13); frontends translate them.
 pub use skat_coach as coach_model;
 pub use sort::sort_hand;
-pub use view::{PlayedCard, ResultView, SeatInfo, TableView, TrickView};
+pub use view::{OpenCards, PlayedCard, ResultView, SeatInfo, TableView, TrickView};
 
 /// Core data types shown by frontends.
 pub use skat_core::{

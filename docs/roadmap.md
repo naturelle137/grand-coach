@@ -31,6 +31,11 @@ history the player saw at that decision, from a permitted snapshot
 maintainer's decision to keep the opt-in figures stage as the one
 exception to live non-disclosure.
 
+God Mode (#28, D-62) is implemented: against Mephisto, the player and the
+coach see every card, with its own card faces, back and blue table. It
+does not replace open mode (M7), in which the coach explains how the
+opponents' hands could have been deduced.
+
 ## Next work and dependencies
 
 The [neural-network epic #67](https://github.com/naturelle137/grand-coach/issues/67)
@@ -44,7 +49,7 @@ then the card-play network #73 and the selectable engine with
 difficulty levels #77. Pre-play #74, hybrid search #76, debriefing #78 and
 self-play #75 follow in any order. The epic replaces closed proposals #34
 and #35; no learned engine is shipped yet. Classic stays default and learned
-engines may ship labelled experimental (D-07, stack per D-11). It needs M1–M4 only; M6–M8, Godot (#14) and God Mode (#28) are not
+engines may ship labelled experimental (D-07, stack per D-11). It needs M1–M4 only; M6–M8 and Godot (#14) are not
 prerequisites.
 
 The independent didactic path remains #11 → #48, followed by #12, then

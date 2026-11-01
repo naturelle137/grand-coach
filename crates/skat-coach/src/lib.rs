@@ -31,9 +31,12 @@
 //! [`LessonContent::GameValue`]), never a preferred bid, game or discard.
 
 use skat_analysis::lesson::{catalogue, compare as compare_options, gather};
-use skat_analysis::{Budget, Cancel, analyze, utility};
+use skat_analysis::sampling::World;
+use skat_analysis::{Budget, Cancel, analyze, analyze_known, utility};
 pub use skat_core::Spitzen;
-use skat_core::{Action, Card, Contract, GameType, KontraLevel, Phase, PlayerView, Seat};
+use skat_core::{
+    Action, Card, Contract, GameType, KontraLevel, OmniscientView, Phase, PlayerView, Seat,
+};
 
 pub use skat_analysis::lesson::{
     Check, Claim, Comparison, Evidence, EvidenceClass, GAME_VALUE, HAND_STRUCTURE, Item, Lesson,
@@ -384,6 +387,9 @@ pub struct Basis {
     pub enumerated: bool,
     /// Effective sample size of the bidding-evidence weights.
     pub effective_samples: f64,
+    /// `true` if the options were evaluated in the real deal (God Mode,
+    /// D-62).
+    pub known: bool,
 }
 
 /// The coach's structured explanation of one decision.
@@ -1159,6 +1165,7 @@ pub fn explain(view: &PlayerView, analysis: &Analysis) -> Option<Explanation> {
             planned: analysis.effort.planned,
             enumerated: analysis.effort.enumerated,
             effective_samples: analysis.effort.effective_samples,
+            known: analysis.effort.known,
         },
         assumptions: analysis.assumptions.clone(),
         evidence: gather(view, analysis),
@@ -1180,6 +1187,22 @@ pub fn advise(
     cancel: Option<&Cancel>,
 ) -> Option<Explanation> {
     let analysis = analyze(view, budget, seed, cancel).ok()?;
+    explain(view, &analysis)
+}
+
+/// Like [`advise`], but every option is evaluated in the real deal
+/// `all`, exactly, as Mephisto does: the all-seeing coach of God Mode
+/// (D-62). Only for uses allowed to see every card. The explanation keeps
+/// every rule of [`advise`]; hints still never name the best option
+/// before the move (D-49). `None` if it is not this seat's turn, or `all`
+/// does not belong to the position of `view`.
+pub fn advise_known(
+    view: &PlayerView,
+    all: &OmniscientView,
+    budget: Budget,
+    cancel: Option<&Cancel>,
+) -> Option<Explanation> {
+    let analysis = analyze_known(view, World::from_omniscient(all), budget, cancel).ok()?;
     explain(view, &analysis)
 }
 

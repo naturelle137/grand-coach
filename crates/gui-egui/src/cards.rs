@@ -46,24 +46,48 @@ const RANKS: [&str; 8] = [
     "sieben", "acht", "neun", "zehn", "bube", "dame", "koenig", "ass",
 ];
 
-/// Path of a card face below `assets/cards/`; `mephisto` selects the
-/// Mephisto variant of the deck (D-41).
-pub fn face_path(deck: Deck, card: Card, mephisto: bool) -> String {
+/// Variant of the faces, back and table of a table mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Theme {
+    /// The ordinary faces and back.
+    Classic,
+    /// Against Mephisto (D-41).
+    Mephisto,
+    /// In God Mode (D-62).
+    God,
+}
+
+impl Theme {
+    /// All themes.
+    pub const ALL: [Theme; 3] = [Theme::Classic, Theme::Mephisto, Theme::God];
+
+    fn prefix(self) -> &'static str {
+        match self {
+            Theme::Classic => "",
+            Theme::Mephisto => "mephisto/",
+            Theme::God => "god/",
+        }
+    }
+}
+
+/// Path of a card face below `assets/cards/` in `theme`'s variant of the
+/// deck.
+pub fn face_path(deck: Deck, card: Card, theme: Theme) -> String {
     format!(
         "{}{}/{}-{}.svg",
-        if mephisto { "mephisto/" } else { "" },
+        theme.prefix(),
         deck.dir(),
         SUITS[usize::from(card.suit().index())],
         RANKS[usize::from(card.rank().index())]
     )
 }
 
-/// Path of the card back; `mephisto` selects the Mephisto back.
-pub fn back_path(mephisto: bool) -> &'static str {
-    if mephisto {
-        "mephisto/back.svg"
-    } else {
-        "back.svg"
+/// Path of the card back of `theme`.
+pub fn back_path(theme: Theme) -> &'static str {
+    match theme {
+        Theme::Classic => "back.svg",
+        Theme::Mephisto => "mephisto/back.svg",
+        Theme::God => "god/back.svg",
     }
 }
 

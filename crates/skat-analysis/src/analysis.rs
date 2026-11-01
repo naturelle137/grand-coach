@@ -196,6 +196,10 @@ pub enum Assumption {
     /// `Hold` means hold now and go on up to the policy limit or the
     /// current bid, whichever is higher.
     BidAsLimit,
+    /// The options are evaluated in the real distribution of every card
+    /// ([`analyze_known`]); replaces [`Assumption::UniformHiddenCards`] and
+    /// [`Assumption::BiddingEvidence`].
+    KnownDeal,
 }
 
 /// A class of cards whose whereabouts the opponent model estimates.
@@ -249,6 +253,9 @@ pub struct Effort {
     pub nodes: u64,
     /// The seed used for sampling.
     pub seed: u64,
+    /// `true` if the options were evaluated in one known distribution
+    /// ([`analyze_known`]) instead of the seat's information set.
+    pub known: bool,
 }
 
 /// Evaluates every legal action of `view.seat` with `budget`, sampling with
@@ -287,7 +294,10 @@ pub fn analyze_forgetful(
 /// of the hidden cards, exactly (one distribution, enumerated). With the
 /// real distribution ([`World::from_omniscient`]) this is full knowledge;
 /// only for uses that are allowed to see every card. Fails if `world` does
-/// not fit the view.
+/// not fit the view. The inferences stay those of the seat's own
+/// information set (what it could deduce without seeing the cards,
+/// `budget.samples` distributions with seed 0); the estimates are marked
+/// [`Effort::known`] and the assumptions name [`Assumption::KnownDeal`].
 pub fn analyze_known(
     view: &PlayerView,
     world: World,
@@ -317,7 +327,8 @@ fn analyze_with(
     let hidden = HiddenCards::from_view(view)?;
     let ctx = Context::new(view)?;
     let observations = observations(view);
-    let assumptions = assumptions(view.phase);
+    let known = matches!(source, Worlds::Known(_));
+    let assumptions = assumptions(view.phase, known);
     let distributions = hidden.count() as f64;
     if view.legal_actions.is_empty() {
         return Ok(Analysis {
@@ -336,6 +347,7 @@ fn analyze_with(
                 effective_samples: 0.0,
                 nodes: 0,
                 seed,
+                known,
             },
         });
     }
@@ -349,16 +361,7 @@ fn analyze_with(
             (vec![world], true)
         }
         Worlds::Sampled | Worlds::Forgetful(_) => {
-            let (mut worlds, enumerated) = match hidden.enumerate(samples) {
-                Some(all) => (all, true),
-                None => {
-                    let mut rng = ChaCha8Rng::seed_from_u64(seed);
-                    (
-                        (0..samples).map(|_| hidden.sample(&mut rng)).collect(),
-                        false,
-                    )
-                }
-            };
+            let (mut worlds, enumerated) = own_worlds(&hidden, samples, seed);
             if let Worlds::Forgetful(forgotten) = source {
                 let mut rng = ChaCha8Rng::seed_from_u64(seed ^ FORGET_STREAM);
                 let voids = Knowledge::from_view(view).voids;
@@ -428,7 +431,14 @@ fn analyze_with(
         .collect();
     let total: f64 = weights.iter().sum();
     let squares: f64 = weights.iter().map(|w| w * w).sum();
-    let inferences = inferences(view, &hidden, &worlds, &weights, enumerated);
+    let inferences = if known {
+        // What the seat could deduce from its own view, not the known deal.
+        let (own, enumerated) = own_worlds(&hidden, samples, seed);
+        let weights: Vec<f64> = own.iter().map(|w| evidence::weight(view, w)).collect();
+        inferences(view, &hidden, &own, &weights, enumerated)
+    } else {
+        inferences(view, &hidden, &worlds, &weights, enumerated)
+    };
     Ok(Analysis {
         seat: view.seat,
         phase: view.phase,
@@ -449,8 +459,25 @@ fn analyze_with(
             },
             nodes: table.nodes,
             seed,
+            known,
         },
     })
+}
+
+/// Distributions of the seat's information set: all of them if there are
+/// at most `samples`, else `samples` drawn with `seed`; and whether they
+/// were enumerated.
+fn own_worlds(hidden: &HiddenCards, samples: usize, seed: u64) -> (Vec<World>, bool) {
+    match hidden.enumerate(samples) {
+        Some(all) => (all, true),
+        None => {
+            let mut rng = ChaCha8Rng::seed_from_u64(seed);
+            (
+                (0..samples).map(|_| hidden.sample(&mut rng)).collect(),
+                false,
+            )
+        }
+    }
 }
 
 /// Stream of the random choices that place forgotten cards.
@@ -1145,12 +1172,16 @@ pub fn utility(view: &PlayerView, estimate: &Estimate) -> f64 {
     }
 }
 
-fn assumptions(phase: Phase) -> Vec<Assumption> {
-    let mut out = vec![
-        Assumption::UniformHiddenCards,
-        Assumption::BiddingEvidence,
-        Assumption::DoubleDummyPlay,
-    ];
+fn assumptions(phase: Phase, known: bool) -> Vec<Assumption> {
+    let mut out = if known {
+        vec![Assumption::KnownDeal, Assumption::DoubleDummyPlay]
+    } else {
+        vec![
+            Assumption::UniformHiddenCards,
+            Assumption::BiddingEvidence,
+            Assumption::DoubleDummyPlay,
+        ]
+    };
     if phase != Phase::Spiel {
         out.push(Assumption::ContinuationPolicy);
     }
