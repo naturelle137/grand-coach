@@ -20,10 +20,12 @@ const OUTPUT: &str = "THIRD-PARTY-NOTICES";
 
 /// Standard texts used when a crate ships no licence file, in order of
 /// preference.
-const STANDARD_TEXTS: [(&str, &str); 3] = [
+const STANDARD_TEXTS: [(&str, &str); 5] = [
     ("MIT", include_str!("../licenses/MIT.txt")),
     ("Apache-2.0", include_str!("../licenses/Apache-2.0.txt")),
     ("BSL-1.0", include_str!("../licenses/BSL-1.0.txt")),
+    ("BSD-3-Clause", include_str!("../licenses/BSD-3-Clause.txt")),
+    ("MPL-2.0", include_str!("../licenses/MPL-2.0.txt")),
 ];
 
 /// File name prefixes (lower case) of licence and notice files.
@@ -87,7 +89,11 @@ fn main() -> Result<()> {
 fn parse(package: &Value) -> Result<Crate> {
     let text = |key: &str| package[key].as_str().map(str::to_owned);
     let name = text("name").ok_or("package without name")?;
-    let license = text("license").ok_or_else(|| format!("{name} has no licence expression"))?;
+    // A crate without an SPDX expression names its licence file instead
+    // (e.g. `cfg_block`); that file is printed below like any other.
+    let license = text("license")
+        .or_else(|| text("license_file").map(|file| format!("see {file}")))
+        .ok_or_else(|| format!("{name} has no licence expression or file"))?;
     let manifest = text("manifest_path").ok_or_else(|| format!("{name} has no manifest"))?;
     Ok(Crate {
         version: text("version").ok_or_else(|| format!("{name} has no version"))?,

@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: EUPL-1.2
+[package]
+name = "nn-train"
+description = "Training tool for the Grand-Coach neural networks (not part of the app)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+skat-core.workspace = true
+skat-nn = { workspace = true, features = ["fixture"] }
+skat-ai.workspace = true
+burn = { workspace = true, features = ["autodiff", "optim", "vulkan"] }
+
+[lints]
+workspace = true
