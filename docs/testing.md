@@ -80,6 +80,15 @@ Linters missing locally are skipped with a warning; CI sets
 `sudo dnf install nodejs ShellCheck` (markdownlint runs via `npx`),
 actionlint from its [releases](https://github.com/rhysd/actionlint/releases).
 
+**CI time.** The `test` profile keeps only line tables as debuginfo
+(`Cargo.toml`): file and line in backtraces at about a quarter less
+compile time and much smaller caches. `Swatinem/rust-cache` saves caches
+on `main` only and restores them everywhere, so PR caches cannot evict
+the `main` caches from the repository's 10 GB budget. Running the test
+binaries in parallel (cargo-nextest) did not help: the 4-core runners are
+already saturated by the tests within each binary, and the longest test,
+`every_decision_and_variant_is_clickable`, bounds the test phase.
+
 ## Test levels
 
 | Level | Here | Where | Tier |

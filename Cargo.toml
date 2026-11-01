@@ -45,3 +45,6 @@ missing_docs = "warn"
 # `cargo test` fast while staying debuggable.
 [profile.test]
 opt-level = 1
+# File and line in backtraces, without full debuginfo: about a quarter
+# less compile time and much smaller CI caches (docs/testing.md).
+debug = "line-tables-only"
