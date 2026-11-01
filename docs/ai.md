@@ -133,6 +133,17 @@ Table mode `Opponents::Mephisto` in `skat-app`, decided by
   human and the coach see every card, and the GUI shows the God Mode
   faces, back and a blue table.
 
+## Neural table mode
+
+Table mode `Opponents::Neural` in `skat-app` (preview of #73): both
+opponents are `NeuralOpponent`s with the card-play model and Classic
+Strong as fallback, each deciding from its own `PlayerView`. Pre-play and
+every model fallback are Strong. `skat_app::neural_model` loads
+`card-play.gcnn` once per process from `GRAND_COACH_MODELS`,
+`assets/models` next to the executable or the workspace's
+`assets/models`, checked against `model_sha256` of `card-play.json`;
+without a model the mode plays Strong and the GUI says so.
+
 ## Information boundary and determinism
 
 - `Opponent::decide(view, cancel)` takes one seat's `PlayerView` (D-23);

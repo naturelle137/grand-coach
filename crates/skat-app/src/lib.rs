@@ -33,6 +33,7 @@
 
 mod coach;
 mod context;
+mod neural;
 mod series;
 mod session;
 mod sort;
@@ -45,6 +46,7 @@ pub use coach::{
     DebriefingMoment, LastMove, Pending, Unavailable,
 };
 pub use context::DecisionContext;
+pub use neural::{neural_model, neural_model_available};
 pub use series::{GameRecord, ScoreSheet, SeriesResult};
 pub use session::{
     AppError, AppEvent, Command, OpponentJob, OpponentMove, Opponents, PlayerId, SeriesLength,

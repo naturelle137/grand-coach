@@ -7074,6 +7074,7 @@ dependencies = [
  "skat-ai",
  "skat-coach",
  "skat-core",
+ "skat-nn",
 ]
 
 [[package]]
