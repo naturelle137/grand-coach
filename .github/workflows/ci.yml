@@ -5,7 +5,8 @@ name: CI
 # status check on `main`. The jobs only call `scripts/check.sh`, so hooks,
 # agents and CI run the same checks. `lint` always runs; compiling and
 # testing only when code files changed (no `paths:` filter, so `ci-ok` is
-# always reported).
+# always reported). Caches are saved on `main` only and restored
+# everywhere, so PR caches cannot evict them from the 10 GB budget.
 
 on:
   pull_request:
@@ -96,6 +97,8 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: scripts/check.sh test
         shell: bash
 
@@ -110,6 +113,8 @@ jobs:
         with:
           toolchain: '1.95'
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo check --locked --workspace --all-targets --all-features
 
   # Renders the frontend headlessly and keeps the PNGs as a run artifact
@@ -129,6 +134,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Install lavapipe
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
@@ -147,6 +154,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: scripts/check.sh deep
 
   ci-ok:
