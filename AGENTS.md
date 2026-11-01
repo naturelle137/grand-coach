@@ -129,7 +129,8 @@ cargo run --locked --release -p skat-ai --example latency       # AI latency per
 cargo run --locked --release -p skat-ai --example calibrate -- validation medium strong 200 10 0
 cargo run --locked --release -p skat-app --example coach_latency # coach latency
 cargo run --locked -p gui-egui --example screenshots -- DIR  # headless PNGs (D-45)
-cargo run --locked --release -p nn-train -- smoke [cpu|vulkan]  # Burn stack smoke test (#69)
+cargo run --locked --release -p nn-train -- smoke cpu  # Burn stack smoke test (#69)
+cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan  # on the GPU
 ```
 
 On Linux the window needs EGL/GL and Wayland or X11 client libraries

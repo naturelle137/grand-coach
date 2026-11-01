@@ -87,12 +87,12 @@ cargo run --locked --release -p skat-ai --example latency
 
 Learned models are trained outside the app with `tools/nn-train` (see
 [docs/ai.md](docs/ai.md#learned-engine-runtime)). The smoke test trains a
-small network on the CPU or, with `vulkan`, on the GPU and checks the
+small network on the CPU or, with `vulkan` (feature `vulkan`), on the GPU and checks the
 checkpoint round trips; `calibrate` plays a model file against a Classic
 level with the profile `nn:<file>`:
 
 ```sh
-cargo run --locked --release -p nn-train -- smoke vulkan 200 300 OUT_DIR
+cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan 200 300 OUT_DIR
 cargo run --locked --release -p skat-ai --example calibrate -- tuning nn:OUT_DIR/model.gcnn easy 20 4
 ```
 

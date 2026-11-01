@@ -300,9 +300,10 @@ in issue #69. No trained model ships yet; Classic stays the default.
   seeded random-weight fixture model (`skat_nn::fixture_model`, feature
   `fixture`), which runs in CI on Linux and Windows.
 - **Builds**: the app builds `skat-nn` with Burn's Flex backend only.
-  `tools/nn-train` adds autodiff, optimisers and Vulkan; in a workspace
-  build Cargo unifies these features, so release binaries are built with
-  `-p gui-egui`.
+  `tools/nn-train` adds autodiff and optimisers, and Vulkan with its
+  feature `vulkan` (off in the tests, [testing.md](testing.md)); in a
+  workspace build Cargo unifies these features, so release binaries are
+  built with `-p gui-egui`.
 
 Smoke test of #69 on 2026-11-01 (reference hardware of
 [analysis.md](analysis.md#latency-target-and-benchmark) plus an AMD
@@ -313,7 +314,7 @@ an empty target directory):
 |------|--------|
 | Version | Burn 0.22.1 (pinned), declared MSRV 1.95 = workspace MSRV; every compiled dependency declares at most 1.95 (CI job `msrv` builds with 1.95) |
 | CPU round trip | `nn-train smoke cpu 200 300`: 8,220 examples from 200 Easy games, loss 3.13 → 1.15 in 300 Adam steps, model file (254,748 bytes) and optimizer checkpoint round trips pass, 35 s |
-| GPU round trip | `nn-train smoke vulkan 200 300` on "AMD Radeon RX 6900 XT (RADV NAVI21)": loss 3.13 → 1.19, round trips pass, 10 s |
+| GPU round trip | `nn-train smoke vulkan 200 300` (feature `vulkan`) on "AMD Radeon RX 6900 XT (RADV NAVI21)": loss 3.13 → 1.19, round trips pass, 10 s |
 | Arena | the GPU model against Easy (`calibrate -- tuning nn:<file> easy 20 4`): 120 games without an illegal action, −29.5 ± 11.0 points per seat-game; the CPU model −44.4 ± 10.7 (untrained-quality smoke models) |
 | Build time | `grand-coach` 61 s → 97 s; `skat-nn` alone 55 s; `nn-train` 219 s |
 | Binary size | `grand-coach` 19,841,720 → 19,838,696 bytes (it does not call inference yet); a minimal program that loads a model and plays a game with it: 4,635,872 bytes against 500,392 bytes for the same game loop on `skat-core` alone, so linked CPU inference adds about 4.1 MB |

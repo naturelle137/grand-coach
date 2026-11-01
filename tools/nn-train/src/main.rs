@@ -2,10 +2,12 @@
 
 //! Training tool for the learned engines (D-07, D-11). Not part of the
 //! app; it trains the network definition of `skat-nn` with Burn's autodiff
-//! on the CPU (Flex) or on a GPU via wgpu/Vulkan.
+//! on the CPU (Flex) or, with the feature `vulkan`, on a GPU via
+//! wgpu/Vulkan.
 //!
 //! ```sh
-//! cargo run --locked --release -p nn-train -- smoke [cpu|vulkan] [GAMES] [STEPS] [OUT_DIR]
+//! cargo run --locked --release -p nn-train -- smoke cpu [GAMES] [STEPS] [OUT_DIR]
+//! cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan [GAMES] [STEPS] [OUT_DIR]
 //! cargo run --locked --release -p nn-train -- fixture SEED OUT_FILE
 //! ```
 //!
@@ -25,7 +27,7 @@ use burn::module::Module;
 use burn::optim::{AdamConfig, GradientsParams, ModuleOptimizer};
 use burn::store::ModuleRecord;
 use burn::tensor::activation::log_softmax;
-use burn::tensor::{Bytes, Device, DeviceKind, Tensor, TensorData};
+use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use skat_ai::{Level, Opponent};
 use skat_core::{Game, RuleConfig};
 use skat_nn::{
@@ -250,12 +252,19 @@ fn main() {
             let kind = args.get(1).map_or("cpu", String::as_str);
             let device = match kind {
                 "cpu" => Device::flex(),
-                "vulkan" => Device::vulkan(DeviceKind::DefaultDevice),
+                #[cfg(feature = "vulkan")]
+                "vulkan" => Device::vulkan(burn::tensor::DeviceKind::DefaultDevice),
+                #[cfg(not(feature = "vulkan"))]
+                "vulkan" => panic!("vulkan needs a build with --features vulkan"),
                 other => panic!("unknown device {other}: cpu or vulkan"),
             };
+            // Adapter names exist only with a GPU backend compiled in.
+            #[cfg(feature = "vulkan")]
             let name = device
                 .identity()
                 .map_or_else(|| kind.to_string(), |i| i.name);
+            #[cfg(not(feature = "vulkan"))]
+            let name = kind.to_string();
             let (games, steps) = (arg(&args, 2, 200u64), arg(&args, 3, 300usize));
             let start = Instant::now();
             let report = smoke(&device.autodiff(), games, steps);

@@ -13,7 +13,12 @@ publish.workspace = true
 skat-core.workspace = true
 skat-nn = { workspace = true, features = ["fixture"] }
 skat-ai.workspace = true
-burn = { workspace = true, features = ["autodiff", "optim", "vulkan"] }
+burn = { workspace = true, features = ["autodiff", "optim"] }
+
+[features]
+# GPU training via wgpu/Vulkan (`smoke vulkan`); needs a GPU adapter, so
+# the tests of `scripts/check.sh` leave it off (docs/testing.md).
+vulkan = ["burn/vulkan"]
 
 [lints]
 workspace = true

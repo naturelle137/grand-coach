@@ -37,7 +37,8 @@ snapshot; CI checks the real commit.
   markdownlint (`.markdownlint-cli2.yaml`), shellcheck, actionlint.
 - `test` (CI): clippy of the workspace with `--all-features`, clippy of
   each package with features without them, and every test including the
-  slow ones (`--include-ignored`), all `--locked`.
+  slow ones (`--include-ignored`) with all features except GPU backends,
+  all `--locked`.
 - `quick` (pre-commit): `lint`, plus clippy when code files are staged.
 - `push` (pre-push): `lint`; when code files changed since REV, clippy and
   the fast tests of the affected packages. Affected are the packages whose
@@ -56,12 +57,17 @@ snapshot; CI checks the real commit.
 Hooks skip it, CI runs it on every code change. Anything that takes
 minutes belongs in `deep`, with a small default run in `test`.
 
-**Features.** One `cargo test --workspace --all-features` covers
-everything: `skat-app` enables `serde` in every crate anyway (feature
-unification), so a workspace run without features would execute the same
-binaries. Without `serde` only derives and wire types are missing, so the
-`test` tier checks that configuration with clippy per package. If a
-feature ever changes behaviour, that package's tests also run without it.
+**Features.** One `cargo test --workspace` with every feature except GPU
+backends covers everything: `skat-app` enables `serde` in every crate
+anyway (feature unification), so a workspace run without features would
+execute the same binaries. Without `serde` only derives and wire types are
+missing, so the `test` tier checks that configuration with clippy per
+package. If a feature ever changes behaviour, that package's tests also
+run without it. GPU backends (`nn-train`'s `vulkan`) stay off in tests:
+they need a GPU adapter, which the Linux runner lacks, they would make
+Burn's default device a GPU in every crate (unification), and they double
+the compile time. Clippy still checks them with `--all-features`; GPU
+training is verified by hand (`nn-train smoke vulkan`).
 
 **Code files** (changes trigger `test`): `*.rs`, `Cargo.toml`,
 `Cargo.lock`, `rust-toolchain*`, `assets/`, `scripts/check.sh` and
