@@ -2,3 +2,5 @@
 /target/
 .tmp/
 .bash_history
+/reports/
+/research_notes/

@@ -21,9 +21,10 @@ that the task touches:
   direction, not as a description of current implementation.
 - App/GUI: the relevant analysis/coach contracts and `docs/testing.md`.
 - Verification and release: `docs/testing.md`.
-- Learned backends (#67), starting with #68: `docs/analysis.md`, `docs/ai.md`,
-  the lifecycle/latency in `docs/coach.md`, `docs/testing.md`, and the issue's
-  prerequisites. The full didactic history is not required.
+- Learned engines (#67), starting with #69/#70: D-07 and D-11 (both amended)
+  in `docs/decisions.md`, `docs/analysis.md`, `docs/ai.md`, the lifecycle/latency
+  in `docs/coach.md`, `docs/testing.md`, and the issue's prerequisites. The
+  full didactic history is not required.
 - Dependencies/assets: `docs/third-party.md` and CONTRIBUTING's licence policy.
 - German Skat terminology: `docs/glossary.md` as needed.
 
