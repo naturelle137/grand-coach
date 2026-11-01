@@ -8,23 +8,30 @@ opponents, plus an optional coach that explains the line of thought (What to
 think about? Which options? How do they compare?). Focus: card counting and
 putting yourself in the opponents' shoes.
 
-## Memory – read first
+## Reading paths
 
-- `docs/vision.md`: goals, features, scope, architecture
-- `docs/architecture.md`: design decisions inside `skat-core`
-- `docs/decisions.md`: decision log (D-xx) and open points
-- `docs/roadmap.md`: milestones and current status (update after each milestone)
-- `docs/testing.md`: test levels and the verification gate (D-30)
-- `docs/analysis.md`: analysis semantics, budgets and latency (D-37, D-38)
-- `docs/ai.md`: strength levels, calibration protocol and results (D-40)
-- `docs/coach.md`: coach evidence, important/weak policies, lifecycle (D-48)
-- `docs/coach-validation.md`: lesson evidence checklist, learner UAT (D-54)
-- `docs/third-party.md`: origin and licence of third-party files
-- `docs/glossary.md`: German Skat terms → English
-- `CONTRIBUTING.md`: branching, commits, pull requests
+Start with `docs/vision.md`, the status and next work in `docs/roadmap.md`,
+and the relevant parts of `CONTRIBUTING.md`. Then read only the contracts
+that the task touches:
 
-New fundamental decisions go into `docs/decisions.md` as a new D entry.
-Keep all documents short.
+- Core/rules: `docs/architecture.md`, relevant D entries in `docs/decisions.md`.
+- Analysis/AI: `docs/analysis.md`, `docs/ai.md`.
+- Coach: `docs/coach.md`; lessons additionally use the evidence checklist in
+  `docs/coach-validation.md`. Read `docs/coach-didactics.md` for product
+  direction, not as a description of current implementation.
+- App/GUI: the relevant analysis/coach contracts and `docs/testing.md`.
+- Verification, milestone closure or release: `docs/testing.md`, especially
+  "Technical completion and release validation" (D-61), and issue #81.
+- Learned backends (#67), starting with #68: `docs/analysis.md`, `docs/ai.md`,
+  the lifecycle/latency in `docs/coach.md`, `docs/testing.md`, and the issue's
+  prerequisites. The full didactic history is not required.
+- Dependencies/assets: `docs/third-party.md` and CONTRIBUTING's licence policy.
+- German Skat terminology: `docs/glossary.md` as needed.
+
+Historical records and raw research are optional background. New fundamental
+product, architecture or verification decisions get a D entry in
+`docs/decisions.md`; routine implementation details belong in code/PRs.
+Keep documents short. The larger documentation follow-ups are #82–#84.
 
 ## Language
 
@@ -126,6 +133,18 @@ fails otherwise. After every `Cargo.lock` change, run `cargo fetch --locked`
 and `notices`, and commit `THIRD-PARTY-NOTICES`; a test fails otherwise.
 
 ## Testing
+
+- **Technical completion versus manual validation (D-61):** for every
+  existing or new pre-1.0 feature/milestone, implement and run the required
+  automated checks now. Before technical closure, add or extend its manual
+  scenarios in [release register #81](https://github.com/naturelle137/grand-coach/issues/81)
+  with owner, functions/platforms, reproducible steps and required evidence;
+  link the handoff in the issue/PR and update the roadmap. Manual checks
+  stay pending and do not block further development. Public 1.0 readiness
+  (#13) requires actual passing records in #81 and applicable #54 results.
+  Never tick transferred manual checks as performed. Automated benchmarks,
+  calibration, model/resource gates and required target measurements are
+  not deferred. See `docs/testing.md` for closure and release rules.
 
 - Rule engine and analysis are test-driven; rule cases get unit tests with
   fixed deals and known positions.

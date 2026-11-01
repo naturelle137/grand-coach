@@ -3,10 +3,11 @@
 How the live coach of M5 explains a decision (D-48). Details are in the
 code (`crates/skat-coach`, `crates/skat-app/src/coach.rs`).
 
-Planned didactic improvements and the implementation comparison are in
+Didactic goals and the historical implementation comparison are in
 [coach-didactics.md](coach-didactics.md); agent-sized follow-up issues are
-listed in [coach-work-packages.md](coach-work-packages.md). These are planned
-changes, not a claim of current lesson coverage. Each lesson is checked
+listed in [coach-work-packages.md](coach-work-packages.md). A–G and K are
+implemented; H–J and L remain open. The sections below describe current
+lesson coverage. Each lesson is checked
 against [coach-validation.md](coach-validation.md) (D-54).
 
 ## Evidence only from the analysis
@@ -408,8 +409,10 @@ reference hardware with 20 threads:
 | Card play, trick 4 | 10 ms | 38 ms | 135 ms | 0 |
 | Card play, trick 8 | 1 ms | 1 ms | 1 ms | 0 |
 
-Card play and Kontra/Re meet the interactive target even on four
-vCPUs; the decisions before card play exceed it there. The analysis
+On this historical four-vCPU run, Kontra/Re and later card play meet the
+interactive target. First-trick card play misses the p90 target (3.9 s
+versus 3 s), although its median passes; pre-play decisions also exceed
+their targets. These are dated measurements, not a current performance guarantee. The analysis
 spreads its work over all available threads, so fewer threads mean
 longer waits. The positions also differ from the analysis benchmark:
 every bidding decision counts, not only opening calls, and the human
@@ -418,5 +421,7 @@ bids as the coach suggests. While the coach computes, the panel shows a translat
 continues for the note, unless the next own decision needs one first. The GUI test `window_stays_responsive_while_the_coach_analyses`
 checks that frames keep returning quickly during a full interactive
 analysis and that acting works meanwhile. The interactive smoke test in
-the playable application on the reference hardware is still open
-(issue #10).
+the playable application on the reference hardware is still open, transferred from
+issue #10 to [release register #81](https://github.com/naturelle137/grand-coach/issues/81)
+before public 1.0 (D-61); automated profiling/benchmarks remain due during
+development. #68 adds paced/fast-action backlog measurements.

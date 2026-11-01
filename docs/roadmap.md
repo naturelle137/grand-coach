@@ -1,22 +1,30 @@
 # Roadmap
 
-**Current status:** M4 done (opponent levels, issue #9, [ai.md](ai.md),
-D-40, D-41): the maintainer closes it with the merge, although the
-interactive smoke test of the levels is still open. The interactive smoke
-test on Windows 11 is still open (D-36,
-[testing.md](testing.md#platform-verification-m2)). M5 in progress
-(issue #10, [coach.md](coach.md), D-48): `skat-coach`, coach levels, warning and
-the egui coach panel are implemented; the coach latency is recorded on a CI
-runner and window responsiveness is tested headlessly
-([coach.md](coach.md#latency)); interactive smoke tests in the playable
-application are still open.
+**Current status:** M0–M5 are implemented. M4 opponent calibration and
+historical measurements are in [ai.md](ai.md); the M5 coach, six lessons,
+focus and historical debriefing are in [coach.md](coach.md). This is not a
+claim of current manual validation: Windows 11 interactive verification,
+M4/M5 smoke tests and learner UAT are pending in
+[release register #81](https://github.com/naturelle137/grand-coach/issues/81).
+Historical Linux M2 evidence remains in [testing.md](testing.md#platform-verification-m2).
+No learner UAT has been run.
 
-A planned didactic follow-up to the implemented coach is specified in
+**Completion rule for all milestones (D-61):** the checkboxes below track
+technical delivery with required automated verification. Before technical
+closure, add/update the milestone's owned manual scenarios in #81 and link
+the handoff from its issue/PR. Pending manual checks do not block later
+development. Public 1.0 readiness (#13) requires actual passing #81 records
+and applicable #54 learner/initial/delayed results. Automated tests,
+benchmarks, calibration and required model/target gates are not deferred.
+See [testing.md](testing.md#technical-completion-and-release-validation).
+
+The didactic direction and remaining follow-up are specified in
 [coach-didactics.md](coach-didactics.md), with bounded assignments in
 [coach-work-packages.md](coach-work-packages.md) and tracking issue
 [#39](https://github.com/naturelle137/grand-coach/issues/39). Readable review
 comes first, verified lessons next, practice/progress afterwards. The work
-refines M5–M8 and does not close their existing acceptance gates. Package A
+refines M5–M8; D-61 separates technical delivery from manual release
+acceptance. Package A
 (#41, D-52: compact debriefing, figures off by default) and package B (#42,
 D-53: evidence contract) are implemented. Package K
 (#51, D-54) prepared the evidence checklist and learner UAT protocol in
@@ -38,9 +46,35 @@ history the player saw at that decision, from a permitted snapshot
 maintainer's decision to keep the opt-in figures stage as the one
 exception to live non-disclosure. No learner UAT has been run yet.
 
-The milestones build on each other (see the architecture in
-[vision.md](vision.md)). A milestone is done when its "Done when …" holds.
-No individual tasks here.
+## Next work and dependencies
+
+Start [#68](https://github.com/naturelle137/grand-coach/issues/68) now: freeze
+the Classic reference/evaluation protocol and profile debriefing for
+[offline learned-backend epic #67](https://github.com/naturelle137/grand-coach/issues/67).
+This epic replaces closed proposals #34/#35; no learned backend is shipped yet.
+Classic stays default. Early headless research needs M1–M4, not M6–M8 manual
+acceptance, Godot (#14) or God Mode (#28). Follow each child's actual gates;
+a research no-go is not a deployment pass.
+
+The independent didactic path remains #11 → #48, followed by #12, then
+issue #13 storage/training foundations → #49 → #50 → #54 preparation.
+Actual #54 sessions and #81 follow before public 1.0. Replay metadata in
+issues #77/#78 reuses #12's delivered artifacts; model packages in #80 extend
+issue #13's packaging foundations. Neither milestone depends on speculative
+neural success.
+
+Documentation follow-ups: [#82](https://github.com/naturelle137/grand-coach/issues/82)
+(decisions/rule details, after #68 and before production integration #76),
+[#83](https://github.com/naturelle137/grand-coach/issues/83) (coach consolidation,
+after #82 and before #48/#78), then
+[#84](https://github.com/naturelle137/grand-coach/issues/84) (navigation/link
+checks, before 1.0). They do not block #68–#75.
+
+## Milestones
+
+Milestones build on delivered technical artifacts (see [vision.md](vision.md)).
+Their functional criteria below and the D-61 handoff define technical
+completion; public 1.0 retains the separate manual release gate. No tasks here.
 
 - [x] **M0 – Project foundation**
   Done when vision, decision log, CLAUDE.md, licences and contributor docs are
@@ -54,8 +88,8 @@ No individual tasks here.
 
 - [x] **M2 – First playable version**
   Done when a series against two simple opponents can be played on Linux and
-  Windows. Includes the application interface (`skat-app`), the egui
-  frontend, self-made cards with switchable card faces, and a German/English
+  Windows (interactive validation per D-61). Includes the application
+  interface (`skat-app`), the egui frontend, self-made cards with switchable card faces, and a German/English
   UI.
 
 - [x] **M3 – Analysis layer (`skat-analysis`)**
@@ -68,14 +102,15 @@ No individual tasks here.
   Done when 3–4 levels play measurably differently strong (AI-vs-AI series)
   and no level sees other players' cards.
 
-- [ ] **M5 – Live coach**
+- [x] **M5 – Live coach**
   Done when the coach shows the line of thought (considerations, options,
   evaluation with reasoning) for bidding, discarding, game choice and play,
   supports the levels off / on request / important / every move plus the
   optional pre-move warning, works in German and English, and every
   statement comes from the analysis layer. Without telling the move ahead
   (D-49): staged hints before the move, a note after it and a debriefing
-  of the good and bad moments after the game.
+  of up to three teachable moments after the game (D-58); requested figures
+  are the opt-in exception in D-60.
 
 - [ ] **M6 – Card counting**
   Done when the optional counting aid (cards played, trumps out, card points,
@@ -90,7 +125,8 @@ No individual tasks here.
 - [ ] **M8 – Training and release 1.0**
   Done when error statistics over time and the training mode work and there
   are installable packages for Linux and Windows 11 that ship
-  `THIRD-PARTY-NOTICES` (D-43).
+  `THIRD-PARTY-NOTICES` (D-43). Technical foundations may finish first;
+  final public 1.0 readiness requires #81 and #54 as described above.
 
 - [ ] **M9 – Godot frontend** (long term)
   Done when a Godot frontend (gdext) offers the same functionality via

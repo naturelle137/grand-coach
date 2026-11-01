@@ -11,7 +11,7 @@ Internationaler Skatordnung gegen zwei Computergegner. Dazu kommt ein
 abschaltbarer Live-Coach, der den **Denkweg** erklärt, nicht nur den besten
 Zug. Schwerpunkte sind Kartenzählen und das Hineinversetzen in die Gegner.
 
-### Funktionen (geplant)
+### Funktionen (vorhanden und geplant)
 
 - Skat nach ISkO, optional mit Kontra/Re, Wertung nach Seeger-Fabian
 - Gegnerstärke in Stufen (Grünschnabel, Leicht, Mittel, Stark) sowie die
@@ -31,7 +31,12 @@ Spielbare Version: eine Serie gegen zwei Computergegner, deren Stärke
 Goldfisch oder Mephisto, mit Kontra/Re, drei
 Kartenbildern und deutscher oder englischer Oberfläche. Unter Linux
 getestet, Windows 11 noch nicht.
-Fortschritt: [docs/roadmap.md](docs/roadmap.md).
+Der Live-Coach mit gestuften Hinweisen, sechs belegten Lektionen, Lernfokus
+und Rückblick auf frühere Entscheidungen ist implementiert. Kartenzählhilfe,
+Quiz, gespeicherte Replays und Trainingsmodus folgen noch. Manuelle
+Coach- und Release-Validierung stehen aus; sie werden vor Release 1.0 in
+[#81](https://github.com/naturelle137/grand-coach/issues/81) nachgeholt.
+Fortschritt und nächster Schritt (#68): [docs/roadmap.md](docs/roadmap.md).
 
 ### Systemvoraussetzungen
 
@@ -93,7 +98,7 @@ International Skat Rules against two computer opponents, plus an optional live
 coach that explains the **line of thought** rather than just the best move.
 Focus: card counting and putting yourself in the opponents' shoes.
 
-### Features (planned)
+### Features (available and planned)
 
 - Skat per ISkO, optional Kontra/Re, Seeger-Fabian scoring
 - Opponent levels (Rookie, Easy, Medium, Strong) and the modes Goldfish
@@ -112,7 +117,12 @@ Playable version: a series against two computer opponents whose strength
 (Rookie, Easy, Medium, Strong) is chosen separately, or against Goldfish or
 Mephisto, with Kontra/Re, three card
 faces and a German or English UI. Tested on Linux, not yet on Windows 11.
-Progress: [docs/roadmap.md](docs/roadmap.md).
+The live coach with staged hints, six evidence-backed lessons, learning
+focus and historical decision reviews is implemented. Counting aid, quiz,
+saved replays and training mode remain planned. Manual coach and release
+validation is pending in [#81](https://github.com/naturelle137/grand-coach/issues/81)
+before release 1.0.
+Progress and next step (#68): [docs/roadmap.md](docs/roadmap.md).
 
 ### Requirements
 

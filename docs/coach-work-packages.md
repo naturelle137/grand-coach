@@ -1,6 +1,8 @@
 # Didactic coach work packages
 
-Status: planned, 2026-10-31. Concept and implementation comparison:
+Status, 2026-11-01: A–G and K implemented; H–J and L open. D-61 defers
+manual validation to [#81](https://github.com/naturelle137/grand-coach/issues/81)
+and #54 before public 1.0. Concept and historical implementation comparison:
 [coach-didactics.md](coach-didactics.md). Tracking feature:
 [#39](https://github.com/naturelle137/grand-coach/issues/39).
 
@@ -29,13 +31,14 @@ implementation requires a broad architectural change.
 
 Agreed sequential order:
 
-**#41 → #42 → #51 → #43 → #44 → #45 → #46 → #47 → M5 acceptance (#10) → #11 → #48 → #12 → #13 foundations → #49 → #50 → #54 → final M8 acceptance.**
+**#41 → #42 → #51 → #43 → #44 → #45 → #46 → #47 → M5 technical delivery (#10; manual checks → #81) → #11 → #48 → #12 → #13 foundations → #49 → #50 → #54 preparation → #54 sessions / #81 → public 1.0 acceptance.**
 
 Issue #51 prepares the checklist/protocol before lessons exist
 ([coach-validation.md](coach-validation.md), D-54); each later M5
 PR applies its part A and supplies applicable learner UAT steps (part B). Record combined
-M5 learner UAT after #47 before declaring #10 complete. #51 does not wait
-for those runs. #54 performs the integrated M8 evaluation after #50.
+M5 learner UAT after #47 in #81 before public 1.0; it does not block
+technical #10 completion or #11 (D-61). #51 does not wait for those runs.
+issue #54 prepares and later performs the integrated evaluation after #50.
 
 Issue #13 delivers the storage/training foundations first. Final M8/release
 acceptance is reconciled after #49/#50/#54 and all remaining #13 criteria;
@@ -59,8 +62,8 @@ prerequisite is now available. Reinspect its merged APIs before coding.
 3. **Independent practice (H/I/J):** selective retrieval, local observations
    and new tasks without help, after the milestone-owned foundations exist.
 4. **Validation (K in M5, L in M8):** prepare the evidence/UAT protocol
-   after B; execute learner UAT as M5 features arrive and integrated
-   unaided transfer plus delayed follow-up after J.
+   after B; prepare scenarios as features arrive, execute learner UAT and
+   unaided transfer/delayed follow-up after J before public 1.0 (D-61).
 
 A package's PR should demonstrate the changed player experience, include
 its independent fixtures, record the actual gate result and update the
@@ -72,15 +75,17 @@ cases, not just snapshots of the implementation's own output.
 
 | Existing issue | Keeps ownership | New work relationship |
 |----------------|-----------------|-----------------------|
-| [#10 M5](https://github.com/naturelle137/grand-coach/issues/10) | Live coach lifecycle and remaining interactive smoke tests | A–G extend didactics; none declares M5 complete |
+| [#10 M5](https://github.com/naturelle137/grand-coach/issues/10) | Live coach lifecycle; manual smoke/UAT transferred to #81 | A–G are implemented; no manual validation is claimed |
 | [#11 M6](https://github.com/naturelle137/grand-coach/issues/11) | Counting aid and baseline in-game quiz | C supplies lesson evidence; H adds retrieval/fading through that API |
 | [#12 M7](https://github.com/naturelle137/grand-coach/issues/12) | Replay/save/load, open mode and same-deal attempts | G adds immediate permitted snapshots; J reuses reconstruction |
 | [#13 M8](https://github.com/naturelle137/grand-coach/issues/13) | Baseline learning history/training and release packaging | I/J refine progress/practice; reuse storage/session APIs, no parallel subsystem |
-| [#34](https://github.com/naturelle137/grand-coach/issues/34), [#35](https://github.com/naturelle137/grand-coach/issues/35) | Optional learned evaluators | Independent; neither a prerequisite nor an explanation source by itself |
+| [#67](https://github.com/naturelle137/grand-coach/issues/67) | Additional offline learned backends; supersedes closed #34/#35 | Independent; neither a prerequisite nor a strategic explanation source by itself |
 
 Do not silently rewrite or close existing milestone issues. At implementation
 start reconcile delivered APIs and overlaps. New checklists track only the
-additional outcomes; parent completion still requires its full existing scope.
+additional outcomes; technical parent closure requires its functional/automated
+scope and explicit manual handoff to #81. #13 final readiness still needs
+actual #81/#54 results. Consolidation of this document is tracked by #83.
 
 ## Shared acceptance boundaries
 

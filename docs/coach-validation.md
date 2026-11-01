@@ -12,6 +12,13 @@ non-disclosure (#65, D-60); no learner session has been run. M8 execution: issue
 [coach-didactics.md](coach-didactics.md); contract:
 [analysis.md](analysis.md#evidence-for-lessons).
 
+D-61: prepare evidence and scripts during development; actual M5 learner UAT
+and #54 initial/delayed sessions are deferred until before public 1.0.
+[Release register #81](https://github.com/naturelle137/grand-coach/issues/81)
+owns the handoff from every technical closure; #54 owns its learner protocol.
+No human check is fulfilled by this transfer. Technical milestone completion
+and later development do not wait for these sessions.
+
 ## Scope and limits
 
 Three different questions, answered by different means:
@@ -181,7 +188,8 @@ Store filled records under `docs/uat/` (one file per session, created only
 when a session was actually run) or in the PR or issue comment; link them
 from the PR. Findings become issues; a fix is retested with the affected
 items. The combined M5 run after #47 uses the same template across all
-shipped lessons before #10 is declared complete.
+shipped lessons before public 1.0, tracked in #81 (D-61). It is not a
+prerequisite for technical #10 closure or subsequent milestones.
 
 ## C. Initial and delayed unaided-task protocol
 
@@ -239,6 +247,6 @@ Performed by: maintainer (learner)   Status: performed / pending
 | Item | Status |
 |------|--------|
 | Evidence checklist (part A) | prepared; applied per lesson PR |
-| M5 learner UAT per feature (#43–#47) | pending, per PR |
-| Combined M5 learner UAT after #47 | pending |
-| Unaided-task set and follow-up (#54) | pending; protocol only |
+| M5 learner UAT per feature (#43–#47) | pending in #81; PRs supply scenarios |
+| Combined M5 learner UAT after #47 | pending in #81 before public 1.0 |
+| Unaided-task set and follow-up (#54) | pending; actual sessions before public 1.0 |

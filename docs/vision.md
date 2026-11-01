@@ -19,6 +19,14 @@ the opponents' shoes**.
 
 ## Features
 
+This is the product direction, not a shipped-feature checklist. Rules,
+opponents and the live coach (including six lessons/focus/historical moments)
+are implemented; counting aid/quiz, saved replay/open mode, persistent progress
+and training remain planned. See [roadmap.md](roadmap.md) for status.
+D-61 separates technical completion from manual validation, which remains
+pending in #81/#54 before public 1.0. Optional offline learned backends are
+tracked by #67, starting now with #68; Classic remains the default.
+
 ### Game
 
 - Full Skat according to the **International Skat Rules (ISkO)**: bidding,
@@ -58,7 +66,7 @@ the opponents' shoes**.
 - **Statistics over time**: error types are collected (e.g. "misjudged the
   remaining trumps") so that weaknesses become visible.
 
-The planned didactic follow-up prioritises relevant questions, conditional
+The didactic direction and remaining follow-up prioritise relevant questions, conditional
 explanations and independent transfer. See [coach-didactics.md](coach-didactics.md)
 and [coach-work-packages.md](coach-work-packages.md). It extends the shared
 analysis and existing coach rather than introducing a second strategy engine.
