@@ -12,7 +12,7 @@ use skat_analysis::sampling::Place;
 use skat_analysis::sampling::World;
 use skat_analysis::{
     Analysis, Assumption, Budget, Cancel, CardClass, Estimate, Status, analyze, analyze_forgetful,
-    analyze_known,
+    analyze_known, with_max_threads,
 };
 use skat_core::{
     Action, Announcement, CardSet, Deal, Game, GameType, Phase, PlayerView, RuleConfig, Seat, Suit,
