@@ -11,12 +11,23 @@
 //! cargo run --locked --release -p skat-ai --example latency
 //! ```
 //!
-//! Optional argument: positions per kind (default 10).
+//! Optional arguments: positions per kind (default 10), then a learned
+//! model `nn:<path>` (D-07) measured as the row "Neural": the model decides
+//! the phases it covers, the Classic level Strong every other one (its
+//! rows then measure that fallback).
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use skat_ai::{BaselineOpponent, Level, Mephisto, Opponent, Profile, Status};
+use skat_ai::{BaselineOpponent, Level, Mephisto, NeuralOpponent, Opponent, Profile, Status};
 use skat_core::{Action, Game, Phase, PlayerView, RuleConfig};
+use skat_nn::NeuralModel;
+
+enum Measured {
+    Classic(Opponent),
+    Neural(NeuralOpponent),
+    Mephisto,
+}
 
 const KINDS: [&str; 8] = [
     "Reizen",
@@ -94,15 +105,29 @@ fn main() {
     println!();
     println!("| Level | Decision | Median | p90 | Max | Incomplete |");
     println!("|---|---|---|---|---|---|");
-    let mut players: Vec<(String, Option<Opponent>)> = Level::ALL
-        .map(|level| (format!("{level:?}"), Some(Opponent::new(level, 1))))
-        .to_vec();
+    let mut players: Vec<(String, Measured)> = Level::ALL
+        .map(|level| {
+            (
+                format!("{level:?}"),
+                Measured::Classic(Opponent::new(level, 1)),
+            )
+        })
+        .into_iter()
+        .collect();
     let goldfish = Opponent {
         profile: Profile::GOLDFISH,
         seed: 1,
     };
-    players.push(("Goldfish".to_owned(), Some(goldfish)));
-    players.push(("Mephisto".to_owned(), None));
+    players.push(("Goldfish".to_owned(), Measured::Classic(goldfish)));
+    players.push(("Mephisto".to_owned(), Measured::Mephisto));
+    if let Some(path) = std::env::args().nth(2) {
+        let path = path.strip_prefix("nn:").expect("model argument: nn:<path>");
+        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+        let model = NeuralModel::load(&bytes, &skat_nn::sha256(&bytes))
+            .unwrap_or_else(|e| panic!("{path}: {e:?}"));
+        let neural = NeuralOpponent::new(Ok(Arc::new(model)), Opponent::new(Level::Strong, 1));
+        players.push(("Neural".to_owned(), Measured::Neural(neural)));
+    }
     for (name, opponent) in &players {
         for (k, games) in positions.iter().enumerate() {
             let mut times = Vec::new();
@@ -111,8 +136,9 @@ fn main() {
                 let view = game.view(game.current_seat().expect("a decision"));
                 let start = Instant::now();
                 let d = match opponent {
-                    Some(o) => o.decide(&view, None),
-                    None => Mephisto.decide(game, None),
+                    Measured::Classic(o) => o.decide(&view, None),
+                    Measured::Neural(o) => o.decide_explained(&view, None).map(|d| d.decision),
+                    Measured::Mephisto => Mephisto.decide(game, None),
                 }
                 .expect("a decision");
                 times.push(start.elapsed());

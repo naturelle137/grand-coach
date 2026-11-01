@@ -33,8 +33,11 @@ use crate::net::{NetShape, PolicyValueNet};
 /// Version of the model file layout.
 pub const FORMAT_VERSION: u16 = 1;
 
+/// Size of the model file header; the weights follow it.
+pub const HEADER_BYTES: usize = 24;
+
 const MAGIC: [u8; 4] = *b"GCNN";
-const HEADER: usize = 24;
+const HEADER: usize = HEADER_BYTES;
 /// Upper bound for the hidden width, so a corrupt header cannot request a
 /// huge allocation.
 const MAX_HIDDEN: usize = 4096;

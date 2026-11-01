@@ -26,8 +26,8 @@ pub use encoder::{ENCODER_VERSION, FEATURES, encode};
 #[cfg(feature = "fixture")]
 pub use fixture::{FIXTURE_HIDDEN, fixture_model};
 pub use model::{
-    Evaluation, FORMAT_VERSION, Fallback, ModelError, ModelHeader, NeuralModel, Phases,
-    masked_softmax, read_header, sha256, write_model,
+    Evaluation, FORMAT_VERSION, Fallback, HEADER_BYTES, ModelError, ModelHeader, NeuralModel,
+    Phases, masked_softmax, read_header, sha256, write_model,
 };
 pub use net::{NetShape, PolicyValueNet};
 
