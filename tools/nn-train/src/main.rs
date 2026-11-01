@@ -9,6 +9,9 @@
 //! cargo run --locked --release -p nn-train -- smoke cpu [GAMES] [STEPS] [OUT_DIR]
 //! cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan [GAMES] [STEPS] [OUT_DIR]
 //! cargo run --locked --release -p nn-train -- fixture SEED OUT_FILE
+//! cargo run --locked --release -p nn-train -- generate OUT_DIR [--deals N]
+//!     [--shard-deals N] [--seed N] [--minutes N] [--max-mb N] [--cpus N]
+//!     [--workers N]
 //! ```
 //!
 //! `smoke` is the stack smoke test of #69: it encodes the decisions of
@@ -19,7 +22,11 @@
 //! the same outputs, and a restored optimizer continues exactly like the
 //! original. With `OUT_DIR` it writes `model.gcnn` and `optimizer.bpk`
 //! there. `fixture` writes a tiny random-weight model for trying the
-//! arena (`calibrate -- nn:<file>`).
+//! arena (`calibrate -- nn:<file>`). `generate` plays Strong self-play
+//! and writes raw decision records into shards (#70,
+//! [`nn_train::shards`]); it resumes an interrupted run in the same
+//! directory and stops at its wall-time and disk caps. `verify` checks
+//! every shard of a run and reports incomplete ones.
 
 use std::time::Instant;
 
@@ -245,9 +252,114 @@ fn arg<T: std::str::FromStr>(args: &[String], i: usize, default: T) -> T {
     args.get(i).and_then(|s| s.parse().ok()).unwrap_or(default)
 }
 
+/// The engine commit for the manifest: `git describe`, `unknown` without
+/// git.
+fn engine_commit() -> String {
+    std::process::Command::new("git")
+        .args(["describe", "--always", "--dirty", "--abbrev=12"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map_or_else(|| "unknown".to_string(), |s| s.trim().to_string())
+}
+
+/// Value of `--name` in `args`, or `default`.
+fn flag<T: std::str::FromStr>(args: &[String], name: &str, default: T) -> T {
+    match args.iter().position(|a| a == name) {
+        Some(i) => args
+            .get(i + 1)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| panic!("{name} needs a number")),
+        None => default,
+    }
+}
+
+fn generate(args: &[String]) {
+    use nn_train::selfplay::{DecisionKind, TeacherProfile};
+    use nn_train::shards::{Limits, Manifest, generate};
+    use std::num::NonZeroUsize;
+
+    let dir = std::path::Path::new(args.first().expect("generate OUT_DIR [flags]"));
+    let deals: u64 = flag(args, "--deals", 100);
+    let shard_deals: u64 = flag(args, "--shard-deals", 10);
+    let seed: u64 = flag(args, "--seed", 0);
+    let minutes: f64 = flag(args, "--minutes", 30.0);
+    let max_mb: u64 = flag(args, "--max-mb", 1024);
+    let all = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
+    let cpus = NonZeroUsize::new(flag(args, "--cpus", all)).expect("--cpus > 0");
+    let workers =
+        NonZeroUsize::new(flag(args, "--workers", cpus.get().min(4))).expect("--workers > 0");
+    assert!(minutes > 0.0 && max_mb > 0, "caps must be positive");
+    let limits = Limits {
+        wall_time: std::time::Duration::from_secs_f64(minutes * 60.0),
+        disk_bytes: max_mb * 1024 * 1024,
+        cpus,
+        workers,
+    };
+    let teacher = TeacherProfile::STRONG;
+    let manifest = Manifest::new(&engine_commit(), teacher, seed, deals, shard_deals);
+    println!(
+        "run: {} deals in {} shards, seed {seed}, profile {}, commit {}",
+        deals,
+        manifest.shards(),
+        teacher.name,
+        manifest.engine_commit
+    );
+    println!(
+        "budget: {} CPUs = {} workers x {} analysis threads (max), caps {minutes} min, {max_mb} MiB",
+        cpus,
+        workers,
+        limits.threads()
+    );
+    let report = generate(dir, &manifest, teacher, limits).expect("generate");
+    let secs = report.elapsed.as_secs_f64();
+    println!(
+        "shards: {} skipped, {} written; stop: {:?}",
+        report.skipped, report.written, report.stop
+    );
+    println!(
+        "written: {} games, {} records, {} bytes, {:.0} s",
+        report.deals, report.records, report.bytes, secs
+    );
+    if report.deals > 0 {
+        let games_per_hour = report.deals as f64 / secs * 3600.0;
+        let bytes_per_game = report.bytes as f64 / report.deals as f64;
+        println!("games/hour: {games_per_hour:.0}");
+        println!("bytes/game: {bytes_per_game:.0}");
+        for kind in DecisionKind::ALL {
+            let n = report.kinds.get(&kind).copied().unwrap_or(0);
+            println!(
+                "decisions {kind:?}: {n} ({:.2} per game)",
+                n as f64 / report.deals as f64
+            );
+        }
+        println!("incomplete teacher analyses: {}", report.incomplete);
+        println!(
+            "projection for 10,000 games: {:.1} h, {:.0} MB",
+            10_000.0 / games_per_hour,
+            bytes_per_game * 10_000.0 / 1e6
+        );
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("generate") => generate(&args[1..]),
+        Some("verify") => {
+            let dir = args.get(1).expect("verify DIR");
+            match nn_train::shards::verify(std::path::Path::new(dir)) {
+                Ok(v) => println!(
+                    "{} complete shards ({} records), {} incomplete",
+                    v.complete, v.records, v.incomplete
+                ),
+                Err(e) => {
+                    eprintln!("{dir}: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some("smoke") => {
             let kind = args.get(1).map_or("cpu", String::as_str);
             let device = match kind {
@@ -302,6 +414,11 @@ fn main() {
         _ => {
             eprintln!("usage: nn-train smoke [cpu|vulkan] [GAMES] [STEPS] [OUT_DIR]");
             eprintln!("       nn-train fixture SEED OUT_FILE");
+            eprintln!(
+                "       nn-train generate OUT_DIR [--deals N] [--shard-deals N] [--seed N] \
+                 [--minutes N] [--max-mb N] [--cpus N] [--workers N]"
+            );
+            eprintln!("       nn-train verify DIR");
             std::process::exit(2);
         }
     }

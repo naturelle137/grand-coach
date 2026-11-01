@@ -5072,7 +5072,10 @@ name = "nn-train"
 version = "0.1.0"
 dependencies = [
  "burn",
+ "serde",
+ "serde_json",
  "skat-ai",
+ "skat-analysis",
  "skat-core",
  "skat-nn",
 ]
