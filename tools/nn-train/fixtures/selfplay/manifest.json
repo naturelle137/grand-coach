@@ -1,0 +1,16 @@
+{
+  "dataset_format": 1,
+  "record_format": 1,
+  "encoder_version": 1,
+  "engine_commit": "a9b5a2bb331f",
+  "profile": "strong",
+  "profile_detail": "Profile { budget: Some(Budget { samples: 24, nodes_per_task: 100000000 }), temperature: 0.0, search_bidding: false, search_declaring: false, forget: 0.0, mistakes: Mistakes { bid: 0.0, game: 0.0, discard: 0.0, kontra: 0.0, card: 0.0 } }",
+  "seed": 0,
+  "seed_scheme": "deal: mix(mix(seed, DEAL_KEY), deal); teacher: mix(mix(mix(seed, TEACHER_KEY), deal), seat); SplitMix64 finaliser",
+  "rules": {
+    "kontra_re": true
+  },
+  "deals": 2,
+  "shard_deals": 1,
+  "split": "by deal seed: train 80 %, validation 10 %, test 10 %"
+}

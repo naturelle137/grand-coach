@@ -198,7 +198,9 @@ shows which options had fewer.
   not depend on thread scheduling: same view, seed and budget give the
   same `Analysis`.
 - Tasks run on all cores (`std::thread::scope`); results are combined in
-  task order.
+  task order. `with_max_threads` limits the threads of analyses started
+  on the calling thread (tools running games side by side, D-11); the
+  result does not depend on the thread count.
 - `Cancel` stops an analysis from outside; `Cancel::with_deadline` adds a
   time limit for interactive use (then only the status is reproducible).
 - `Budget::INTERACTIVE` = 24 samples, 100,000,000 nodes per task.
