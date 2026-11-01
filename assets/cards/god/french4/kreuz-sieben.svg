@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" width="200" height="300">
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<rect x="2" y="2" width="196" height="296" rx="12" fill="#ffffff" stroke="#333" stroke-width="2"/>
+<g transform="translate(12,14) scale(0.42)"><path d="M3,4 H37 L15,57" fill="none" stroke="#1a1a1a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></g>
+<g transform="translate(24,56) scale(0.2)"><path d="M-7,-48 H7 V-26 H30 V-12 H7 V48 H-7 V-12 H-30 V-26 H-7 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/></g>
+<g transform="rotate(180 100 150)">
+<g transform="translate(12,14) scale(0.42)"><path d="M3,4 H37 L15,57" fill="none" stroke="#1a1a1a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></g>
+<g transform="translate(24,56) scale(0.2)"><path d="M-7,-48 H7 V12 H30 V26 H7 V48 H-7 V26 H-30 V12 H-7 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/></g>
+</g>
+<g transform="translate(66,72) scale(0.34)"><path d="M-7,-48 H7 V-26 H30 V-12 H7 V48 H-7 V-12 H-30 V-26 H-7 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/></g>
+<g transform="translate(134,72) scale(0.34)"><path d="M-7,-48 H7 V-26 H30 V-12 H7 V48 H-7 V-12 H-30 V-26 H-7 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/></g>
+<g transform="translate(100,111) scale(0.34)"><path d="M-7,-48 H7 V-26 H30 V-12 H7 V48 H-7 V-12 H-30 V-26 H-7 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/></g>
+<g transform="translate(66,150) scale(0.34)"><path d="M-7,-48 H7 V-26 H30 V-12 H7 V48 H-7 V-12 H-30 V-26 H-7 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/></g>
+<g transform="translate(134,150) scale(0.34)"><path d="M-7,-48 H7 V-26 H30 V-12 H7 V48 H-7 V-12 H-30 V-26 H-7 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/></g>
+<g transform="translate(66,228) scale(0.34) rotate(180)"><path d="M-7,-48 H7 V12 H30 V26 H7 V48 H-7 V26 H-30 V12 H-7 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/></g>
+<g transform="translate(134,228) scale(0.34) rotate(180)"><path d="M-7,-48 H7 V12 H30 V26 H7 V48 H-7 V26 H-30 V12 H-7 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/></g>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" width="200" height="300">
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<rect x="2" y="2" width="196" height="296" rx="12" fill="#ffffff" stroke="#333" stroke-width="2"/>
+<g transform="translate(12,14) scale(0.42)"><path d="M3,57 L20,3 L37,57 M9,39 H31" fill="none" stroke="#b07800" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></g>
+<g transform="translate(24,56) scale(0.2)"><path d="M-0.0,-48.0 L3.4,-8.3 L17.0,-17.0 L8.3,-3.4 L48.0,0.0 L8.3,3.4 L17.0,17.0 L3.4,8.3 L-0.0,48.0 L-3.4,8.3 L-17.0,17.0 L-8.3,3.4 L-48.0,-0.0 L-8.3,-3.4 L-17.0,-17.0 L-3.4,-8.3 Z" fill="#f0a800" stroke="#8a5a00" stroke-width="3" stroke-linejoin="round"/></g>
+<g transform="rotate(180 100 150)">
+<g transform="translate(12,14) scale(0.42)"><path d="M3,57 L20,3 L37,57 M9,39 H31" fill="none" stroke="#b07800" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></g>
+<g transform="translate(24,56) scale(0.2)"><path d="M-0.0,-48.0 L3.4,-8.3 L17.0,-17.0 L8.3,-3.4 L48.0,0.0 L8.3,3.4 L17.0,17.0 L3.4,8.3 L-0.0,48.0 L-3.4,8.3 L-17.0,17.0 L-8.3,3.4 L-48.0,-0.0 L-8.3,-3.4 L-17.0,-17.0 L-3.4,-8.3 Z" fill="#f0a800" stroke="#8a5a00" stroke-width="3" stroke-linejoin="round"/></g>
+</g>
+<g transform="translate(100,150) scale(0.9)"><path d="M-0.0,-48.0 L3.4,-8.3 L17.0,-17.0 L8.3,-3.4 L48.0,0.0 L8.3,3.4 L17.0,17.0 L3.4,8.3 L-0.0,48.0 L-3.4,8.3 L-17.0,17.0 L-8.3,3.4 L-48.0,-0.0 L-8.3,-3.4 L-17.0,-17.0 L-3.4,-8.3 Z" fill="#f0a800" stroke="#8a5a00" stroke-width="3" stroke-linejoin="round"/></g>
+</svg>

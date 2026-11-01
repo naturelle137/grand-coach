@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" width="200" height="300">
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<rect x="2" y="2" width="196" height="296" rx="12" fill="#ffffff" stroke="#333" stroke-width="2"/>
+<g transform="translate(12,14) scale(0.42)"><path d="M7,3 V57 M35,3 L7,37 M17,26 L37,57" fill="none" stroke="#1e8a32" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></g>
+<g transform="translate(24,56) scale(0.2)"><path d="M5,-43.7 A44,44 0 1,0 35.8,25.6 A38,38 0 1,1 5,-43.7 Z" fill="#1e8a32" stroke="#145c22" stroke-width="3" stroke-linejoin="round"/></g>
+<g transform="rotate(180 100 150)">
+<g transform="translate(12,14) scale(0.42)"><path d="M7,3 V57 M35,3 L7,37 M17,26 L37,57" fill="none" stroke="#1e8a32" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></g>
+<g transform="translate(24,56) scale(0.2)"><path d="M5,-43.7 A44,44 0 1,0 35.8,25.6 A38,38 0 1,1 5,-43.7 Z" fill="#1e8a32" stroke="#145c22" stroke-width="3" stroke-linejoin="round"/></g>
+</g>
+<rect x="44" y="40" width="112" height="220" rx="6" fill="#e2f3e5" stroke="#145c22" stroke-width="3"/>
+<clipPath id="frame"><rect x="44" y="40" width="112" height="220" rx="6"/></clipPath>
+<g clip-path="url(#frame)"><path d="M66,150 L76,116 Q100,104 124,116 L134,150 Z" fill="#1e8a32" stroke="#333" stroke-width="2"/><path d="M90,112 L100,130 L110,112" fill="#ffffff" stroke="#333" stroke-width="2"/><circle cx="100" cy="94" r="16" fill="#f6d7b0" stroke="#333" stroke-width="2"/><path d="M84,82 L86,62 L93,72 L100,58 L107,72 L114,62 L116,82 Z" fill="#e8b820" stroke="#333" stroke-width="2"/><g transform="translate(64,78) scale(0.2)"><path d="M5,-43.7 A44,44 0 1,0 35.8,25.6 A38,38 0 1,1 5,-43.7 Z" fill="#1e8a32" stroke="#145c22" stroke-width="3" stroke-linejoin="round"/></g>
+<g transform="rotate(180 100 150)"><path d="M66,150 L76,116 Q100,104 124,116 L134,150 Z" fill="#1e8a32" stroke="#333" stroke-width="2"/><path d="M90,112 L100,130 L110,112" fill="#ffffff" stroke="#333" stroke-width="2"/><circle cx="100" cy="94" r="16" fill="#f6d7b0" stroke="#333" stroke-width="2"/><path d="M84,82 L86,62 L93,72 L100,58 L107,72 L114,62 L116,82 Z" fill="#e8b820" stroke="#333" stroke-width="2"/><g transform="translate(64,78) scale(0.2)"><path d="M5,-43.7 A44,44 0 1,0 35.8,25.6 A38,38 0 1,1 5,-43.7 Z" fill="#1e8a32" stroke="#145c22" stroke-width="3" stroke-linejoin="round"/></g>
+</g></g>
+<path d="M44,150 H156" stroke="#145c22" stroke-width="2"/>
+</svg>
