@@ -3,10 +3,11 @@
 How the live coach of M5 explains a decision (D-48). Details are in the
 code (`crates/skat-coach`, `crates/skat-app/src/coach.rs`).
 
-Planned didactic improvements and the implementation comparison are in
+Didactic goals and the historical implementation comparison are in
 [coach-didactics.md](coach-didactics.md); agent-sized follow-up issues are
-listed in [coach-work-packages.md](coach-work-packages.md). These are planned
-changes, not a claim of current lesson coverage. Each lesson is checked
+listed in [coach-work-packages.md](coach-work-packages.md). A–G and K are
+implemented; H–J and L remain open. The sections below describe current
+lesson coverage. Each lesson is checked
 against [coach-validation.md](coach-validation.md) (D-54).
 
 ## Evidence only from the analysis
@@ -71,8 +72,7 @@ or the last completed trick, not exactly "since the seat's last card".
 Debriefing moments show their lesson since D-58. The Trumpf sets do not
 appear as a separate fact line in the considerations; `TrumpsOut` still
 does. The fixtures are in `skat-analysis/tests/exact_lessons.rs` and
-`skat-coach/tests/lessons.rs`; learner UAT is pending
-([coach-validation.md](coach-validation.md)).
+`skat-coach/tests/lessons.rs`.
 
 ## Card-play mechanisms (D-56)
 
@@ -117,8 +117,7 @@ cards other than Ass and Zehn, the case where the partner certainly
 cannot overtake. The fixtures are in `skat-analysis/tests/mechanisms.rs`
 (hand-derived positions, a hidden-deal substitution and an exhaustive
 reference over every consistent distribution of random positions) and
-`skat-coach/tests/mechanisms.rs`; learner UAT is pending
-([coach-validation.md](coach-validation.md)).
+`skat-coach/tests/mechanisms.rs`.
 
 Win chances are those of the deciding seat's party; the coach labels the
 party (own side, declarer, defenders). Points are Seeger-Fabian list
@@ -169,8 +168,7 @@ pre-play estimates and the continuation bias stay as in
 [analysis.md](analysis.md); this package does not improve them. The
 fixtures are in `skat-analysis/tests/preplay.rs` (hand-derived positions
 and an independent enumeration over every possible Skat of random deals)
-and `skat-coach/tests/preplay.rs`; learner UAT is pending
-([coach-validation.md](coach-validation.md)).
+and `skat-coach/tests/preplay.rs`.
 
 ## Policies (D-48)
 
@@ -408,8 +406,10 @@ reference hardware with 20 threads:
 | Card play, trick 4 | 10 ms | 38 ms | 135 ms | 0 |
 | Card play, trick 8 | 1 ms | 1 ms | 1 ms | 0 |
 
-Card play and Kontra/Re meet the interactive target even on four
-vCPUs; the decisions before card play exceed it there. The analysis
+On this historical four-vCPU run, Kontra/Re and later card play meet the
+interactive target. First-trick card play misses the p90 target (3.9 s
+versus 3 s), although its median passes; pre-play decisions also exceed
+their targets. These are dated measurements, not a current performance guarantee. The analysis
 spreads its work over all available threads, so fewer threads mean
 longer waits. The positions also differ from the analysis benchmark:
 every bidding decision counts, not only opening calls, and the human
@@ -417,6 +417,4 @@ bids as the coach suggests. While the coach computes, the panel shows a translat
 "thinking" status and the player can act at any time; the analysis then
 continues for the note, unless the next own decision needs one first. The GUI test `window_stays_responsive_while_the_coach_analyses`
 checks that frames keep returning quickly during a full interactive
-analysis and that acting works meanwhile. The interactive smoke test in
-the playable application on the reference hardware is still open
-(issue #10).
+analysis and that acting works meanwhile.

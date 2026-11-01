@@ -1,11 +1,13 @@
 # Coach didactics: from evaluation to learning
 
-Revised product concept, 2026-10-31. Planned work, not shipped behaviour.
+Product direction first reviewed on 2026-10-31. Packages A–G and K are now
+implemented; H–J and L remain open. Current behavior is in [coach.md](coach.md).
+The baseline review below is historical, not today's feature inventory.
 Replaces the implementation assumptions of the supplied German concept
 `skat_trainer_coach_didaktisches_konzept.md`; that input remains unchanged.
 The implementation plan is in [coach-work-packages.md](coach-work-packages.md).
 
-## Evidence and baseline
+## Historical evidence and baseline (2026-10-31)
 
 Inspected `skat-analysis`, `skat-coach`, `skat-app`, the egui coach renderer,
 translations, project decisions and the supplied debriefing screenshot.
@@ -19,7 +21,7 @@ This review inspected code; it did not reproduce the pictured deal or run
 a new interactive playtest. The screenshot alone cannot establish why
 Karo-Acht, Kreuz-Bube or passing was strategically preferable.
 
-| Current evidence | Assessment | Consequence |
+| Evidence at that baseline | Assessment | Consequence |
 |------------------|------------|-------------|
 | `skat-coach::Reason` compares chances, utility and game points | These describe an evaluation difference, not its strategic cause | Add tested evidence in shared analysis before writing causal explanations |
 | `considerations` forwards phase-filtered observations and all inferences | Correct information can still be irrelevant to this decision | Select only facts supporting the current teaching point; keep the rest in details |
@@ -80,8 +82,8 @@ from an unchosen alternative.
 Kontra/Re follows the existing configured D-03/D-26 variant; it is not a
 new rule-design task. Rules of strategy remain conditional, never ISkO
 obligations. No new game variants, online services or generative text are
-needed. Optional net proposals #34/#35 are not prerequisites and cannot
-supply strategic explanations by themselves.
+needed. Optional learned-backend epic #67 supersedes #34/#35; it is not a
+prerequisite for this work and cannot supply strategic causes by itself.
 
 ## Player experience
 
@@ -242,9 +244,7 @@ claims; correctness and information-boundary gates remain binding.
 [#51](https://github.com/naturelle137/grand-coach/issues/51) prepared the M5
 evidence checklist, UAT scripts and initial/delayed evaluation protocol
 after #42 and before #43: [coach-validation.md](coach-validation.md)
-(D-54). Later M5 PRs apply it, with combined learner UAT
-after #47 and before declaring #10 complete. Protocol delivery can close
-Issue #51 without waiting for these later features or human results.
+(D-54). Lesson PRs apply the evidence checklist (part A).
 This supersedes any earlier expert-review or expert sign-off step in the
 original concept and plan, and the earlier combined #51 placement that
 also covered the M8 evaluation (now #54).
@@ -277,8 +277,7 @@ focused hints and historical context. Only then connect retrieval practice,
 local progress and varied transfer tasks. Pre-play explanation can follow
 independently after the evidence foundation.
 
-M5, M6, M7 and M8 retain their existing completion gates. This concept does
-not declare any milestone complete. New issues refine their scope; they do
+New issues refine the functional scope; they do
 not duplicate the counting aid, replay engine, release packaging or optional
 neural-network projects. Adaptive curricula, universal explanations,
 information-gain estimation, free-form AI dialogue and a new solver are

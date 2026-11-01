@@ -11,7 +11,7 @@ Internationaler Skatordnung gegen zwei Computergegner. Dazu kommt ein
 abschaltbarer Live-Coach, der den **Denkweg** erklärt, nicht nur den besten
 Zug. Schwerpunkte sind Kartenzählen und das Hineinversetzen in die Gegner.
 
-### Funktionen (geplant)
+### Funktionen (vorhanden und geplant)
 
 - Skat nach ISkO, optional mit Kontra/Re, Wertung nach Seeger-Fabian
 - Gegnerstärke in Stufen (Grünschnabel, Leicht, Mittel, Stark) sowie die
@@ -29,8 +29,10 @@ Details: [docs/vision.md](docs/vision.md).
 Spielbare Version: eine Serie gegen zwei Computergegner, deren Stärke
 (Grünschnabel, Leicht, Mittel, Stark) einzeln wählbar ist, oder gegen
 Goldfisch oder Mephisto, mit Kontra/Re, drei
-Kartenbildern und deutscher oder englischer Oberfläche. Unter Linux
-getestet, Windows 11 noch nicht.
+Kartenbildern und deutscher oder englischer Oberfläche.
+Der Live-Coach mit gestuften Hinweisen, sechs belegten Lektionen, Lernfokus
+und Rückblick auf frühere Entscheidungen ist implementiert. Kartenzählhilfe,
+Quiz, gespeicherte Replays und Trainingsmodus folgen noch.
 Fortschritt: [docs/roadmap.md](docs/roadmap.md).
 
 ### Systemvoraussetzungen
@@ -93,7 +95,7 @@ International Skat Rules against two computer opponents, plus an optional live
 coach that explains the **line of thought** rather than just the best move.
 Focus: card counting and putting yourself in the opponents' shoes.
 
-### Features (planned)
+### Features (available and planned)
 
 - Skat per ISkO, optional Kontra/Re, Seeger-Fabian scoring
 - Opponent levels (Rookie, Easy, Medium, Strong) and the modes Goldfish
@@ -111,7 +113,10 @@ Details: [docs/vision.md](docs/vision.md).
 Playable version: a series against two computer opponents whose strength
 (Rookie, Easy, Medium, Strong) is chosen separately, or against Goldfish or
 Mephisto, with Kontra/Re, three card
-faces and a German or English UI. Tested on Linux, not yet on Windows 11.
+faces and a German or English UI.
+The live coach with staged hints, six evidence-backed lessons, learning
+focus and historical decision reviews is implemented. Counting aid, quiz,
+saved replays and training mode remain planned.
 Progress: [docs/roadmap.md](docs/roadmap.md).
 
 ### Requirements
