@@ -549,18 +549,25 @@ fn goldfish_mode_draws_one_forgetful_opponent() {
     assert_eq!(session.view().sheet.records.len(), 1);
 }
 
-/// Mephisto mode: every computer decision before card play sees all
-/// cards; in card play the computer declarer does and its partner does
-/// not, and against the human declarer both defenders do. Seed 2 has a
-/// computer declarer, seed 21 the human; that Mephisto never loses is
-/// checked broadly in `skat-ai/tests/variants.rs` (deep run).
+/// Mephisto and God Mode: every computer decision before card play sees
+/// all cards; in card play the computer declarer does and its partner
+/// does not, and against the human declarer both defenders do. Seed 2 has
+/// a computer declarer, seed 21 the human; that Mephisto never loses is
+/// checked broadly in `skat-ai/tests/variants.rs` (deep run). Only God
+/// Mode shows the human every card.
 #[test]
 #[ignore = "slow: CI only (docs/testing.md)"]
 fn mephisto_mode_sees_all_cards_where_configured() {
+    for opponents in [Opponents::Mephisto, Opponents::GodMode] {
+        mephisto_sees_all_cards_where_configured(opponents);
+    }
+}
+
+fn mephisto_sees_all_cards_where_configured(opponents: Opponents) {
     let mut cases = BTreeSet::new();
     for seed in [2, 21] {
         let config = SessionConfig {
-            opponents: Opponents::Mephisto,
+            opponents,
             ..config(seed, SeriesLength::Fixed(1), true)
         };
         let mut session = Session::new(config);
@@ -572,6 +579,16 @@ fn mephisto_mode_sees_all_cards_where_configured() {
                 continue;
             };
             let view = session.view();
+            let open = view.open_cards.as_ref();
+            assert_eq!(open.is_some(), opponents.god_mode(), "seed {seed}");
+            if let Some(open) = open {
+                for p in PlayerId::ALL {
+                    assert_eq!(
+                        open.hands[p.index()].len(),
+                        usize::from(view.players[p.index()].cards)
+                    );
+                }
+            }
             let expected = match (view.phase, view.declarer) {
                 (Phase::Spiel, Some(PlayerId::HUMAN)) => {
                     cases.insert("against the human");

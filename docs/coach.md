@@ -371,6 +371,11 @@ Ouvert reveal, failed reviews and cleanup), `skat-app/tests/coach.rs`
   `Reconsider` withdraws it, and choosing it again at the same position is
   not warned twice. Turning warnings off withdraws a held action. Nothing
   held is ever played behind the player's back.
+- God Mode (D-62): `coach_job` also carries the real deal
+  (`CoachJob::sees_all_cards`; queued reviews keep the deal of their
+  decision) and runs `skat_coach::advise_known`. Stages, notes, warnings,
+  debriefing and no telling ahead are unchanged; the basis names the
+  known deal.
 - The coach seed comes from stream 2 of the series seed, mixed with the
   game number and the view; opponents and deals are untouched. Same view,
   seed and budget give the same explanation.

@@ -8,15 +8,16 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 
 use skat_app::{
     Action, Advice, Announcement, AppError, AppEvent, Cancel, Card, CardSet, CoachJob, CoachLevel,
-    CoachResult, CoachSettings, Command, Event, GameType, Level, OpponentMove, Opponents, Pending,
-    Phase, PlayedCard, PlayerId, SeriesLength, Session, SessionConfig, Suit, TableView, reizwerte,
+    CoachResult, CoachSettings, Command, Event, GameType, Level, OpenCards, OpponentMove,
+    Opponents, Pending, Phase, PlayedCard, PlayerId, SeriesLength, Session, SessionConfig, Suit,
+    TableView, reizwerte,
 };
 
 use skat_app::coach_model::{Concept, Stage};
 
-use crate::cards::{self, Deck};
+use crate::cards::{self, Deck, Theme};
 use crate::coach::{self, Style};
-use crate::i18n::{I18n, Language};
+use crate::i18n::{Faces, I18n, Language};
 use crate::text;
 
 const CARD: Vec2 = Vec2::new(78.0, 117.0);
@@ -29,6 +30,7 @@ const TRICK_GAP: f32 = 8.0;
 const TRICK_LABEL_HEIGHT: f32 = 20.0;
 const TABLE_GREEN: Color32 = Color32::from_rgb(34, 102, 58);
 const TABLE_RED: Color32 = Color32::from_rgb(110, 22, 26);
+const TABLE_BLUE: Color32 = Color32::from_rgb(30, 74, 140);
 
 /// Size of the trick triangle: left and right card on top, the human's card
 /// below between them.
@@ -66,6 +68,7 @@ enum Mode {
     Levels,
     Goldfish,
     Mephisto,
+    God,
 }
 
 /// An opponent decision computed on a background thread. Dropping it
@@ -123,6 +126,9 @@ pub struct GrandCoachApp {
     show_seed: bool,
     /// Coach analysis being computed.
     coach_thinking: Option<CoachThinking>,
+    /// God Mode: show every card face up (on by default); off, the
+    /// opponents' cards and the Skat show their backs.
+    see_all: bool,
 }
 
 impl GrandCoachApp {
@@ -145,6 +151,7 @@ impl GrandCoachApp {
             new_series: None,
             show_seed: false,
             coach_thinking: None,
+            see_all: true,
         }
     }
 
@@ -171,6 +178,11 @@ impl GrandCoachApp {
     /// Switches the card faces; the game keeps running.
     pub fn set_deck(&mut self, deck: Deck) {
         self.deck = deck;
+    }
+
+    /// God Mode: shows every card face up, or the backs (on by default).
+    pub fn set_see_all(&mut self, see_all: bool) {
+        self.see_all = see_all;
     }
 
     /// Shows or hides the seed (developer option, off by default).
@@ -386,6 +398,12 @@ impl GrandCoachApp {
                 ui.checkbox(&mut self.show_seed, label)
                     .on_hover_text(self.t("seed-description"));
             });
+            if view.open_cards.is_some() {
+                ui.separator();
+                let label = self.t("option-see-all");
+                ui.checkbox(&mut self.see_all, label)
+                    .on_hover_text(self.t("option-see-all-description"));
+            }
         });
     }
 
@@ -613,6 +631,7 @@ impl GrandCoachApp {
                 Opponents::Levels(_) => Mode::Levels,
                 Opponents::Goldfish => Mode::Goldfish,
                 Opponents::Mephisto => Mode::Mephisto,
+                Opponents::GodMode => Mode::God,
             },
             levels: match config.opponents {
                 Opponents::Levels(levels) => levels,
@@ -689,6 +708,7 @@ impl GrandCoachApp {
                 Opponents::Mephisto => {
                     i.tf("status-opponents", &[("mode", i.t("mode-mephisto").into())])
                 }
+                Opponents::GodMode => i.tf("status-opponents", &[("mode", i.t("mode-god").into())]),
             });
             if self.show_seed {
                 ui.separator();
@@ -820,6 +840,12 @@ impl GrandCoachApp {
                 _ => {
                     ui.horizontal_wrapped(|ui| {
                         ui.spacing_mut().item_spacing.x = -SMALL_CARD.x * 0.6;
+                        if let Some(open) = self.open_cards(view) {
+                            for &card in &open.hands[player.index()] {
+                                self.card_image(ui, card, SMALL_CARD);
+                            }
+                            return;
+                        }
                         for _ in 0..info.cards {
                             ui.add(
                                 egui::Image::new(cards::image(self.back()))
@@ -835,7 +861,19 @@ impl GrandCoachApp {
     fn middle(&self, ui: &mut egui::Ui, view: &TableView, now: f64) {
         let i = &self.i18n;
         ui.vertical_centered(|ui| {
-            if matches!(view.phase, Phase::Reizen | Phase::SkatAufnahme) {
+            // God Mode shows the Skat all game long, also after Drücken.
+            let open_skat = self
+                .open_cards(view)
+                .map(|o| o.skat.as_slice())
+                .filter(|s| !s.is_empty() && view.result.is_none());
+            if let Some(skat) = open_skat {
+                ui.label(RichText::new(self.t("label-skat")).color(Color32::WHITE));
+                ui.horizontal(|ui| {
+                    for &card in skat {
+                        self.card_image(ui, card, SMALL_CARD);
+                    }
+                });
+            } else if matches!(view.phase, Phase::Reizen | Phase::SkatAufnahme) {
                 ui.label(RichText::new(self.t("label-skat")).color(Color32::WHITE));
                 ui.horizontal(|ui| {
                     for _ in 0..2 {
@@ -1158,29 +1196,39 @@ impl GrandCoachApp {
         }
     }
 
-    fn mephisto(&self) -> bool {
-        self.session.config().opponents == Opponents::Mephisto
+    /// Faces, back and table of the session's table mode.
+    pub fn theme(&self) -> Theme {
+        match self.session.config().opponents {
+            Opponents::Mephisto => Theme::Mephisto,
+            Opponents::GodMode => Theme::God,
+            _ => Theme::Classic,
+        }
     }
 
     /// Face of `card` in the chosen deck (path below `assets/cards/`); the
-    /// Mephisto variant while the session plays against Mephisto.
+    /// Mephisto or God Mode variant in those modes.
     pub fn face(&self, card: Card) -> String {
-        cards::face_path(self.deck, card, self.mephisto())
+        cards::face_path(self.deck, card, self.theme())
     }
 
-    /// Card back (path below `assets/cards/`); the Mephisto back while the
-    /// session plays against Mephisto.
+    /// Card back (path below `assets/cards/`) of the table mode.
     pub fn back(&self) -> &'static str {
-        cards::back_path(self.mephisto())
+        cards::back_path(self.theme())
     }
 
-    /// Table colour: red against Mephisto, green otherwise.
+    /// Table colour: red against Mephisto, blue in God Mode, green
+    /// otherwise.
     pub fn table_color(&self) -> Color32 {
-        if self.mephisto() {
-            TABLE_RED
-        } else {
-            TABLE_GREEN
+        match self.theme() {
+            Theme::Classic => TABLE_GREEN,
+            Theme::Mephisto => TABLE_RED,
+            Theme::God => TABLE_BLUE,
         }
+    }
+
+    /// The open cards of God Mode while the player wants to see them.
+    fn open_cards<'a>(&self, view: &'a TableView) -> Option<&'a OpenCards> {
+        view.open_cards.as_ref().filter(|_| self.see_all)
     }
 
     /// Draws a trick as a triangle: every card lies on the side of the
@@ -1254,6 +1302,8 @@ impl GrandCoachApp {
                 ui.radio_value(&mut draft.mode, Mode::Goldfish, self.t("mode-goldfish"))
                     .on_hover_text(self.t("mode-goldfish-description"));
                 ui.radio_value(&mut draft.mode, Mode::Mephisto, self.t("mode-mephisto"));
+                ui.radio_value(&mut draft.mode, Mode::God, self.t("mode-god"))
+                    .on_hover_text(self.t("mode-god-description"));
                 let mut notes = Vec::new();
                 match draft.mode {
                     Mode::Levels => {
@@ -1264,6 +1314,7 @@ impl GrandCoachApp {
                     }
                     Mode::Goldfish => notes.push("mode-goldfish-description"),
                     Mode::Mephisto => {}
+                    Mode::God => notes.push("mode-god-description"),
                 }
                 for note in notes {
                     ui.label(RichText::new(self.t(note)).small().weak());
@@ -1306,6 +1357,7 @@ impl GrandCoachApp {
                     Mode::Levels => Opponents::Levels(draft.levels),
                     Mode::Goldfish => Opponents::Goldfish,
                     Mode::Mephisto => Opponents::Mephisto,
+                    Mode::God => Opponents::GodMode,
                 },
             });
             self.thinking = None;
@@ -1386,6 +1438,11 @@ fn level_description(level: Level) -> &'static str {
 impl eframe::App for GrandCoachApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let now = ui.input(|i| i.time);
+        // Suit names follow the shown faces (D-62).
+        self.i18n.faces = Faces {
+            german: self.deck == Deck::German,
+            theme: self.theme(),
+        };
         // The opponents wait while the "new series" dialog is open.
         if self.new_series.is_none() {
             self.drive_opponents(ui.ctx(), now);

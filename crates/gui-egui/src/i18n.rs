@@ -5,6 +5,8 @@
 
 use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 
+use crate::cards::Theme;
+
 /// German messages.
 pub const DE_FTL: &str = include_str!("../../../assets/i18n/de.ftl");
 /// English messages.
@@ -24,12 +26,33 @@ impl Language {
     pub const ALL: [Language; 2] = [Language::De, Language::En];
 }
 
+/// The card faces whose suit names the texts use: a suit is named after
+/// the symbol on the shown faces (D-62).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Faces {
+    /// German deck (Eichel, Laub, Herz, Schellen) instead of French.
+    pub german: bool,
+    /// Variant of the table mode.
+    pub theme: Theme,
+}
+
+impl Default for Faces {
+    fn default() -> Faces {
+        Faces {
+            german: false,
+            theme: Theme::Classic,
+        }
+    }
+}
+
 /// Both message bundles and the selected language.
 pub struct I18n {
     de: FluentBundle<FluentResource>,
     en: FluentBundle<FluentResource>,
     /// Selected language.
     pub language: Language,
+    /// The shown card faces, for suit names.
+    pub faces: Faces,
 }
 
 fn bundle(lang: &str, source: &str) -> FluentBundle<FluentResource> {
@@ -51,6 +74,7 @@ impl I18n {
             de: bundle("de", DE_FTL),
             en: bundle("en", EN_FTL),
             language,
+            faces: Faces::default(),
         }
     }
 
@@ -264,6 +288,8 @@ mod tests {
                     "calls",
                     "call",
                     "winner",
+                    "name",
+                    "alias",
                 ] {
                     args.set(name, "x");
                 }

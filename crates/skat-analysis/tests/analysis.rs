@@ -11,7 +11,7 @@ use skat_analysis::sampling::Diagnostic;
 use skat_analysis::sampling::Place;
 use skat_analysis::sampling::World;
 use skat_analysis::{
-    Analysis, Budget, Cancel, CardClass, Estimate, Status, analyze, analyze_forgetful,
+    Analysis, Assumption, Budget, Cancel, CardClass, Estimate, Status, analyze, analyze_forgetful,
     analyze_known, with_max_threads,
 };
 use skat_core::{
@@ -522,6 +522,17 @@ fn known_world_analysis_is_exact_and_checked() {
     assert_complete(&view, &a);
     assert_eq!(a.effort.planned, 1);
     assert!(a.options.iter().all(|o| o.estimate.unwrap().exact));
+    // The estimates use the known deal; the assumptions say so, and the
+    // inferences stay what the seat could deduce from its own view.
+    assert!(a.effort.known);
+    assert!(a.assumptions.contains(&Assumption::KnownDeal));
+    assert!(!a.assumptions.contains(&Assumption::UniformHiddenCards));
+    assert!(!a.assumptions.contains(&Assumption::BiddingEvidence));
+    assert!(
+        a.inferences.iter().any(|i| !i.certain),
+        "{:?}",
+        a.inferences
+    );
 
     run(&mut g, &VH_AT_18);
     run(
@@ -552,6 +563,22 @@ fn known_world_analysis_is_exact_and_checked() {
     foreign.hands[view.seat.index()] = (view.hand - CardSet::single(own)) | CardSet::single(other);
     foreign.hands[mh] = (world.hands[mh] - CardSet::single(other)) | CardSet::single(own);
     assert!(analyze_known(&view, foreign, SMALL, None).is_err());
+}
+
+/// With every card known, the inferences are still those of the seat's
+/// own information set: the same as a plain analysis with seed 0.
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn known_world_analysis_keeps_the_seats_own_inferences() {
+    let g = game(false);
+    let view = current_view(&g);
+    let world = World::from_omniscient(&g.omniscient_view());
+    let known = analyze_known(&view, world, SMALL, None).unwrap();
+    let own = analyze(&view, SMALL, 0, None).unwrap();
+    assert_complete(&view, &own);
+    assert!(!own.effort.known);
+    assert!(own.assumptions.contains(&Assumption::UniformHiddenCards));
+    assert_eq!(known.inferences, own.inferences);
 }
 
 /// Forgotten cards turn an exact late position into an estimate; nothing

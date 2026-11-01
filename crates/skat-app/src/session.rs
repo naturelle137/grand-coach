@@ -6,14 +6,14 @@ use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use skat_ai::{Budget, Cancel, Level, Mephisto, Opponent, Profile};
-use skat_core::{Action, Event, Game, Phase, RuleConfig, RuleError, Seat};
+use skat_core::{Action, Event, Game, OmniscientView, Phase, RuleConfig, RuleError, Seat};
 
 use crate::coach::{
     CoachEvent, CoachJob, CoachResult, CoachSettings, CoachState, DecisionKey, Pending,
 };
 use crate::context::DecisionContext;
 use crate::series::{GameRecord, ScoreSheet, SeriesResult};
-use crate::view::{TableView, build_view};
+use crate::view::{TableView, build_view, open_cards};
 
 /// A player of the series. Player 0 is the human; players 1 and 2 are the
 /// opponents, 1 sitting to the human's left (plays next), 2 to the right.
@@ -88,6 +88,23 @@ pub enum Opponents {
     /// computer declarer keeps seeing every card while its partner plays
     /// Strong; against the human declarer both defenders see every card.
     Mephisto,
+    /// God Mode (D-62): the opponents play as in [`Opponents::Mephisto`],
+    /// but the human sees every card ([`crate::OpenCards`]) and the coach
+    /// evaluates the options in the real deal.
+    GodMode,
+}
+
+impl Opponents {
+    /// `true` if Mephisto decides for the opponents (Mephisto and God
+    /// Mode).
+    pub fn mephisto(self) -> bool {
+        matches!(self, Opponents::Mephisto | Opponents::GodMode)
+    }
+
+    /// `true` in God Mode: the human and the coach see every card.
+    pub fn god_mode(self) -> bool {
+        self == Opponents::GodMode
+    }
 }
 
 impl Default for SessionConfig {
@@ -103,7 +120,7 @@ impl Default for SessionConfig {
 
 impl SessionConfig {
     /// Level of `player` when every opponent has one; `None` for the
-    /// human and in the Goldfish and Mephisto modes.
+    /// human and in the Goldfish, Mephisto and God modes.
     pub fn level(&self, player: PlayerId) -> Option<Level> {
         match (self.opponents, player.0) {
             (Opponents::Levels(levels), 1 | 2) => Some(levels[player.index() - 1]),
@@ -333,9 +350,14 @@ impl Session {
         self.game_seed
     }
 
-    /// The human's view of the table.
+    /// The human's view of the table; in God Mode with every card
+    /// ([`TableView::open_cards`], D-62).
     pub fn view(&self) -> TableView {
         let human_seat = PlayerId::HUMAN.seat(self.dealer);
+        let view = self.game.view(human_seat);
+        let open_cards = self
+            .all_cards()
+            .map(|all| open_cards(&all, self.dealer, view.contract.map(|c| c.game)));
         build_view(
             &self.config,
             self.number,
@@ -343,10 +365,20 @@ impl Session {
             &self.sheet,
             self.finished,
             self.opponent_to_move(),
-            &self.game.view(human_seat),
+            &view,
+            open_cards,
             self.coach
                 .view(self.human_decision(), self.game.current_seat().is_none()),
         )
+    }
+
+    /// The whole deal for the human and the coach; only in God Mode
+    /// (D-23, D-62).
+    fn all_cards(&self) -> Option<OmniscientView> {
+        self.config
+            .opponents
+            .god_mode()
+            .then(|| self.game.omniscient_view())
     }
 
     /// Coach settings.
@@ -375,14 +407,14 @@ impl Session {
     /// decision played before its analysis finished (note and debriefing,
     /// [`CoachJob::is_review`]). Compute it with [`CoachJob::run`] (on any
     /// thread) and pass the result to [`Session::finish_coach`]. It holds
-    /// only the human's view.
+    /// only the human's view, in God Mode also the whole deal (D-62).
     pub fn coach_job(&self) -> Option<CoachJob> {
         if let Some(key) = self.human_decision()
             && self.coach.wanted(key)
             && self.coach.result(key).is_none()
         {
             let seat = PlayerId::HUMAN.seat(self.dealer);
-            return Some(self.coach.job(key, self.game.view(seat)));
+            return Some(self.coach.job(key, self.game.view(seat), self.all_cards()));
         }
         self.coach.review_job()
     }
@@ -443,7 +475,7 @@ impl Session {
         self.game.validate(action).map_err(AppError::Rule)?;
         let view = self.game.view(PlayerId::HUMAN.seat(self.dealer));
         let context = DecisionContext::new(key, self.dealer, &view, action);
-        self.coach.record(key, &view, context);
+        self.coach.record(key, &view, self.all_cards(), context);
         self.apply(action)
     }
 
@@ -475,7 +507,7 @@ impl Session {
                 seed,
             }),
             Opponents::Goldfish => fair(Opponent::new(Level::Medium, seed)),
-            Opponents::Mephisto => {
+            Opponents::Mephisto | Opponents::GodMode => {
                 let declarer = self.game.declarer();
                 let partner = self.game.phase() == Phase::Spiel
                     && declarer.is_some_and(|d| {

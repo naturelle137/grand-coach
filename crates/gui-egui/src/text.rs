@@ -7,6 +7,7 @@ use skat_app::{
     RuleError, Seat, Suit,
 };
 
+use crate::cards::Theme;
 use crate::i18n::I18n;
 
 /// Name of a player.
@@ -40,14 +41,44 @@ pub fn phase(i18n: &I18n, phase: Phase) -> String {
     })
 }
 
-/// Name of a suit.
+/// Message ids of a suit's names on the shown faces: the name of its
+/// symbol and, where that symbol replaces the deck's own (Mephisto and
+/// God Mode, D-62), the deck's name, so the suit stays recognisable.
+fn suit_ids(i18n: &I18n, suit: Suit) -> (&'static str, Option<&'static str>) {
+    let faces = i18n.faces;
+    let deck = match (faces.german, suit) {
+        (false, Suit::Kreuz) => "suit-kreuz",
+        (false, Suit::Pik) => "suit-pik",
+        (false, Suit::Karo) => "suit-karo",
+        (true, Suit::Kreuz) => "suit-eichel",
+        (true, Suit::Pik) => "suit-laub",
+        (true, Suit::Karo) => "suit-schellen",
+        (_, Suit::Herz) => "suit-herz",
+    };
+    let symbol = match (faces.theme, faces.german, suit) {
+        (Theme::God, _, Suit::Pik) => Some("suit-mond"),
+        (Theme::God, _, Suit::Karo) => Some("suit-stern"),
+        (Theme::God | Theme::Mephisto, true, Suit::Kreuz) => Some("suit-cross"),
+        _ => None,
+    };
+    (symbol.unwrap_or(deck), symbol.map(|_| deck))
+}
+
+/// `name` with the deck's name of the suit in brackets, if any.
+fn with_alias(i18n: &I18n, name: String, alias: Option<&str>) -> String {
+    match alias {
+        Some(alias) => i18n.tf(
+            "name-alias",
+            &[("name", name.into()), ("alias", i18n.t(alias).into())],
+        ),
+        None => name,
+    }
+}
+
+/// Name of a suit on the shown faces, e.g. "Mond (Pik)" in God Mode.
 pub fn suit(i18n: &I18n, suit: Suit) -> String {
-    i18n.t(match suit {
-        Suit::Kreuz => "suit-kreuz",
-        Suit::Pik => "suit-pik",
-        Suit::Herz => "suit-herz",
-        Suit::Karo => "suit-karo",
-    })
+    let (name, alias) = suit_ids(i18n, suit);
+    with_alias(i18n, i18n.t(name), alias)
 }
 
 /// Name of a rank.
@@ -64,15 +95,18 @@ pub fn rank(i18n: &I18n, rank: Rank) -> String {
     })
 }
 
-/// Name of a card, also its accessible label.
+/// Name of a card, also its accessible label, e.g. "Mond-Sieben (Pik)"
+/// in God Mode.
 pub fn card(i18n: &I18n, card: Card) -> String {
-    i18n.tf(
+    let (name, alias) = suit_ids(i18n, card.suit());
+    let name = i18n.tf(
         "card-name",
         &[
-            ("suit", suit(i18n, card.suit()).into()),
+            ("suit", i18n.t(name).into()),
             ("rank", rank(i18n, card.rank()).into()),
         ],
-    )
+    );
+    with_alias(i18n, name, alias)
 }
 
 /// Name of a game type.
@@ -207,5 +241,86 @@ fn rule_error(i18n: &I18n, error: RuleError) -> String {
             i18n.tf("error-must-follow-suit", &[("card", card(i18n, c).into())])
         }
         RuleError::KontraNotAllowed => i18n.t("error-kontra-not-allowed"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use skat_app::{Card, GameType, Rank, Suit};
+
+    use super::*;
+    use crate::i18n::{Faces, Language};
+
+    fn names(language: Language, german: bool, theme: Theme) -> Vec<String> {
+        let mut i18n = I18n::new(language);
+        i18n.faces = Faces { german, theme };
+        Suit::ALL.iter().map(|&s| suit(&i18n, s)).collect()
+    }
+
+    /// Suits are named after the shown symbols; a replaced symbol keeps
+    /// the deck's name in brackets (D-62).
+    #[test]
+    fn suit_names_follow_the_shown_faces() {
+        use Language::De;
+        let cases = [
+            (false, Theme::Classic, ["Kreuz", "Pik", "Herz", "Karo"]),
+            (true, Theme::Classic, ["Eichel", "Laub", "Herz", "Schellen"]),
+            (false, Theme::Mephisto, ["Kreuz", "Pik", "Herz", "Karo"]),
+            (
+                true,
+                Theme::Mephisto,
+                ["Kreuz (Eichel)", "Laub", "Herz", "Schellen"],
+            ),
+            (
+                false,
+                Theme::God,
+                ["Kreuz", "Mond (Pik)", "Herz", "Stern (Karo)"],
+            ),
+            (
+                true,
+                Theme::God,
+                ["Kreuz (Eichel)", "Mond (Laub)", "Herz", "Stern (Schellen)"],
+            ),
+        ];
+        for (german, theme, expected) in cases {
+            assert_eq!(names(De, german, theme), expected, "{german} {theme:?}");
+        }
+        assert_eq!(
+            names(Language::En, true, Theme::God),
+            [
+                "Crosses (Acorns)",
+                "Moons (Leaves)",
+                "Hearts",
+                "Stars (Bells)"
+            ]
+        );
+        assert_eq!(
+            names(Language::En, false, Theme::Classic),
+            ["Clubs", "Spades", "Hearts", "Diamonds"]
+        );
+    }
+
+    /// Cards and games use the same names.
+    #[test]
+    fn card_and_game_names_follow_the_shown_faces() {
+        let mut i18n = I18n::new(Language::De);
+        let seven = Card::new(Suit::Pik, Rank::Sieben);
+        assert_eq!(card(&i18n, seven), "Pik-Sieben");
+        i18n.faces = Faces {
+            german: false,
+            theme: Theme::God,
+        };
+        assert_eq!(card(&i18n, seven), "Mond-Sieben (Pik)");
+        assert_eq!(
+            game_type(&i18n, GameType::Farbe(Suit::Karo)),
+            "Stern (Karo)"
+        );
+        i18n.faces.german = true;
+        assert_eq!(card(&i18n, seven), "Mond-Sieben (Laub)");
+        i18n.faces.theme = Theme::Classic;
+        assert_eq!(card(&i18n, seven), "Laub-Sieben");
+        i18n.language = Language::En;
+        i18n.faces.theme = Theme::God;
+        assert_eq!(card(&i18n, seven), "Seven of Moons (Leaves)");
     }
 }

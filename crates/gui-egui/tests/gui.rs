@@ -6,7 +6,7 @@
 use eframe::egui::{self, Role};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
-use gui_egui::{Deck, GrandCoachApp, Language};
+use gui_egui::{Deck, GrandCoachApp, Language, Theme};
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
 use skat_app::coach_model::Judgement;
@@ -18,6 +18,7 @@ use skat_app::{
 
 const TABLE_GREEN: egui::Color32 = egui::Color32::from_rgb(34, 102, 58);
 const TABLE_RED: egui::Color32 = egui::Color32::from_rgb(110, 22, 26);
+const TABLE_BLUE: egui::Color32 = egui::Color32::from_rgb(30, 74, 140);
 
 fn harness(config: SessionConfig) -> Harness<'static, GrandCoachApp> {
     let mut harness = Harness::builder()
@@ -298,16 +299,14 @@ fn every_card_face_renders() {
     let ctx = egui::Context::default();
     egui_extras::install_image_loaders(&ctx);
     let mut faces = Vec::new();
-    for mephisto in [false, true] {
+    for theme in Theme::ALL {
         for deck in Deck::ALL {
             for index in 0..32 {
                 let card = Card::from_index(index).unwrap();
-                faces.push(gui_egui::cards::face_path(deck, card, mephisto));
+                faces.push(gui_egui::cards::face_path(deck, card, theme));
             }
         }
-    }
-    for mephisto in [false, true] {
-        faces.push(gui_egui::cards::back_path(mephisto).to_owned());
+        faces.push(gui_egui::cards::back_path(theme).to_owned());
     }
     let mut seen = std::collections::BTreeSet::new();
     for path in faces {
@@ -726,10 +725,12 @@ fn opponent_levels_are_chosen_per_opponent() {
         }
     }
     // The table modes: Goldfish, then Mephisto with its own card faces,
-    // card back and a red table.
+    // card back and a red table, then God Mode with its own faces, back,
+    // a blue table and the switch to see every card.
     for (label, opponents) in [
         ("Goldfisch", Opponents::Goldfish),
         ("Mephisto", Opponents::Mephisto),
+        ("God Mode", Opponents::GodMode),
     ] {
         button(&mut harness, "Spiel");
         button(&mut harness, "Neue Serie …");
@@ -738,18 +739,23 @@ fn opponent_levels_are_chosen_per_opponent() {
         let view = view(&harness);
         assert_eq!(view.config.opponents, opponents);
         harness.get_by_label(&format!("Gegner: {label}"));
-        let mephisto = opponents == Opponents::Mephisto;
+        let (prefix, back, table) = match opponents {
+            Opponents::Mephisto => ("mephisto/", "mephisto/back.svg", TABLE_RED),
+            Opponents::GodMode => ("god/", "god/back.svg", TABLE_BLUE),
+            _ => ("", "back.svg", TABLE_GREEN),
+        };
         for &card in &view.hand {
             let face = harness.state().face(card);
-            assert_eq!(face.starts_with("mephisto/"), mephisto, "{face}");
+            assert!(face.starts_with(prefix), "{face}");
+            let themed = face.starts_with("mephisto/") || face.starts_with("god/");
+            assert_eq!(themed, !prefix.is_empty(), "{face}");
         }
-        let (back, table) = if mephisto {
-            ("mephisto/back.svg", TABLE_RED)
-        } else {
-            ("back.svg", TABLE_GREEN)
-        };
         assert_eq!(harness.state().back(), back);
         assert_eq!(harness.state().table_color(), table);
+        let god = opponents == Opponents::GodMode;
+        assert_eq!(view.open_cards.is_some(), god);
+        let see_all = harness.query_by_role_and_label(Role::CheckBox, "Alle Karten sehen");
+        assert_eq!(see_all.is_some(), god);
     }
     // Back to single levels: green table and the usual back again.
     button(&mut harness, "Spiel");

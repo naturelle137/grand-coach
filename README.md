@@ -15,7 +15,7 @@ Zug. Schwerpunkte sind Kartenzählen und das Hineinversetzen in die Gegner.
 
 - Skat nach ISkO, optional mit Kontra/Re, Wertung nach Seeger-Fabian
 - Gegnerstärke in Stufen (Grünschnabel, Leicht, Mittel, Stark) sowie die
-  Modi Goldfisch und Mephisto
+  Modi Goldfisch, Mephisto und God Mode (du und der Coach seht alle Karten)
 - Live-Coach in Stufen: aus / auf Anfrage / wichtige Entscheidungen / jeder Zug
 - Kartenzählhilfe und Quiz
 - Offener Modus, Replay, Analyse nach dem Spiel
@@ -28,7 +28,7 @@ Details: [docs/vision.md](docs/vision.md).
 
 Spielbare Version: eine Serie gegen zwei Computergegner, deren Stärke
 (Grünschnabel, Leicht, Mittel, Stark) einzeln wählbar ist, oder gegen
-Goldfisch oder Mephisto, mit Kontra/Re, drei
+Goldfisch, Mephisto oder im God Mode, mit Kontra/Re, drei
 Kartenbildern und deutscher oder englischer Oberfläche.
 Der Live-Coach mit gestuften Hinweisen, sechs belegten Lektionen, Lernfokus
 und Rückblick auf frühere Entscheidungen ist implementiert. Kartenzählhilfe,
@@ -64,7 +64,7 @@ cargo run --release -p gui-egui
 Du spielst unten, die Gegner sitzen links und rechts. Beim Start öffnet sich
 „Neue Serie“ mit den Einstellungen der ersten Serie; die Gegner warten, bis
 du startest oder abbrichst. Über „Spiel → Neue Serie …“ wählst du feste Spielzahl (z. B. 36) oder freies Spiel, Kontra/Re
-und die Gegner (Stärke je Gegner, Goldfisch oder Mephisto); unter
+und die Gegner (Stärke je Gegner, Goldfisch, Mephisto oder God Mode); unter
 „Einstellungen“ Sprache und Kartenbild. Die Entwickleroption „Seed anzeigen“
 zeigt den Startwert der Serie und macht ihn in „Neue Serie …“ einstellbar
 (ganze Zahl von 0 bis 18446744073709551615; gleicher Seed, gleiche Karten).
@@ -98,8 +98,8 @@ Focus: card counting and putting yourself in the opponents' shoes.
 ### Features (available and planned)
 
 - Skat per ISkO, optional Kontra/Re, Seeger-Fabian scoring
-- Opponent levels (Rookie, Easy, Medium, Strong) and the modes Goldfish
-  and Mephisto
+- Opponent levels (Rookie, Easy, Medium, Strong) and the modes Goldfish,
+  Mephisto and God Mode (you and the coach see every card)
 - Live coach with levels: off / on request / important decisions / every move
 - Card-counting aid and quiz
 - Open mode, replay, post-game analysis
@@ -111,8 +111,8 @@ Details: [docs/vision.md](docs/vision.md).
 ### Status
 
 Playable version: a series against two computer opponents whose strength
-(Rookie, Easy, Medium, Strong) is chosen separately, or against Goldfish or
-Mephisto, with Kontra/Re, three card
+(Rookie, Easy, Medium, Strong) is chosen separately, or against Goldfish,
+Mephisto or in God Mode, with Kontra/Re, three card
 faces and a German or English UI.
 The live coach with staged hints, six evidence-backed lessons, learning
 focus and historical decision reviews is implemented. Counting aid, quiz,
@@ -148,7 +148,7 @@ cargo run --release -p gui-egui
 You play at the bottom; the opponents sit left and right. At launch, "New
 series" opens with the settings of the first series; the opponents wait
 until you start or cancel. "Game → New series …" chooses a fixed number of games (e.g. 36) or free play,
-Kontra/Re and the opponents (a level for each, Goldfish or Mephisto);
+Kontra/Re and the opponents (a level for each, Goldfish, Mephisto or God Mode);
 "Settings" switches language and card faces. The developer option "Show
 seed" shows the series seed and lets "New series …" set it (a whole number
 from 0 to 18446744073709551615; same seed, same cards). The right-hand side

@@ -5,7 +5,9 @@
 //! debriefing and the lifecycle of coach analyses.
 //!
 //! The coach analyses only the human's [`PlayerView`] with
-//! `skat-analysis` and explains it with `skat-coach`. Like opponent moves,
+//! `skat-analysis` and explains it with `skat-coach`; in God Mode it also
+//! receives the real deal as an [`OmniscientView`] and evaluates the
+//! options in it, like Mephisto (D-62). Like opponent moves,
 //! the analysis runs wherever the frontend wants ([`CoachJob::run`]); the
 //! result is accepted only for the position it was computed for. Before
 //! the move the view carries only [`Hints`], never the ranking (D-49).
@@ -14,9 +16,9 @@ use serde::{Deserialize, Serialize};
 use skat_ai::{Budget, Cancel};
 use skat_coach::{
     Concept, Explanation, Hints, LessonContent, Moment, MoveReview, Note, Stage, Status, Warning,
-    advise, decision_seed, hints_for, moments, review,
+    advise, advise_known, decision_seed, hints_for, moments, review,
 };
-use skat_core::{Action, PlayerView};
+use skat_core::{Action, OmniscientView, PlayerView};
 
 use crate::context::DecisionContext;
 
@@ -104,11 +106,13 @@ pub(crate) struct DecisionKey {
 }
 
 /// A coach analysis to compute, possibly on another thread. It holds the
-/// human's own view only (D-23).
+/// human's own view, and the whole deal only in God Mode (D-23, D-62).
 #[derive(Clone, Debug)]
 pub struct CoachJob {
     key: DecisionKey,
     view: Box<PlayerView>,
+    /// The real deal at this decision; only in God Mode.
+    all: Option<Box<OmniscientView>>,
     budget: Budget,
     seed: u64,
     review: bool,
@@ -118,7 +122,11 @@ impl CoachJob {
     /// Analyses and explains the decision. `cancel` stops the analysis; a
     /// cancelled result is never presented as advice.
     pub fn run(&self, cancel: Option<&Cancel>) -> CoachResult {
-        let outcome = match advise(&self.view, self.budget, self.seed, cancel) {
+        let explanation = match &self.all {
+            Some(all) => advise_known(&self.view, all, self.budget, cancel),
+            None => advise(&self.view, self.budget, self.seed, cancel),
+        };
+        let outcome = match explanation {
             Some(e) if e.status == Status::Cancelled => Err(Unavailable::Cancelled),
             Some(e) => Ok(Box::new(e)),
             None => Err(Unavailable::Failed),
@@ -129,6 +137,11 @@ impl CoachJob {
             seed: self.seed,
             outcome,
         }
+    }
+
+    /// `true` if this analysis sees every card (God Mode, D-62).
+    pub fn sees_all_cards(&self) -> bool {
+        self.all.is_some()
     }
 
     /// Sampling seed of this analysis (from the coach's own seed stream and
@@ -315,6 +328,7 @@ pub struct CoachView {
 pub(crate) struct Queued {
     key: DecisionKey,
     view: Box<PlayerView>,
+    all: Option<Box<OmniscientView>>,
     context: Box<DecisionContext>,
 }
 
@@ -468,7 +482,13 @@ impl CoachState {
     /// Records the human's own action at `key` from `view` (before it is
     /// applied), with its snapshot `context`: reviewed now if the analysis
     /// is there, queued otherwise.
-    pub(crate) fn record(&mut self, key: DecisionKey, view: &PlayerView, context: DecisionContext) {
+    pub(crate) fn record(
+        &mut self,
+        key: DecisionKey,
+        view: &PlayerView,
+        all: Option<OmniscientView>,
+        context: DecisionContext,
+    ) {
         if self.settings.level == CoachLevel::Off {
             return;
         }
@@ -493,6 +513,7 @@ impl CoachState {
             Some(Err(Unavailable::Cancelled)) | None => self.queue.push(Queued {
                 key,
                 view: Box::new(view.clone()),
+                all: all.map(Box::new),
                 context,
             }),
         }
@@ -527,7 +548,7 @@ impl CoachState {
     /// The oldest queued review job.
     pub(crate) fn review_job(&self) -> Option<CoachJob> {
         let q = self.queue.first()?;
-        let mut job = self.job(q.key, (*q.view).clone());
+        let mut job = self.job(q.key, (*q.view).clone(), q.all.as_deref().cloned());
         job.review = true;
         Some(job)
     }
@@ -585,12 +606,18 @@ impl CoachState {
         )
     }
 
-    pub(crate) fn job(&self, key: DecisionKey, view: PlayerView) -> CoachJob {
+    pub(crate) fn job(
+        &self,
+        key: DecisionKey,
+        view: PlayerView,
+        all: Option<OmniscientView>,
+    ) -> CoachJob {
         let base = self.seed ^ u64::from(key.number).wrapping_mul(0x9E37_79B9_7F4A_7C15);
         CoachJob {
             key,
             seed: decision_seed(base, &view),
             view: Box::new(view),
+            all: all.map(Box::new),
             budget: self.budget,
             review: false,
         }

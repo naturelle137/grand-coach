@@ -129,6 +129,9 @@ Table mode `Opponents::Mephisto` in `skat-app`, decided by
 - The GUI shows the Mephisto variant of the chosen card faces, the
   Mephisto back (flames in the gate to hell) and a red instead of the
   green table, only in this mode (D-41).
+- God Mode (`Opponents::GodMode`, D-62) has the same opponents; there the
+  human and the coach see every card, and the GUI shows the God Mode
+  faces, back and a blue table.
 
 ## Information boundary and determinism
 

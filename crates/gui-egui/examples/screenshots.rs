@@ -16,7 +16,7 @@
 use eframe::egui::{Key, Role};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use gui_egui::{GrandCoachApp, Language};
+use gui_egui::{Deck, GrandCoachApp, Language, Theme};
 use skat_app::coach_model::{Concept, Judgement, LessonContent};
 use skat_app::{
     Action, Advice, Budget, Card, CoachLevel, CoachSettings, Debriefing, Level, Opponents, Pending,
@@ -37,6 +37,16 @@ const SEED: u64 = 21;
 /// Scenarios whose state needs another series seed: with seed 21 the
 /// human never plays second to the declarer's lead in the two games.
 const SEEDS: &[(&str, u64)] = &[("coach-lesson-overtake", 1)];
+
+/// Scenarios in God Mode (D-62); all others play against two Easy
+/// opponents.
+const GOD_MODE: &[&str] = &[
+    "god-mode",
+    "god-mode-german",
+    "god-mode-hidden",
+    "god-mode-trick",
+    "god-mode-coach",
+];
 
 const SCENARIOS: &[(&str, Scenario)] = &[
     ("launch", launch),
@@ -83,6 +93,11 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("coach-no-lesson", coach_no_lesson),
     ("coach-focus-debriefing", coach_focus_debriefing),
     ("coach-focus-debriefing-en", coach_focus_debriefing_en),
+    ("god-mode", god_mode),
+    ("god-mode-german", god_mode_german),
+    ("god-mode-hidden", god_mode_hidden),
+    ("god-mode-trick", god_mode_trick),
+    ("god-mode-coach", god_mode_coach),
 ];
 
 /// The window at launch: the "new series" dialog shows the series settings
@@ -639,6 +654,35 @@ fn await_coach(harness: &mut Harness<'_, GrandCoachApp>, done: impl Fn(&TableVie
     panic!("the coach did not finish");
 }
 
+/// God Mode at the human's first bid: every card face up, the Skat
+/// included, on the blue table with the God Mode faces.
+fn god_mode(harness: &mut Harness<'_, GrandCoachApp>) {
+    settle(harness);
+}
+
+/// The same with the German faces.
+fn god_mode_german(harness: &mut Harness<'_, GrandCoachApp>) {
+    harness.state_mut().set_deck(Deck::German);
+    settle(harness);
+}
+
+/// God Mode with "Alle Karten sehen" off: the God Mode back.
+fn god_mode_hidden(harness: &mut Harness<'_, GrandCoachApp>) {
+    settle(harness);
+    click(harness, Role::CheckBox, "Alle Karten sehen");
+}
+
+/// God Mode during card play.
+fn god_mode_trick(harness: &mut Harness<'_, GrandCoachApp>) {
+    trick(harness);
+}
+
+/// The all-seeing coach in God Mode at its second stage: options still
+/// unjudged (D-49).
+fn god_mode_coach(harness: &mut Harness<'_, GrandCoachApp>) {
+    coach_situation(harness);
+}
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let Some(out) = args.next() else {
@@ -663,7 +707,12 @@ fn main() {
             .iter()
             .find(|(n, _)| n == name)
             .map_or(SEED, |&(_, seed)| seed);
-        let mut harness = harness(*name == "launch", seed);
+        let opponents = if GOD_MODE.contains(name) {
+            Opponents::GodMode
+        } else {
+            Opponents::Levels([Level::Easy; 2])
+        };
+        let mut harness = harness(*name == "launch", seed, opponents);
         scenario(&mut harness);
         if name.ends_with("-narrow") {
             harness.set_size(NARROW.into());
@@ -681,12 +730,12 @@ fn main() {
 
 /// The app with a small series; `launch` opens the "new series" dialog
 /// before the first frame, as `main` does.
-fn harness(launch: bool, seed: u64) -> Harness<'static, GrandCoachApp> {
+fn harness(launch: bool, seed: u64, opponents: Opponents) -> Harness<'static, GrandCoachApp> {
     let config = SessionConfig {
         seed,
         series: SeriesLength::Fixed(2),
         kontra_re: true,
-        opponents: Opponents::Levels([Level::Easy; 2]),
+        opponents,
     };
     let mut harness = Harness::builder()
         .with_size(SIZE)
@@ -715,8 +764,10 @@ fn view(harness: &Harness<'_, GrandCoachApp>) -> TableView {
 }
 
 /// Lets the opponents move until the human acts or the game is over.
+/// Mephisto (God Mode) thinks for seconds in a debug build.
 fn settle(harness: &mut Harness<'_, GrandCoachApp>) {
-    for _ in 0..5000 {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(600);
+    while std::time::Instant::now() < deadline {
         if !view(harness).opponent_to_move {
             harness.run_steps(3);
             return;
@@ -744,7 +795,7 @@ fn play_until(harness: &mut Harness<'_, GrandCoachApp>, stop: impl Fn(&TableView
         } else if legal.contains(&Action::KeinKontra) {
             ("Kein Kontra".to_owned(), false)
         } else if let Some(&Action::Play(card)) = legal.first() {
-            (card_label(card), true)
+            (shown_card_label(harness, card), true)
         } else {
             panic!("no scripted click for {legal:?}");
         };
@@ -763,6 +814,21 @@ fn click(harness: &mut Harness<'_, GrandCoachApp>, role: Role, label: &str) {
 }
 
 /// German card label as shown to assistive technology.
+/// The label of `card` on the faces shown: God Mode names Pik and Karo
+/// after their symbols, with the French name in brackets (D-62).
+fn shown_card_label(harness: &Harness<'_, GrandCoachApp>, card: Card) -> String {
+    let label = card_label(card);
+    if harness.state().theme() != Theme::God {
+        return label;
+    }
+    for (french, symbol) in [("Pik", "Mond"), ("Karo", "Stern")] {
+        if let Some(rest) = label.strip_prefix(french) {
+            return format!("{symbol}{rest} ({french})");
+        }
+    }
+    label
+}
+
 fn card_label(card: Card) -> String {
     let suit = ["Kreuz", "Pik", "Herz", "Karo"][usize::from(card.suit().index())];
     let rank = [

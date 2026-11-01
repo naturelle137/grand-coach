@@ -384,3 +384,116 @@ mod snapshots {
         assert_eq!(s.view().coach.debriefing, None);
     }
 }
+
+// God Mode (D-62): the human and the coach see every card.
+
+mod god_mode {
+    use skat_ai::Budget;
+    use skat_coach::advise_known;
+    use skat_core::{CardSet, Seat};
+
+    use crate::sort::sort_hand;
+    use crate::{
+        CoachLevel, CoachSettings, Command, Level, Opponents, PlayerId, SeriesLength, Session,
+        SessionConfig, TableView,
+    };
+
+    /// Cheap: early decisions may stay incomplete, which is enough to
+    /// compare the coach with a direct analysis.
+    const SMALL: Budget = Budget {
+        samples: 2,
+        nodes_per_task: 20_000,
+    };
+
+    fn session(opponents: Opponents) -> Session {
+        Session::new(SessionConfig {
+            seed: 3,
+            series: SeriesLength::Fixed(1),
+            kontra_re: false,
+            opponents,
+        })
+    }
+
+    /// The open cards of `view` are exactly the real deal of `session`.
+    fn check_open_cards(session: &Session, view: &TableView) {
+        let open = view.open_cards.as_ref().expect("God Mode shows every card");
+        let all = session.game.omniscient_view();
+        let game = view.contract.map(|c| c.game);
+        for p in PlayerId::ALL {
+            let seat = p.seat(session.dealer);
+            assert_eq!(
+                open.hands[p.index()],
+                sort_hand(all.hands[seat.index()], game)
+            );
+            assert_eq!(
+                open.hands[p.index()].len(),
+                usize::from(view.players[p.index()].cards)
+            );
+        }
+        assert_eq!(open.hands[0], view.hand);
+        assert_eq!(open.skat, sort_hand(all.skat, game));
+    }
+
+    #[test]
+    fn only_god_mode_shows_every_card() {
+        for opponents in [
+            Opponents::Levels([Level::Easy; 2]),
+            Opponents::Goldfish,
+            Opponents::Mephisto,
+        ] {
+            assert_eq!(session(opponents).view().open_cards, None, "{opponents:?}");
+        }
+        let session = session(Opponents::GodMode);
+        let view = session.view();
+        check_open_cards(&session, &view);
+        let open = view.open_cards.unwrap();
+        let mut every = CardSet::EMPTY;
+        for cards in open.hands.iter().chain([&open.skat]) {
+            every |= cards.iter().copied().collect();
+        }
+        assert_eq!(every.len(), 32);
+        assert_eq!(open.skat.len(), 2);
+    }
+
+    #[test]
+    fn god_mode_opponents_are_mephisto() {
+        assert!(Opponents::GodMode.mephisto() && Opponents::Mephisto.mephisto());
+        assert!(Opponents::GodMode.god_mode() && !Opponents::Mephisto.god_mode());
+        assert!(!Opponents::Goldfish.mephisto());
+        // Before card play Mephisto decides for both opponents.
+        let session = session(Opponents::GodMode);
+        let job = session.opponent_job().expect("Mittelhand bids first");
+        assert!(job.sees_all_cards());
+        assert_eq!(job.level(), None);
+    }
+
+    /// In God Mode the coach evaluates the options in the real deal
+    /// (`advise_known`); against Mephisto it keeps the human's view.
+    #[test]
+    fn god_mode_coach_sees_every_card() {
+        for (opponents, sees_all) in [(Opponents::Mephisto, false), (Opponents::GodMode, true)] {
+            let mut session = session(opponents);
+            session.set_coach_budget(SMALL);
+            session
+                .execute(Command::SetCoach(CoachSettings {
+                    level: CoachLevel::EveryMove,
+                    ..CoachSettings::default()
+                }))
+                .unwrap();
+            session.run_opponents();
+            let view = session.view();
+            assert!(!view.legal_actions.is_empty(), "the human decides");
+            let job = session.coach_job().expect("the coach analyses every move");
+            assert_eq!(job.sees_all_cards(), sees_all, "{opponents:?}");
+            if sees_all {
+                check_open_cards(&session, &view);
+                let human = session.game.view(PlayerId::HUMAN.seat(session.dealer));
+                let all = session.game.omniscient_view();
+                assert_eq!(human.seat, Seat::Vorhand);
+                let expected = advise_known(&human, &all, SMALL, None).expect("explained");
+                let result = job.run(None);
+                assert_eq!(result.explanation(), Some(&expected));
+            }
+        }
+    }
+}

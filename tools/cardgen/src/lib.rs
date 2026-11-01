@@ -9,9 +9,15 @@
 //! the index M and a devil, and the Kreuz (Eichel) cards an inverted cross
 //! as suit symbol. The Mephisto back shows flames in the gate to hell.
 //!
-//! Output paths are relative to `assets/cards/`: `<deck>/<suit>-<rank>.svg`,
-//! `mephisto/<deck>/<suit>-<rank>.svg`, `back.svg` and `mephisto/back.svg`. Generated files are
-//! CC BY-SA 4.0 (`LICENSE-ASSETS`).
+//! Every deck also has a God Mode variant (D-62): the Jacks carry the
+//! index G and an angel, and the suits carry light symbols: an upright
+//! Latin cross (Kreuz, Eichel), a crescent moon (Pik, Grün), a radiant
+//! heart (Herz, Rot) and a star of light (Karo, Schellen). The God Mode
+//! back is bright, with the all-seeing eye in rays of light.
+//!
+//! Output paths are relative to `assets/cards/`: `<theme><deck>/<suit>-<rank>.svg`
+//! and `<theme>back.svg`, where `<theme>` is empty, `mephisto/` or `god/`.
+//! Generated files are CC BY-SA 4.0 (`LICENSE-ASSETS`).
 
 use std::fmt::Write;
 
@@ -40,6 +46,31 @@ impl Deck {
     }
 }
 
+/// Variants of every deck.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Theme {
+    /// The ordinary faces and back.
+    Classic,
+    /// Against Mephisto (D-41).
+    Mephisto,
+    /// In God Mode (D-62).
+    God,
+}
+
+impl Theme {
+    /// All themes.
+    pub const ALL: [Theme; 3] = [Theme::Classic, Theme::Mephisto, Theme::God];
+
+    /// Directory prefix below `assets/cards/`.
+    pub const fn prefix(self) -> &'static str {
+        match self {
+            Theme::Classic => "",
+            Theme::Mephisto => "mephisto/",
+            Theme::God => "god/",
+        }
+    }
+}
+
 /// Suit names used in file names, in `skat-core` order.
 pub const SUITS: [&str; 4] = ["kreuz", "pik", "herz", "karo"];
 /// Rank names used in file names, in `skat-core` order.
@@ -54,19 +85,20 @@ const LICENSE: &str = "<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->";
 /// All generated files as (path below `assets/cards/`, SVG text).
 pub fn generate() -> Vec<(String, String)> {
     let mut files = Vec::new();
-    for mephisto in [false, true] {
-        let prefix = if mephisto { "mephisto/" } else { "" };
+    for theme in Theme::ALL {
+        let prefix = theme.prefix();
         for deck in Deck::ALL {
             for (s, suit) in SUITS.iter().enumerate() {
                 for (r, rank) in RANKS.iter().enumerate() {
                     let path = format!("{prefix}{}/{suit}-{rank}.svg", deck.dir());
-                    files.push((path, card(deck, s, r, mephisto)));
+                    files.push((path, card(deck, s, r, theme)));
                 }
             }
         }
     }
     files.push(("back.svg".to_owned(), back()));
     files.push(("mephisto/back.svg".to_owned(), mephisto_back()));
+    files.push(("god/back.svg".to_owned(), god_back()));
     files
 }
 
@@ -149,6 +181,50 @@ fn mephisto_back() -> String {
     svg(&body)
 }
 
+/// The God Mode back, shared by all decks: the all-seeing eye in a
+/// triangle, surrounded by rays of light on a bright sky.
+fn god_back() -> String {
+    let mut body = outline("#fffdf4");
+    body.push_str(
+        "<defs><pattern id=\"sky\" width=\"16\" height=\"16\" patternUnits=\"userSpaceOnUse\">\
+         <rect width=\"16\" height=\"16\" fill=\"#d8e9fb\"/>\
+         <path d=\"M0,8 L8,0 L16,8 L8,16 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"1.5\"/>\
+         </pattern>\
+         <radialGradient id=\"light\" cx=\"0.5\" cy=\"0.5\" r=\"0.5\">\
+         <stop offset=\"0\" stop-color=\"#fffbe0\"/><stop offset=\"0.6\" stop-color=\"#fff1a8\" stop-opacity=\"0.7\"/>\
+         <stop offset=\"1\" stop-color=\"#fff1a8\" stop-opacity=\"0\"/></radialGradient>\
+         <clipPath id=\"inner\"><rect x=\"12\" y=\"12\" width=\"176\" height=\"276\" rx=\"6\"/></clipPath>\
+         </defs>\n",
+    );
+    body.push_str(
+        "<rect x=\"12\" y=\"12\" width=\"176\" height=\"276\" rx=\"6\" fill=\"url(#sky)\" stroke=\"#d8a820\" stroke-width=\"2\"/>\n",
+    );
+    // Rays of light from the centre.
+    body.push_str("<g clip-path=\"url(#inner)\">");
+    for k in 0..24u8 {
+        let a = (f32::from(k) * 15.0).to_radians();
+        let b = a + 5.0_f32.to_radians();
+        let _ = write!(
+            body,
+            "<path d=\"M100,150 L{:.1},{:.1} L{:.1},{:.1} Z\" fill=\"#ffe88a\" fill-opacity=\"0.55\"/>",
+            100.0 + a.cos() * 200.0,
+            150.0 + a.sin() * 200.0,
+            100.0 + b.cos() * 200.0,
+            150.0 + b.sin() * 200.0
+        );
+    }
+    body.push_str("<circle cx=\"100\" cy=\"150\" r=\"80\" fill=\"url(#light)\"/></g>\n");
+    // The eye in a triangle.
+    body.push_str(
+        "<path d=\"M100,92 L152,184 L48,184 Z\" fill=\"#fff4c0\" stroke=\"#c8961a\" stroke-width=\"4\" stroke-linejoin=\"round\"/>\n\
+         <path d=\"M70,154 Q100,128 130,154 Q100,180 70,154 Z\" fill=\"#ffffff\" stroke=\"#5a4410\" stroke-width=\"3\"/>\n\
+         <circle cx=\"100\" cy=\"154\" r=\"11\" fill=\"#3a7ad8\" stroke=\"#1e4a8a\" stroke-width=\"2\"/>\n\
+         <circle cx=\"100\" cy=\"154\" r=\"5\" fill=\"#10203a\"/><circle cx=\"97\" cy=\"150\" r=\"2\" fill=\"#ffffff\"/>\n\
+         <path d=\"M72,142 Q100,118 128,142\" fill=\"none\" stroke=\"#5a4410\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n",
+    );
+    svg(&body)
+}
+
 /// Colours of a suit: fill, outline and index ink.
 struct Ink {
     fill: &'static str,
@@ -193,11 +269,15 @@ fn ink(deck: Deck, suit: usize) -> Ink {
 
 /// Suit symbol drawn in a 100 × 100 box centred on the origin. `flipped`
 /// marks a symbol that is drawn rotated by 180°; the Mephisto cross is
-/// then drawn upright, so it appears inverted on the card.
-fn symbol(deck: Deck, suit: usize, mephisto: bool, flipped: bool) -> String {
+/// then drawn upright, so it appears inverted on the card, and the God
+/// Mode cross inverted, so it always appears upright.
+fn symbol(deck: Deck, suit: usize, theme: Theme, flipped: bool) -> String {
     let i = ink(deck, suit);
     let (fill, stroke) = (i.fill, i.stroke);
-    if mephisto && suit == 0 {
+    if theme == Theme::God {
+        return light_symbol(suit, fill, stroke, flipped);
+    }
+    if theme == Theme::Mephisto && suit == 0 {
         // Inverted Latin cross: the crossbar sits below the centre.
         let d = if flipped {
             "M-7,-48 H7 V-26 H30 V-12 H7 V48 H-7 V-12 H-30 V-26 H-7 Z"
@@ -213,8 +293,6 @@ fn symbol(deck: Deck, suit: usize, mephisto: bool, flipped: bool) -> String {
             "<path d=\"{d}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"3\" stroke-linejoin=\"round\"/>"
         )
     };
-    const HEART: &str =
-        "M0,42 C-8,32 -46,8 -46,-16 C-46,-38 -18,-46 0,-24 C18,-46 46,-38 46,-16 C46,8 8,32 0,42 Z";
     match (deck, suit) {
         (Deck::German, 0) => format!(
             "<rect x=\"-4\" y=\"-50\" width=\"8\" height=\"14\" fill=\"{stroke}\"/>\
@@ -249,6 +327,67 @@ fn symbol(deck: Deck, suit: usize, mephisto: bool, flipped: bool) -> String {
         ),
     }
 }
+
+/// The God Mode suit symbols (D-62) in a 100 × 100 box centred on the
+/// origin, for every deck: Latin cross, crescent moon, radiant heart and
+/// star of light.
+fn light_symbol(suit: usize, fill: &str, stroke: &str, flipped: bool) -> String {
+    let path = |d: &str| {
+        format!(
+            "<path d=\"{d}\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"3\" stroke-linejoin=\"round\"/>"
+        )
+    };
+    match suit {
+        // Upright Latin cross: the crossbar sits above the centre. A
+        // flipped symbol is drawn inverted so it appears upright.
+        0 if flipped => path("M-7,-48 H7 V12 H30 V26 H7 V48 H-7 V26 H-30 V12 H-7 Z"),
+        0 => path("M-7,-48 H7 V-26 H30 V-12 H7 V48 H-7 V-12 H-30 V-26 H-7 Z"),
+        // Crescent moon, open to the upper right.
+        1 => path("M5,-43.7 A44,44 0 1,0 35.8,25.6 A38,38 0 1,1 5,-43.7 Z"),
+        // Heart in a ring of rays.
+        2 => {
+            let mut out = String::new();
+            for k in 0..8u8 {
+                let a = (f32::from(k) * 45.0 + 22.5).to_radians();
+                let (x, y) = (a.cos(), a.sin());
+                let _ = write!(
+                    out,
+                    "<path d=\"M{:.1},{:.1} L{:.1},{:.1}\" stroke=\"{stroke}\" stroke-width=\"4\" stroke-linecap=\"round\"/>",
+                    x * 38.0,
+                    y * 38.0,
+                    x * 48.0,
+                    y * 48.0
+                );
+            }
+            out.push_str(&format!("<g transform=\"scale(0.72)\">{}</g>", path(HEART)));
+            out
+        }
+        // Star of light: four long and four short rays.
+        _ => {
+            let mut d = String::new();
+            for k in 0..16u8 {
+                let r = match k % 4 {
+                    0 => 48.0,
+                    2 => 24.0,
+                    _ => 9.0,
+                };
+                let a = (f32::from(k) * 22.5 - 90.0).to_radians();
+                let _ = write!(
+                    d,
+                    "{}{:.1},{:.1} ",
+                    if k == 0 { "M" } else { "L" },
+                    a.cos() * r,
+                    a.sin() * r
+                );
+            }
+            d.push('Z');
+            path(&d)
+        }
+    }
+}
+
+const HEART: &str =
+    "M0,42 C-8,32 -46,8 -46,-16 C-46,-38 -18,-46 0,-24 C18,-46 46,-38 46,-16 C46,8 8,32 0,42 Z";
 
 fn place(content: &str, x: f32, y: f32, scale: f32, rotate: bool) -> String {
     let r = if rotate { " rotate(180)" } else { "" };
@@ -311,9 +450,10 @@ fn glyphs(text: &str, x: f32, y: f32, scale: f32, color: &str) -> String {
     out
 }
 
-fn index_text(deck: Deck, rank: usize, mephisto: bool) -> &'static str {
+fn index_text(deck: Deck, rank: usize, theme: Theme) -> &'static str {
     match (deck, rank) {
-        (_, 4) if mephisto => "M",
+        (_, 4) if theme == Theme::Mephisto => "M",
+        (_, 4) if theme == Theme::God => "G",
         (_, 0) => "7",
         (_, 1) => "8",
         (_, 2) => "9",
@@ -390,7 +530,33 @@ fn devil(deck: Deck, suit: usize, flipped: bool) -> String {
         i.fill
     );
     out.push_str(&place(
-        &symbol(deck, suit, true, flipped),
+        &symbol(deck, suit, Theme::Mephisto, flipped),
+        64.0,
+        78.0,
+        0.2,
+        false,
+    ));
+    out
+}
+
+/// The upper half of the God Mode Jack: an angel with a halo and wings.
+fn angel(deck: Deck, suit: usize, flipped: bool) -> String {
+    let i = ink(deck, suit);
+    let mut out = format!(
+        "<path d=\"M74,124 Q50,104 52,74 Q64,96 82,112 Z\" fill=\"#ffffff\" stroke=\"#8a8a9a\" stroke-width=\"2\"/>\
+         <path d=\"M126,124 Q150,104 148,74 Q136,96 118,112 Z\" fill=\"#ffffff\" stroke=\"#8a8a9a\" stroke-width=\"2\"/>\
+         <path d=\"M60,92 Q66,100 72,104 M140,92 Q134,100 128,104\" fill=\"none\" stroke=\"#8a8a9a\" stroke-width=\"1.5\"/>\
+         <path d=\"M66,150 L76,116 Q100,104 124,116 L134,150 Z\" fill=\"{}\" stroke=\"#333\" stroke-width=\"2\"/>\
+         <path d=\"M90,112 L100,130 L110,112\" fill=\"#ffffff\" stroke=\"#333\" stroke-width=\"2\"/>\
+         <circle cx=\"100\" cy=\"94\" r=\"16\" fill=\"#f6d7b0\" stroke=\"#333\" stroke-width=\"2\"/>\
+         <path d=\"M84,92 Q84,74 100,74 Q116,74 116,92 Q110,82 100,82 Q90,82 84,92 Z\" fill=\"#e8c060\" stroke=\"#333\" stroke-width=\"1.5\"/>\
+         <ellipse cx=\"100\" cy=\"68\" rx=\"18\" ry=\"5\" fill=\"none\" stroke=\"#e8b820\" stroke-width=\"4\"/>\
+         <circle cx=\"94\" cy=\"95\" r=\"1.8\" fill=\"#1a1a1a\"/><circle cx=\"106\" cy=\"95\" r=\"1.8\" fill=\"#1a1a1a\"/>\
+         <path d=\"M94,102 Q100,106 106,102\" fill=\"none\" stroke=\"#1a1a1a\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+        i.fill
+    );
+    out.push_str(&place(
+        &symbol(deck, suit, Theme::God, flipped),
         64.0,
         78.0,
         0.2,
@@ -401,9 +567,11 @@ fn devil(deck: Deck, suit: usize, flipped: bool) -> String {
 
 /// One half of a court figure (the upper one; the lower is the same half
 /// rotated, drawn with `flipped`).
-fn figure(deck: Deck, suit: usize, rank: usize, mephisto: bool, flipped: bool) -> String {
-    if mephisto && rank == 4 {
-        return devil(deck, suit, flipped);
+fn figure(deck: Deck, suit: usize, rank: usize, theme: Theme, flipped: bool) -> String {
+    match (theme, rank) {
+        (Theme::Mephisto, 4) => return devil(deck, suit, flipped),
+        (Theme::God, 4) => return angel(deck, suit, flipped),
+        _ => {}
     }
     let i = ink(deck, suit);
     let mut out = format!(
@@ -431,7 +599,7 @@ fn figure(deck: Deck, suit: usize, rank: usize, mephisto: bool, flipped: bool) -
     };
     out.push_str(&headwear);
     out.push_str(&place(
-        &symbol(deck, suit, mephisto, flipped),
+        &symbol(deck, suit, theme, flipped),
         64.0,
         78.0,
         0.2,
@@ -440,13 +608,13 @@ fn figure(deck: Deck, suit: usize, rank: usize, mephisto: bool, flipped: bool) -
     out
 }
 
-fn card(deck: Deck, suit: usize, rank: usize, mephisto: bool) -> String {
+fn card(deck: Deck, suit: usize, rank: usize, theme: Theme) -> String {
     let i = ink(deck, suit);
     let mut body = outline("#ffffff");
-    let sym = symbol(deck, suit, mephisto, false);
-    let flipped = symbol(deck, suit, mephisto, true);
+    let sym = symbol(deck, suit, theme, false);
+    let flipped = symbol(deck, suit, theme, true);
     // Corner indices, top left and rotated bottom right.
-    let index = glyphs(index_text(deck, rank, mephisto), 12.0, 14.0, 0.42, i.index);
+    let index = glyphs(index_text(deck, rank, theme), 12.0, 14.0, 0.42, i.index);
     body.push_str(&index);
     body.push_str(&place(&sym, 24.0, 56.0, 0.2, false));
     body.push_str(&format!(
@@ -478,8 +646,8 @@ fn card(deck: Deck, suit: usize, rank: usize, mephisto: bool) -> String {
                  <clipPath id=\"frame\"><rect x=\"44\" y=\"40\" width=\"112\" height=\"220\" rx=\"6\"/></clipPath>\n",
                 i.stroke
             );
-            let half = figure(deck, suit, rank, mephisto, false);
-            let lower = figure(deck, suit, rank, mephisto, true);
+            let half = figure(deck, suit, rank, theme, false);
+            let lower = figure(deck, suit, rank, theme, true);
             let _ = write!(
                 body,
                 "<g clip-path=\"url(#frame)\">{half}<g transform=\"rotate(180 100 150)\">{lower}</g></g>\n\

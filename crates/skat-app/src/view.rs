@@ -4,7 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 use skat_core::{
-    Action, Call, Card, CompletedTrick, Contract, GameResult, KontraLevel, Phase, PlayerView, Seat,
+    Action, Call, Card, CompletedTrick, Contract, GameResult, GameType, KontraLevel,
+    OmniscientView, Phase, PlayerView, Seat,
 };
 
 use crate::coach::CoachView;
@@ -12,9 +13,10 @@ use crate::series::{ScoreSheet, SeriesResult};
 use crate::session::{PlayerId, SessionConfig};
 use crate::sort::sort_hand;
 
-/// Everything a frontend shows. Built only from the human's
-/// [`PlayerView`], so it never contains hidden cards of the opponents or an
-/// unrevealed Skat (D-23).
+/// Everything a frontend shows. Built from the human's [`PlayerView`], so
+/// it never contains hidden cards of the opponents or an unrevealed Skat
+/// (D-23); the one exception is [`TableView::open_cards`] in God Mode
+/// (D-62).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TableView {
     /// Settings of the session.
@@ -49,6 +51,8 @@ pub struct TableView {
     pub own_skat: Option<Vec<Card>>,
     /// Open cards of an Ouvert declarer, in display order.
     pub declarer_cards: Option<Vec<Card>>,
+    /// Every card of the deal; only in God Mode (D-62), `None` otherwise.
+    pub open_cards: Option<OpenCards>,
     /// Trick in progress.
     pub current_trick: Vec<PlayedCard>,
     /// Last completed trick.
@@ -88,6 +92,31 @@ pub struct SeatInfo {
     pub tricks: u8,
     /// Seeger-Fabian total of the series.
     pub total: i32,
+}
+
+/// Every card of the deal as the human sees it in God Mode (D-62): the
+/// one place where the view model shows hidden cards.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OpenCards {
+    /// Current cards of each player (index: [`PlayerId`]), in display
+    /// order.
+    pub hands: [Vec<Card>; 3],
+    /// The Skat: as dealt, or as discarded after Drücken; empty while the
+    /// declarer holds twelve cards.
+    pub skat: Vec<Card>,
+}
+
+/// The open cards of `all` for the players of a deal by `dealer`, sorted
+/// for `game`.
+pub(crate) fn open_cards(
+    all: &OmniscientView,
+    dealer: PlayerId,
+    game: Option<GameType>,
+) -> OpenCards {
+    OpenCards {
+        hands: PlayerId::ALL.map(|p| sort_hand(all.hands[p.seat(dealer).index()], game)),
+        skat: sort_hand(all.skat, game),
+    }
 }
 
 /// A card played by a player.
@@ -162,6 +191,7 @@ pub(crate) fn build_view(
     series_finished: bool,
     opponent_to_move: bool,
     view: &PlayerView,
+    open_cards: Option<OpenCards>,
     coach: CoachView,
 ) -> TableView {
     let player = |seat: Seat| PlayerId::on_seat(seat, dealer);
@@ -213,6 +243,7 @@ pub(crate) fn build_view(
         hand: sort_hand(view.hand, game),
         own_skat: view.own_skat.map(|s| sort_hand(s, game)),
         declarer_cards: view.declarer_cards.map(|s| sort_hand(s, game)),
+        open_cards,
         current_trick: current_trick(view, dealer),
         last_trick: view.tricks.last().map(|t| trick_view(t, dealer)),
         tricks_played: view.tricks.len() as u8,
