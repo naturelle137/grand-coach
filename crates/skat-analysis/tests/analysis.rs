@@ -369,6 +369,11 @@ fn same_inputs_same_result() {
     let b = analyze(&view, SMALL, 11, None).unwrap();
     assert_eq!(a, b);
     assert_eq!(a.effort.seed, 11);
+    // A thread limit changes the scheduling, not the result.
+    let one = with_max_threads(std::num::NonZeroUsize::MIN, || {
+        analyze(&view, SMALL, 11, None).unwrap()
+    });
+    assert_eq!(a, one);
 }
 
 #[test]
