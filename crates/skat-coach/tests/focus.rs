@@ -2,20 +2,29 @@
 
 //! Focused live hints and teachable-moment selection (#46, D-58): the
 //! optional focus, pedagogical eligibility apart from the engine's
-//! important mark, no preferred action before the move with any focus,
+//! important mark, no preferred action before the move with any focus
+//! (stages 1 and 2 in every phase; stage 3 is the opt-in figures
+//! exception of D-60),
 //! and the deterministic choice of zero to three primary moments, one per
 //! concept. The expected selections are stated from the policy in
 //! `docs/coach.md` and the hand-made review variants below, not from the
 //! implementation's output.
 
 use skat_analysis::lesson::catalogue;
-use skat_analysis::{Analysis, Budget, Status, analyze};
+use skat_analysis::{Analysis, Budget, Estimate, Status, analyze};
 use skat_coach::{
     Concept, Explanation, Judgement, MOMENT_POINTS, MomentKind, MoveReview, PRIMARY_MOMENTS, Stage,
     Taught, Teaching, explain, hints, hints_for, moments, review,
 };
 use skat_core::{
     Action, Announcement, Card, CardSet, Deal, Game, GameType, PlayerView, Rank, RuleConfig, Suit,
+};
+
+/// Fast, for the exact facts and lessons only: [`ranked`] sets the
+/// estimates itself.
+const TINY: Budget = Budget {
+    samples: 2,
+    nodes_per_task: 20_000,
 };
 
 const SMALL: Budget = Budget {
@@ -55,6 +64,12 @@ fn cards(s: &str) -> CardSet {
 /// `remaining-trumpf` both apply; no pre-play lesson and, before the move,
 /// no mechanism.
 fn after_voids() -> PlayerView {
+    grand_hand(&["CJ", "SA", "HQ"])
+}
+
+/// VH's Grand Hand at 18 in the deal of [`after_voids`], after the cards
+/// `played`.
+fn grand_hand(played: &[&str]) -> PlayerView {
     let deal = Deal::new(
         [
             cards("CJ SJ HJ DJ CA CT CK CQ C9 C8"),
@@ -72,10 +87,10 @@ fn after_voids() -> PlayerView {
         Action::Pass,
         Action::Hand,
         Action::Announce(Announcement::plain(GameType::Grand)),
-        Action::Play(c("CJ")),
-        Action::Play(c("SA")),
-        Action::Play(c("HQ")),
-    ] {
+    ]
+    .into_iter()
+    .chain(played.iter().map(|p| Action::Play(c(p))))
+    {
         g.apply(a).unwrap();
     }
     g.view(g.current_seat().unwrap())
@@ -145,27 +160,48 @@ fn focus_picks_the_lesson_when_several_apply() {
     assert_eq!(r.lesson_for(None).map(|t| &t.content), r.lesson.as_ref());
 }
 
-#[test]
-fn no_focus_or_stage_reveals_the_preferred_action() {
-    // The same decision with opposite option rankings: with every focus,
-    // all hints before the figures are identical, the comparison question
-    // included, so neither wording, lesson, concept, option list nor plan
-    // ID can imply the preferred action. Figures (opt-in) keep the
-    // neutral order and carry no judgement.
-    let view = after_voids();
-    let analysis = analyze(&view, SMALL, 3, None).unwrap();
-    let ranked = |rising: bool| {
-        let mut a = analysis.clone();
-        let n = a.options.len();
-        for (i, o) in a.options.iter_mut().enumerate() {
-            let e = o.estimate.as_mut().unwrap();
-            e.expected_score = 20.0 * if rising { i } else { n - 1 - i } as f64;
-        }
-        a
-    };
-    let x = explain(&view, &ranked(true)).unwrap();
-    let y = explain(&view, &ranked(false)).unwrap();
-    assert_ne!(x.best().map(|o| o.action), y.best().map(|o| o.action));
+/// `analysis` with the option estimates rewritten so that the first
+/// (`rising`: the last) legal option is the model's clear favourite; the
+/// facts, inferences and option list stay the same.
+fn ranked(analysis: &Analysis, rising: bool) -> Analysis {
+    let mut a = analysis.clone();
+    a.status = Status::Complete;
+    let n = a.options.len();
+    for (i, o) in a.options.iter_mut().enumerate() {
+        let rank = if rising { i } else { n - 1 - i };
+        // Mirrored and evenly spaced with the same uncertainty everywhere:
+        // the qualitative situation (one stands out) is the same either
+        // way.
+        o.estimate = Some(Estimate {
+            win_chance: rank as f64 / n as f64,
+            expected_score: 20.0 * rank as f64,
+            expected_game_points: 0.0,
+            thrown_in: 0.0,
+            score_std_error: 1.0,
+            samples: 4,
+            exact: false,
+        });
+    }
+    a
+}
+
+/// D-49 for one decision: the same view under opposite model preferences.
+/// With every focus, the stages a figures-off player can reach (1 and 2)
+/// are identical, so neither wording, lesson, concept, situation, option
+/// list, comparison question nor plan ID can imply the preferred action.
+/// The opt-in figures stage (D-60) keeps the neutral order and carries no
+/// judgement, but its estimates differ: a preference can be read off them
+/// by design, so nothing here claims otherwise. Returns the teaching shown
+/// without a focus.
+fn assert_no_tell(view: &PlayerView, analysis: &Analysis) -> Teaching {
+    let x = explain(view, &ranked(analysis, true)).unwrap();
+    let y = explain(view, &ranked(analysis, false)).unwrap();
+    assert!(view.legal_actions.len() >= 2, "precondition: a choice");
+    assert_ne!(
+        x.best().map(|o| o.action),
+        y.best().map(|o| o.action),
+        "precondition: different preferred actions"
+    );
     let focuses = std::iter::once(None).chain(Concept::ALL.into_iter().map(Some));
     for focus in focuses {
         // Repeated requests: every stage up to the situation.
@@ -173,19 +209,85 @@ fn no_focus_or_stage_reveals_the_preferred_action() {
             let (hx, hy) = (hints_for(&x, stage, focus), hints_for(&y, stage, focus));
             assert_eq!(hx, hy, "{focus:?} {stage:?}");
             assert_eq!(hx.compare_question, stage == Stage::Situation);
-            assert!(hx.figures.is_none());
+            assert!(hx.figures.is_none(), "no estimate before stage 3");
+            assert_eq!(hx.situation.is_some(), stage == Stage::Situation);
             if let Some(s) = &hx.situation {
                 assert_eq!(s.options, view.legal_actions, "neutral order");
             }
             assert!(!hx.concept.is_some_and(Concept::mechanism));
         }
-        let figures = hints_for(&x, Stage::Figures, focus).figures.unwrap();
-        assert!(
-            figures
-                .iter()
-                .map(|f| f.action)
-                .eq(view.legal_actions.iter().copied())
-        );
+        for e in [&x, &y] {
+            let h = hints_for(e, Stage::Figures, focus);
+            let figures = h.figures.as_ref().unwrap();
+            assert!(
+                figures
+                    .iter()
+                    .map(|f| f.action)
+                    .eq(view.legal_actions.iter().copied()),
+                "figures in neutral order, whatever the preference"
+            );
+            // Stage 3 only adds the figures to stage 2.
+            let mut without = h.clone();
+            without.figures = None;
+            without.stage = Stage::Situation;
+            assert_eq!(without, hints_for(e, Stage::Situation, focus));
+        }
+    }
+    hints(&x, Stage::Considerations).teaching
+}
+
+#[test]
+fn no_focus_or_stage_reveals_the_preferred_action() {
+    let view = after_voids();
+    let analysis = analyze(&view, SMALL, 3, None).unwrap();
+    let teaching = assert_no_tell(&view, &analysis);
+    assert!(matches!(teaching, Teaching::Lesson { .. }));
+}
+
+/// MH: CJ HJ and seven Herz Trumpf; Skat DJ C7 (as in `preplay.rs`).
+fn preplay_deal() -> Deal {
+    Deal::new(
+        [
+            cards("SJ CA CT CK CQ C9 C8 ST SK SQ"),
+            cards("CJ HJ HA HT HK H9 H7 SA S7 D7"),
+            cards("S9 S8 HQ H8 DA DT DK DQ D9 D8"),
+        ],
+        cards("DJ C7"),
+    )
+    .unwrap()
+}
+
+fn preplay_view(actions: &[Action]) -> PlayerView {
+    let mut g = Game::from_deal(preplay_deal(), RuleConfig::default());
+    for &a in actions {
+        g.apply(a).unwrap();
+    }
+    g.view(g.current_seat().unwrap())
+}
+
+#[test]
+fn no_stage_before_the_figures_reveals_the_preferred_action_in_every_phase() {
+    // Representative decisions besides `after_voids`: the opening call
+    // (`hand-structure`), a later call and the pickup decision
+    // (`game-value`), and the opening lead of the card play,
+    // where no lesson applies yet (fallback).
+    let key = |t: &Teaching| match t {
+        Teaching::Lesson { id, .. } => Some(id.key.to_string()),
+        Teaching::Fallback => None,
+    };
+    let at_48 = [Action::Bid(48), Action::Pass, Action::Pass];
+    for (view, expected) in [
+        (preplay_view(&[]), Some("hand-structure")),
+        (
+            preplay_view(&[Action::Bid(18), Action::Hold]),
+            Some("game-value"),
+        ),
+        (preplay_view(&at_48), Some("game-value")),
+        (grand_hand(&[]), None),
+    ] {
+        let analysis = analyze(&view, TINY, 3, None).unwrap();
+        let teaching = assert_no_tell(&view, &analysis);
+        assert_eq!(key(&teaching).as_deref(), expected, "{:?}", view.phase);
     }
 }
 

@@ -63,7 +63,7 @@ from an unchosen alternative.
 | Original proposal | Revised commitment |
 |-------------------|--------------------|
 | Separate strategic explanation engine | Strategic features, mechanisms and any search stay in `skat-analysis`; `skat-coach` selects and verbalises, `skat-app` coordinates |
-| Help levels culminating in an advised plan and exact move | Retain D-49: no preferred action or ranked plan before a live move, even on repeated requests. Demonstrations belong to separate exercises after an answer |
+| Help levels culminating in an advised plan and exact move | Retain D-49: no preferred action or ranked plan before a live move, even on repeated requests. Demonstrations belong to separate exercises after an answer. Exception (D-60): the opt-in figures stage shows unlabelled per-option estimates from which a preference can be inferred |
 | A neutral question can name the right plan | Audit implicit leaks too: do not reveal “draw Trumpf first” by loading the question or showing only the preferred action group |
 | MVP 1 rules, MVP 2 simulation | Sampling and double-dummy analysis already exist; improve teaching incrementally on that foundation |
 | 15–25 rules and coverage of every phase in the first increment | Begin with two exact-information lessons, then two narrow card-play mechanisms; unsupported positions receive an honest fallback |

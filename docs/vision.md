@@ -45,7 +45,10 @@ the opponents' shoes**.
   best option. Hints come in stages: what to think about (goal, facts,
   likely cards), then the situation (options unjudged, a qualitative hint),
   then figures per option (winning probability, expected points), still
-  unjudged. The figures are hidden unless switched on.
+  unjudged. The figures are hidden unless switched on; then stage 3 is an
+  explicit opt-in exception: from the model's estimates a player can read
+  its preference, but no option is labelled (D-60). With figures off,
+  repeated requests stop at the situation.
 - **After the move**: a short note on how good it was.
 - **Warning before a weak move**: optional setting, off by default; it
   names no alternative.
