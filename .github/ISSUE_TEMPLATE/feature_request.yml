@@ -24,18 +24,3 @@ body:
     attributes:
       label: Anything else?
       description: Alternatives, examples from other Skat apps, sketches, ...
-
-  - type: textarea
-    id: verification_and_manual_handoff
-    attributes:
-      label: Verification and manual release validation (D-61)
-      description: >-
-        Required automated checks stay due during development. Before technical
-        closure, add or extend owned manual scenarios in release register #81
-        and link the handoff. Manual checks stay pending until before public 1.0;
-        #13 readiness requires actual #81 and applicable #54 results.
-      placeholder: |
-        Automated checks and evidence:
-        Manual owner / #81 entry:
-        Functions/platforms and reproducible steps:
-        Required evidence / status (pending, or actual result link; n/a with reason):

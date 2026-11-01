@@ -89,7 +89,7 @@ actionlint from its [releases](https://github.com/rhysd/actionlint/releases).
 | System | whole games end to end: 10,000 seeded random games against an independent rule model; complete seeded 36-game series with a random human, information boundary of the human's view, opponent self-play | `skat-core/tests/random_games.rs`, `skat-app/tests/`, `skat-app/src/tests.rs`, `skat-ai` | test (10k), deep (1M) |
 | GUI | the egui frontend driven headlessly by clicks (`egui_kittest`): series by clicks, every decision and game variant clicked at least once, table elements shown, language and card-face switch, translated errors, coach levels, warning and a responsive window while the coach analyses, every card face renders; translation completeness; committed card SVGs match `tools/cardgen`; `THIRD-PARTY-NOTICES` lists every crate in `Cargo.lock` | `gui-egui/tests/gui.rs`, `gui-egui/src/i18n.rs`, `tools/cardgen/tests/`, `tools/notices/tests/` | test |
 | Screenshots | named scenarios of the real frontend rendered headlessly to PNG (`egui_kittest` with wgpu, lavapipe or WARP); frontend PRs show them, CI keeps them as artifacts (D-45) | `gui-egui/examples/screenshots.rs`, CI job `screenshots`, `implement-issue.yml` | on frontend changes |
-| Manual smoke run | launch the window on each platform and play (see `CONTRIBUTING.md`) | – | before public 1.0 (D-61) |
+| Manual smoke run | launch the window on each platform and play (see `CONTRIBUTING.md`) | – | release 1.0 |
 
 New crates follow the same pattern.
 
@@ -123,37 +123,14 @@ series to the score sheet, switch language and card faces.
 | Linux (Fedora 44 Distrobox, Wayland, Rust 1.99.1) | ✅ `cargo build --locked --release -p gui-egui`, 2026-10-29 | ✅ window opens and renders the first deal (`GRAND_COACH_SCREENSHOT`), 2026-10-29 | ✅ 2026-10-29 |
 | Windows | ✅ CI job `test (windows-latest)` (Windows Server) builds everything and passes all tests, including the headless GUI tests, 2026-10-29 | ❌ not verified on Windows 11 | ❌ not verified on Windows 11; open by D-36 |
 
-## Technical completion and release validation
+## Release 1.0 validation
 
-D-61 applies to every existing and new feature/milestone before 1.0.
-Technical completion means delivered functionality and passing required
-**automated verification**. Before closing implementation work, add or extend
-its manual scenarios in [release register #81](https://github.com/naturelle137/grand-coach/issues/81):
-owner issue, functions/platforms, reproducible steps and required evidence.
-Link that handoff from the implementation issue/PR and update the roadmap.
-
-Interactive smoke tests and learner validation stay **pending**, but do not
-block subsequent development or technical milestone completion. A closed
-implementation issue proves no manual test. Explicitly transfer manual scope
-before technical closure; do not mark the original human check performed.
-If an old issue still mixes these gates, reconcile its scope explicitly
-rather than ignoring a checkbox. The implementation workflow normally only
-ticks verified items; a scope transfer needs an authorized issue-text change
-before that workflow runs, never a bypass of its checklist guard.
-
-Public 1.0 readiness (#13) requires actual passing release-candidate Linux
-and Windows 11 interactive/package records in #81 and the applicable actual
-learner/initial/delayed results in #54. #54 owns its protocol; #81 links the
-results. Failed findings need fixes and rechecks. Preparation and packaging
-foundations proceed first; final acceptance must not become their own
-prerequisite. Publication is a separate explicit action.
-
-Required automated tests, benchmarks, calibration, model privacy/legality,
-quality/resource gates and actual-target measurements remain binding during
-development, even if a command is started by hand. Build/headless evidence
-never establishes an interactive platform run or human learning. Record
-performed checks with build/artifact, date, actual environment, scenario,
-result and evidence; agents never invent or impersonate a learner session.
+Once the release scope is implemented, the maintainer manually validates
+it using the [release test plan](release-test-plan.md), fixes findings and
+retests before publishing 1.0 (D-61). Manual validation is a release task;
+feature and milestone completion requires no manual-validation record,
+status note or handoff. Required automated tests, benchmarks, calibration
+and model/target measurements remain part of implementation.
 
 ## Verification vs. validation
 
@@ -161,8 +138,7 @@ result and evidence; agents never invent or impersonate a learner session.
 - **Validation** ("right thing built"): does the coach help a learner, does
   the AI feel right, are the rules the ones players expect. Not automatable;
   done by the human PR review (D-27) against the issue's intent and by
-  playtesting before public 1.0 under D-61 and
-  [release register #81](https://github.com/naturelle137/grand-coach/issues/81).
+  release playtesting.
   Measurable parts move into verification once
   they exist (e.g. AI strength levels via the AI-vs-AI calibration runner,
   M4, [ai.md](ai.md)).

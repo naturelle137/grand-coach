@@ -29,14 +29,11 @@ Details: [docs/vision.md](docs/vision.md).
 Spielbare Version: eine Serie gegen zwei Computergegner, deren Stärke
 (Grünschnabel, Leicht, Mittel, Stark) einzeln wählbar ist, oder gegen
 Goldfisch oder Mephisto, mit Kontra/Re, drei
-Kartenbildern und deutscher oder englischer Oberfläche. Unter Linux
-getestet, Windows 11 noch nicht.
+Kartenbildern und deutscher oder englischer Oberfläche.
 Der Live-Coach mit gestuften Hinweisen, sechs belegten Lektionen, Lernfokus
 und Rückblick auf frühere Entscheidungen ist implementiert. Kartenzählhilfe,
-Quiz, gespeicherte Replays und Trainingsmodus folgen noch. Manuelle
-Coach- und Release-Validierung stehen aus; sie werden vor Release 1.0 in
-[#81](https://github.com/naturelle137/grand-coach/issues/81) nachgeholt.
-Fortschritt und nächster Schritt (#68): [docs/roadmap.md](docs/roadmap.md).
+Quiz, gespeicherte Replays und Trainingsmodus folgen noch.
+Fortschritt: [docs/roadmap.md](docs/roadmap.md).
 
 ### Systemvoraussetzungen
 
@@ -116,13 +113,11 @@ Details: [docs/vision.md](docs/vision.md).
 Playable version: a series against two computer opponents whose strength
 (Rookie, Easy, Medium, Strong) is chosen separately, or against Goldfish or
 Mephisto, with Kontra/Re, three card
-faces and a German or English UI. Tested on Linux, not yet on Windows 11.
+faces and a German or English UI.
 The live coach with staged hints, six evidence-backed lessons, learning
 focus and historical decision reviews is implemented. Counting aid, quiz,
-saved replays and training mode remain planned. Manual coach and release
-validation is pending in [#81](https://github.com/naturelle137/grand-coach/issues/81)
-before release 1.0.
-Progress and next step (#68): [docs/roadmap.md](docs/roadmap.md).
+saved replays and training mode remain planned.
+Progress: [docs/roadmap.md](docs/roadmap.md).
 
 ### Requirements
 

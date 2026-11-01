@@ -20,8 +20,7 @@ that the task touches:
   `docs/coach-validation.md`. Read `docs/coach-didactics.md` for product
   direction, not as a description of current implementation.
 - App/GUI: the relevant analysis/coach contracts and `docs/testing.md`.
-- Verification, milestone closure or release: `docs/testing.md`, especially
-  "Technical completion and release validation" (D-61), and issue #81.
+- Verification and release: `docs/testing.md`.
 - Learned backends (#67), starting with #68: `docs/analysis.md`, `docs/ai.md`,
   the lifecycle/latency in `docs/coach.md`, `docs/testing.md`, and the issue's
   prerequisites. The full didactic history is not required.
@@ -31,7 +30,7 @@ that the task touches:
 Historical records and raw research are optional background. New fundamental
 product, architecture or verification decisions get a D entry in
 `docs/decisions.md`; routine implementation details belong in code/PRs.
-Keep documents short. The larger documentation follow-ups are #82–#84.
+Keep documents short.
 
 ## Language
 
@@ -133,18 +132,6 @@ fails otherwise. After every `Cargo.lock` change, run `cargo fetch --locked`
 and `notices`, and commit `THIRD-PARTY-NOTICES`; a test fails otherwise.
 
 ## Testing
-
-- **Technical completion versus manual validation (D-61):** for every
-  existing or new pre-1.0 feature/milestone, implement and run the required
-  automated checks now. Before technical closure, add or extend its manual
-  scenarios in [release register #81](https://github.com/naturelle137/grand-coach/issues/81)
-  with owner, functions/platforms, reproducible steps and required evidence;
-  link the handoff in the issue/PR and update the roadmap. Manual checks
-  stay pending and do not block further development. Public 1.0 readiness
-  (#13) requires actual passing records in #81 and applicable #54 results.
-  Never tick transferred manual checks as performed. Automated benchmarks,
-  calibration, model/resource gates and required target measurements are
-  not deferred. See `docs/testing.md` for closure and release rules.
 
 - Rule engine and analysis are test-driven; rule cases get unit tests with
   fixed deals and known positions.

@@ -72,8 +72,7 @@ or the last completed trick, not exactly "since the seat's last card".
 Debriefing moments show their lesson since D-58. The Trumpf sets do not
 appear as a separate fact line in the considerations; `TrumpsOut` still
 does. The fixtures are in `skat-analysis/tests/exact_lessons.rs` and
-`skat-coach/tests/lessons.rs`; learner UAT is pending
-([coach-validation.md](coach-validation.md)).
+`skat-coach/tests/lessons.rs`.
 
 ## Card-play mechanisms (D-56)
 
@@ -118,8 +117,7 @@ cards other than Ass and Zehn, the case where the partner certainly
 cannot overtake. The fixtures are in `skat-analysis/tests/mechanisms.rs`
 (hand-derived positions, a hidden-deal substitution and an exhaustive
 reference over every consistent distribution of random positions) and
-`skat-coach/tests/mechanisms.rs`; learner UAT is pending
-([coach-validation.md](coach-validation.md)).
+`skat-coach/tests/mechanisms.rs`.
 
 Win chances are those of the deciding seat's party; the coach labels the
 party (own side, declarer, defenders). Points are Seeger-Fabian list
@@ -170,8 +168,7 @@ pre-play estimates and the continuation bias stay as in
 [analysis.md](analysis.md); this package does not improve them. The
 fixtures are in `skat-analysis/tests/preplay.rs` (hand-derived positions
 and an independent enumeration over every possible Skat of random deals)
-and `skat-coach/tests/preplay.rs`; learner UAT is pending
-([coach-validation.md](coach-validation.md)).
+and `skat-coach/tests/preplay.rs`.
 
 ## Policies (D-48)
 
@@ -420,8 +417,4 @@ bids as the coach suggests. While the coach computes, the panel shows a translat
 "thinking" status and the player can act at any time; the analysis then
 continues for the note, unless the next own decision needs one first. The GUI test `window_stays_responsive_while_the_coach_analyses`
 checks that frames keep returning quickly during a full interactive
-analysis and that acting works meanwhile. The interactive smoke test in
-the playable application on the reference hardware is still open, transferred from
-issue #10 to [release register #81](https://github.com/naturelle137/grand-coach/issues/81)
-before public 1.0 (D-61); automated profiling/benchmarks remain due during
-development. #68 adds paced/fast-action backlog measurements.
+analysis and that acting works meanwhile.

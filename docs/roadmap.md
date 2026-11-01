@@ -2,29 +2,14 @@
 
 **Current status:** M0–M5 are implemented. M4 opponent calibration and
 historical measurements are in [ai.md](ai.md); the M5 coach, six lessons,
-focus and historical debriefing are in [coach.md](coach.md). This is not a
-claim of current manual validation: Windows 11 interactive verification,
-M4/M5 smoke tests and learner UAT are pending in
-[release register #81](https://github.com/naturelle137/grand-coach/issues/81).
-Historical Linux M2 evidence remains in [testing.md](testing.md#platform-verification-m2).
-No learner UAT has been run.
-
-**Completion rule for all milestones (D-61):** the checkboxes below track
-technical delivery with required automated verification. Before technical
-closure, add/update the milestone's owned manual scenarios in #81 and link
-the handoff from its issue/PR. Pending manual checks do not block later
-development. Public 1.0 readiness (#13) requires actual passing #81 records
-and applicable #54 learner/initial/delayed results. Automated tests,
-benchmarks, calibration and required model/target gates are not deferred.
-See [testing.md](testing.md#technical-completion-and-release-validation).
+focus and historical debriefing are in [coach.md](coach.md).
 
 The didactic direction and remaining follow-up are specified in
 [coach-didactics.md](coach-didactics.md), with bounded assignments in
 [coach-work-packages.md](coach-work-packages.md) and tracking issue
 [#39](https://github.com/naturelle137/grand-coach/issues/39). Readable review
 comes first, verified lessons next, practice/progress afterwards. The work
-refines M5–M8; D-61 separates technical delivery from manual release
-acceptance. Package A
+refines M5–M8. Package A
 (#41, D-52: compact debriefing, figures off by default) and package B (#42,
 D-53: evidence contract) are implemented. Package K
 (#51, D-54) prepared the evidence checklist and learner UAT protocol in
@@ -44,7 +29,7 @@ D-59) shows each debriefing moment with the hand, trick, bidding and
 history the player saw at that decision, from a permitted snapshot
 ([coach.md](coach.md#decision-snapshots-d-59)). D-60 (#65) records the
 maintainer's decision to keep the opt-in figures stage as the one
-exception to live non-disclosure. No learner UAT has been run yet.
+exception to live non-disclosure.
 
 ## Next work and dependencies
 
@@ -52,13 +37,12 @@ Start [#68](https://github.com/naturelle137/grand-coach/issues/68) now: freeze
 the Classic reference/evaluation protocol and profile debriefing for
 [offline learned-backend epic #67](https://github.com/naturelle137/grand-coach/issues/67).
 This epic replaces closed proposals #34/#35; no learned backend is shipped yet.
-Classic stays default. Early headless research needs M1–M4, not M6–M8 manual
-acceptance, Godot (#14) or God Mode (#28). Follow each child's actual gates;
+Classic stays default. Early headless research needs M1–M4;
+M6–M8, Godot (#14) and God Mode (#28) are not prerequisites. Follow each child's actual gates;
 a research no-go is not a deployment pass.
 
 The independent didactic path remains #11 → #48, followed by #12, then
-issue #13 storage/training foundations → #49 → #50 → #54 preparation.
-Actual #54 sessions and #81 follow before public 1.0. Replay metadata in
+issue #13 storage/training foundations → #49 → #50 → #54. Replay metadata in
 issues #77/#78 reuses #12's delivered artifacts; model packages in #80 extend
 issue #13's packaging foundations. Neither milestone depends on speculative
 neural success.
@@ -73,8 +57,7 @@ checks, before 1.0). They do not block #68–#75.
 ## Milestones
 
 Milestones build on delivered technical artifacts (see [vision.md](vision.md)).
-Their functional criteria below and the D-61 handoff define technical
-completion; public 1.0 retains the separate manual release gate. No tasks here.
+The criteria below define completion.
 
 - [x] **M0 – Project foundation**
   Done when vision, decision log, CLAUDE.md, licences and contributor docs are
@@ -88,7 +71,7 @@ completion; public 1.0 retains the separate manual release gate. No tasks here.
 
 - [x] **M2 – First playable version**
   Done when a series against two simple opponents can be played on Linux and
-  Windows (interactive validation per D-61). Includes the application
+  Windows. Includes the application
   interface (`skat-app`), the egui frontend, self-made cards with switchable card faces, and a German/English
   UI.
 
@@ -125,8 +108,9 @@ completion; public 1.0 retains the separate manual release gate. No tasks here.
 - [ ] **M8 – Training and release 1.0**
   Done when error statistics over time and the training mode work and there
   are installable packages for Linux and Windows 11 that ship
-  `THIRD-PARTY-NOTICES` (D-43). Technical foundations may finish first;
-  final public 1.0 readiness requires #81 and #54 as described above.
+  `THIRD-PARTY-NOTICES` (D-43). Once the release scope is implemented,
+  the maintainer validates it using the [release test plan](release-test-plan.md),
+  fixes findings and releases 1.0.
 
 - [ ] **M9 – Godot frontend** (long term)
   Done when a Godot frontend (gdext) offers the same functionality via

@@ -7,17 +7,10 @@ D-55), `trumpf-vulnerability` and `partner-overtake` (#44, D-56),
 `hand-structure` and `game-value` (#45, D-57); focus and
 moment selection without new lessons (#46, D-58); historical decision
 snapshots in the debriefing (#47, D-59); opt-in figures exception to live
-non-disclosure (#65, D-60); no learner session has been run. M8 execution: issue
+non-disclosure (#65, D-60). M8 execution: issue
 [#54](https://github.com/naturelle137/grand-coach/issues/54). Concept:
 [coach-didactics.md](coach-didactics.md); contract:
 [analysis.md](analysis.md#evidence-for-lessons).
-
-D-61: prepare evidence and scripts during development; actual M5 learner UAT
-and #54 initial/delayed sessions are deferred until before public 1.0.
-[Release register #81](https://github.com/naturelle137/grand-coach/issues/81)
-owns the handoff from every technical closure; #54 owns its learner protocol.
-No human check is fulfilled by this transfer. Technical milestone completion
-and later development do not wait for these sessions.
 
 ## Scope and limits
 
@@ -123,19 +116,17 @@ answers every line with the evidence (test name, file, rule source) or
 - [ ] `scripts/check.sh` passes; the result is recorded in the PR.
 - [ ] Docs (`coach.md`, `analysis.md`) describe the lesson and its limits.
 
-## B. M5 learner UAT
+## B. Coach learner UAT
 
 Run by the maintainer as a learner in the real application. No Skat
 expertise is needed: every question asks what the learner saw and
 understood, not whether the move was best.
 
-### B1. Preparation (by the PR author)
+### B1. Release-session preparation
 
-Each M5 feature PR adds a short **applicable script** to its body: build
-(commit), series seed, the steps that reach the lesson moment (or a D-45
-screenshot scenario plus how to reach it live), coach settings, and which
-of the items B2.1–B2.8 apply. Record learner UAT as **pending** in the PR;
-an agent never marks it performed.
+Choose reproducible situations covering the shipped lessons. Record the
+build, series seed, steps reaching each lesson moment, coach settings and
+applicable items B2.1–B2.8 in the session script.
 
 ### B2. Script
 
@@ -163,7 +154,7 @@ whether any wording seemed to say which card or bid to choose.
 ### B3. Result template (blank)
 
 ```text
-UAT record – M5
+Coach UAT record
 Date:                    Build (commit):         Language: de / en
 Feature / issue:         Lesson IDs + versions:
 Series seed / scenario:  Coach settings:
@@ -184,12 +175,9 @@ Findings (each: severity, issue link):
 Performed by: maintainer (learner)   Status: performed / pending
 ```
 
-Store filled records under `docs/uat/` (one file per session, created only
-when a session was actually run) or in the PR or issue comment; link them
-from the PR. Findings become issues; a fix is retested with the affected
-items. The combined M5 run after #47 uses the same template across all
-shipped lessons before public 1.0, tracked in #81 (D-61). It is not a
-prerequisite for technical #10 closure or subsequent milestones.
+Store completed release-session records under `docs/uat/`, with the build,
+date and environment. Findings become issues; fixes are retested with the
+affected items. Use the same template across all shipped lessons.
 
 ## C. Initial and delayed unaided-task protocol
 
@@ -241,12 +229,3 @@ Task ID@version | Lesson | New position? | Assistance | Prior exposure | Answer 
 Counts: unaided correct __ / __, assisted __, repeated __, skipped __
 Performed by: maintainer (learner)   Status: performed / pending
 ```
-
-## Status record
-
-| Item | Status |
-|------|--------|
-| Evidence checklist (part A) | prepared; applied per lesson PR |
-| M5 learner UAT per feature (#43–#47) | pending in #81; PRs supply scenarios |
-| Combined M5 learner UAT after #47 | pending in #81 before public 1.0 |
-| Unaided-task set and follow-up (#54) | pending; actual sessions before public 1.0 |

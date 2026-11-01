@@ -15,13 +15,6 @@ Issue number: `$ARGUMENTS`. If it is missing, ask for it (in CI, stop).
 - Read the issue with `gh issue view <n> --comments`.
 - Read `AGENTS.md` and the documents it lists that the issue touches. Their
   hard rules, SPDX headers, language rules and conventions are binding.
-- Apply D-61 (`docs/testing.md`, "Technical completion and release
-  validation"): required automated verification stays due now; manual
-  validation may be handed off to release register #81 before technical
-  closure. Read any explicit scope-transfer note in the issue. The normal
-  checkbox-only workflow cannot rewrite scope: if the issue still requires
-  human results for implementation closure, report the mismatch for an
-  authorized text update; do not tick or silently ignore that item.
 - Collect the issue's **checklist**: every task-list item (`- [ ]` /
   `- [x]`) in the issue body, typically the acceptance criteria. Track each
   item as a todo; they define "done".
@@ -36,12 +29,6 @@ Issue number: `$ARGUMENTS`. If it is missing, ask for it (in CI, stop).
 - Test-driven for rule engine and analysis code, as `AGENTS.md` requires.
 - Update affected docs (vision, roadmap, decisions, third-party, glossary)
   in the same change.
-- Before technical closure, add/update owned scenarios in #81 (functions,
-  platforms, reproducible steps and required evidence), link the handoff in
-  the issue/PR and update the roadmap. Record pending manual checks; a
-  transfer is not a performed check. In CI, include the proposed register
-  update in the PR handoff for the maintainer; do not edit issues beyond the
-  workflow's authorized checkbox output or claim closure until recorded.
 - Commit in focused Conventional Commits, only when all checks pass.
 
 ## 3. Verify
@@ -84,10 +71,7 @@ only if all of these hold:
 1. It is fully implemented on the branch, not partly or as a stub.
 2. You verified it: a passing test or command demonstrates it, or for
    documentation items you re-read the resulting file. Name the evidence.
-3. Nothing in that item's current scope was deferred, skipped or left as
-   a TODO. A separately authorized D-61 scope transfer can make the
-   implementation issue technically closable; the transferred human check
-   stays unchecked and pending in #81, never "done" here.
+3. Nothing it requires was deferred, skipped or left as a TODO.
 
 Anything partial, untested, failing, unverifiable by you (e.g. needs a
 human or external access) or uncertain is **not done**.
@@ -119,14 +103,9 @@ Title: one Conventional Commit line. Body: follow
 - `## Issue checklist`: every checklist item with ✅ or ❌ and its
   evidence (test name, command, file) or the reason it is open.
 - Decisions taken without being able to ask.
-- `Closes #<n>` only if all technical scope is verified and any manual
-  scope has an explicit authorized D-61 transfer recorded in #81 and linked
-  from the issue/PR. A historical unchecked item explicitly transferred
-  out of implementation scope is not a performed test. Otherwise use
-  `Refs #<n>` plus `## What remains`.
-- Do not close #81, #54's actual human evaluation or #13 final public 1.0
-  readiness through a transfer: they require their actual results. Model
-  quality/resource/target gates and automatic tests are not deferred.
+- `Closes #<n>` only if every checklist item is done and nothing else in
+  the issue remains; otherwise `Refs #<n>` plus a `## What remains`
+  section.
 - Tick the template's own checklist by the same honesty rule.
 - End with the PR attribution line given by your environment.
 

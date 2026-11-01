@@ -135,22 +135,6 @@ Example: `docs: add roadmap with milestones`
 - If a change affects a decision, the vision or the roadmap, update the
   matching file in `docs/` in the same PR.
 
-## Technical completion and manual release validation
-
-D-61 applies to every pre-1.0 issue/milestone. Required automated checks,
-benchmarks and calibration stay due during implementation. Before technical
-closure, add/update owned manual scenarios (functions/platforms, reproducible
-steps and required evidence) in [#81](https://github.com/naturelle137/grand-coach/issues/81),
-link the handoff in the issue/PR and update the roadmap. Manual checks remain
-pending and do not block later development; never tick them as performed.
-Explicitly reconcile an old issue's scope before closing its implementation.
-The normal implementation workflow only ticks verified items; scope changes
-must be authorized separately, never bypass its checklist guard.
-
-Public 1.0 readiness (#13) requires actual passing #81 records and applicable
-issue #54 learner/initial/delayed results. Preparation is not its own final gate.
-See [testing.md](docs/testing.md#technical-completion-and-release-validation).
-
 ## Automated implementation (Claude)
 
 Maintainers can let Claude implement a single issue (D-27): Actions →

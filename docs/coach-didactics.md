@@ -3,7 +3,6 @@
 Product direction first reviewed on 2026-10-31. Packages A–G and K are now
 implemented; H–J and L remain open. Current behavior is in [coach.md](coach.md).
 The baseline review below is historical, not today's feature inventory.
-Consolidation is tracked by [#83](https://github.com/naturelle137/grand-coach/issues/83).
 Replaces the implementation assumptions of the supplied German concept
 `skat_trainer_coach_didaktisches_konzept.md`; that input remains unchanged.
 The implementation plan is in [coach-work-packages.md](coach-work-packages.md).
@@ -245,11 +244,7 @@ claims; correctness and information-boundary gates remain binding.
 [#51](https://github.com/naturelle137/grand-coach/issues/51) prepared the M5
 evidence checklist, UAT scripts and initial/delayed evaluation protocol
 after #42 and before #43: [coach-validation.md](coach-validation.md)
-(D-54). Later M5 PRs apply it, with combined learner UAT
-after #47; under D-61 it remains pending in
-[release register #81](https://github.com/naturelle137/grand-coach/issues/81)
-until the pre-1.0 manual validation, without blocking technical #10 closure. Protocol delivery can close
-Issue #51 without waiting for these later features or human results.
+(D-54). Lesson PRs apply the evidence checklist (part A).
 This supersedes any earlier expert-review or expert sign-off step in the
 original concept and plan, and the earlier combined #51 placement that
 also covered the M8 evaluation (now #54).
@@ -282,9 +277,7 @@ focused hints and historical context. Only then connect retrieval practice,
 local progress and varied transfer tasks. Pre-play explanation can follow
 independently after the evidence foundation.
 
-M5–M8 keep their functional and automated gates; D-61 moves manual
-acceptance to #81/#54 before public 1.0. Every later technical closure
-must link its scenario handoff. This concept alone closes no milestone. New issues refine their scope; they do
+New issues refine the functional scope; they do
 not duplicate the counting aid, replay engine, release packaging or optional
 neural-network projects. Adaptive curricula, universal explanations,
 information-gain estimation, free-form AI dialogue and a new solver are
