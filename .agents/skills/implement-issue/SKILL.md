@@ -109,7 +109,7 @@ Title: one Conventional Commit line. Body: follow
 - Tick the template's own checklist by the same honesty rule.
 - End with the PR attribution line given by your environment.
 
-Local session: push the feature branch; open the PR only when the user asks.
+Local session: push the feature branch and open the PR (`gh pr create`).
 If the caller says where to write title and body instead (CI does), write
 them there and do not push or open the PR.
 

@@ -146,8 +146,8 @@ and `notices`, and commit `THIRD-PARTY-NOTICES`; a test fails otherwise.
   Feature branches from `main`, changes only via PR. Update affected vision,
   roadmap and decision documents in the same PR.
 - In local sessions: once changes pass `scripts/check.sh`,
-  commit them (Conventional Commits) and push the feature branch. Never
-  commit failing changes, never push to `main`.
+  commit them (Conventional Commits), push the feature branch and open a
+  PR to `main`. Never commit failing changes, never push to `main`.
 - To implement an issue, follow the skill
   `.claude/skills/implement-issue/SKILL.md` (D-29). Tick an issue's
   checklist items only when they are done and verified.
