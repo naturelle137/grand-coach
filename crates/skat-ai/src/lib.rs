@@ -26,4 +26,4 @@ pub use mephisto::Mephisto;
 pub use neural::{NeuralDecision, NeuralOpponent, Player};
 pub use opponent::{Decision, Level, Opponent, Profile};
 pub use rookie::Mistakes;
-pub use skat_analysis::{Budget, Cancel, Status, utility};
+pub use skat_analysis::{Analysis, Budget, Cancel, OptionValue, Status, utility};

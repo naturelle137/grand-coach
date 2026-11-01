@@ -66,7 +66,15 @@ fn main() -> Result<()> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     let output = Command::new(cargo)
-        .args(["metadata", "--format-version", "1", "--locked"])
+        // All features: feature-gated crates (e.g. nn-train's `vulkan`) are
+        // in `Cargo.lock` too and may ship in some build.
+        .args([
+            "metadata",
+            "--format-version",
+            "1",
+            "--locked",
+            "--all-features",
+        ])
         .current_dir(&root)
         .output()?;
     if !output.status.success() {

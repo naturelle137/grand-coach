@@ -7,6 +7,8 @@
 //! cancelling from outside ([`Cancel`]); a cancelled analysis reports this
 //! in its status and never passes as complete.
 
+use std::cell::Cell;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
@@ -72,6 +74,36 @@ impl Cancel {
     pub fn is_cancelled(&self) -> bool {
         self.flag.load(Ordering::Relaxed) || self.deadline.is_some_and(|d| Instant::now() >= d)
     }
+}
+
+thread_local! {
+    /// Thread limit of analyses started on this thread; `None`: all cores.
+    static MAX_THREADS: Cell<Option<NonZeroUsize>> = const { Cell::new(None) };
+}
+
+/// Runs `f` with every analysis it starts on the calling thread limited to
+/// `threads` worker threads (by default an analysis uses all cores). Tools
+/// that run several analyses side by side use this to stay within a CPU
+/// budget. Results do not depend on the thread count. The previous limit
+/// is restored afterwards, also on panic.
+pub fn with_max_threads<T>(threads: NonZeroUsize, f: impl FnOnce() -> T) -> T {
+    struct Restore(Option<NonZeroUsize>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            MAX_THREADS.with(|m| m.set(self.0));
+        }
+    }
+    let _restore = Restore(MAX_THREADS.with(|m| m.replace(Some(threads))));
+    f()
+}
+
+/// Worker threads an analysis started on the calling thread may use: the
+/// limit of [`with_max_threads`], or all cores.
+pub fn max_threads() -> usize {
+    MAX_THREADS
+        .with(Cell::get)
+        .or_else(|| std::thread::available_parallelism().ok())
+        .map_or(1, NonZeroUsize::get)
 }
 
 /// Why a computation stopped before finishing.
@@ -160,5 +192,22 @@ mod tests {
         assert!(past.is_cancelled());
         let later = Cancel::with_deadline(Instant::now() + std::time::Duration::from_secs(3600));
         assert!(!later.is_cancelled());
+    }
+
+    #[test]
+    fn thread_limit_is_scoped() {
+        let all = max_threads();
+        let two = NonZeroUsize::new(2).unwrap();
+        let one = NonZeroUsize::MIN;
+        with_max_threads(two, || {
+            assert_eq!(max_threads(), 2);
+            with_max_threads(one, || assert_eq!(max_threads(), 1));
+            assert_eq!(max_threads(), 2);
+            // Other threads keep their own limit.
+            std::thread::scope(|s| {
+                s.spawn(|| assert_eq!(max_threads(), all));
+            });
+        });
+        assert_eq!(max_threads(), all);
     }
 }

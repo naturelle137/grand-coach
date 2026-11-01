@@ -131,6 +131,8 @@ cargo run --locked --release -p skat-app --example coach_latency # coach latency
 cargo run --locked -p gui-egui --example screenshots -- DIR  # headless PNGs (D-45)
 cargo run --locked --release -p nn-train -- smoke cpu  # Burn stack smoke test (#69)
 cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan  # on the GPU
+cargo run --locked --release -p nn-train -- generate DIR --deals 100  # Strong self-play data (#70)
+cargo run --locked --release -p nn-train -- verify DIR  # check a training-data run
 ```
 
 On Linux the window needs EGL/GL and Wayland or X11 client libraries

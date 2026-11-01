@@ -595,12 +595,11 @@ impl Table {
     }
 }
 
-/// Runs `f` for every item on all cores; results in item order, so the
-/// outcome does not depend on scheduling.
+/// Runs `f` for every item on all cores, or on the threads allowed by
+/// [`crate::with_max_threads`]; results in item order, so the outcome does
+/// not depend on scheduling or the thread count.
 fn run_parallel<I: Sync, T: Send>(items: &[I], f: impl Fn(&I) -> T + Sync) -> Vec<T> {
-    let threads = std::thread::available_parallelism()
-        .map_or(1, |n| n.get())
-        .min(items.len());
+    let threads = crate::budget::max_threads().min(items.len());
     let next = AtomicUsize::new(0);
     let results: Mutex<Vec<Option<T>>> = Mutex::new((0..items.len()).map(|_| None).collect());
     std::thread::scope(|scope| {

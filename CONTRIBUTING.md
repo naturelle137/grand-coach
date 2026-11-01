@@ -96,6 +96,16 @@ cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan 200 3
 cargo run --locked --release -p skat-ai --example calibrate -- tuning nn:OUT_DIR/model.gcnn easy 20 4
 ```
 
+Training data come from Strong self-play (see
+[docs/ai.md](docs/ai.md#training-data)). Every run has a wall-time and a
+disk cap and a CPU budget (`--cpus`, split into `--workers` game workers);
+rerunning the same command resumes an interrupted run:
+
+```sh
+cargo run --locked --release -p nn-train -- generate DATA_DIR --deals 100 --minutes 30 --max-mb 1024
+cargo run --locked --release -p nn-train -- verify DATA_DIR
+```
+
 The coach latency per human decision is measured by hand through
 `skat-app` (see [docs/coach.md](docs/coach.md#latency)):
 

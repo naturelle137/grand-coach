@@ -159,6 +159,17 @@ impl Opponent {
     /// (M3 semantics): the choice then uses the distributions finished so
     /// far, or falls back to the rules of thumb if there are none.
     pub fn decide(&self, view: &PlayerView, cancel: Option<&Cancel>) -> Option<Decision> {
+        self.decide_analysed(view, cancel).map(|(d, _)| d)
+    }
+
+    /// [`Opponent::decide`] together with the analysis the decision was
+    /// taken from; `None` as analysis if none ran or it failed (rules of
+    /// thumb). Training data record these option values (#70).
+    pub fn decide_analysed(
+        &self,
+        view: &PlayerView,
+        cancel: Option<&Cancel>,
+    ) -> Option<(Decision, Option<Analysis>)> {
         let mut rules = BaselineOpponent.decide(view)?;
         if !self.profile.mistakes.is_none() {
             let game_seed = mix(mix(self.seed, u64::from(view.hand.bits())), 7);
@@ -166,26 +177,29 @@ impl Opponent {
             rules = rookie::decide(view, rules, &self.profile.mistakes, game_seed, seed);
         }
         let Some((budget, seed)) = self.analysis_input(view) else {
-            return Some(Decision {
+            let decision = Decision {
                 action: rules,
                 status: None,
                 fallback: false,
-            });
+            };
+            return Some((decision, None));
         };
         let forgotten = self.forgotten(view);
         let Ok(analysis) = analyze_forgetful(view, forgotten, budget, seed, cancel) else {
-            return Some(Decision {
+            let decision = Decision {
                 action: rules,
                 status: None,
                 fallback: true,
-            });
+            };
+            return Some((decision, None));
         };
         let mut rng = ChaCha8Rng::seed_from_u64(mix(seed, 2));
-        Some(decision(
+        let decision = decision(
             select(view, &analysis, rules, self.profile.temperature, &mut rng),
             rules,
             analysis.status,
-        ))
+        );
+        Some((decision, Some(analysis)))
     }
 
     /// Budget and sampling seed the opponent passes to the analysis

@@ -76,6 +76,32 @@ fn decisions_are_reproducible_and_seeded() {
 }
 
 #[test]
+fn analysed_decisions_return_their_analysis() {
+    let view = first_card(0).or_else(|| first_card(1)).unwrap();
+    let small = Profile {
+        budget: Some(Budget {
+            samples: 2,
+            nodes_per_task: Budget::INTERACTIVE.nodes_per_task,
+        }),
+        ..Profile::RULES
+    };
+    let searched = Opponent {
+        profile: small,
+        seed: 3,
+    };
+    let (decision, analysis) = searched.decide_analysed(&view, None).unwrap();
+    assert_eq!(searched.decide(&view, None), Some(decision));
+    let analysis = analysis.expect("card play is analysed");
+    assert_eq!(decision.status, Some(analysis.status));
+    let actions: Vec<_> = analysis.options.iter().map(|o| o.action).collect();
+    assert_eq!(actions, view.legal_actions);
+    let rules = Opponent::new(Level::Easy, 3);
+    let (decision, analysis) = rules.decide_analysed(&view, None).unwrap();
+    assert_eq!(analysis, None);
+    assert_eq!(decision.status, None);
+}
+
+#[test]
 #[ignore = "slow: CI only (docs/testing.md)"]
 fn every_level_completes_seeded_games() {
     for seed in 0..2 {
