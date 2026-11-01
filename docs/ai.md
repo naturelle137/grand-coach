@@ -258,3 +258,63 @@ All levels meet the M3 target (card play and Kontra/Re: median ≤ 1 s,
 p90 ≤ 3 s). With only the first 10 positions per kind, Strong's first
 trick had a median of 1.08 s (p90 2.1 s), slightly above the target; the
 larger sample is reported as the measurement. Every decision completed.
+
+## Learned engine runtime
+
+Foundation of the learned engines of epic #67 (D-07, D-11), delivered
+in issue #69. No trained model ships yet; Classic stays the default.
+
+- **Crates**: `skat-nn` (between `skat-core` and `skat-analysis`) holds
+  the encoder, the action space, the network and CPU inference; AI and
+  coach share it. `tools/nn-train` trains outside the app.
+- **Encoder** (`skat_nn::encode`, version `ENCODER_VERSION` = 1): 294
+  numbers from one `PlayerView` only: own hand, own discarded Skat
+  (declarer after Drücken), revealed Ouvert cards, cards of completed
+  tricks by relative seat, the trick in progress, own position, phase,
+  declarer, bidding per seat, contract, Kontra/Re and Augen per party.
+  Seats are relative to the acting seat. Layout in `encoder.rs`.
+- **Action space** (`skat_nn::actions`): 621 indices: 63 bid values,
+  Hold, Pass, Hand, TakeSkat, 496 discard pairs, 22 announcements,
+  32 cards, Kontra, KeinKontra, Re, KeinRe. Part of the encoder version.
+- **Network** (`PolicyValueNet`): input, two hidden ReLU layers of equal
+  width, a policy head (one logit per action) and a value head (expected
+  Seeger-Fabian points of the acting seat). The same definition trains
+  and infers.
+- **Model file**: a 24-byte header (magic `GCNN`, format and encoder
+  version, layer sizes, covered phases) and the weights in Burn's
+  burnpack format. The caller passes the bytes and their SHA-256 hash;
+  `skat-nn` reads no files.
+- **Safety**: illegal actions are masked out before the softmax, and the
+  chosen action is checked against the view again before acting. A
+  missing model, a wrong hash, an unknown format or encoder version, a
+  shape that does not fit, corrupt weights, an uncovered phase or a
+  non-finite output give a `Fallback` reason; `NeuralOpponent` then lets
+  its Classic `Opponent` decide (deterministic, same seed) and reports
+  the reason (`NeuralDecision::fallback`).
+- **Estimates**: policy probabilities and the value are model estimates.
+  They are not `Estimate`s of the analysis and never claim `exact`,
+  Monte-Carlo samples or a reliable comparison.
+- **Arena**: `Player` is implemented by `Opponent` and `NeuralOpponent`;
+  `arena::play_with` and `arena::compare_with` seat any players, and
+  `calibrate` accepts the profile `nn:<file>[@<level>]`. Tests use a
+  seeded random-weight fixture model (`skat_nn::fixture_model`, feature
+  `fixture`), which runs in CI on Linux and Windows.
+- **Builds**: the app builds `skat-nn` with Burn's Flex backend only.
+  `tools/nn-train` adds autodiff and optimisers, and Vulkan with its
+  feature `vulkan` (off in the tests, [testing.md](testing.md)); in a
+  workspace build Cargo unifies these features, so release binaries are
+  built with `-p gui-egui`.
+
+Smoke test of #69 on 2026-11-01 (reference hardware of
+[analysis.md](analysis.md#latency-target-and-benchmark) plus an AMD
+Radeon RX 6900 XT, Fedora 44 Distrobox, Rust 1.99.1, release builds from
+an empty target directory):
+
+| Item | Result |
+|------|--------|
+| Version | Burn 0.22.1 (pinned), declared MSRV 1.95 = workspace MSRV; every compiled dependency declares at most 1.95 (CI job `msrv` builds with 1.95) |
+| CPU round trip | `nn-train smoke cpu 200 300`: 8,220 examples from 200 Easy games, loss 3.13 → 1.15 in 300 Adam steps, model file (254,748 bytes) and optimizer checkpoint round trips pass, 35 s |
+| GPU round trip | `nn-train smoke vulkan 200 300` (feature `vulkan`) on "AMD Radeon RX 6900 XT (RADV NAVI21)": loss 3.13 → 1.19, round trips pass, 10 s |
+| Arena | the GPU model against Easy (`calibrate -- tuning nn:<file> easy 20 4`): 120 games without an illegal action, −29.5 ± 11.0 points per seat-game; the CPU model −44.4 ± 10.7 (untrained-quality smoke models) |
+| Build time | `grand-coach` 61 s → 97 s; `skat-nn` alone 55 s; `nn-train` 219 s |
+| Binary size | `grand-coach` 19,841,720 → 19,838,696 bytes (it does not call inference yet); a minimal program that loads a model and plays a game with it: 4,635,872 bytes against 500,392 bytes for the same game loop on `skat-core` alone, so linked CPU inference adds about 4.1 MB |

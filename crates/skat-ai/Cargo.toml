@@ -10,13 +10,18 @@ repository.workspace = true
 publish.workspace = true
 
 [features]
-serde = ["dep:serde", "skat-core/serde", "skat-analysis/serde"]
+serde = ["dep:serde", "skat-core/serde", "skat-analysis/serde", "skat-nn/serde"]
 
 [dependencies]
 skat-core.workspace = true
 skat-analysis.workspace = true
+skat-nn.workspace = true
 rand_chacha.workspace = true
 serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+burn.workspace = true
+skat-nn = { workspace = true, features = ["fixture"] }
 
 [lints]
 workspace = true

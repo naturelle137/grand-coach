@@ -37,7 +37,8 @@ snapshot; CI checks the real commit.
   markdownlint (`.markdownlint-cli2.yaml`), shellcheck, actionlint.
 - `test` (CI): clippy of the workspace with `--all-features`, clippy of
   each package with features without them, and every test including the
-  slow ones (`--include-ignored`), all `--locked`.
+  slow ones (`--include-ignored`) with all features except GPU backends,
+  all `--locked`.
 - `quick` (pre-commit): `lint`, plus clippy when code files are staged.
 - `push` (pre-push): `lint`; when code files changed since REV, clippy and
   the fast tests of the affected packages. Affected are the packages whose
@@ -56,12 +57,17 @@ snapshot; CI checks the real commit.
 Hooks skip it, CI runs it on every code change. Anything that takes
 minutes belongs in `deep`, with a small default run in `test`.
 
-**Features.** One `cargo test --workspace --all-features` covers
-everything: `skat-app` enables `serde` in every crate anyway (feature
-unification), so a workspace run without features would execute the same
-binaries. Without `serde` only derives and wire types are missing, so the
-`test` tier checks that configuration with clippy per package. If a
-feature ever changes behaviour, that package's tests also run without it.
+**Features.** One `cargo test --workspace` with every feature except GPU
+backends covers everything: `skat-app` enables `serde` in every crate
+anyway (feature unification), so a workspace run without features would
+execute the same binaries. Without `serde` only derives and wire types are
+missing, so the `test` tier checks that configuration with clippy per
+package. If a feature ever changes behaviour, that package's tests also
+run without it. GPU backends (`nn-train`'s `vulkan`) stay off in tests:
+they need a GPU adapter, which the Linux runner lacks, they would make
+Burn's default device a GPU in every crate (unification), and they double
+the compile time. Clippy still checks them with `--all-features`; GPU
+training is verified by hand (`nn-train smoke vulkan`).
 
 **Code files** (changes trigger `test`): `*.rs`, `Cargo.toml`,
 `Cargo.lock`, `rust-toolchain*`, `assets/`, `scripts/check.sh` and
@@ -85,7 +91,8 @@ actionlint from its [releases](https://github.com/rhysd/actionlint/releases).
 | Analysis | card counting, voids, visibility and hidden-card distributions on fixed positions; double-dummy against hand-solved positions and an exhaustive minimax; every decision type, information isolation, reproducibility, cancellation, Überreizen, Kontra/Re, Monte Carlo against exact enumeration | `skat-analysis/tests/` | test |
 | Performance | latency and estimation quality of the analysis per decision phase ([analysis.md](analysis.md#latency-target-and-benchmark)); coach latency per human decision through `skat-app` ([coach.md](coach.md#latency)) | `skat-analysis/examples/bench.rs`, `skat-app/examples/coach_latency.rs` | manual |
 | AI | strength profiles, information isolation by swapping concealed cards for every level and the Goldfish, reproducibility, fallback on cancellation and exhausted budgets, complete games, Rookie deviation rates, Goldfish forgetting, Mephisto never losing as declarer (100 games in `deep`); background opponent moves and table modes through `skat-app` | `skat-ai/tests/`, `skat-ai/src/arena.rs`, `skat-app/tests/series.rs` | test, deep |
-| Calibration | AI-vs-AI strength ordering and decision latency per level ([ai.md](ai.md)) | `skat-ai/examples/calibrate.rs`, `skat-ai/examples/latency.rs` | manual |
+| Neural runtime | action space round trip; encoder: swapping concealed cards keeps the features, own Skat and Ouvert cards appear only after their lawful reveal for every role; model files: hash, format, encoder version, shape, phases and corrupt weights rejected; legal mask before normalisation, non-finite outputs, uncovered phases, reproducible decisions; the random-weight fixture model plays complete seeded games alone and against Classic profiles in the arena, every fallback equals the Classic decision; CPU training with checkpoint round trips | `skat-nn/tests/`, `skat-ai/tests/neural.rs`, `tools/nn-train` | test |
+| Calibration | AI-vs-AI strength ordering and decision latency per level ([ai.md](ai.md)); GPU training smoke test (`nn-train smoke vulkan`, [ai.md](ai.md#learned-engine-runtime)) | `skat-ai/examples/calibrate.rs`, `skat-ai/examples/latency.rs`, `tools/nn-train` | manual |
 | System | whole games end to end: 10,000 seeded random games against an independent rule model; complete seeded 36-game series with a random human, information boundary of the human's view, opponent self-play | `skat-core/tests/random_games.rs`, `skat-app/tests/`, `skat-app/src/tests.rs`, `skat-ai` | test (10k), deep (1M) |
 | GUI | the egui frontend driven headlessly by clicks (`egui_kittest`): series by clicks, every decision and game variant clicked at least once, table elements shown, language and card-face switch, translated errors, coach levels, warning and a responsive window while the coach analyses, every card face renders; translation completeness; committed card SVGs match `tools/cardgen`; `THIRD-PARTY-NOTICES` lists every crate in `Cargo.lock` | `gui-egui/tests/gui.rs`, `gui-egui/src/i18n.rs`, `tools/cardgen/tests/`, `tools/notices/tests/` | test |
 | Screenshots | named scenarios of the real frontend rendered headlessly to PNG (`egui_kittest` with wgpu, lavapipe or WARP); frontend PRs show them, CI keeps them as artifacts (D-45) | `gui-egui/examples/screenshots.rs`, CI job `screenshots`, `implement-issue.yml` | on frontend changes |

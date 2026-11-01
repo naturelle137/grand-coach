@@ -4,12 +4,14 @@ resolver = "3"
 members = [
     "crates/skat-core",
     "crates/skat-analysis",
+    "crates/skat-nn",
     "crates/skat-ai",
     "crates/skat-coach",
     "crates/skat-app",
     "crates/gui-egui",
     "tools/cardgen",
     "tools/notices",
+    "tools/nn-train",
 ]
 
 [workspace.package]
@@ -22,6 +24,7 @@ publish = false
 
 [workspace.dependencies]
 skat-core = { path = "crates/skat-core" }
+skat-nn = { path = "crates/skat-nn" }
 skat-analysis = { path = "crates/skat-analysis" }
 skat-ai = { path = "crates/skat-ai" }
 skat-coach = { path = "crates/skat-coach" }
@@ -29,6 +32,10 @@ skat-app = { path = "crates/skat-app" }
 rand_chacha = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Neural networks (D-11). Inference uses the pure-Rust CPU backend Flex;
+# tools/nn-train adds autodiff, optimisers and Vulkan.
+burn = { version = "=0.22.1", default-features = false, features = ["std", "flex"] }
+sha2 = "0.11"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

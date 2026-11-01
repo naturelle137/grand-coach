@@ -13,21 +13,25 @@
 //! first deal in the suite (default 0). A profile is
 //! a level (`rookie`, `easy`, `medium`, `strong`, or `goldfish`) or a custom profile `s<samples>t<temperature>`
 //! for tuning, e.g. `s6t4` (suffix `p`: analysis in card
-//! play and Kontra/Re only; `d`: also Hand, Drücken and announcement). Kontra/Re is on.
+//! play and Kontra/Re only; `d`: also Hand, Drücken and announcement), or a
+//! learned model `nn:<path>[@<level>]` (D-07): the model file at `<path>`
+//! decides and the Classic `<level>` (default `easy`) takes every fallback.
+//! Kontra/Re is on.
 //!
 //! Prints a Markdown summary: the mean per-deal difference of Seeger-Fabian
 //! points per seat-game (A minus B) with its standard error and 95 %
 //! interval, plus declarer and defender results per profile.
 
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
-use skat_ai::arena::{DealComparison, Interval, Tally, compare};
-use skat_ai::{Budget, Level, Profile};
-use skat_core::{RuleConfig, Seat};
+use skat_ai::arena::{DealComparison, Interval, Tally, compare_with};
+use skat_ai::{Budget, Cancel, Decision, Level, NeuralOpponent, Opponent, Player, Profile};
+use skat_core::{PlayerView, RuleConfig, Seat};
+use skat_nn::NeuralModel;
 
 /// Key of the deal seeds of each suite; tuning and validation never share
 /// deals.
@@ -66,6 +70,68 @@ fn profile(spec: &str) -> Profile {
                 search_bidding: bidding,
                 search_declaring: declaring,
                 ..Profile::RULES
+            }
+        }
+    }
+}
+
+/// One side of the comparison: a Classic profile, or a learned model with
+/// a Classic fallback profile.
+#[derive(Clone)]
+enum Side {
+    Classic(Profile),
+    Neural(Arc<NeuralModel>, Profile),
+}
+
+enum Seated {
+    Classic(Opponent),
+    Neural(NeuralOpponent),
+}
+
+impl Player for Seated {
+    fn decide(&self, view: &PlayerView, cancel: Option<&Cancel>) -> Option<Decision> {
+        match self {
+            Seated::Classic(o) => Player::decide(o, view, cancel),
+            Seated::Neural(o) => Player::decide(o, view, cancel),
+        }
+    }
+}
+
+impl Side {
+    fn parse(spec: &str) -> Side {
+        let Some(rest) = spec.strip_prefix("nn:") else {
+            return Side::Classic(profile(spec));
+        };
+        let (path, fallback) = rest.rsplit_once('@').unwrap_or((rest, "easy"));
+        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+        let hash = skat_nn::sha256(&bytes);
+        let model = NeuralModel::load(&bytes, &hash).unwrap_or_else(|e| panic!("{path}: {e:?}"));
+        Side::Neural(Arc::new(model), profile(fallback))
+    }
+
+    fn seat(&self, seed: u64) -> Seated {
+        match self {
+            Side::Classic(p) => Seated::Classic(Opponent { profile: *p, seed }),
+            Side::Neural(model, p) => Seated::Neural(NeuralOpponent::new(
+                Ok(model.clone()),
+                Opponent { profile: *p, seed },
+            )),
+        }
+    }
+
+    fn describe(&self) -> String {
+        match self {
+            Side::Classic(p) => describe(p),
+            Side::Neural(model, p) => {
+                let hash: String = model.sha256()[..8]
+                    .iter()
+                    .map(|b| format!("{b:02x}"))
+                    .collect();
+                format!(
+                    "learned model {hash}…, hidden width {}, fallback {}",
+                    model.header().shape.hidden,
+                    describe(p)
+                )
             }
         }
     }
@@ -138,7 +204,7 @@ fn main() {
         args.get(1).map_or("medium", String::as_str),
         args.get(2).map_or("strong", String::as_str),
     );
-    let (a, b) = (profile(name_a), profile(name_b));
+    let (a, b) = (Side::parse(name_a), Side::parse(name_b));
     let deals: usize = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(100);
     let workers: usize = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(4);
     let first: usize = args.get(5).and_then(|s| s.parse().ok()).unwrap_or(0);
@@ -164,7 +230,12 @@ fn main() {
                         let index = (first + d) as u64;
                         mix(mix(mix(AI_KEY ^ key, index), g as u64), s.index() as u64)
                     };
-                    let c = compare(seeds[d], rules, a, b, ai);
+                    let c = compare_with(
+                        seeds[d],
+                        rules,
+                        |g, s| a.seat(ai(g, s)),
+                        |g, s| b.seat(ai(g, s)),
+                    );
                     eprintln!(
                         "deal {:4} seed {:20}: {:+7.2} ({:.0} s)",
                         first + d,
@@ -204,8 +275,8 @@ fn main() {
         first + deals - 1
     );
     println!();
-    println!("- A = `{name_a}`: {}", describe(&a));
-    println!("- B = `{name_b}`: {}", describe(&b));
+    println!("- A = `{name_a}`: {}", a.describe());
+    println!("- B = `{name_b}`: {}", b.describe());
     println!(
         "- A − B: {:+.2} points per seat-game, standard error {:.2}, 95 % interval [{:+.2}, {:+.2}]: {verdict}",
         interval.mean,

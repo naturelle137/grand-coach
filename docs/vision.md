@@ -99,6 +99,8 @@ analysis and existing coach rather than introducing a second strategy engine.
 ```text
 skat-core      rule engine: pure, deterministic (seed), no GUI/IO
    ↓
+skat-nn        learned models: permitted-view encoder, CPU inference (Burn)
+   ↓
 skat-analysis  card counter / knowledge state, opponent model (distributions
                from bidding/discards), option evaluation (Monte Carlo +
                double-dummy solver)

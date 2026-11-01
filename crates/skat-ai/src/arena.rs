@@ -12,7 +12,7 @@
 
 use skat_core::{Game, GameResult, RuleConfig, Seat};
 
-use crate::{Opponent, Profile};
+use crate::{Opponent, Player, Profile};
 
 /// Plays one deal to the end; `players` are indexed by seat. Every action
 /// comes from the deciding seat's own view and goes through the engine.
@@ -21,6 +21,16 @@ use crate::{Opponent, Profile};
 ///
 /// If an opponent chooses no action or an illegal one.
 pub fn play(deal_seed: u64, rules: RuleConfig, players: &[Opponent; 3]) -> Game {
+    play_with(deal_seed, rules, [&players[0], &players[1], &players[2]])
+}
+
+/// [`play`] with any [`Player`]s, e.g. a
+/// [`NeuralOpponent`](crate::NeuralOpponent) against Classic opponents.
+///
+/// # Panics
+///
+/// If a player chooses no action or an illegal one.
+pub fn play_with(deal_seed: u64, rules: RuleConfig, players: [&dyn Player; 3]) -> Game {
     let mut game = Game::new(deal_seed, rules);
     while let Some(seat) = game.current_seat() {
         let view = game.view(seat);
@@ -133,13 +143,35 @@ pub fn compare(
     b: Profile,
     ai_seeds: impl Fn(usize, Seat) -> u64,
 ) -> DealComparison {
+    let opponent = |profile: Profile| {
+        let ai_seeds = &ai_seeds;
+        move |g: usize, seat: Seat| Opponent {
+            profile,
+            seed: ai_seeds(g, seat),
+        }
+    };
+    compare_with(deal_seed, rules, opponent(a), opponent(b))
+}
+
+/// [`compare`] for any [`Player`]s: `a(game, seat)` and `b(game, seat)`
+/// build the player of each side for one of the six games. Their seeds must
+/// not depend on the deal seed.
+pub fn compare_with<A: Player, B: Player>(
+    deal_seed: u64,
+    rules: RuleConfig,
+    a: impl Fn(usize, Seat) -> A,
+    b: impl Fn(usize, Seat) -> B,
+) -> DealComparison {
     let mut out = DealComparison::default();
     for (g, seating) in SEATINGS.iter().enumerate() {
-        let players = Seat::ALL.map(|seat| Opponent {
-            profile: if seating[seat.index()] { a } else { b },
-            seed: ai_seeds(g, seat),
+        let players: [Box<dyn Player>; 3] = Seat::ALL.map(|seat| -> Box<dyn Player> {
+            if seating[seat.index()] {
+                Box::new(a(g, seat))
+            } else {
+                Box::new(b(g, seat))
+            }
         });
-        let game = play(deal_seed, rules, &players);
+        let game = play_with(deal_seed, rules, [&*players[0], &*players[1], &*players[2]]);
         let result = game.result();
         out.thrown_in += u32::from(result.is_none());
         for seat in Seat::ALL {

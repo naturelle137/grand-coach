@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: EUPL-1.2
+[package]
+name = "skat-nn"
+description = "Neural network runtime for Grand-Coach: permitted-view encoder and model inference"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+serde = ["dep:serde", "skat-core/serde"]
+# Tiny seeded random-weight models for tests of this crate and its users.
+fixture = []
+
+[dependencies]
+skat-core.workspace = true
+burn.workspace = true
+rand_chacha.workspace = true
+sha2.workspace = true
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+skat-nn = { path = ".", features = ["fixture"] }
+
+[lints]
+workspace = true

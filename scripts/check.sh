@@ -7,6 +7,7 @@
 #          actionlint (seconds, no compilation)
 #   test   CI: clippy with all features, clippy of each crate without its
 #          features, and all tests including the slow ones (#[ignore])
+#          with all features except GPU backends
 #   quick  pre-commit: lint, plus clippy when code files are staged
 #   push   pre-push: lint, plus clippy and the fast tests of the packages
 #          affected by code changes since REV
@@ -87,6 +88,27 @@ feature_packages() {
     done
 }
 
+# `--features` for the tests: every feature of the given packages (all
+# without arguments) except GPU backends, which need an adapter that the
+# Linux runner lacks and would replace Burn's default CPU device. Clippy
+# still checks them with --all-features (docs/testing.md).
+test_features() {
+    local f name feats=()
+    for f in crates/*/Cargo.toml tools/*/Cargo.toml; do
+        name=$(sed -n 's/^name = "\(.*\)"/\1/p' "$f" | head -n 1)
+        if [ $# -gt 0 ] && ! printf '%s\n' "$@" | grep -qxF "$name"; then
+            continue
+        fi
+        while IFS= read -r feat; do
+            feats+=("$name/$feat")
+        done < <(sed -n '/^\[features\]/,/^\[/s/^\([A-Za-z0-9_-]*\) *=.*/\1/p' "$f" |
+            grep -vxE 'default|vulkan')
+    done
+    if [ ${#feats[@]} -gt 0 ]; then
+        (IFS=,; echo "--features=${feats[*]}")
+    fi
+}
+
 have() {
     command -v "$1" > /dev/null && return 0
     if [ "${CHECK_STRICT:-}" = 1 ]; then
@@ -158,14 +180,20 @@ features_off() {
 run_tests() {
     clippy
     features_off
-    step cargo test --locked --workspace --all-features -- --include-ignored
+    local features
+    mapfile -t features < <(test_features)
+    step cargo test --locked --workspace "${features[@]}" -- --include-ignored
 }
 
 # Fast tests only: slow ones carry #[ignore = "slow: ..."] and run in CI.
 fast_tests() {
-    local pkgs
+    local pkgs names=() features
     mapfile -t pkgs < <(affected "$1")
-    step cargo test --locked --all-features "${pkgs[@]}"
+    if [ "${pkgs[0]}" != --workspace ]; then
+        mapfile -t names < <(printf '%s\n' "${pkgs[@]}" | grep -vx -- -p)
+    fi
+    mapfile -t features < <(test_features "${names[@]}")
+    step cargo test --locked "${features[@]}" "${pkgs[@]}"
 }
 
 case $tier in
@@ -185,7 +213,8 @@ case $tier in
         lint
         if [ -z "$base" ]; then
             clippy
-            step cargo test --locked --workspace --all-features
+            mapfile -t features < <(test_features)
+            step cargo test --locked --workspace "${features[@]}"
         elif code_changed "$base"; then
             clippy
             fast_tests "$base"

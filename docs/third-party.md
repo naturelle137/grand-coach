@@ -13,7 +13,7 @@ against `cargo metadata`; an automated licence check is still to be set up.
 
 | File / library | Source (URL) | Author | Licence | Changes |
 |----------------|--------------|--------|---------|---------|
-| Standard licence texts `tools/notices/licenses/` (MIT, Apache-2.0, BSL-1.0) | <https://spdx.org/licenses/> | MIT: template; Apache Software Foundation; Boost | Licence texts, copied verbatim as their terms permit | none; used only where a crate ships no licence file |
+| Standard licence texts `tools/notices/licenses/` (MIT, Apache-2.0, BSL-1.0, BSD-3-Clause, MPL-2.0) | <https://spdx.org/licenses/> (MPL-2.0 and BSD-3-Clause from <https://github.com/spdx/license-list-data>) | MIT, BSD-3-Clause: templates; Apache Software Foundation; Boost; Mozilla Foundation | Licence texts, copied verbatim as their terms permit | none; used only where a crate ships no licence file |
 | Fonts embedded by egui (`epaint_default_fonts` 0.37): Ubuntu-Light, Hack, Noto Emoji, emoji-icon-font, egui-icons | <https://crates.io/crates/epaint_default_fonts> | Canonical (Ubuntu); Source Foundry (Hack); Google (Noto Emoji); John Slegers (emoji-icon-font) | Ubuntu Font Licence 1.0; MIT with Bitstream Vera licence (Hack); OFL-1.1 (Noto Emoji); MIT (emoji-icon-font and its subset egui-icons) | none; compiled into `grand-coach` via the `default_fonts` feature, not stored in the repository |
 
 The licence texts and copyright notices that must accompany binaries are
@@ -45,12 +45,31 @@ All are used unchanged from crates.io; versions are pinned in `Cargo.lock`.
 | `fluent-bundle`, `fluent-syntax`, `intl-memoizer`, `intl_pluralrules`, `unic-langid` | `gui-egui` (translations, D-32) | MIT OR Apache-2.0 |
 | `self_cell` | via `fluent-bundle` | Apache-2.0 OR GPL-2.0-only (used under Apache-2.0) |
 | `egui_kittest`, `kittest` | `gui-egui` tests only (headless UI tests) | MIT OR Apache-2.0 |
+| `burn` 0.22.1 and its crates (`burn-core`, `burn-nn`, `burn-flex`, `burn-tensor`, `burn-pack`, …) | `skat-nn` (model definition, CPU inference with Flex; D-11) | MIT OR Apache-2.0 |
+| `gemm`, `pulp`, `cubecl-common`, `cubecl-zspace`, `half`, `bytemuck`, `hashbrown` and further Burn dependencies | via `burn` | MIT OR Apache-2.0 (some MIT, BSD, Zlib) |
+| `colored` | via `burn` (terminal colours in diagnostics) | MPL-2.0, used unchanged |
+| `sha2`, `digest`, `block-buffer`, `crypto-common` | `skat-nn` (model hash) | MIT OR Apache-2.0 |
+| `burn-autodiff`, `burn-optim`, `burn-wgpu`, `cubecl` (wgpu/SPIR-V runtime), `wgpu`, `ash` | `tools/nn-train` only (training, Vulkan) | MIT OR Apache-2.0 |
+| `buildid`, `rustc_apfloat` | `tools/nn-train` only, via `cubecl` | MPL-2.0; Apache-2.0 WITH LLVM-exception |
 
 The frontend pulls in about 400 crates in total (all targets, including
 macOS and Windows platform crates). Checked with `cargo metadata` on
 2026-10-29: all are under permissive licences (MIT, Apache-2.0, BSD-2/3,
 Zlib, ISC, BSL-1.0, Unicode-3.0, Unlicense, 0BSD) or offer one of them as
 an alternative; no copyleft-only and no NC/ND licence.
+
+Burn added about 450 entries to `Cargo.lock` on 2026-11-01. `Cargo.lock`
+also records optional dependencies of Burn features that no workspace
+crate enables (CUDA, ROCm, LibTorch, remote backends, network download).
+They are never compiled for Linux or Windows (checked with `cargo tree
+--workspace --all-features --target <triple>`), so they are not part of
+any build; some have licences outside the allowed list (`webpki-roots`:
+CDLA-Permissive-2.0; `libfuzzer-sys`: (MIT OR Apache-2.0) AND NCSA;
+`cfg_block`: Apache-2.0 by licence file only). `THIRD-PARTY-NOTICES` lists them anyway (D-43). Everything that is
+compiled is MIT, Apache-2.0, BSD, Zlib, ISC, BSL-1.0, Unicode-3.0, CC0,
+Unlicense or MPL-2.0 (or offers one of them), as checked with
+`cargo metadata` on 2026-11-01; the tool-only exception above is allowed
+because tools that are only run may use any OSI licence (D-42).
 
 ## Development tools
 
