@@ -33,11 +33,14 @@ exception to live non-disclosure.
 
 ## Next work and dependencies
 
-Start the [neural-network epic #67](https://github.com/naturelle137/grand-coach/issues/67)
-now with [#69](https://github.com/naturelle137/grand-coach/issues/69) (NN foundation:
-Burn, encoder, runtime, arena adapter) and
-[#70](https://github.com/naturelle137/grand-coach/issues/70) (training data) in
-parallel, then the card-play network #73 and the selectable engine with
+The [neural-network epic #67](https://github.com/naturelle137/grand-coach/issues/67)
+has its foundation from [#69](https://github.com/naturelle137/grand-coach/issues/69):
+Burn 0.22 passed the smoke test (D-11), `skat-nn` encodes a `PlayerView` and
+runs models on the CPU with Classic fallbacks, `NeuralOpponent` plays in the
+arena, `tools/nn-train` trains on CPU or GPU
+([ai.md](ai.md#learned-engine-runtime)). Next are
+[#70](https://github.com/naturelle137/grand-coach/issues/70) (training data),
+then the card-play network #73 and the selectable engine with
 difficulty levels #77. Pre-play #74, hybrid search #76, debriefing #78 and
 self-play #75 follow in any order. The epic replaces closed proposals #34
 and #35; no learned engine is shipped yet. Classic stays default and learned

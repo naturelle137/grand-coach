@@ -51,6 +51,7 @@ godot-rust/gdext (D-11).
 
 ```text
 crates/skat-core      rule engine: pure, deterministic (seed), no IO, no GUI
+crates/skat-nn        learned models: permitted-view encoder, Burn CPU inference, fallback reasons (docs/ai.md)
 crates/skat-analysis  card counter, opponent model, option evaluation (Monte Carlo, double-dummy; docs/analysis.md)
 crates/skat-ai        opponent AI with strength levels, AI-vs-AI calibration (docs/ai.md)
 crates/skat-coach     structured explanations (text keys + parameters), no texts
@@ -58,15 +59,18 @@ crates/skat-app       application interface: session, commands, events, view mod
 crates/gui-egui       egui frontend
 tools/cardgen         generates card SVGs into assets/cards/
 tools/notices         generates THIRD-PARTY-NOTICES from Cargo.lock (D-43)
+tools/nn-train        trains the skat-nn networks outside the app (CPU, GPU via Vulkan; D-11)
 ```
 
-Dependencies only point downwards: core ← analysis ← ai/coach ← app ← gui.
+Dependencies only point downwards: core ← nn ← analysis ← ai/coach ← app ← gui
+(`skat-nn` needs only `skat-core`; AI and coach may use it directly).
 Translations live in `assets/i18n/`.
 
 ## Hard rules
 
-- **Coach and AI do not compute separately.** Both use `skat-analysis`; the
-  coach only verbalises what was computed there.
+- **Coach and AI do not compute separately.** Both use `skat-analysis` (and
+  `skat-nn` below it for learned models); the coach only verbalises what was
+  computed there.
 - **Separate information sets.** AI and coach get one player's view, never the
   full state. Exceptions (open mode, post-game analysis) are visible in the
   type system.
@@ -125,6 +129,7 @@ cargo run --locked --release -p skat-ai --example latency       # AI latency per
 cargo run --locked --release -p skat-ai --example calibrate -- validation medium strong 200 10 0
 cargo run --locked --release -p skat-app --example coach_latency # coach latency
 cargo run --locked -p gui-egui --example screenshots -- DIR  # headless PNGs (D-45)
+cargo run --locked --release -p nn-train -- smoke [cpu|vulkan]  # Burn stack smoke test (#69)
 ```
 
 On Linux the window needs EGL/GL and Wayland or X11 client libraries
