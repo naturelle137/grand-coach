@@ -6,7 +6,8 @@ Status: protocol prepared for M5 (issue
 D-55), `trumpf-vulnerability` and `partner-overtake` (#44, D-56),
 `hand-structure` and `game-value` (#45, D-57); focus and
 moment selection without new lessons (#46, D-58); historical decision
-snapshots in the debriefing (#47, D-59); no learner session has been run. M8 execution: issue
+snapshots in the debriefing (#47, D-59); opt-in figures exception to live
+non-disclosure (#65, D-60); no learner session has been run. M8 execution: issue
 [#54](https://github.com/naturelle137/grand-coach/issues/54). Concept:
 [coach-didactics.md](coach-didactics.md); contract:
 [analysis.md](analysis.md#evidence-for-lessons).
@@ -95,7 +96,9 @@ answers every line with the evidence (test name, file, rule source) or
 - [ ] Historical view: debriefing uses the snapshot at the decision, never
   later facts or the final hand.
 - [ ] D-49, explicit leaks: before the move no option is named, ranked or
-  labelled better.
+  labelled better. Stage 3 with "show figures" on is the opt-in exception
+  (D-60): it may show per-option estimates in neutral order without
+  labels; do not claim that they hide the model's preference.
 - [ ] D-49, implicit leaks: the question is not loaded towards one action,
   only one action group is not shown, and lesson or plan IDs visible
   before the move do not imply the preferred action. Checked with a test

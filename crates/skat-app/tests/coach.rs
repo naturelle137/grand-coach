@@ -634,6 +634,92 @@ fn requests_reveal_one_stage_at_a_time() {
 }
 
 #[test]
+fn figures_off_stops_at_the_situation_and_toggling_keeps_the_request_flow() {
+    // D-49/D-60: with figures off, repeated requests stop at stage 2 and
+    // expose no estimate; switching figures on reveals nothing by itself,
+    // switching them off hides the estimates at once. The exact facts and
+    // the situation do not depend on the setting.
+    let mut s = session(9, false);
+    s.set_coach_budget(TINY);
+    let mut off = settings(CoachLevel::OnRequest, false);
+    off.show_figures = false;
+    let on = CoachSettings {
+        show_figures: true,
+        ..off
+    };
+    s.execute(Command::SetCoach(off)).unwrap();
+    assert!(to_human(&mut s));
+    run_coach(&mut s);
+    let game = game_part(&s.view());
+    let shown = |s: &Session| match s.view().coach.advice {
+        Advice::Ready(h) | Advice::Provisional(h) => Some(*h),
+        _ => None,
+    };
+    for _ in 0..5 {
+        s.execute(Command::RequestAdvice).unwrap();
+    }
+    let situation = shown(&s).expect("advice on request");
+    assert_eq!(situation.stage, Stage::Situation, "stage 2 is the last");
+    assert!(situation.figures.is_none(), "no estimate with figures off");
+    assert_eq!(s.view().coach.next_stage, None);
+
+    // Switching figures on reveals nothing until the next request.
+    s.execute(Command::SetCoach(on)).unwrap();
+    assert_eq!(shown(&s).as_ref(), Some(&situation));
+    assert_eq!(s.view().coach.next_stage, Some(Stage::Figures));
+    s.execute(Command::RequestAdvice).unwrap();
+    let figures = shown(&s).expect("advice");
+    assert_eq!(figures.stage, Stage::Figures);
+    let options = situation
+        .situation
+        .as_ref()
+        .expect("situation")
+        .options
+        .clone();
+    assert!(
+        figures
+            .figures
+            .as_ref()
+            .expect("estimates on request")
+            .iter()
+            .map(|f| f.action)
+            .eq(options.iter().copied()),
+        "neutral order"
+    );
+    // Stage 3 only adds the figures: same facts, situation and question.
+    let mut without = figures.clone();
+    without.figures = None;
+    without.stage = Stage::Situation;
+    assert_eq!(without, situation);
+
+    // Switching off after stage 3 hides the estimates at once and caps
+    // further requests at stage 2.
+    s.execute(Command::SetCoach(off)).unwrap();
+    assert_eq!(shown(&s).as_ref(), Some(&situation));
+    s.execute(Command::RequestAdvice).unwrap();
+    assert_eq!(shown(&s).as_ref(), Some(&situation));
+    assert_eq!(s.view().coach.next_stage, None);
+    // Switching on again shows the stage 3 the player already asked for
+    // at this decision, nothing beyond it.
+    s.execute(Command::SetCoach(on)).unwrap();
+    assert_eq!(shown(&s).as_ref(), Some(&figures));
+    assert_eq!(s.view().coach.next_stage, None);
+    // Toggles and requests changed nothing in the game and started no new
+    // analysis.
+    assert_eq!(game, game_part(&s.view()));
+    assert!(s.coach_job().is_none());
+
+    // At the next decision figures on still start at stage 1: enabling
+    // them never skips the request flow.
+    let action = simple_action(&s.view());
+    s.execute(Command::Act(action)).unwrap();
+    assert!(to_human(&mut s), "precondition: a second decision");
+    run_coach(&mut s);
+    assert_eq!(shown(&s), None, "on request: nothing before asking");
+    assert_eq!(s.view().coach.next_stage, Some(Stage::Considerations));
+}
+
+#[test]
 fn every_own_move_gets_a_note_even_if_analysed_afterwards() {
     let mut s = session(10, false);
     s.set_coach_budget(TINY);

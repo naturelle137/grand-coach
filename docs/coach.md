@@ -204,6 +204,37 @@ ranked `Explanation`. Each `RequestAdvice` reveals one more `Stage`:
 3. `Figures`: every option's estimate in the same neutral order, no
    judgement; only with "show figures" (otherwise stage 2 is the last).
 
+**Two boundaries (D-60).** The guarantee depends on the stage:
+
+- **Stages 1 and 2, and everything with figures off** (the default):
+  before the move no option is named, ranked, labelled or singled out as a
+  plan, however often the player asks. Requests stop at stage 2; no
+  per-option estimate is exposed. Stage 1 and 2 hints are identical under
+  opposite model preferences (same lesson, concept, situation, option
+  order and question).
+- **Stage 3, opt-in exception**: only when the player has switched on
+  "show figures" *and* asks for stage 3, the hints list every option's
+  model estimate (winning chance, expected points) for comparison. They
+  stay in neutral legal order without best, better or recommended labels,
+  but a player can infer the model's preference from them; that is
+  intended (maintainer decision, issue
+  [#65](https://github.com/naturelle137/grand-coach/issues/65)). The
+  estimates are the model's assessment, not a certified best move.
+  Switching figures on reveals nothing by itself; switching them off hides
+  the estimates at once and caps the stage at 2. Switching them on again
+  at the same decision shows the stage 3 already asked for there.
+
+Exact live facts (Trumpf counts, voids, Augen, hand structure, game
+values) are not model estimates: they show with figures on or off. Only
+estimated numbers (option estimates, uncertain expected card counts) follow
+the setting. #46 left its second acceptance item open in PR #63 because
+of stage 3; D-60 resolves it as this explicit exception. Tests:
+`skat-coach/tests/focus.rs` (opposite preferences at card-play, bidding,
+pickup and fallback decisions, every focus),
+`skat-app/tests/coach.rs` (`requests_reveal_one_stage_at_a_time`,
+`figures_off_stops_at_the_situation_and_toggling_keeps_the_request_flow`)
+and `gui-egui/src/coach.rs` (de/en rendering with and without figures).
+
 After the move `review` judges the chosen option; `MoveReview::note` is the
 short note (`Good`, `AboutEqual`, `SomewhatWeaker`, `ClearlyWeaker`,
 `Forced`, `Uncertain`). At the end of the game `moments` picks zero to
@@ -319,7 +350,8 @@ Ouvert reveal, failed reviews and cleanup), `skat-app/tests/coach.rs`
   action too), **every move** (stage 1 on its own where teachable, the
   compact status elsewhere). Warning off by default (D-09),
   independent of the level; "show figures" (off by default, D-52) hides
-  estimates but keeps the reasoning and exact facts.
+  estimates but keeps the reasoning and exact facts. Stage 3 needs it and
+  a request (D-60).
 - With the level not off, every own decision is analysed for the note
   (`CoachView::last_move`) and the debriefing (`CoachView::debriefing`,
   once the game is over). A decision played before its analysis finished

@@ -1711,6 +1711,70 @@ mod tests {
         assert!(moments > 0, "some debriefing was rendered");
     }
 
+    #[test]
+    fn requested_figures_list_every_estimate_in_neutral_order_without_labels() {
+        // D-60: only an explicitly requested stage 3 with figures on shows
+        // per-option estimates, in the legal order, with no label. Their
+        // values may still let a player infer the model's preference; that
+        // is the opt-in exception, not checked away here.
+        let all = explanations();
+        let mut checked = 0;
+        for language in Language::ALL {
+            let i18n = I18n::new(language);
+            let heading = i18n.t("coach-section-figures");
+            // Every judgement label (not evaluated is no judgement: it
+            // stands for a missing estimate).
+            let labels: Vec<String> = [
+                Judgement::Best,
+                Judgement::Equivalent,
+                Judgement::Worse,
+                Judgement::Weak,
+                Judgement::Screened,
+            ]
+            .into_iter()
+            .map(|j| judgement(&i18n, j))
+            .collect();
+            for (view, e) in &all {
+                let h = model::hints(e, Stage::Figures);
+                let lines = hints(&i18n, view, &h, true);
+                let at = lines
+                    .iter()
+                    .position(|l| l.text == heading)
+                    .expect("figures heading");
+                let shown = view.legal_actions.len().min(SHOWN_OPTIONS);
+                let listed = &lines[at + 1..at + 1 + 2 * shown];
+                for (pair, &a) in listed.chunks(2).zip(&view.legal_actions) {
+                    // The option as it is, no bullet, mark or label …
+                    assert_eq!(pair[0].text, action(&i18n, view, a));
+                    assert_eq!(pair[0].style, Style::Normal);
+                    // … then its own figures, never a judgement.
+                    let o = e.options.iter().find(|o| o.action == a).unwrap();
+                    let expected = o.estimate.map_or_else(
+                        || i18n.t("coach-judgement-not-evaluated"),
+                        |est| metrics(&i18n, h.role, &est),
+                    );
+                    assert_eq!(pair[1].text, expected);
+                    for label in &labels {
+                        assert!(!pair[1].text.contains(label.as_str()), "{label}");
+                    }
+                }
+                // Figures off (or not requested): no figures section at
+                // all, only the plain options.
+                for (stage, figures) in [
+                    (Stage::Considerations, true),
+                    (Stage::Situation, true),
+                    (Stage::Situation, false),
+                    (Stage::Figures, false),
+                ] {
+                    let lines = hints(&i18n, view, &model::hints(e, stage), figures);
+                    assert!(lines.iter().all(|l| l.text != heading), "{stage:?}");
+                }
+                checked += 1;
+            }
+        }
+        assert!(checked >= 10, "{checked}");
+    }
+
     // ------------------------------------------------------------------
     // Debriefing fixtures (D-52). The decision: trick 5, the human defends;
     // Kreuz-Bube is best, Pik-Sieben a natural trap clearly lower, the
