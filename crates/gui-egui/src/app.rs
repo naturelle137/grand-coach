@@ -17,7 +17,7 @@ use skat_app::coach_model::{Concept, Stage};
 
 use crate::cards::{self, Deck, Theme};
 use crate::coach::{self, Style};
-use crate::i18n::{I18n, Language};
+use crate::i18n::{Faces, I18n, Language};
 use crate::text;
 
 const CARD: Vec2 = Vec2::new(78.0, 117.0);
@@ -1438,6 +1438,11 @@ fn level_description(level: Level) -> &'static str {
 impl eframe::App for GrandCoachApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let now = ui.input(|i| i.time);
+        // Suit names follow the shown faces (D-62).
+        self.i18n.faces = Faces {
+            german: self.deck == Deck::German,
+            theme: self.theme(),
+        };
         // The opponents wait while the "new series" dialog is open.
         if self.new_series.is_none() {
             self.drive_opponents(ui.ctx(), now);

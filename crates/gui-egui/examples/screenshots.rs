@@ -16,7 +16,7 @@
 use eframe::egui::{Key, Role};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use gui_egui::{Deck, GrandCoachApp, Language};
+use gui_egui::{Deck, GrandCoachApp, Language, Theme};
 use skat_app::coach_model::{Concept, Judgement, LessonContent};
 use skat_app::{
     Action, Advice, Budget, Card, CoachLevel, CoachSettings, Debriefing, Level, Opponents, Pending,
@@ -795,7 +795,7 @@ fn play_until(harness: &mut Harness<'_, GrandCoachApp>, stop: impl Fn(&TableView
         } else if legal.contains(&Action::KeinKontra) {
             ("Kein Kontra".to_owned(), false)
         } else if let Some(&Action::Play(card)) = legal.first() {
-            (card_label(card), true)
+            (shown_card_label(harness, card), true)
         } else {
             panic!("no scripted click for {legal:?}");
         };
@@ -814,6 +814,21 @@ fn click(harness: &mut Harness<'_, GrandCoachApp>, role: Role, label: &str) {
 }
 
 /// German card label as shown to assistive technology.
+/// The label of `card` on the faces shown: God Mode names Pik and Karo
+/// after their symbols, with the French name in brackets (D-62).
+fn shown_card_label(harness: &Harness<'_, GrandCoachApp>, card: Card) -> String {
+    let label = card_label(card);
+    if harness.state().theme() != Theme::God {
+        return label;
+    }
+    for (french, symbol) in [("Pik", "Mond"), ("Karo", "Stern")] {
+        if let Some(rest) = label.strip_prefix(french) {
+            return format!("{symbol}{rest} ({french})");
+        }
+    }
+    label
+}
+
 fn card_label(card: Card) -> String {
     let suit = ["Kreuz", "Pik", "Herz", "Karo"][usize::from(card.suit().index())];
     let rank = [
