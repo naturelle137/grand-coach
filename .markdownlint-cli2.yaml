@@ -12,3 +12,5 @@ config:
 # Local scratch files (ignored by git) are not linted.
 ignores:
   - ".tmp/**"
+  - "reports/**"
+  - "research_notes/**"

@@ -33,26 +33,31 @@ exception to live non-disclosure.
 
 ## Next work and dependencies
 
-Start [#68](https://github.com/naturelle137/grand-coach/issues/68) now: freeze
-the Classic reference/evaluation protocol and profile debriefing for
-[offline learned-backend epic #67](https://github.com/naturelle137/grand-coach/issues/67).
-This epic replaces closed proposals #34/#35; no learned backend is shipped yet.
-Classic stays default. Early headless research needs M1–M4;
-M6–M8, Godot (#14) and God Mode (#28) are not prerequisites. Follow each child's actual gates;
-a research no-go is not a deployment pass.
+Start the [neural-network epic #67](https://github.com/naturelle137/grand-coach/issues/67)
+now with [#69](https://github.com/naturelle137/grand-coach/issues/69) (NN foundation:
+Burn, encoder, runtime, arena adapter) and
+[#70](https://github.com/naturelle137/grand-coach/issues/70) (training data) in
+parallel, then the card-play network #73 and the selectable engine with
+difficulty levels #77. Pre-play #74, hybrid search #76, debriefing #78 and
+self-play #75 follow in any order. The epic replaces closed proposals #34
+and #35; no learned engine is shipped yet. Classic stays default and learned
+engines may ship labelled experimental (D-07 as amended, stack per D-11 as
+amended). It needs M1–M4 only; M6–M8, Godot (#14) and God Mode (#28) are not
+prerequisites.
 
 The independent didactic path remains #11 → #48, followed by #12, then
 issue #13 storage/training foundations → #49 → #50 → #54. Replay metadata in
 issues #77/#78 reuses #12's delivered artifacts; model packages in #80 extend
-issue #13's packaging foundations. Neither milestone depends on speculative
-neural success.
+issue #13's packaging foundations. Neither milestone depends on the neural
+engines. Separate from #67: the local language-model experiment #79 and the
+classical debriefing optimisation #72.
 
 Documentation follow-ups: [#82](https://github.com/naturelle137/grand-coach/issues/82)
-(decisions/rule details, after #68 and before production integration #76),
+(decisions/rule details),
 [#83](https://github.com/naturelle137/grand-coach/issues/83) (coach consolidation,
-after #82 and before #48/#78), then
+after #82 and before #48), then
 [#84](https://github.com/naturelle137/grand-coach/issues/84) (navigation/link
-checks, before 1.0). They do not block #68–#75.
+checks, before 1.0). They do not block #67.
 
 ## Milestones
 
