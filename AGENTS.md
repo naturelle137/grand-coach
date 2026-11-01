@@ -21,8 +21,8 @@ that the task touches:
   direction, not as a description of current implementation.
 - App/GUI: the relevant analysis/coach contracts and `docs/testing.md`.
 - Verification and release: `docs/testing.md`.
-- Learned engines (#67), starting with #69/#70: D-07 and D-11 (both amended)
-  in `docs/decisions.md`, `docs/analysis.md`, `docs/ai.md`, the lifecycle/latency
+- Learned engines (#67), starting with #69/#70: D-07 and D-11 in
+  `docs/decisions.md`, `docs/analysis.md`, `docs/ai.md`, the lifecycle/latency
   in `docs/coach.md`, `docs/testing.md`, and the issue's prerequisites. The
   full didactic history is not required.
 - Dependencies/assets: `docs/third-party.md` and CONTRIBUTING's licence policy.
@@ -30,8 +30,9 @@ that the task touches:
 
 Historical records and raw research are optional background. New fundamental
 product, architecture or verification decisions get a D entry in
-`docs/decisions.md`; routine implementation details belong in code/PRs.
-Keep documents short.
+`docs/decisions.md`; a changed decision is edited in place to its current
+state (no history, only the date of the last change). Routine
+implementation details belong in code/PRs. Keep documents short.
 
 ## Language
 
