@@ -7,9 +7,9 @@
 use burn::tensor::Device;
 use skat_core::{Action, Game, Phase, PlayerView, RuleConfig, Seat};
 use skat_nn::{
-    ACTIONS, Choice, ENCODER_VERSION, FEATURES, FIXTURE_HIDDEN, Fallback, ModelError, ModelHeader,
-    NetShape, NeuralModel, Phases, PolicyValueNet, action_index, fixture_model, read_header,
-    sha256, write_model,
+    ACTIONS, Choice, ENCODER_VERSION, FEATURES, FIXTURE_HIDDEN, FORMAT_VERSION, Fallback,
+    ModelError, ModelHeader, NetShape, NeuralModel, Phases, PolicyValueNet, action_index,
+    fixture_model, read_header, sha256, write_model,
 };
 
 const RULES: RuleConfig = RuleConfig { kontra_re: true };
@@ -111,10 +111,13 @@ fn incompatible_headers_are_rejected() {
     };
     assert_eq!(load(&bytes[..10]).unwrap_err(), ModelError::Truncated);
     assert_eq!(patched(0, b"XXXX"), ModelError::Magic);
-    assert_eq!(
-        patched(4, &2u16.to_le_bytes()),
-        ModelError::Format { found: 2 }
-    );
+    // Version 1 (no option heads) and unknown later versions.
+    for found in [1, FORMAT_VERSION + 1] {
+        assert_eq!(
+            patched(4, &found.to_le_bytes()),
+            ModelError::Format { found }
+        );
+    }
     let next = ENCODER_VERSION + 1;
     assert_eq!(
         patched(6, &next.to_le_bytes()),
