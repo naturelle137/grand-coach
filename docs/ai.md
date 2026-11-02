@@ -556,3 +556,25 @@ network), which also serves as the frozen reference.
   suite; the chosen one is measured on a fresh block of the validation
   suite against Classic and the #73 model. It replaces
   `assets/models/card-play.gcnn` only if it beats the #73 model there.
+
+**Pilot** on 2026-11-02 (reference hardware of
+[analysis.md](analysis.md#latency-target-and-benchmark), release build,
+commit `e84ec58`, default recipe, seed 0, `--minutes 30 --cpus 16`, start
+`card-play.gcnn` of #73; builds and tests ran alongside at first): 11
+iterations of 600 games (6,600 games, about 13,000 games and 200,000
+learner decisions per hour) in 30 minutes; an iteration took 119–189 s
+playing and 2 s updating. Per iteration the learner made 9,283–9,397
+decisions; the KL divergence from the reference grew to 0.050 nats and
+the policy entropy from 0.516 to 0.574 (the same with entropy weight 0.01,
+0.001 or 0 in a 12-iteration check against a cheap pool, so the bonus does
+not drive it); 1.1–3.0 % of the ratios were clipped. Results per pool
+kind in single iterations vary by about ±15 points, so the learning curve
+is judged by `calibrate`. Screening on the tuning suite (deals 0–399,
+6 games each):
+
+| A | B | Deals | A − B | 95 % interval |
+|---|---|---|---|---|
+| snapshot after 10 iterations | #73 model | 0–399 | +3.37 | [+0.46, +6.27] |
+| learner after 11 iterations | #73 model | 0–399 | +2.17 | [−0.98, +5.33] |
+| snapshot after 10 iterations | Medium | 0–99 | −8.23 | [−14.85, −1.60] |
+| #73 model | Medium | 0–99 | −8.05 | [−15.50, −0.60] |
