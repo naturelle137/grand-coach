@@ -18,6 +18,7 @@
 //!     [--value-mix X] [--soft-weight X] [--soft-temperature X]
 //!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
 //!     [--device cpu|vulkan]
+//! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! ```
 //!
 //! `smoke` is the stack smoke test of #69: it encodes the decisions of
@@ -37,7 +38,9 @@
 //! [`nn_train::train`]); it resumes from `OUT_DIR/checkpoint`, stops at
 //! its wall-time cap and writes `model.gcnn` (the epoch with the lowest
 //! validation loss) and `train.json` (recipe with data hashes, coverage,
-//! epoch logs, metrics per split, model hash).
+//! epoch logs, metrics per split, model hash). `evaluate` reports a
+//! model file's metrics on every split of the given runs, so models
+//! trained on different data compare on the same examples.
 
 use std::time::Instant;
 
@@ -506,11 +509,39 @@ fn train(args: &[String]) {
     );
 }
 
+fn evaluate(args: &[String]) {
+    use nn_train::train::{Hyper, evaluate_model, load};
+    let model = std::fs::read(args.first().expect("evaluate MODEL DATA_DIR...")).expect("model");
+    let dirs: Vec<std::path::PathBuf> = args[1..].iter().map(std::path::PathBuf::from).collect();
+    assert!(!dirs.is_empty(), "evaluate needs at least one DATA_DIR");
+    let hyper = Hyper::default();
+    let data = load(&dirs, &hyper).expect("load data");
+    for (name, examples) in [
+        ("train", &data.train),
+        ("validation", &data.validation),
+        ("test", &data.test),
+    ] {
+        let m = evaluate_model(&model, examples, &hyper).expect("evaluate");
+        println!(
+            "{name}: {} examples, policy {:.4}, agreement {:.2} %, value RMSE {:.1}, \
+             score RMSE {:.1}, win loss {:.4}, score agreement {:.2} %",
+            m.examples,
+            m.policy_loss,
+            100.0 * m.agreement,
+            m.value_rmse,
+            m.score_rmse,
+            m.win_loss,
+            100.0 * m.score_agreement
+        );
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("generate") => generate(&args[1..]),
         Some("train") => train(&args[1..]),
+        Some("evaluate") => evaluate(&args[1..]),
         Some("verify") => {
             let dir = args.get(1).expect("verify DIR");
             match nn_train::shards::verify(std::path::Path::new(dir)) {
@@ -576,6 +607,7 @@ fn main() {
                  [--minutes N] [--max-mb N] [--cpus N] [--workers N]"
             );
             eprintln!("       nn-train verify DIR");
+            eprintln!("       nn-train evaluate MODEL DATA_DIR...");
             eprintln!(
                 "       nn-train train OUT_DIR DATA_DIR... [--hidden N] [--batch N] [--lr X] \
                  [--epochs N] [--value-weight X] [--value-mix X] [--soft-weight X] \
