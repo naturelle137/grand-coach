@@ -54,7 +54,7 @@ for expected points and win chance per card
 ([ai.md](ai.md#card-play-network)). Next is the selectable engine with
 difficulty levels #77. Pre-play #74, hybrid search #76, debriefing #78 and
 self-play #75 follow in any order. The epic replaces closed proposals #34
-and #35; no learned engine is selectable in the app yet. Classic stays default and learned
+and #35; the app offers the card-play model only in the neural table mode so far. Classic stays default and learned
 engines may ship labelled experimental (D-07, stack per D-11). It needs M1–M4 only; M6–M8 and Godot (#14) are not
 prerequisites.
 
