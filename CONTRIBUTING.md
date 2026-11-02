@@ -106,6 +106,19 @@ cargo run --locked --release -p nn-train -- generate DATA_DIR --deals 100 --minu
 cargo run --locked --release -p nn-train -- verify DATA_DIR
 ```
 
+The card-play network is trained on one or more such runs (see
+[docs/ai.md](docs/ai.md#card-play-network) and the model card in
+`assets/models/`). Training resumes from `OUT_DIR/checkpoint` and stops
+at its wall-time cap; `evaluate` measures a model file on every split,
+and `calibrate` and `latency` measure its play:
+
+```sh
+cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR... --hidden 512 --epochs 30 --minutes 120
+cargo run --locked --release -p nn-train -- evaluate OUT_DIR/model.gcnn DATA_DIR...
+cargo run --locked --release -p skat-ai --example calibrate -- validation nn:assets/models/card-play.gcnn easy 200 6 0
+cargo run --locked --release -p skat-ai --example latency -- 20 nn:assets/models/card-play.gcnn
+```
+
 The coach latency per human decision is measured by hand through
 `skat-app` (see [docs/coach.md](docs/coach.md#latency)):
 

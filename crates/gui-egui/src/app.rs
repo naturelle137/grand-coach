@@ -69,6 +69,7 @@ enum Mode {
     Goldfish,
     Mephisto,
     God,
+    Neural,
 }
 
 /// An opponent decision computed on a background thread. Dropping it
@@ -632,6 +633,7 @@ impl GrandCoachApp {
                 Opponents::Goldfish => Mode::Goldfish,
                 Opponents::Mephisto => Mode::Mephisto,
                 Opponents::GodMode => Mode::God,
+                Opponents::Neural => Mode::Neural,
             },
             levels: match config.opponents {
                 Opponents::Levels(levels) => levels,
@@ -709,6 +711,9 @@ impl GrandCoachApp {
                     i.tf("status-opponents", &[("mode", i.t("mode-mephisto").into())])
                 }
                 Opponents::GodMode => i.tf("status-opponents", &[("mode", i.t("mode-god").into())]),
+                Opponents::Neural => {
+                    i.tf("status-opponents", &[("mode", i.t("mode-neural").into())])
+                }
             });
             if self.show_seed {
                 ui.separator();
@@ -1304,6 +1309,8 @@ impl GrandCoachApp {
                 ui.radio_value(&mut draft.mode, Mode::Mephisto, self.t("mode-mephisto"));
                 ui.radio_value(&mut draft.mode, Mode::God, self.t("mode-god"))
                     .on_hover_text(self.t("mode-god-description"));
+                ui.radio_value(&mut draft.mode, Mode::Neural, self.t("mode-neural"))
+                    .on_hover_text(self.t("mode-neural-description"));
                 let mut notes = Vec::new();
                 match draft.mode {
                     Mode::Levels => {
@@ -1315,6 +1322,12 @@ impl GrandCoachApp {
                     Mode::Goldfish => notes.push("mode-goldfish-description"),
                     Mode::Mephisto => {}
                     Mode::God => notes.push("mode-god-description"),
+                    Mode::Neural => {
+                        notes.push("mode-neural-description");
+                        if !skat_app::neural_model_available() {
+                            notes.push("mode-neural-missing");
+                        }
+                    }
                 }
                 for note in notes {
                     ui.label(RichText::new(self.t(note)).small().weak());
@@ -1358,6 +1371,7 @@ impl GrandCoachApp {
                     Mode::Goldfish => Opponents::Goldfish,
                     Mode::Mephisto => Opponents::Mephisto,
                     Mode::God => Opponents::GodMode,
+                    Mode::Neural => Opponents::Neural,
                 },
             });
             self.thinking = None;

@@ -549,6 +549,35 @@ fn goldfish_mode_draws_one_forgetful_opponent() {
     assert_eq!(session.view().sheet.records.len(), 1);
 }
 
+/// The neural mode plays complete games from the opponents' own views,
+/// with the shipped model or, without it, Classic Strong; the same seed
+/// gives the same series either way.
+#[test]
+fn neural_mode_plays_complete_games() {
+    let config = SessionConfig {
+        opponents: Opponents::Neural,
+        ..config(5, SeriesLength::Fixed(2), true)
+    };
+    let mut records = Vec::new();
+    for _ in 0..2 {
+        let mut session = Session::new(config);
+        let mut rng = ChaCha8Rng::seed_from_u64(5);
+        while !session.view().series_finished {
+            if let Some(job) = session.opponent_job() {
+                assert!(!job.sees_all_cards());
+                assert_eq!(job.level(), None);
+                session.finish_opponent(job.run(None)).unwrap();
+            } else {
+                let command = human_command(&session, &mut rng);
+                session.execute(command).unwrap();
+            }
+        }
+        assert_eq!(session.view().sheet.records.len(), 2);
+        records.push(session.view().sheet.records);
+    }
+    assert_eq!(records[0], records[1]);
+}
+
 /// Mephisto and God Mode: every computer decision before card play sees
 /// all cards; in card play the computer declarer does and its partner
 /// does not, and against the human declarer both defenders do. Seed 2 has

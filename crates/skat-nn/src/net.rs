@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 //! The network: a small MLP with a policy head (one logit per action of
-//! [`crate::actions`]) and a value head (expected Seeger-Fabian points of
-//! the acting seat). The same definition is used for CPU inference here
-//! and for training in `tools/nn-train` (D-11).
+//! [`crate::actions`]), a value head (expected Seeger-Fabian points of
+//! the acting seat) and two option heads (per action: expected
+//! Seeger-Fabian points after it, and the logit of the probability that
+//! the seat's party wins after it). The same definition is used for CPU
+//! inference here and for training in `tools/nn-train` (D-11).
 
 use burn::module::{Module, Param, ParamId};
 use burn::nn::{Linear, LinearConfig, Relu};
@@ -35,13 +37,30 @@ impl NetShape {
     }
 }
 
-/// Two hidden ReLU layers, then a policy and a value head.
+/// Outputs of a [`PolicyValueNet`] for a batch.
+#[derive(Clone, Debug)]
+pub struct Outputs {
+    /// Policy logits `[batch, actions]`.
+    pub policy: Tensor<2>,
+    /// Value `[batch, 1]`: expected Seeger-Fabian points of the seat.
+    pub value: Tensor<2>,
+    /// Option scores `[batch, actions]`: expected Seeger-Fabian points
+    /// after each action.
+    pub score: Tensor<2>,
+    /// Option win logits `[batch, actions]`: logit of the probability that
+    /// the seat's party wins after each action.
+    pub win: Tensor<2>,
+}
+
+/// Two hidden ReLU layers, then a policy, a value and two option heads.
 #[derive(Module, Debug)]
 pub struct PolicyValueNet {
     input: Linear,
     hidden: Linear,
     policy: Linear,
     value: Linear,
+    score: Linear,
+    win: Linear,
     activation: Relu,
 }
 
@@ -55,12 +74,14 @@ impl PolicyValueNet {
             hidden: LinearConfig::new(shape.hidden, shape.hidden).init(device),
             policy: LinearConfig::new(shape.hidden, shape.actions).init(device),
             value: LinearConfig::new(shape.hidden, 1).init(device),
+            score: LinearConfig::new(shape.hidden, shape.actions).init(device),
+            win: LinearConfig::new(shape.hidden, shape.actions).init(device),
             activation: Relu,
         }
     }
 
     /// A network of `shape` whose parameters are taken in order from
-    /// `next`: for each layer (input, hidden, policy, value) its weight
+    /// `next`: for each layer (input, hidden, policy, value, score, win) its weight
     /// matrix row by row (`[inputs, outputs]`), then its bias.
     pub fn from_weights(
         shape: NetShape,
@@ -86,15 +107,28 @@ impl PolicyValueNet {
             hidden: layer(shape.hidden, shape.hidden),
             policy: layer(shape.hidden, shape.actions),
             value: layer(shape.hidden, 1),
+            score: layer(shape.hidden, shape.actions),
+            win: layer(shape.hidden, shape.actions),
             activation: Relu,
+        }
+    }
+
+    /// Every output for features `[batch, inputs]`.
+    pub fn forward_all(&self, features: Tensor<2>) -> Outputs {
+        let x = self.activation.forward(self.input.forward(features));
+        let x = self.activation.forward(self.hidden.forward(x));
+        Outputs {
+            policy: self.policy.forward(x.clone()),
+            value: self.value.forward(x.clone()),
+            score: self.score.forward(x.clone()),
+            win: self.win.forward(x),
         }
     }
 
     /// Policy logits `[batch, actions]` and values `[batch, 1]` for
     /// features `[batch, inputs]`.
     pub fn forward(&self, features: Tensor<2>) -> (Tensor<2>, Tensor<2>) {
-        let x = self.activation.forward(self.input.forward(features));
-        let x = self.activation.forward(self.hidden.forward(x));
-        (self.policy.forward(x.clone()), self.value.forward(x))
+        let o = self.forward_all(features);
+        (o.policy, o.value)
     }
 }

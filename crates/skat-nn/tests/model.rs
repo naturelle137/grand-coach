@@ -7,9 +7,9 @@
 use burn::tensor::Device;
 use skat_core::{Action, Game, Phase, PlayerView, RuleConfig, Seat};
 use skat_nn::{
-    ACTIONS, ENCODER_VERSION, FEATURES, FIXTURE_HIDDEN, Fallback, ModelError, ModelHeader,
-    NetShape, NeuralModel, Phases, PolicyValueNet, action_index, fixture_model, read_header,
-    sha256, write_model,
+    ACTIONS, Choice, ENCODER_VERSION, FEATURES, FIXTURE_HIDDEN, FORMAT_VERSION, Fallback,
+    ModelError, ModelHeader, NetShape, NeuralModel, Phases, PolicyValueNet, action_index,
+    fixture_model, read_header, sha256, write_model,
 };
 
 const RULES: RuleConfig = RuleConfig { kontra_re: true };
@@ -111,10 +111,13 @@ fn incompatible_headers_are_rejected() {
     };
     assert_eq!(load(&bytes[..10]).unwrap_err(), ModelError::Truncated);
     assert_eq!(patched(0, b"XXXX"), ModelError::Magic);
-    assert_eq!(
-        patched(4, &2u16.to_le_bytes()),
-        ModelError::Format { found: 2 }
-    );
+    // Version 1 (no option heads) and unknown later versions.
+    for found in [1, FORMAT_VERSION + 1] {
+        assert_eq!(
+            patched(4, &found.to_le_bytes()),
+            ModelError::Format { found }
+        );
+    }
     let next = ENCODER_VERSION + 1;
     assert_eq!(
         patched(6, &next.to_le_bytes()),
@@ -243,5 +246,38 @@ fn fixed_model_and_input_reproduce_the_decision() {
             let bits = |p: &[(Action, f32)]| p.iter().map(|x| x.1.to_bits()).collect::<Vec<_>>();
             assert_eq!(bits(&e.policy), bits(&first.policy));
         }
+    }
+}
+
+#[test]
+fn option_heads_estimate_every_legal_action_and_can_choose() {
+    let model = load(&fixture_model(5, Phases::ALL)).unwrap();
+    for view in decision_views(6) {
+        let by_policy = model.evaluate(&view).unwrap();
+        let by_score = model.evaluate_with(&view, Choice::Score).unwrap();
+        assert_eq!(
+            by_policy,
+            model.evaluate_with(&view, Choice::Policy).unwrap()
+        );
+        let actions: Vec<Action> = by_score.options.iter().map(|o| o.action).collect();
+        assert_eq!(actions, view.legal_actions);
+        assert!(
+            by_score
+                .options
+                .iter()
+                .all(|o| o.score.is_finite() && o.win_chance > 0.0 && o.win_chance < 1.0)
+        );
+        // The highest expected points, ties to the first legal action.
+        let best = by_score
+            .options
+            .iter()
+            .fold(None::<&skat_nn::OptionEstimate>, |b, o| match b {
+                Some(b) if b.score >= o.score => Some(b),
+                _ => Some(o),
+            })
+            .unwrap();
+        assert_eq!(by_score.action, best.action);
+        assert_eq!(by_score.options, by_policy.options);
+        assert_eq!(by_score.policy, by_policy.policy);
     }
 }

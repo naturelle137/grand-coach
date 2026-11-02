@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use skat_analysis::Cancel;
 use skat_core::PlayerView;
-use skat_nn::{Fallback, ModelError, NeuralModel};
+use skat_nn::{Choice, Fallback, ModelError, NeuralModel};
 
 use crate::{Decision, Opponent};
 
@@ -38,6 +38,8 @@ pub struct NeuralOpponent {
     model: Result<Arc<NeuralModel>, ModelError>,
     /// The Classic opponent used for every fallback.
     pub classic: Opponent,
+    /// How the model picks its action (default: the policy head).
+    pub choice: Choice,
 }
 
 /// A decision of a [`NeuralOpponent`] and how it was reached.
@@ -57,7 +59,16 @@ impl NeuralOpponent {
     /// An opponent using `model` (or the error that prevented loading it,
     /// e.g. [`ModelError::Missing`]) with `classic` as fallback.
     pub fn new(model: Result<Arc<NeuralModel>, ModelError>, classic: Opponent) -> NeuralOpponent {
-        NeuralOpponent { model, classic }
+        NeuralOpponent {
+            model,
+            classic,
+            choice: Choice::Policy,
+        }
+    }
+
+    /// The same opponent picking its actions by `choice`.
+    pub fn with_choice(self, choice: Choice) -> NeuralOpponent {
+        NeuralOpponent { choice, ..self }
     }
 
     /// The model, or why there is none.
@@ -76,7 +87,7 @@ impl NeuralOpponent {
             return None;
         }
         let evaluation = match &self.model {
-            Ok(model) => model.evaluate(view),
+            Ok(model) => model.evaluate_with(view, self.choice),
             Err(e) => Err(Fallback::Model(e.clone())),
         };
         match evaluation {

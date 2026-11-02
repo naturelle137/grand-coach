@@ -1,0 +1,617 @@
+{
+  "recipe": {
+    "train_format": 2,
+    "encoder_version": 1,
+    "phases": 16,
+    "data": [
+      {
+        "manifest": {
+          "dataset_format": 1,
+          "record_format": 1,
+          "encoder_version": 1,
+          "engine_commit": "99c91300dee7",
+          "profile": "strong",
+          "profile_detail": "Profile { budget: Some(Budget { samples: 24, nodes_per_task: 100000000 }), temperature: 0.0, search_bidding: false, search_declaring: false, forget: 0.0, mistakes: Mistakes { bid: 0.0, game: 0.0, discard: 0.0, kontra: 0.0, card: 0.0 } }",
+          "seed": 73,
+          "seed_scheme": "deal: mix(mix(seed, DEAL_KEY), deal); teacher: mix(mix(mix(seed, TEACHER_KEY), deal), seat); SplitMix64 finaliser",
+          "rules": {
+            "kontra_re": true
+          },
+          "deals": 10000,
+          "shard_deals": 10,
+          "split": "by deal seed: train 80 %, validation 10 %, test 10 %"
+        },
+        "manifest_sha256": "a1ad67fad053b5837d41fd54fd1aa52c4deb352f84f6528185228f689e7ce17b",
+        "shards": 1000,
+        "data_sha256": "1f5f82f231ce5efbf32adeaf3aac81dce9dc3c9661e1f08c1f99f1d4d91fb04d"
+      },
+      {
+        "manifest": {
+          "dataset_format": 1,
+          "record_format": 1,
+          "encoder_version": 1,
+          "engine_commit": "99c91300dee7",
+          "profile": "strong",
+          "profile_detail": "Profile { budget: Some(Budget { samples: 24, nodes_per_task: 100000000 }), temperature: 0.0, search_bidding: false, search_declaring: false, forget: 0.0, mistakes: Mistakes { bid: 0.0, game: 0.0, discard: 0.0, kontra: 0.0, card: 0.0 } }",
+          "seed": 74,
+          "seed_scheme": "deal: mix(mix(seed, DEAL_KEY), deal); teacher: mix(mix(mix(seed, TEACHER_KEY), deal), seat); SplitMix64 finaliser",
+          "rules": {
+            "kontra_re": true
+          },
+          "deals": 10000,
+          "shard_deals": 10,
+          "split": "by deal seed: train 80 %, validation 10 %, test 10 %"
+        },
+        "manifest_sha256": "93b812c633c3b1fafaecc99e4010c473ed236256736d18e17dc4bcb919d8d98d",
+        "shards": 759,
+        "data_sha256": "1c290ba85b1302d22637623ffcadfb81f50af52749eefe311c677c57be454d8c"
+      }
+    ],
+    "hyper": {
+      "hidden": 512,
+      "batch": 256,
+      "learning_rate": 0.001,
+      "epochs": 30,
+      "value_weight": 1.0,
+      "value_mix": 0.5,
+      "soft_weight": 0.0,
+      "soft_temperature": 5.0,
+      "score_weight": 1.0,
+      "win_weight": 1.0,
+      "seed": 0
+    }
+  },
+  "engine_commit": "bf17a5678616",
+  "device": "cpu",
+  "coverage": [
+    {
+      "split": "Train",
+      "kind": "KontraRe",
+      "examples": 19515
+    },
+    {
+      "split": "Train",
+      "kind": "Spiel",
+      "examples": 420727
+    },
+    {
+      "split": "Validation",
+      "kind": "KontraRe",
+      "examples": 2394
+    },
+    {
+      "split": "Validation",
+      "kind": "Spiel",
+      "examples": 51898
+    },
+    {
+      "split": "Test",
+      "kind": "KontraRe",
+      "examples": 2433
+    },
+    {
+      "split": "Test",
+      "kind": "Spiel",
+      "examples": 51387
+    }
+  ],
+  "logs": [
+    {
+      "epoch": 1,
+      "train_loss": 3.5545194313276647,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.7746200140965314,
+        "agreement": 0.688959699403227,
+        "value_rmse": 49.9589904810421,
+        "options": 200074,
+        "score_rmse": 58.87309581051424,
+        "win_loss": 0.4107632894475637,
+        "score_agreement": 0.5832949542213953,
+        "loss": 2.8414783424882186
+      },
+      "seconds": 63.341301402
+    },
+    {
+      "epoch": 2,
+      "train_loss": 2.4690509981887283,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6984557894296705,
+        "agreement": 0.7244161202387092,
+        "value_rmse": 46.678077376342806,
+        "options": 200074,
+        "score_rmse": 54.9490123115885,
+        "win_loss": 0.4000498656796139,
+        "score_agreement": 0.6089751856013853,
+        "loss": 2.542460338878993
+      },
+      "seconds": 68.940942427
+    },
+    {
+      "epoch": 3,
+      "train_loss": 2.1648286460443984,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6716893068969089,
+        "agreement": 0.7381382155750387,
+        "value_rmse": 45.971742011547455,
+        "options": 200074,
+        "score_rmse": 53.513007875370285,
+        "win_loss": 0.3930865919535634,
+        "score_agreement": 0.6180387966766759,
+        "loss": 2.447287864252061
+      },
+      "seconds": 63.968444614
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.9717076712569526,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6556088190560664,
+        "agreement": 0.7419325130774331,
+        "value_rmse": 45.62364638992624,
+        "options": 200074,
+        "score_rmse": 52.16400476553402,
+        "win_loss": 0.3922302201460804,
+        "score_agreement": 0.6288893392038023,
+        "loss": 2.381894734505393
+      },
+      "seconds": 64.509468048
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.8317506020845369,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6435379822064978,
+        "agreement": 0.7497973918809401,
+        "value_rmse": 45.73583995229801,
+        "options": 200074,
+        "score_rmse": 51.285366875656166,
+        "win_loss": 0.38863363382754684,
+        "score_agreement": 0.6151465468010242,
+        "loss": 2.343826035954286
+      },
+      "seconds": 71.96178677
+    },
+    {
+      "epoch": 6,
+      "train_loss": 1.7215073030355366,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6330841530392101,
+        "agreement": 0.7532233109850438,
+        "value_rmse": 45.9538318563235,
+        "options": 200074,
+        "score_rmse": 50.36366023444032,
+        "win_loss": 0.3873701499171781,
+        "score_agreement": 0.6265313265663283,
+        "loss": 2.311635673647887
+      },
+      "seconds": 67.241146545
+    },
+    {
+      "epoch": 7,
+      "train_loss": 1.6353044578502345,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6367499275203183,
+        "agreement": 0.7544205407794887,
+        "value_rmse": 45.98435399598464,
+        "options": 200074,
+        "score_rmse": 49.881847778759024,
+        "win_loss": 0.3886725648749101,
+        "score_agreement": 0.6067461267800233,
+        "loss": 2.3039668119094827
+      },
+      "seconds": 57.111002951
+    },
+    {
+      "epoch": 8,
+      "train_loss": 1.5672510869974314,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6329757140771186,
+        "agreement": 0.7557467030133354,
+        "value_rmse": 46.11133790492478,
+        "options": 200074,
+        "score_rmse": 49.42851302555563,
+        "win_loss": 0.38819753962712994,
+        "score_agreement": 0.6148886391688005,
+        "loss": 2.290460304620825
+      },
+      "seconds": 57.831795269
+    },
+    {
+      "epoch": 9,
+      "train_loss": 1.513213337230128,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6308720703528715,
+        "agreement": 0.7578464598835924,
+        "value_rmse": 46.08572311179878,
+        "options": 200074,
+        "score_rmse": 48.899202473191465,
+        "win_loss": 0.3832888770715801,
+        "score_agreement": 0.6079067111250299,
+        "loss": 2.2683348022165513
+      },
+      "seconds": 58.125236381
+    },
+    {
+      "epoch": 10,
+      "train_loss": 1.4649618586828543,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6321888370185142,
+        "agreement": 0.7594857437559861,
+        "value_rmse": 45.77308006088043,
+        "options": 200074,
+        "score_rmse": 48.33104724193439,
+        "win_loss": 0.3851183888890165,
+        "score_agreement": 0.5996720888676013,
+        "loss": 2.2481586108413816
+      },
+      "seconds": 57.093845599
+    },
+    {
+      "epoch": 11,
+      "train_loss": 1.422867211907409,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.642121725938554,
+        "agreement": 0.7580122301628233,
+        "value_rmse": 46.296069658863956,
+        "options": 200074,
+        "score_rmse": 48.50749283499711,
+        "win_loss": 0.38393998955024333,
+        "score_agreement": 0.6072987859919312,
+        "loss": 2.275034750765375
+      },
+      "seconds": 56.489731896
+    },
+    {
+      "epoch": 12,
+      "train_loss": 1.3879263107166735,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6346349444074338,
+        "agreement": 0.7610329330288071,
+        "value_rmse": 46.13553426431791,
+        "options": 200074,
+        "score_rmse": 48.29887600643868,
+        "win_loss": 0.3841348258077127,
+        "score_agreement": 0.5907558535821528,
+        "loss": 2.258011143920533
+      },
+      "seconds": 57.105704811
+    },
+    {
+      "epoch": 13,
+      "train_loss": 1.353935783131178,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6417382003456593,
+        "agreement": 0.7614013114270979,
+        "value_rmse": 46.86489278947586,
+        "options": 200074,
+        "score_rmse": 48.442306451072064,
+        "win_loss": 0.38437104248173387,
+        "score_agreement": 0.6027301365068254,
+        "loss": 2.2880468068464612
+      },
+      "seconds": 56.771424678
+    },
+    {
+      "epoch": 14,
+      "train_loss": 1.3252242426886114,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6518288238196678,
+        "agreement": 0.7592831356369263,
+        "value_rmse": 48.257648632432705,
+        "options": 200074,
+        "score_rmse": 48.45501485915834,
+        "win_loss": 0.38721795020342836,
+        "score_agreement": 0.5923769872704161,
+        "loss": 2.3381270841710378
+      },
+      "seconds": 56.460208137
+    },
+    {
+      "epoch": 15,
+      "train_loss": 1.2983967124376186,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6512080621640579,
+        "agreement": 0.760130405952995,
+        "value_rmse": 47.77313165264538,
+        "options": 200074,
+        "score_rmse": 47.52538929394865,
+        "win_loss": 0.3811978262894015,
+        "score_agreement": 0.5971298564928247,
+        "loss": 2.2937766482985587
+      },
+      "seconds": 56.144370487
+    },
+    {
+      "epoch": 16,
+      "train_loss": 1.2693981134614278,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6602523584422723,
+        "agreement": 0.7583437707212849,
+        "value_rmse": 46.81294932841776,
+        "options": 200074,
+        "score_rmse": 47.70091669305732,
+        "win_loss": 0.3840386233275823,
+        "score_agreement": 0.588895234235396,
+        "loss": 2.2850770034873555
+      },
+      "seconds": 56.166105164
+    },
+    {
+      "epoch": 17,
+      "train_loss": 1.2481941978252211,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6746393443994845,
+        "agreement": 0.757901716643336,
+        "value_rmse": 47.19475879500817,
+        "options": 200074,
+        "score_rmse": 47.85086280975689,
+        "win_loss": 0.3830114935600346,
+        "score_agreement": 0.5902768822651658,
+        "loss": 2.312387040558735
+      },
+      "seconds": 56.251925044
+    },
+    {
+      "epoch": 18,
+      "train_loss": 1.2257803491381711,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6812464704867643,
+        "agreement": 0.757901716643336,
+        "value_rmse": 46.80099645080416,
+        "options": 200074,
+        "score_rmse": 47.65668930693331,
+        "win_loss": 0.38369431727531267,
+        "score_agreement": 0.5833686421163163,
+        "loss": 2.304244483452565
+      },
+      "seconds": 55.993424136
+    },
+    {
+      "epoch": 19,
+      "train_loss": 1.2058038495654284,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.6910577947064289,
+        "agreement": 0.7551941354158992,
+        "value_rmse": 46.93773696061395,
+        "options": 200074,
+        "score_rmse": 47.42278576328206,
+        "win_loss": 0.38432349980722347,
+        "score_agreement": 0.5879557135751524,
+        "loss": 2.3120678946619666
+      },
+      "seconds": 55.817372901
+    },
+    {
+      "epoch": 20,
+      "train_loss": 1.1855531656811404,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.7030552780355804,
+        "agreement": 0.7575885950047889,
+        "value_rmse": 47.167851492740894,
+        "options": 200074,
+        "score_rmse": 47.33467336313196,
+        "win_loss": 0.38350808180674123,
+        "score_agreement": 0.5794079177643092,
+        "loss": 2.326946003407781
+      },
+      "seconds": 56.085712525
+    },
+    {
+      "epoch": 21,
+      "train_loss": 1.1682727387478185,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.7142263816388986,
+        "agreement": 0.755801959773079,
+        "value_rmse": 47.383606886603246,
+        "options": 200074,
+        "score_rmse": 47.35099490933263,
+        "win_loss": 0.38258515178651037,
+        "score_agreement": 0.5830923125103623,
+        "loss": 2.3432901224497975
+      },
+      "seconds": 56.010352708
+    },
+    {
+      "epoch": 22,
+      "train_loss": 1.1502910367624704,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.7231420279505745,
+        "agreement": 0.7564834598099167,
+        "value_rmse": 47.09602897097464,
+        "options": 200074,
+        "score_rmse": 47.596825843390754,
+        "win_loss": 0.38495400988282874,
+        "score_agreement": 0.5762761822301642,
+        "loss": 2.353510975389223
+      },
+      "seconds": 55.796792031
+    },
+    {
+      "epoch": 23,
+      "train_loss": 1.133216853924962,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.7341837783244554,
+        "agreement": 0.7555256759743608,
+        "value_rmse": 46.95150668974028,
+        "options": 200074,
+        "score_rmse": 47.183377089031204,
+        "win_loss": 0.38293778039600873,
+        "score_agreement": 0.5699942891881437,
+        "loss": 2.347875740376698
+      },
+      "seconds": 56.391083909
+    },
+    {
+      "epoch": 24,
+      "train_loss": 1.1181596677317176,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.7544251401346483,
+        "agreement": 0.7517129595520519,
+        "value_rmse": 47.600227571340675,
+        "options": 200074,
+        "score_rmse": 47.261929188857565,
+        "win_loss": 0.38373874641368005,
+        "score_agreement": 0.5750419099902363,
+        "loss": 2.388017113074997
+      },
+      "seconds": 55.919961108
+    },
+    {
+      "epoch": 25,
+      "train_loss": 1.104443404459676,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.764904811559454,
+        "agreement": 0.7541626759006852,
+        "value_rmse": 47.08331111204745,
+        "options": 200074,
+        "score_rmse": 47.2140290723129,
+        "win_loss": 0.3838192912131176,
+        "score_agreement": 0.5741392332774533,
+        "loss": 2.3837248601378653
+      },
+      "seconds": 56.113219724
+    },
+    {
+      "epoch": 26,
+      "train_loss": 1.0870682340375213,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.7851591315725674,
+        "agreement": 0.7543468650998305,
+        "value_rmse": 47.28578414297127,
+        "options": 200074,
+        "score_rmse": 47.293757726332096,
+        "win_loss": 0.38567944702569207,
+        "score_agreement": 0.5740655453825323,
+        "loss": 2.4132399402351123
+      },
+      "seconds": 55.598115993
+    },
+    {
+      "epoch": 27,
+      "train_loss": 1.0746141575103583,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.8018595511446027,
+        "agreement": 0.7531127974655566,
+        "value_rmse": 47.18533947722541,
+        "options": 200074,
+        "score_rmse": 47.40234198686379,
+        "win_loss": 0.3861045442582628,
+        "score_agreement": 0.5788552585524013,
+        "loss": 2.430585841908587
+      },
+      "seconds": 55.679603944
+    },
+    {
+      "epoch": 28,
+      "train_loss": 1.0618136632927628,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.8103519531380837,
+        "agreement": 0.7502394459588889,
+        "value_rmse": 47.45787495452767,
+        "options": 200074,
+        "score_rmse": 47.5043871314915,
+        "win_loss": 0.38499963052492386,
+        "score_agreement": 0.5665309581268537,
+        "loss": 2.447828442534729
+      },
+      "seconds": 55.357651363
+    },
+    {
+      "epoch": 29,
+      "train_loss": 1.0483113255265146,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.8393656469634644,
+        "agreement": 0.753812716422309,
+        "value_rmse": 48.096499114004615,
+        "options": 200074,
+        "score_rmse": 47.50419499695393,
+        "win_loss": 0.3872792499298208,
+        "score_agreement": 0.5773999226277103,
+        "loss": 2.4960676105966377
+      },
+      "seconds": 55.713167488
+    },
+    {
+      "epoch": 30,
+      "train_loss": 1.0380966324099274,
+      "validation": {
+        "examples": 54292,
+        "policy_loss": 0.8462248017220646,
+        "agreement": 0.7506446621970088,
+        "value_rmse": 47.21709487080172,
+        "options": 200074,
+        "score_rmse": 47.03608961725999,
+        "win_loss": 0.3844979256355704,
+        "score_agreement": 0.5676546985243999,
+        "loss": 2.464569331391303
+      },
+      "seconds": 55.185432749
+    }
+  ],
+  "best_epoch": 10,
+  "train": {
+    "examples": 440242,
+    "policy_loss": 0.5189154424930391,
+    "agreement": 0.8000054515471037,
+    "value_rmse": 22.982117700884782,
+    "options": 1625905,
+    "score_rmse": 36.671076183669385,
+    "win_loss": 0.35650322785915584,
+    "score_agreement": 0.6078126207018771,
+    "loss": 1.395681326598252
+  },
+  "validation": {
+    "examples": 54292,
+    "policy_loss": 0.6321888370185142,
+    "agreement": 0.7594857437559861,
+    "value_rmse": 45.77308006088043,
+    "options": 200074,
+    "score_rmse": 48.33104724193439,
+    "win_loss": 0.3851183888890165,
+    "score_agreement": 0.5996720888676013,
+    "loss": 2.2481586108413816
+  },
+  "test": {
+    "examples": 53820,
+    "policy_loss": 0.6434198889593522,
+    "agreement": 0.756280193236715,
+    "value_rmse": 45.29901036159712,
+    "options": 199212,
+    "score_rmse": 48.35436972185269,
+    "win_loss": 0.3819281953322259,
+    "score_agreement": 0.5939782548090327,
+    "loss": 2.244832920663163
+  },
+  "model_bytes": 5481164,
+  "model_sha256": "ce64c83cb55b17ec491610bd23da0500ec3d81476d8e4208456d3b06e5524817",
+  "stop": "finished"
+}

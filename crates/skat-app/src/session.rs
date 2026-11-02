@@ -5,7 +5,7 @@
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
-use skat_ai::{Budget, Cancel, Level, Mephisto, Opponent, Profile};
+use skat_ai::{Budget, Cancel, Level, Mephisto, NeuralOpponent, Opponent, Player, Profile};
 use skat_core::{Action, Event, Game, OmniscientView, Phase, RuleConfig, RuleError, Seat};
 
 use crate::coach::{
@@ -92,6 +92,12 @@ pub enum Opponents {
     /// but the human sees every card ([`crate::OpenCards`]) and the coach
     /// evaluates the options in the real deal.
     GodMode,
+    /// Both opponents play cards with the learned card-play model (#73)
+    /// from their own seat's view; bidding, Skat and announcements, and
+    /// every decision the model cannot take, fall back to Classic Strong.
+    /// Without a model file they play Classic Strong throughout
+    /// ([`crate::neural_model_available`]).
+    Neural,
 }
 
 impl Opponents {
@@ -120,7 +126,7 @@ impl Default for SessionConfig {
 
 impl SessionConfig {
     /// Level of `player` when every opponent has one; `None` for the
-    /// human and in the Goldfish, Mephisto and God modes.
+    /// human and in the Goldfish, Mephisto, God and neural modes.
     pub fn level(&self, player: PlayerId) -> Option<Level> {
         match (self.opponents, player.0) {
             (Opponents::Levels(levels), 1 | 2) => Some(levels[player.index() - 1]),
@@ -234,6 +240,8 @@ enum Brain {
     Fair(Opponent, Box<skat_core::PlayerView>),
     /// With every card known (Mephisto, D-41).
     Mephisto(Box<Game>),
+    /// From its own seat's view with the learned model (D-07, D-23).
+    Neural(Box<NeuralOpponent>, Box<skat_core::PlayerView>),
 }
 
 /// Identifies the position an opponent move was computed for.
@@ -250,7 +258,8 @@ impl OpponentJob {
         PlayerId(self.position.player)
     }
 
-    /// Level of that player; `None` in the Goldfish and Mephisto modes.
+    /// Level of that player; `None` in the Goldfish, Mephisto and neural
+    /// modes.
     pub fn level(&self) -> Option<Level> {
         self.level
     }
@@ -267,6 +276,7 @@ impl OpponentJob {
         let decision = match &self.brain {
             Brain::Fair(opponent, view) => opponent.decide(view, cancel),
             Brain::Mephisto(game) => Mephisto.decide(game, cancel),
+            Brain::Neural(opponent, view) => opponent.decide(view, cancel),
         }
         .expect("an opponent always finds a legal action");
         OpponentMove {
@@ -507,6 +517,13 @@ impl Session {
                 seed,
             }),
             Opponents::Goldfish => fair(Opponent::new(Level::Medium, seed)),
+            Opponents::Neural => Brain::Neural(
+                Box::new(NeuralOpponent::new(
+                    crate::neural::neural_model(),
+                    Opponent::new(Level::Strong, seed),
+                )),
+                Box::new(self.game.view(seat)),
+            ),
             Opponents::Mephisto | Opponents::GodMode => {
                 let declarer = self.game.declarer();
                 let partner = self.game.phase() == Phase::Spiel

@@ -13,6 +13,7 @@ publish.workspace = true
 skat-core = { workspace = true, features = ["serde"] }
 skat-ai = { workspace = true, features = ["serde"] }
 skat-coach = { workspace = true, features = ["serde"] }
+skat-nn.workspace = true
 rand_chacha.workspace = true
 serde.workspace = true
 

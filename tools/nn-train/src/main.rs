@@ -12,6 +12,13 @@
 //! cargo run --locked --release -p nn-train -- generate OUT_DIR [--deals N]
 //!     [--shard-deals N] [--seed N] [--minutes N] [--max-mb N] [--cpus N]
 //!     [--workers N]
+//! cargo run --locked --release -p nn-train -- verify DIR
+//! cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR...
+//!     [--hidden N] [--batch N] [--lr X] [--epochs N] [--value-weight X]
+//!     [--value-mix X] [--soft-weight X] [--soft-temperature X]
+//!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
+//!     [--device cpu|vulkan]
+//! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! ```
 //!
 //! `smoke` is the stack smoke test of #69: it encodes the decisions of
@@ -26,7 +33,14 @@
 //! and writes raw decision records into shards (#70,
 //! [`nn_train::shards`]); it resumes an interrupted run in the same
 //! directory and stops at its wall-time and disk caps. `verify` checks
-//! every shard of a run and reports incomplete ones.
+//! every shard of a run and reports incomplete ones. `train` trains the
+//! card-play network on the card-play decisions of one or more runs (#73,
+//! [`nn_train::train`]); it resumes from `OUT_DIR/checkpoint`, stops at
+//! its wall-time cap and writes `model.gcnn` (the epoch with the lowest
+//! validation loss) and `train.json` (recipe with data hashes, coverage,
+//! epoch logs, metrics per split, model hash). `evaluate` reports a
+//! model file's metrics on every split of the given runs, so models
+//! trained on different data compare on the same examples.
 
 use std::time::Instant;
 
@@ -343,10 +357,193 @@ fn generate(args: &[String]) {
     }
 }
 
+/// Value of the text flag `--name` in `args`, or `default`.
+fn text_flag<'a>(args: &'a [String], name: &str, default: &'a str) -> &'a str {
+    match args.iter().position(|a| a == name) {
+        Some(i) => args
+            .get(i + 1)
+            .unwrap_or_else(|| panic!("{name} needs a value")),
+        None => default,
+    }
+}
+
+fn device(kind: &str) -> Device {
+    match kind {
+        "cpu" => Device::flex(),
+        #[cfg(feature = "vulkan")]
+        "vulkan" => Device::vulkan(burn::tensor::DeviceKind::DefaultDevice),
+        #[cfg(not(feature = "vulkan"))]
+        "vulkan" => panic!("vulkan needs a build with --features vulkan"),
+        other => panic!("unknown device {other}: cpu or vulkan"),
+    }
+}
+
+fn train(args: &[String]) {
+    use nn_train::train::{
+        Hyper, PHASES, Recipe, TRAIN_FORMAT, TrainLimits, TrainManifest, TrainStop, evaluate_model,
+        hex_hash, load, train,
+    };
+    let out = std::path::PathBuf::from(args.first().expect("train OUT_DIR DATA_DIR..."));
+    let dirs: Vec<std::path::PathBuf> = args[1..]
+        .iter()
+        .take_while(|a| !a.starts_with("--"))
+        .map(std::path::PathBuf::from)
+        .collect();
+    assert!(!dirs.is_empty(), "train needs at least one DATA_DIR");
+    let d = Hyper::default();
+    let hyper = Hyper {
+        hidden: flag(args, "--hidden", d.hidden),
+        batch: flag(args, "--batch", d.batch),
+        learning_rate: flag(args, "--lr", d.learning_rate),
+        epochs: flag(args, "--epochs", d.epochs),
+        value_weight: flag(args, "--value-weight", d.value_weight),
+        value_mix: flag(args, "--value-mix", d.value_mix),
+        soft_weight: flag(args, "--soft-weight", d.soft_weight),
+        soft_temperature: flag(args, "--soft-temperature", d.soft_temperature),
+        score_weight: flag(args, "--score-weight", d.score_weight),
+        win_weight: flag(args, "--win-weight", d.win_weight),
+        seed: flag(args, "--seed", d.seed),
+    };
+    let minutes: f64 = flag(args, "--minutes", 60.0);
+    let kind = text_flag(args, "--device", "cpu");
+    // Read now: the tree may change while a long run trains.
+    let commit = engine_commit();
+    let start = Instant::now();
+    let data = load(&dirs, &hyper).expect("load training data");
+    println!(
+        "examples: {} train, {} validation, {} test ({:.0} s to load)",
+        data.train.rows(),
+        data.validation.rows(),
+        data.test.rows(),
+        start.elapsed().as_secs_f64()
+    );
+    let recipe = Recipe {
+        train_format: TRAIN_FORMAT,
+        encoder_version: ENCODER_VERSION,
+        phases: PHASES.bits(),
+        data: data.sources.clone(),
+        hyper: hyper.clone(),
+    };
+    println!("hyperparameters: {hyper:?}");
+    let limits = TrainLimits {
+        wall_time: std::time::Duration::from_secs_f64(minutes * 60.0),
+    };
+    let trained = train(
+        &out,
+        &recipe,
+        &data,
+        &device(kind).autodiff(),
+        limits,
+        |log| {
+            println!(
+                "epoch {:3}: train loss {:.4}, validation loss {:.4}, policy {:.4}, \
+                 agreement {:.2} %, value RMSE {:.1}, score RMSE {:.1}, win loss {:.4}, \
+                 score agreement {:.2} %, {:.0} s",
+                log.epoch,
+                log.train_loss,
+                log.validation.loss,
+                log.validation.policy_loss,
+                100.0 * log.validation.agreement,
+                log.validation.value_rmse,
+                log.validation.score_rmse,
+                log.validation.win_loss,
+                100.0 * log.validation.score_agreement,
+                log.seconds
+            );
+            true
+        },
+    )
+    .expect("train");
+    let metrics = |examples| evaluate_model(&trained.model, examples, &hyper).expect("evaluate");
+    let manifest = TrainManifest {
+        recipe,
+        engine_commit: commit,
+        device: kind.to_string(),
+        coverage: data.coverage.clone(),
+        logs: trained.state.logs.clone(),
+        best_epoch: trained.state.best_epoch,
+        train: metrics(&data.train),
+        validation: metrics(&data.validation),
+        test: metrics(&data.test),
+        model_bytes: trained.model.len(),
+        model_sha256: hex_hash(&trained.model),
+        stop: match trained.stop {
+            TrainStop::Finished => "finished",
+            TrainStop::WallTime => "wall-time",
+            TrainStop::Stopped => "stopped",
+        }
+        .to_string(),
+    };
+    std::fs::write(out.join("model.gcnn"), &trained.model).expect("write model");
+    let mut json = serde_json::to_vec_pretty(&manifest).expect("manifest serialises");
+    json.push(b'\n');
+    std::fs::write(out.join("train.json"), json).expect("write train.json");
+    println!(
+        "best epoch {} of {}; stop: {}",
+        manifest.best_epoch,
+        manifest.logs.len(),
+        manifest.stop
+    );
+    for (name, m) in [
+        ("train", manifest.train),
+        ("validation", manifest.validation),
+        ("test", manifest.test),
+    ] {
+        println!(
+            "{name}: {} examples, loss {:.4}, policy {:.4}, agreement {:.2} %, value RMSE {:.1}, \
+             score RMSE {:.1}, win loss {:.4}, score agreement {:.2} %",
+            m.examples,
+            m.loss,
+            m.policy_loss,
+            100.0 * m.agreement,
+            m.value_rmse,
+            m.score_rmse,
+            m.win_loss,
+            100.0 * m.score_agreement
+        );
+    }
+    println!(
+        "wrote {} ({} bytes, sha256 {}), train.json; {:.0} s",
+        out.join("model.gcnn").display(),
+        manifest.model_bytes,
+        manifest.model_sha256,
+        start.elapsed().as_secs_f64()
+    );
+}
+
+fn evaluate(args: &[String]) {
+    use nn_train::train::{Hyper, evaluate_model, load};
+    let model = std::fs::read(args.first().expect("evaluate MODEL DATA_DIR...")).expect("model");
+    let dirs: Vec<std::path::PathBuf> = args[1..].iter().map(std::path::PathBuf::from).collect();
+    assert!(!dirs.is_empty(), "evaluate needs at least one DATA_DIR");
+    let hyper = Hyper::default();
+    let data = load(&dirs, &hyper).expect("load data");
+    for (name, examples) in [
+        ("train", &data.train),
+        ("validation", &data.validation),
+        ("test", &data.test),
+    ] {
+        let m = evaluate_model(&model, examples, &hyper).expect("evaluate");
+        println!(
+            "{name}: {} examples, policy {:.4}, agreement {:.2} %, value RMSE {:.1}, \
+             score RMSE {:.1}, win loss {:.4}, score agreement {:.2} %",
+            m.examples,
+            m.policy_loss,
+            100.0 * m.agreement,
+            m.value_rmse,
+            m.score_rmse,
+            m.win_loss,
+            100.0 * m.score_agreement
+        );
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("generate") => generate(&args[1..]),
+        Some("train") => train(&args[1..]),
+        Some("evaluate") => evaluate(&args[1..]),
         Some("verify") => {
             let dir = args.get(1).expect("verify DIR");
             match nn_train::shards::verify(std::path::Path::new(dir)) {
@@ -362,14 +559,7 @@ fn main() {
         }
         Some("smoke") => {
             let kind = args.get(1).map_or("cpu", String::as_str);
-            let device = match kind {
-                "cpu" => Device::flex(),
-                #[cfg(feature = "vulkan")]
-                "vulkan" => Device::vulkan(burn::tensor::DeviceKind::DefaultDevice),
-                #[cfg(not(feature = "vulkan"))]
-                "vulkan" => panic!("vulkan needs a build with --features vulkan"),
-                other => panic!("unknown device {other}: cpu or vulkan"),
-            };
+            let device = device(kind);
             // Adapter names exist only with a GPU backend compiled in.
             #[cfg(feature = "vulkan")]
             let name = device
@@ -419,6 +609,12 @@ fn main() {
                  [--minutes N] [--max-mb N] [--cpus N] [--workers N]"
             );
             eprintln!("       nn-train verify DIR");
+            eprintln!("       nn-train evaluate MODEL DATA_DIR...");
+            eprintln!(
+                "       nn-train train OUT_DIR DATA_DIR... [--hidden N] [--batch N] [--lr X] \
+                 [--epochs N] [--value-weight X] [--value-mix X] [--soft-weight X] \
+                 [--soft-temperature X] [--score-weight X] [--win-weight X] [--seed N] [--minutes N] [--device cpu|vulkan]"
+            );
             std::process::exit(2);
         }
     }
