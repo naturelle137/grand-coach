@@ -406,6 +406,8 @@ fn train(args: &[String]) {
     };
     let minutes: f64 = flag(args, "--minutes", 60.0);
     let kind = text_flag(args, "--device", "cpu");
+    // Read now: the tree may change while a long run trains.
+    let commit = engine_commit();
     let start = Instant::now();
     let data = load(&dirs, &hyper).expect("load training data");
     println!(
@@ -455,7 +457,7 @@ fn train(args: &[String]) {
     let metrics = |examples| evaluate_model(&trained.model, examples, &hyper).expect("evaluate");
     let manifest = TrainManifest {
         recipe,
-        engine_commit: engine_commit(),
+        engine_commit: commit,
         device: kind.to_string(),
         coverage: data.coverage.clone(),
         logs: trained.state.logs.clone(),

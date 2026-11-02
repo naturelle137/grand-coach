@@ -75,6 +75,17 @@ fn advance(view: &PlayerView) -> Action {
     }
 }
 
+/// A time in seconds, or in milliseconds below 10 ms (learned models
+/// decide in well under a millisecond).
+fn show(t: Duration) -> String {
+    let secs = t.as_secs_f64();
+    if secs < 0.01 {
+        format!("{:.3} ms", secs * 1000.0)
+    } else {
+        format!("{secs:.3} s")
+    }
+}
+
 fn percentile(sorted: &[Duration], p: f64) -> Duration {
     let i = ((sorted.len() as f64 - 1.0) * p).round() as usize;
     sorted[i]
@@ -148,11 +159,11 @@ fn main() {
             }
             times.sort();
             println!(
-                "| {name} | {} | {:.3} s | {:.3} s | {:.3} s | {incomplete} |",
+                "| {name} | {} | {} | {} | {} | {incomplete} |",
                 KINDS[k],
-                percentile(&times, 0.5).as_secs_f64(),
-                percentile(&times, 0.9).as_secs_f64(),
-                times.last().unwrap().as_secs_f64(),
+                show(percentile(&times, 0.5)),
+                show(percentile(&times, 0.9)),
+                show(*times.last().unwrap()),
             );
         }
     }
