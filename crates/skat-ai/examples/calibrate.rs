@@ -134,7 +134,8 @@ impl Side {
                     .map(|b| format!("{b:02x}"))
                     .collect();
                 format!(
-                    "learned model {hash}…, hidden width {}, choice {choice:?}, fallback {}",
+                    "learned model {hash}…, {} hidden layers of width {}, choice {choice:?}, fallback {}",
+                    model.header().shape.layers,
                     model.header().shape.hidden,
                     describe(p)
                 )

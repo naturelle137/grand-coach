@@ -207,6 +207,13 @@ pub struct RlRecipe {
     pub start_sha256: String,
     /// Hidden width of the start model.
     pub hidden: usize,
+    /// Hidden layers of the start model; omitted when it is the minimum, so
+    /// two-layer runs resume and compare as before.
+    #[serde(
+        default = "crate::train::min_layers",
+        skip_serializing_if = "crate::train::is_min_layers"
+    )]
+    pub layers: usize,
     /// Hyperparameters.
     pub hyper: RlHyper,
 }
@@ -402,6 +409,7 @@ pub fn recipe(start: &[u8], hyper: RlHyper) -> io::Result<RlRecipe> {
         phases: PHASES.bits(),
         start_sha256: hex(&sha256(start)),
         hidden: header.shape.hidden,
+        layers: header.shape.layers,
         hyper,
     })
 }
@@ -811,7 +819,7 @@ pub fn update_model(
         iteration,
         device,
     );
-    Ok(model_file(net.valid(), header.shape.hidden))
+    Ok(model_file(net.valid(), header.shape))
 }
 
 fn checkpoint_dir(out: &Path) -> PathBuf {
@@ -924,7 +932,7 @@ pub fn run(
         if began.elapsed() >= limits.wall_time {
             break RlStop::WallTime;
         }
-        let current = model_file(net.valid(), shape.hidden);
+        let current = model_file(net.valid(), shape);
         if iteration > 0
             && hyper.snapshot_every > 0
             && iteration.is_multiple_of(hyper.snapshot_every)
@@ -1030,7 +1038,7 @@ pub fn run(
         }
     };
     Ok(RlRun {
-        model: model_file(net.valid(), shape.hidden),
+        model: model_file(net.valid(), shape),
         state,
         stop,
     })

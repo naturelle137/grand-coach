@@ -30,7 +30,7 @@ pub use model::{
     NeuralModel, OptionEstimate, Phases, RawOutputs, masked_softmax, read_header, sha256,
     write_model,
 };
-pub use net::{NetShape, Outputs, PolicyValueNet};
+pub use net::{MAX_LAYERS, MIN_LAYERS, NetShape, Outputs, PolicyValueNet};
 
 #[cfg(test)]
 mod tests {

@@ -291,8 +291,9 @@ in issue #69. The first trained model, for card play, ships with #73
 - **Action space** (`skat_nn::actions`): 621 indices: 63 bid values,
   Hold, Pass, Hand, TakeSkat, 496 discard pairs, 22 announcements,
   32 cards, Kontra, KeinKontra, Re, KeinRe. Part of the encoder version.
-- **Network** (`PolicyValueNet`): input, two hidden ReLU layers of equal
-  width, a policy head (one logit per action), a value head (expected
+- **Network** (`PolicyValueNet`): input, hidden ReLU layers of equal
+  width (two by default; `nn-train train --layers N` for up to eight), a
+  policy head (one logit per action), a value head (expected
   Seeger-Fabian points of the acting seat) and two option heads (#73):
   per action the expected Seeger-Fabian points after it and the logit of
   the probability that the seat's party wins after it. The same
@@ -302,7 +303,8 @@ in issue #69. The first trained model, for card play, ships with #73
   estimates.
 - **Model file** (format version 2; version 1 had no option heads): a
   24-byte header (magic `GCNN`, format and encoder version, layer sizes,
-  covered phases) and the weights in Burn's burnpack format. The caller passes the bytes and their SHA-256 hash;
+  covered phases, number of hidden layers with 0 meaning two, so files
+  written before it was recorded stay valid) and the weights in Burn's burnpack format. The caller passes the bytes and their SHA-256 hash;
   `skat-nn` reads no files.
 - **Safety**: illegal actions are masked out before the softmax, and the
   chosen action is checked against the view again before acting. A

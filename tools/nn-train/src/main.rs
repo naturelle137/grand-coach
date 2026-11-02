@@ -402,6 +402,7 @@ fn train(args: &[String]) {
     let d = Hyper::default();
     let hyper = Hyper {
         hidden: flag(args, "--hidden", d.hidden),
+        layers: flag(args, "--layers", d.layers),
         batch: flag(args, "--batch", d.batch),
         learning_rate: flag(args, "--lr", d.learning_rate),
         epochs: flag(args, "--epochs", d.epochs),

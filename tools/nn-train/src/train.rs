@@ -42,7 +42,7 @@ use serde::{Deserialize, Serialize};
 use skat_ai::Status;
 use skat_core::Phase;
 use skat_nn::{
-    ACTIONS, ENCODER_VERSION, FEATURES, ModelHeader, NetShape, Phases, PolicyValueNet,
+    ACTIONS, ENCODER_VERSION, FEATURES, MIN_LAYERS, ModelHeader, NetShape, Phases, PolicyValueNet,
     action_index, encode, sha256, write_model,
 };
 
@@ -64,8 +64,13 @@ const EVAL_BATCH: usize = 4096;
 /// Hyperparameters of a training run.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Hyper {
-    /// Width of both hidden layers.
+    /// Width of every hidden layer.
     pub hidden: usize,
+    /// Number of hidden layers; omitted from the recipe when it is
+    /// [`MIN_LAYERS`], so recipes of two-layer runs read and compare as
+    /// before.
+    #[serde(default = "min_layers", skip_serializing_if = "is_min_layers")]
+    pub layers: usize,
     /// Examples per Adam step.
     pub batch: usize,
     /// Adam learning rate.
@@ -95,6 +100,7 @@ impl Default for Hyper {
     fn default() -> Hyper {
         Hyper {
             hidden: 256,
+            layers: MIN_LAYERS,
             batch: 256,
             learning_rate: 1e-3,
             epochs: 20,
@@ -535,14 +541,14 @@ const ORDER_KEY: u64 = 0x6f72_6465;
 /// seed.
 pub fn initial(shape: NetShape, seed: u64) -> PolicyValueNet {
     let mut rng = SplitMix(seed ^ INIT_KEY);
-    let layers = [
-        (shape.inputs, shape.hidden),
-        (shape.hidden, shape.hidden),
+    let mut layers = vec![(shape.inputs, shape.hidden)];
+    layers.extend((1..shape.layers).map(|_| (shape.hidden, shape.hidden)));
+    layers.extend([
         (shape.hidden, shape.actions),
         (shape.hidden, 1),
         (shape.hidden, shape.actions),
         (shape.hidden, shape.actions),
-    ];
+    ]);
     // Values in the order `from_weights` consumes them: per layer the
     // weight matrix, then the bias.
     let mut values = Vec::new();
@@ -754,11 +760,22 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     fs::rename(&tmp, path)
 }
 
-/// The model file of `net`.
-pub fn model_file(net: PolicyValueNet, hidden: usize) -> Vec<u8> {
+/// Serde default of a layer count: [`MIN_LAYERS`].
+pub(crate) const fn min_layers() -> usize {
+    MIN_LAYERS
+}
+
+/// Whether a layer count is [`MIN_LAYERS`] (then it is not serialised).
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde passes a reference
+pub(crate) const fn is_min_layers(layers: &usize) -> bool {
+    *layers == MIN_LAYERS
+}
+
+/// The model file of `net` with layer sizes `shape`.
+pub fn model_file(net: PolicyValueNet, shape: NetShape) -> Vec<u8> {
     let header = ModelHeader {
         encoder_version: ENCODER_VERSION,
-        shape: NetShape::current(hidden),
+        shape,
         phases: PHASES,
     };
     write_model(&header, net).expect("model serialises")
@@ -778,7 +795,7 @@ pub fn train(
 ) -> io::Result<Trained> {
     let start = Instant::now();
     let hyper = &recipe.hyper;
-    let shape = NetShape::current(hyper.hidden);
+    let shape = NetShape::current(hyper.hidden).with_layers(hyper.layers);
     let dir = checkpoint_dir(out);
     fs::create_dir_all(&dir)?;
     let adam = AdamConfig::new();
@@ -884,7 +901,7 @@ pub fn train(
     }
     let best_net = from_record(shape, best, &Device::flex())?;
     Ok(Trained {
-        model: model_file(best_net, hyper.hidden),
+        model: model_file(best_net, shape),
         state,
         stop,
     })

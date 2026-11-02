@@ -109,8 +109,9 @@ cargo run --locked --release -p nn-train -- verify DATA_DIR
 The card-play network is trained on one or more such runs (see
 [docs/ai.md](docs/ai.md#card-play-network) and the model card in
 `assets/models/`). Training resumes from `OUT_DIR/checkpoint` and stops
-at its wall-time cap; `evaluate` measures a model file on every split,
-and `calibrate` and `latency` measure its play:
+at its wall-time cap; `--layers N` (default 2) trains a deeper network,
+which `rl` keeps when it starts from it. `evaluate` measures a model
+file on every split, and `calibrate` and `latency` measure its play:
 
 ```sh
 cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR... --hidden 512 --epochs 30 --minutes 120

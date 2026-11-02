@@ -8,8 +8,8 @@ use burn::tensor::Device;
 use skat_core::{Action, Game, Phase, PlayerView, RuleConfig, Seat};
 use skat_nn::{
     ACTIONS, Choice, ENCODER_VERSION, FEATURES, FIXTURE_HIDDEN, FORMAT_VERSION, Fallback,
-    ModelError, ModelHeader, NetShape, NeuralModel, Phases, PolicyValueNet, action_index,
-    fixture_model, read_header, sha256, write_model,
+    MAX_LAYERS, MIN_LAYERS, ModelError, ModelHeader, NetShape, NeuralModel, Phases, PolicyValueNet,
+    action_index, fixture_model, read_header, sha256, write_model,
 };
 
 const RULES: RuleConfig = RuleConfig { kontra_re: true };
@@ -137,6 +137,88 @@ fn incompatible_headers_are_rejected() {
     ));
     assert_eq!(patched(20, &[0]), ModelError::Phases { bits: 0 });
     assert_eq!(patched(20, &[0x40]), ModelError::Phases { bits: 0x40 });
+    for found in [1, 2, MAX_LAYERS as u8 + 1, u8::MAX] {
+        assert_eq!(patched(21, &[found]), ModelError::Layers { found });
+    }
+}
+
+/// A seeded network with `layers` hidden layers as a model file.
+fn deep_file(layers: usize) -> Vec<u8> {
+    let shape = NetShape::current(FIXTURE_HIDDEN).with_layers(layers);
+    let mut k = 0u32;
+    let net = PolicyValueNet::from_weights(shape, &Device::flex(), || {
+        k = k.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+        (k >> 16) as f32 / 65_536.0 - 0.5
+    });
+    let header = ModelHeader {
+        encoder_version: ENCODER_VERSION,
+        shape,
+        phases: Phases::ALL,
+    };
+    write_model(&header, net).unwrap()
+}
+
+#[test]
+fn two_layer_files_keep_the_layer_byte_zero() {
+    // Files written before the layer count was recorded stay valid and
+    // byte-identical.
+    let bytes = fixture_model(1, Phases::ALL);
+    assert_eq!(bytes[21..24], [0, 0, 0]);
+    assert_eq!(deep_file(MIN_LAYERS)[21], 0);
+    assert_eq!(read_header(&bytes).unwrap().shape.layers, MIN_LAYERS);
+}
+
+#[test]
+fn deeper_networks_round_trip_and_decide() {
+    for layers in [3, MAX_LAYERS] {
+        let bytes = deep_file(layers);
+        assert_eq!(usize::from(bytes[21]), layers);
+        let model = load(&bytes).unwrap();
+        assert_eq!(model.header().shape.layers, layers);
+        let view = &decision_views(1)[0];
+        let eval = model.evaluate(view).unwrap();
+        assert!(view.legal_actions.contains(&eval.action));
+        assert!(eval.value.is_finite());
+    }
+    // A deeper network computes something else than its first layers alone.
+    let two = load(&deep_file(MIN_LAYERS)).unwrap();
+    let three = load(&deep_file(3)).unwrap();
+    let view = &decision_views(1)[0];
+    assert_ne!(
+        two.evaluate(view).unwrap().value,
+        three.evaluate(view).unwrap().value
+    );
+}
+
+#[test]
+fn layer_count_must_match_the_weights() {
+    let mut bytes = deep_file(3);
+    bytes[21] = 4;
+    assert!(matches!(load(&bytes).unwrap_err(), ModelError::Weights(_)));
+    let mut bytes = deep_file(3);
+    bytes[21] = 0;
+    assert!(matches!(load(&bytes).unwrap_err(), ModelError::Weights(_)));
+}
+
+#[test]
+fn unsupported_layer_counts_are_not_written() {
+    for layers in [0, 1, MAX_LAYERS + 1] {
+        let shape = NetShape::current(FIXTURE_HIDDEN).with_layers(layers);
+        let header = ModelHeader {
+            encoder_version: ENCODER_VERSION,
+            shape,
+            phases: Phases::ALL,
+        };
+        let net = PolicyValueNet::from_weights(
+            NetShape::current(FIXTURE_HIDDEN),
+            &Device::flex(),
+            || 0.0,
+        );
+        assert!(matches!(
+            write_model(&header, net).unwrap_err(),
+            ModelError::Layers { .. }
+        ));
+    }
 }
 
 #[test]
