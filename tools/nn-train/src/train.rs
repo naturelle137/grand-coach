@@ -429,7 +429,7 @@ impl Examples {
     }
 }
 
-fn tensor(values: Vec<f32>, shape: [usize; 2], device: &Device) -> Tensor<2> {
+pub(crate) fn tensor(values: Vec<f32>, shape: [usize; 2], device: &Device) -> Tensor<2> {
     Tensor::from_data(TensorData::new(values, shape), device)
 }
 
@@ -448,7 +448,7 @@ pub struct Data {
     pub sources: Vec<DataSource>,
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
@@ -510,10 +510,10 @@ pub fn load(dirs: &[PathBuf], hyper: &Hyper) -> io::Result<Data> {
 }
 
 /// SplitMix64 stream for the initial weights and the example order.
-struct SplitMix(u64);
+pub(crate) struct SplitMix(pub(crate) u64);
 
 impl SplitMix {
-    fn next(&mut self) -> u64 {
+    pub(crate) fn next(&mut self) -> u64 {
         self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
         let mut z = self.0;
         z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
@@ -522,7 +522,7 @@ impl SplitMix {
     }
 
     /// Uniform in [0, 1).
-    fn unit(&mut self) -> f32 {
+    pub(crate) fn unit(&mut self) -> f32 {
         (self.next() >> 40) as f32 / (1u64 << 24) as f32
     }
 }
@@ -567,7 +567,7 @@ fn order(rows: usize, seed: u64, epoch: usize) -> Vec<usize> {
     order
 }
 
-fn record_bytes(net: &PolicyValueNet) -> Vec<u8> {
+pub(crate) fn record_bytes(net: &PolicyValueNet) -> Vec<u8> {
     net.clone()
         .into_record()
         .into_bytes()
@@ -575,7 +575,11 @@ fn record_bytes(net: &PolicyValueNet) -> Vec<u8> {
         .to_vec()
 }
 
-fn from_record(shape: NetShape, bytes: Vec<u8>, device: &Device) -> io::Result<PolicyValueNet> {
+pub(crate) fn from_record(
+    shape: NetShape,
+    bytes: Vec<u8>,
+    device: &Device,
+) -> io::Result<PolicyValueNet> {
     let record =
         ModuleRecord::from_bytes(Bytes::from_bytes_vec(bytes)).map_err(io::Error::other)?;
     PolicyValueNet::new(shape, device)
@@ -742,7 +746,7 @@ fn checkpoint_dir(out: &Path) -> PathBuf {
     out.join("checkpoint")
 }
 
-fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".partial");
     let tmp = PathBuf::from(tmp);

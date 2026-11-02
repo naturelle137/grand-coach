@@ -19,6 +19,9 @@
 //!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
 //!     [--device cpu|vulkan]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
+//! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
+//!     [--games N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W] [--seed N]
+//!     [--minutes N] [--iterations N] [--cpus N] [--workers N] (more: usage)
 //! ```
 //!
 //! `smoke` is the stack smoke test of #69: it encodes the decisions of
@@ -40,7 +43,13 @@
 //! validation loss) and `train.json` (recipe with data hashes, coverage,
 //! epoch logs, metrics per split, model hash). `evaluate` reports a
 //! model file's metrics on every split of the given runs, so models
-//! trained on different data compare on the same examples.
+//! trained on different data compare on the same examples. `rl` refines
+//! a model by self-play against a frozen opponent pool (#75,
+//! [`nn_train::rl`]): it resumes from `OUT_DIR/checkpoint`, keeps learner
+//! snapshots in `OUT_DIR/snapshots`, stops at its wall-time or iteration
+//! cap or after the iteration during which `OUT_DIR/STOP` appeared, and
+//! writes the current learner `model.gcnn` and `rl.json` (recipe, logs,
+//! snapshots).
 
 use std::time::Instant;
 
@@ -538,12 +547,126 @@ fn evaluate(args: &[String]) {
     }
 }
 
+/// Manifest of a self-play run, written as `rl.json`.
+#[derive(serde::Serialize)]
+struct RlManifest<'a> {
+    recipe: &'a nn_train::rl::RlRecipe,
+    trainer_commit: String,
+    logs: &'a [nn_train::rl::IterationLog],
+    snapshots: &'a [nn_train::rl::Snapshot],
+    stop: nn_train::rl::RlStop,
+    model_bytes: usize,
+    model_sha256: String,
+}
+
+fn rl(args: &[String]) {
+    use nn_train::rl::{RlHyper, RlLimits, parse_pool, recipe, run};
+    use std::num::NonZeroUsize;
+
+    let out = std::path::PathBuf::from(args.first().expect("rl OUT_DIR --start MODEL [flags]"));
+    let start_path = text_flag(args, "--start", "assets/models/card-play.gcnn");
+    let start = std::fs::read(start_path).unwrap_or_else(|e| panic!("{start_path}: {e}"));
+    let d = RlHyper::default();
+    let hyper = RlHyper {
+        games: flag(args, "--games", d.games),
+        batch: flag(args, "--batch", d.batch),
+        passes: flag(args, "--passes", d.passes),
+        learning_rate: flag(args, "--lr", d.learning_rate),
+        clip: flag(args, "--clip", d.clip),
+        value_weight: flag(args, "--value-weight", d.value_weight),
+        score_weight: flag(args, "--score-weight", d.score_weight),
+        win_weight: flag(args, "--win-weight", d.win_weight),
+        entropy_weight: flag(args, "--entropy-weight", d.entropy_weight),
+        reference_weight: flag(args, "--reference-weight", d.reference_weight),
+        snapshot_every: flag(args, "--snapshot-every", d.snapshot_every),
+        pool_snapshots: flag(args, "--pool-snapshots", d.pool_snapshots),
+        pool: match args.iter().position(|a| a == "--pool") {
+            Some(i) => parse_pool(args.get(i + 1).expect("--pool needs a value"))
+                .unwrap_or_else(|e| panic!("--pool: {e}")),
+            None => d.pool,
+        },
+        seed: flag(args, "--seed", d.seed),
+    };
+    let all = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
+    let cpus = NonZeroUsize::new(flag(args, "--cpus", all)).expect("--cpus > 0");
+    let limits = RlLimits {
+        wall_time: std::time::Duration::from_secs_f64(flag(args, "--minutes", 30.0) * 60.0),
+        iterations: flag(args, "--iterations", usize::MAX),
+        cpus,
+        workers: NonZeroUsize::new(flag(args, "--workers", cpus.get())).expect("--workers > 0"),
+    };
+    let recipe = recipe(&start, hyper).expect("start model");
+    // Read now: the tree may change while a long run trains.
+    let commit = engine_commit();
+    let stop_file = out.join("STOP");
+    std::fs::create_dir_all(&out).expect("create OUT_DIR");
+    let _ = std::fs::remove_file(&stop_file);
+    println!("recipe: {recipe:?}");
+    println!(
+        "budget: {} CPUs, {} parallel games x {} analysis threads; stop with `touch {}`",
+        limits.cpus,
+        limits.workers,
+        (limits.cpus.get() / limits.workers.get()).max(1),
+        stop_file.display()
+    );
+    let result = run(
+        &out,
+        &recipe,
+        &start,
+        &Device::flex().autodiff(),
+        limits,
+        |log| {
+            let pool: Vec<String> = log
+                .pool
+                .iter()
+                .map(|(k, l)| format!("{} {:+.1} ({})", k.name(), l.difference(), l.games))
+                .collect();
+            println!(
+                "iteration {:5}: {} decisions, reward {:+.1}, vs pool [{}], value RMSE {:.1}, \
+                 entropy {:.3}, KL(ref) {:.4}, clipped {:.1} %, play {:.0} s, update {:.0} s",
+                log.iteration,
+                log.decisions,
+                log.mean_reward,
+                pool.join(", "),
+                log.value_rmse,
+                log.entropy,
+                log.reference_kl,
+                100.0 * log.clipped,
+                log.play_seconds,
+                log.update_seconds
+            );
+            !stop_file.exists()
+        },
+    )
+    .expect("self-play run");
+    let manifest = RlManifest {
+        recipe: &recipe,
+        trainer_commit: commit,
+        logs: &result.state.logs,
+        snapshots: &result.state.snapshots,
+        stop: result.stop,
+        model_bytes: result.model.len(),
+        model_sha256: nn_train::train::hex_hash(&result.model),
+    };
+    std::fs::write(out.join("model.gcnn"), &result.model).expect("write model");
+    let mut json = serde_json::to_vec_pretty(&manifest).expect("manifest");
+    json.push(b'\n');
+    std::fs::write(out.join("rl.json"), json).expect("write rl.json");
+    println!(
+        "stopped ({:?}) after {} iterations; wrote {} and rl.json",
+        result.stop,
+        result.state.logs.len(),
+        out.join("model.gcnn").display()
+    );
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("generate") => generate(&args[1..]),
         Some("train") => train(&args[1..]),
         Some("evaluate") => evaluate(&args[1..]),
+        Some("rl") => rl(&args[1..]),
         Some("verify") => {
             let dir = args.get(1).expect("verify DIR");
             match nn_train::shards::verify(std::path::Path::new(dir)) {
@@ -610,6 +733,13 @@ fn main() {
             );
             eprintln!("       nn-train verify DIR");
             eprintln!("       nn-train evaluate MODEL DATA_DIR...");
+            eprintln!(
+                "       nn-train rl OUT_DIR [--start MODEL] [--games N] [--batch N] [--passes N] \
+                 [--lr X] [--clip X] [--value-weight X] [--score-weight X] [--win-weight X] \
+                 [--entropy-weight X] [--reference-weight X] [--snapshot-every N] \
+                 [--pool-snapshots N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W] [--seed N] \
+                 [--minutes N] [--iterations N] [--cpus N] [--workers N]"
+            );
             eprintln!(
                 "       nn-train train OUT_DIR DATA_DIR... [--hidden N] [--batch N] [--lr X] \
                  [--epochs N] [--value-weight X] [--value-mix X] [--soft-weight X] \

@@ -119,6 +119,19 @@ cargo run --locked --release -p skat-ai --example calibrate -- validation nn:ass
 cargo run --locked --release -p skat-ai --example latency -- 20 nn:assets/models/card-play.gcnn
 ```
 
+Self-play refinement improves a model from game outcomes against a frozen
+opponent pool (see [docs/ai.md](docs/ai.md#self-play-refinement)). One
+process uses all CPUs; it writes a checkpoint after every iteration, so
+rerunning the same command continues exactly where it stopped. `touch
+OUT_DIR/STOP` ends it after the running iteration; `--minutes 0` only
+writes `model.gcnn` and `rl.json` of the current state. Snapshots in
+`OUT_DIR/snapshots` are measured with `calibrate`:
+
+```sh
+cargo run --locked --release -p nn-train -- rl OUT_DIR --start assets/models/card-play.gcnn --minutes 720
+cargo run --locked --release -p skat-ai --example calibrate -- tuning nn:OUT_DIR/snapshots/iter-00010.gcnn medium 100 10 0
+```
+
 The coach latency per human decision is measured by hand through
 `skat-app` (see [docs/coach.md](docs/coach.md#latency)):
 

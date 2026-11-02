@@ -509,3 +509,50 @@ alongside.
 These are measurements, not gates (D-07): the network plays card play
 better than Easy and worse than Medium; Classic stays the default.
 Limits are listed in the model card.
+
+## Self-play refinement
+
+Outcome learning for the card-play network (#75), `nn-train rl`
+(`tools/nn-train/src/rl.rs`). It starts from a model file (the #73
+network), which also serves as the frozen reference.
+
+- **Algorithm**: proximal policy optimisation (clipped surrogate, clip
+  0.2) with a Monte-Carlo baseline. The reward of a decision is the
+  acting seat's final Seeger-Fabian points (0 if thrown in); the
+  advantage is the reward minus the value the network predicted at the
+  decision, normalised per iteration. Further terms: the value head on
+  the reward, the option heads on the taken card's points and win (so
+  `nnq:` and the option estimates stay meaningful), a small entropy
+  bonus and a cross-entropy towards the reference policy. Adam with a
+  constant learning rate on the CPU. No bootstrapping, no privileged
+  critic: every head sees only the encoded `PlayerView` of the acting
+  seat; no defender shares memory with the other.
+- **Iteration**: play `--games` games (default 600) with the current
+  learner sampling its card-play and Kontra/Re decisions from its policy,
+  then `--passes` passes of mini-batch Adam over its decisions. The
+  learner decides pre-play by the rules of thumb (the fallback of a
+  card-play model); pre-play is not learned until #74.
+- **Pool**: per game one kind is drawn by weight (`--pool`, default
+  `easy=1,medium=2,strong=2,ref=1,snap=3`): Classic Easy, Medium or
+  Strong, the reference model, or one of the newest learner snapshots
+  (`--snapshot-every` 10 iterations, `--pool-snapshots` 8; greedy by
+  their policy). Seats rotate with the game index like the arena's
+  seatings: the learner alone on each seat against two copies of the
+  opponent, or as a pair against one.
+- **Seeds and resume**: deals, pool draws, opponent seeds and the
+  learner's sampling come from separate keys mixed with the run seed, the
+  iteration and the game; results do not depend on the worker count.
+  Every schedule depends on the iteration number, never on wall time, so
+  a run cut into segments ends with the same weights as one
+  uninterrupted run of the same length. After each iteration a
+  checkpoint (weights, Adam state, logs, snapshot list with hashes) is
+  written; rerunning the same command resumes it, and another recipe,
+  another start model or a corrupt checkpoint is refused. `--minutes`
+  and `--iterations` cap a run, `OUT_DIR/STOP` ends it after the
+  running iteration; `model.gcnn` and `rl.json` (recipe, trainer commit,
+  per-iteration logs with results per pool kind, snapshots) are written
+  at the end.
+- **Selection**: snapshots are screened with `calibrate` on the tuning
+  suite; the chosen one is measured on a fresh block of the validation
+  suite against Classic and the #73 model. It replaces
+  `assets/models/card-play.gcnn` only if it beats the #73 model there.

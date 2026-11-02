@@ -135,6 +135,7 @@ cargo run --locked --release -p nn-train -- generate DIR --deals 100  # Strong s
 cargo run --locked --release -p nn-train -- verify DIR  # check a training-data run
 cargo run --locked --release -p nn-train -- train OUT DIR... --hidden 512  # card-play network (#73)
 cargo run --locked --release -p nn-train -- evaluate MODEL DIR...  # metrics per split
+cargo run --locked --release -p nn-train -- rl OUT --minutes 720  # self-play refinement (#75)
 ```
 
 On Linux the window needs EGL/GL and Wayland or X11 client libraries
