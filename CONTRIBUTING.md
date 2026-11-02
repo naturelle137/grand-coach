@@ -132,6 +132,32 @@ cargo run --locked --release -p nn-train -- rl OUT_DIR --start assets/models/car
 cargo run --locked --release -p skat-ai --example calibrate -- tuning nn:OUT_DIR/snapshots/iter-00010.gcnn medium 100 10 0
 ```
 
+To run it unattended for hours, start one instance (it uses every CPU;
+a second one only halves the throughput) from a copy of the binary
+outside the repository, so branch switches and rebuilds do not touch the
+running program. `RUNS` is any directory outside the repository:
+
+```sh
+cargo build --locked --release -p nn-train
+mkdir -p RUNS && cp target/release/nn-train RUNS/
+cd RUNS
+nohup ./nn-train rl run --start /path/to/repo/assets/models/card-play.gcnn --minutes 720 >> run.log 2>&1 &
+tail -f run.log            # one line per iteration: points per pool kind, KL, entropy
+touch run/STOP             # stop after the running iteration (or kill the process)
+```
+
+- **Resume**: run the same `nohup` command again; it continues
+  bit-identically from `run/checkpoint` (the recipe flags must stay the
+  same, `--minutes` counts per start). `--cpus N` leaves CPUs for other
+  work and changes only the speed, not the result.
+- **Progress**: a snapshot is written every 10 iterations
+  (`run/snapshots/iter-NNNNN.gcnn`); measure the newest against the
+  shipped model with
+  `calibrate -- tuning nn:RUNS/run/snapshots/iter-NNNNN.gcnn
+  nn:assets/models/card-play.gcnn 400 20 0` while the run continues
+  (slower, same result). Selection and the final measurement on fresh
+  validation deals follow [docs/ai.md](docs/ai.md#self-play-refinement).
+
 The coach latency per human decision is measured by hand through
 `skat-app` (see [docs/coach.md](docs/coach.md#latency)):
 
