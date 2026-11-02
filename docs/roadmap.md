@@ -46,12 +46,15 @@ arena, `tools/nn-train` trains on CPU or GPU
 ([ai.md](ai.md#learned-engine-runtime)).
 [#70](https://github.com/naturelle137/grand-coach/issues/70) adds training
 data: `nn-train generate` records Strong self-play as raw permitted-view
-decisions in resumable, checksummed shards; the pilot projects 10,000 games
-at about 5 h and 724 MB ([ai.md](ai.md#training-data)). Next is the
-card-play network #73 and the selectable engine with
+decisions in resumable, checksummed shards ([ai.md](ai.md#training-data)).
+[#73](https://github.com/naturelle137/grand-coach/issues/73) trained the
+first card-play network on 17,590 Strong games (`assets/models/`, D-63): it
+plays card play better than Easy and worse than Medium, with option heads
+for expected points and win chance per card
+([ai.md](ai.md#card-play-network)). Next is the selectable engine with
 difficulty levels #77. Pre-play #74, hybrid search #76, debriefing #78 and
 self-play #75 follow in any order. The epic replaces closed proposals #34
-and #35; no learned engine is shipped yet. Classic stays default and learned
+and #35; no learned engine is selectable in the app yet. Classic stays default and learned
 engines may ship labelled experimental (D-07, stack per D-11). It needs M1–M4 only; M6–M8 and Godot (#14) are not
 prerequisites.
 

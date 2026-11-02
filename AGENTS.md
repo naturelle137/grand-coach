@@ -133,6 +133,8 @@ cargo run --locked --release -p nn-train -- smoke cpu  # Burn stack smoke test (
 cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan  # on the GPU
 cargo run --locked --release -p nn-train -- generate DIR --deals 100  # Strong self-play data (#70)
 cargo run --locked --release -p nn-train -- verify DIR  # check a training-data run
+cargo run --locked --release -p nn-train -- train OUT DIR... --hidden 512  # card-play network (#73)
+cargo run --locked --release -p nn-train -- evaluate MODEL DIR...  # metrics per split
 ```
 
 On Linux the window needs EGL/GL and Wayland or X11 client libraries

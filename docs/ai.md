@@ -276,7 +276,8 @@ larger sample is reported as the measurement. Every decision completed.
 ## Learned engine runtime
 
 Foundation of the learned engines of epic #67 (D-07, D-11), delivered
-in issue #69. No trained model ships yet; Classic stays the default.
+in issue #69. The first trained model, for card play, ships with #73
+([Card-play network](#card-play-network)); Classic stays the default.
 
 - **Crates**: `skat-nn` (between `skat-core` and `skat-analysis`) holds
   the encoder, the action space, the network and CPU inference; AI and
@@ -291,12 +292,17 @@ in issue #69. No trained model ships yet; Classic stays the default.
   Hold, Pass, Hand, TakeSkat, 496 discard pairs, 22 announcements,
   32 cards, Kontra, KeinKontra, Re, KeinRe. Part of the encoder version.
 - **Network** (`PolicyValueNet`): input, two hidden ReLU layers of equal
-  width, a policy head (one logit per action) and a value head (expected
-  Seeger-Fabian points of the acting seat). The same definition trains
-  and infers.
-- **Model file**: a 24-byte header (magic `GCNN`, format and encoder
-  version, layer sizes, covered phases) and the weights in Burn's
-  burnpack format. The caller passes the bytes and their SHA-256 hash;
+  width, a policy head (one logit per action), a value head (expected
+  Seeger-Fabian points of the acting seat) and two option heads (#73):
+  per action the expected Seeger-Fabian points after it and the logit of
+  the probability that the seat's party wins after it. The same
+  definition trains and infers. `NeuralModel::evaluate_with` picks the
+  action by the policy (`Choice::Policy`, default) or by the highest
+  expected points (`Choice::Score`); every evaluation carries the option
+  estimates.
+- **Model file** (format version 2; version 1 had no option heads): a
+  24-byte header (magic `GCNN`, format and encoder version, layer sizes,
+  covered phases) and the weights in Burn's burnpack format. The caller passes the bytes and their SHA-256 hash;
   `skat-nn` reads no files.
 - **Safety**: illegal actions are masked out before the softmax, and the
   chosen action is checked against the view again before acting. A
@@ -305,12 +311,14 @@ in issue #69. No trained model ships yet; Classic stays the default.
   non-finite output give a `Fallback` reason; `NeuralOpponent` then lets
   its Classic `Opponent` decide (deterministic, same seed) and reports
   the reason (`NeuralDecision::fallback`).
-- **Estimates**: policy probabilities and the value are model estimates.
+- **Estimates**: policy probabilities, the value and the option
+  estimates are model estimates.
   They are not `Estimate`s of the analysis and never claim `exact`,
   Monte-Carlo samples or a reliable comparison.
 - **Arena**: `Player` is implemented by `Opponent` and `NeuralOpponent`;
   `arena::play_with` and `arena::compare_with` seat any players, and
-  `calibrate` accepts the profile `nn:<file>[@<level>]`. Tests use a
+  `calibrate` accepts the profile `nn:<file>[@<level>]` (`nnq:` picks
+  by the option scores). Tests use a
   seeded random-weight fixture model (`skat_nn::fixture_model`, feature
   `fixture`), which runs in CI on Linux and Windows.
 - **Builds**: the app builds `skat-nn` with Burn's Flex backend only.
@@ -397,3 +405,107 @@ thumb). Strong said Kontra in all 60 decisions that offered it and Re in
 20 of 60: Kontra does not change a defender's Seeger-Fabian points, so
 its option values tie and the teacher's Kontra choices carry little
 signal for training.
+
+## Card-play network
+
+The first trained model (#73): `assets/models/card-play.gcnn` with its
+training manifest `card-play.json` and model card `card-play.md`
+(storage: D-63). It covers card play including Kontra/Re
+(`Phases::SPIEL`); pre-play stays Classic.
+
+- **Training** (`nn-train train`, `tools/nn-train/src/train.rs`): the
+  card-play decisions of one or more self-play runs, split by deal as
+  recorded. Targets: Strong's card for the policy (optionally soft
+  targets from complete option values, off in the shipped recipe), the
+  mean of the final Seeger-Fabian points and the chosen option's expected
+  points for the value, and Strong's expected points and win chance per
+  legal card for the option heads (when the analysis was complete).
+  Mini-batch Adam on the CPU or with `--device vulkan`.
+- **Reproducibility**: initial weights and example order come from the
+  recipe's seed (SplitMix64), never from a device's random state. After
+  every epoch a checkpoint (weights, Adam state, best weights, each with
+  its SHA-256) is written and `state.json` points at it last; a restart
+  with the same recipe resumes bit-identically, a different recipe or a
+  corrupt checkpoint is refused. No epoch starts after the wall-time cap
+  (`--minutes`). The output is the epoch with the lowest validation loss
+  and `train.json`: recipe (data hashes, encoder version,
+  hyperparameters, seed), trainer commit, coverage per split and kind,
+  epoch logs, metrics per split, model size and hash.
+- **Evaluation**: `nn-train evaluate MODEL DATA_DIR...` reports a model's
+  metrics on every split, so models trained on different data compare on
+  the same examples; strength comes from `calibrate` and timing from
+  `latency` (`nn:<file>`).
+
+Runs on 2026-11-01/02 (reference hardware of
+[analysis.md](analysis.md#latency-target-and-benchmark), release
+builds). Data: Strong self-play, engine commit `99c91300dee7`, 16 CPUs
+(8 workers × 2 analysis threads), 1,986–2,032 games per hour; run seed
+73 with 10,000 games, run seed 74 stopped by its wall-time cap after
+7,590 games. 17,590 games gave 440,242 training, 54,292 validation and
+53,820 test decisions (4.4 % with a Kontra or Re option). Of the 17,471
+games played, 14,875 were Farbspiele, 2,584 Grand and 12 Null; 41 Hand
+games, 4 Ouvert.
+
+**Tuning** on 2,020 games of run 73 (30 epochs at most, validation
+split): hidden widths 128, 256, 512 and 1,024 with learning rates 0.001
+and 0.0003 reached 66.9–69.4 % agreement with Strong (512 at 0.001 best);
+soft targets, value mixes 0 and 1, value weight 0.3 and batch 1,024 moved
+it by at most 1.2 points. Recipe: width 512, learning rate 0.001, batch
+256, value mix 0.5, 30 epochs.
+
+**Reproduction**: the shipped recipe was trained three times on the CPU
+with trainers built at three commits (the last `bf17a5678616`, recorded
+in `card-play.json`); all three wrote the same model file, SHA-256
+`ce64c83c…`, each in 30–45 minutes (other jobs ran alongside).
+
+**Learning curve** (option heads on; models trained on the first 100,
+250, 500 and 1,000 shards of run 73, all measured on its test split of
+31,030 decisions):
+
+| Games | Agreement with Strong | Option score RMSE | Best option = Strong's card |
+|-------|----------------------|-------------------|-----------------------------|
+| 1,000 | 65.0 % | 67.5 | 56.4 % |
+| 2,500 | 68.6 % | 61.7 | 60.1 % |
+| 5,000 | 71.7 % | 57.8 | 60.6 % |
+| 10,000 | 73.6 % | 53.4 | 61.5 % |
+
+Agreement still grows by about two points per doubling of the data.
+
+**Option heads** (A/B on all 17,590 games, test split of 53,820
+decisions): A without option heads (`--score-weight 0 --win-weight 0`),
+B with them.
+
+| Model | Agreement | Value RMSE | Option score RMSE | Best epoch |
+|-------|-----------|------------|-------------------|------------|
+| A | 75.0 % | 48.0 | – | 4 |
+| B (shipped) | 75.6 % | 45.3 | 48.4 | 10 |
+
+**Arena** (`calibrate`, validation suite, 200 deals × 6 games, Kontra/Re
+on; the fallback for pre-play is the rules of thumb shared by Easy,
+Medium and Strong; A − B in Seeger-Fabian points per seat-game with 95 %
+interval). A, B and B by option scores were compared on deals 0–199;
+the choice of B was then checked on fresh deals 200–399.
+
+| A | B | Deals | A − B | 95 % interval |
+|---|---|---|---|---|
+| A (no option heads) | Easy | 0–199 | +2.94 | [−1.41, +7.29] |
+| B | Easy | 0–199 | +6.85 | [+2.77, +10.93] |
+| B by option scores (`nnq:`) | Easy | 0–199 | +4.05 | [+0.43, +7.67] |
+| B | A | 0–199 | +4.19 | [−0.63, +9.00] |
+| B | Easy | 200–399 | +6.71 | [+2.06, +11.37] |
+| B | Medium | 0–199 | −12.46 | [−16.97, −7.96] |
+| B | Strong | 0–199 | −18.13 | [−22.40, −13.85] |
+
+All 8,400 games finished without an illegal action (the arena aborts on
+one); 24 of each 1,200 games on deals 0–199 and 6 on deals 200–399 were
+thrown in.
+
+**Latency** (`latency 20 nn:<file>`, 20 positions per kind): card play and Kontra decisions
+of the model take 0.14–0.15 ms median, at most 0.20 ms p90 and 0.32 ms
+maximum on one thread (pre-play rows measure the fallback); Strong's
+first card takes 0.97 s median. Measured while one training process ran
+alongside.
+
+These are measurements, not gates (D-07): the network plays card play
+better than Easy and worse than Medium; Classic stays the default.
+Limits are listed in the model card.
