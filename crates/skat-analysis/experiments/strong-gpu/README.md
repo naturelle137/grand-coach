@@ -241,6 +241,14 @@ time includes dispatch and readback. Other work was active on the host.
 | 3 | 31.9% | 32,768 | 39.5 ms | 127.0 ms |
 | 4 | 64.7% | 32,768 | 86.0 ms | 441.8 ms |
 
+A live 20-worker check with three tricks remaining dispatched 1,033 jobs
+in 302 batches (peak nine). The service stopped device submissions after
+the calibration. The 20 deals produced 840 records, zero incomplete
+analyses and byte-identical shards for Vulkan, the CPU endgame control and
+ordinary Strong. The GPU path remains opt-in for experiments. The
+[generator and early-play benchmark](../../../../docs/ai.md#faster-strong-search)
+reports the production CPU results.
+
 Reproduce on a fresh output directory for each run. Build outside the
 timed interval. The matrix runner takes two prebuilt release generators,
 alternates their order, replays every deal and compares every shard byte.
