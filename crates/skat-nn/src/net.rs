@@ -144,6 +144,11 @@ impl PolicyValueNet {
         }
     }
 
+    /// Width of the feature rows this network accepts.
+    pub fn inputs(&self) -> usize {
+        self.input.weight.dims()[0]
+    }
+
     /// Every output for features `[batch, inputs]`.
     pub fn forward_all(&self, features: Tensor<2>) -> Outputs {
         let x = self.activation.forward(self.input.forward(features));

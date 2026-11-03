@@ -28,7 +28,7 @@ use sha2::{Digest, Sha256};
 use skat_core::{Action, Phase, PlayerView};
 
 use crate::actions::{ACTIONS, action_index};
-use crate::encoder::{ENCODER_VERSION, FEATURES, encode, phase_index};
+use crate::encoder::{ENCODER_VERSION, FEATURES, V1_FEATURES, encode, encode_v1, phase_index};
 use crate::net::{MAX_LAYERS, MIN_LAYERS, NetShape, PolicyValueNet};
 
 /// Version of the model file layout. Version 2 added the option heads
@@ -278,11 +278,13 @@ pub fn read_header(bytes: &[u8]) -> Result<ModelHeader, ModelError> {
         return Err(ModelError::Format { found: format });
     }
     let encoder = u16_at(bytes, 6);
-    if encoder != ENCODER_VERSION {
-        return Err(ModelError::Encoder { found: encoder });
-    }
+    let expected_inputs = match encoder {
+        1 => V1_FEATURES,
+        ENCODER_VERSION => FEATURES,
+        found => return Err(ModelError::Encoder { found }),
+    };
     let (inputs, hidden, actions) = (u32_at(bytes, 8), u32_at(bytes, 12), u32_at(bytes, 16));
-    let fits = inputs as usize == FEATURES
+    let fits = inputs as usize == expected_inputs
         && actions as usize == ACTIONS
         && (1..=MAX_HIDDEN).contains(&(hidden as usize));
     if !fits {
@@ -300,7 +302,10 @@ pub fn read_header(bytes: &[u8]) -> Result<ModelHeader, ModelError> {
     };
     Ok(ModelHeader {
         encoder_version: encoder,
-        shape: NetShape::current(hidden as usize).with_layers(layers),
+        shape: NetShape {
+            inputs: expected_inputs,
+            ..NetShape::current(hidden as usize).with_layers(layers)
+        },
         phases,
     })
 }
@@ -353,12 +358,20 @@ impl NeuralModel {
         self.sha256
     }
 
+    /// Encodes a permitted view with the layout recorded in this model.
+    pub fn features(&self, view: &PlayerView) -> Vec<f32> {
+        match self.header.encoder_version {
+            1 => encode_v1(view),
+            _ => encode(view),
+        }
+    }
+
     /// Raw network outputs for `features`: one logit per action and the
     /// value.
     ///
     /// # Panics
     ///
-    /// If `features` does not hold [`FEATURES`] numbers.
+    /// If `features` does not match this model's input width.
     pub fn forward(&self, features: Vec<f32>) -> (Vec<f32>, f32) {
         let o = self.forward_all(features);
         (o.logits, o.value)
@@ -368,10 +381,12 @@ impl NeuralModel {
     ///
     /// # Panics
     ///
-    /// If `features` does not hold [`FEATURES`] numbers.
+    /// If `features` does not match this model's input width.
     pub fn forward_all(&self, features: Vec<f32>) -> RawOutputs {
-        let input: Tensor<2> =
-            Tensor::from_data(TensorData::new(features, [1, FEATURES]), &self.device);
+        let input: Tensor<2> = Tensor::from_data(
+            TensorData::new(features, [1, self.header.shape.inputs]),
+            &self.device,
+        );
         let o = self.net.forward_all(input);
         let vec = |t: Tensor<2>| {
             t.into_data()
@@ -415,7 +430,7 @@ impl NeuralModel {
             .iter()
             .map(|&a| action_index(a).ok_or(Fallback::UnknownAction(a)))
             .collect::<Result<Vec<usize>, Fallback>>()?;
-        let raw = self.forward_all(encode(view));
+        let raw = self.forward_all(self.features(view));
         if !raw.value.is_finite() {
             return Err(Fallback::NonFinite);
         }

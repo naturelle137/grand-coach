@@ -397,9 +397,9 @@ impl Examples {
     }
 
     /// Tensors for the rows `rows`.
-    fn batch(&self, rows: &[usize], device: &Device) -> Batch {
+    fn batch(&self, rows: &[usize], inputs: usize, device: &Device) -> Batch {
         let n = rows.len();
-        let mut features = Vec::with_capacity(n * FEATURES);
+        let mut features = Vec::with_capacity(n * inputs);
         let mut mask = vec![-1e9f32; n * ACTIONS];
         let mut target = vec![0.0f32; n * ACTIONS];
         let mut option_mask = vec![0.0f32; n * ACTIONS];
@@ -408,7 +408,7 @@ impl Examples {
         let mut value = Vec::with_capacity(n);
         let mut options = 0;
         for (b, &r) in rows.iter().enumerate() {
-            features.extend_from_slice(&self.features[r * FEATURES..][..FEATURES]);
+            features.extend_from_slice(&self.features[r * FEATURES..][..inputs]);
             for i in self.offsets[r]..self.offsets[r + 1] {
                 let a = b * ACTIONS + self.legal[i] as usize;
                 mask[a] = 0.0;
@@ -423,7 +423,7 @@ impl Examples {
             value.push(self.value[r]);
         }
         Batch {
-            features: tensor(features, [n, FEATURES], device),
+            features: tensor(features, [n, inputs], device),
             mask: tensor(mask, [n, ACTIONS], device),
             policy: tensor(target, [n, ACTIONS], device),
             value: tensor(value, [n, 1], device),
@@ -673,12 +673,13 @@ fn best(row: &[f32], legal: &[u32]) -> usize {
 /// Metrics of `net` (on the CPU, no autodiff) on `examples`.
 pub fn evaluate(net: &PolicyValueNet, examples: &Examples, hyper: &Hyper) -> Metrics {
     let device = Device::flex();
+    let inputs = net.inputs();
     let rows = examples.rows();
     let (mut policy_sum, mut value_sum, mut score_sum, mut win_sum) = (0.0, 0.0, 0.0, 0.0);
     let (mut agree, mut score_agree, mut options, mut with_options) = (0, 0, 0, 0);
     let all: Vec<usize> = (0..rows).collect();
     for chunk in all.chunks(EVAL_BATCH) {
-        let l = losses(net, examples.batch(chunk, &device));
+        let l = losses(net, examples.batch(chunk, inputs, &device));
         options += l.options;
         policy_sum += sum(l.policy);
         value_sum += sum(l.value);
@@ -795,6 +796,11 @@ pub fn train(
 ) -> io::Result<Trained> {
     let start = Instant::now();
     let hyper = &recipe.hyper;
+    if recipe.encoder_version != ENCODER_VERSION {
+        return Err(io::Error::other(
+            "training recipe has another encoder version",
+        ));
+    }
     let shape = NetShape::current(hyper.hidden).with_layers(hyper.layers);
     let dir = checkpoint_dir(out);
     fs::create_dir_all(&dir)?;
@@ -842,7 +848,7 @@ pub fn train(
         let began = Instant::now();
         let (mut sum, mut batches) = (0.0f64, 0usize);
         for chunk in order(rows, hyper.seed, epoch).chunks(hyper.batch.max(1)) {
-            let loss = losses(&net, data.train.batch(chunk, device)).total(hyper);
+            let loss = losses(&net, data.train.batch(chunk, shape.inputs, device)).total(hyper);
             sum += f64::from(loss.clone().into_scalar::<f32>());
             batches += 1;
             let grads = GradientsParams::from_grads(loss.backward(), &net);

@@ -7,7 +7,7 @@
 //! Ouvert cards, and voids proven by failing to follow suit. Heuristic
 //! evidence (bidding) lives in [`crate::evidence`].
 
-use skat_core::{Card, CardSet, CompletedTrick, GameType, PlayerView, Seat, Trick};
+use skat_core::{Card, CardSet, GameType, PlayerView, Seat};
 
 /// Card knowledge of one seat, derived only from its [`PlayerView`] (D-23).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,14 +47,9 @@ impl Knowledge {
             known_elsewhere |= view.declarer_cards.unwrap_or_default();
         }
         let game = view.contract.map(|c| c.game);
-        let mut voids = [CardSet::EMPTY; 3];
         let mut augen_won = [0u8; 3];
-        if let Some(game) = game {
-            for trick in &view.tricks {
-                note_voids(game, &mut voids, completed(trick));
-                augen_won[trick.winner.index()] += trick.augen();
-            }
-            note_voids(game, &mut voids, view.current_trick);
+        for trick in &view.tricks {
+            augen_won[trick.winner.index()] += trick.augen();
         }
         Knowledge {
             seat: view.seat,
@@ -64,7 +59,7 @@ impl Knowledge {
             played,
             known_elsewhere,
             skat: view.own_skat,
-            voids,
+            voids: view.proven_voids(),
             hand_sizes: view.hand_sizes,
             augen_won,
         }
@@ -152,28 +147,6 @@ pub struct TrumpfSets {
     /// The seat does not know the Skat (defender, or Hand declarer), so
     /// unseen cards may lie in it.
     pub skat_unknown: bool,
-}
-
-fn completed(trick: &CompletedTrick) -> Trick {
-    Trick {
-        leader: Some(trick.leader),
-        cards: trick.cards.map(Some),
-    }
-}
-
-/// A seat that did not follow the led class holds no card of it.
-fn note_voids(game: GameType, voids: &mut [CardSet; 3], trick: Trick) {
-    let (Some(leader), Some(led)) = (trick.leader, trick.led()) else {
-        return;
-    };
-    let class = game.follow(led);
-    for (i, card) in trick.cards.iter().enumerate().skip(1) {
-        if let Some(card) = card
-            && game.follow(*card) != class
-        {
-            voids[Seat::from_index(leader.index() + i).index()] |= game.cards_of(class);
-        }
-    }
 }
 
 #[cfg(test)]

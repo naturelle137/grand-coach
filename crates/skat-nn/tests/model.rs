@@ -118,6 +118,14 @@ fn incompatible_headers_are_rejected() {
             ModelError::Format { found }
         );
     }
+    assert!(matches!(
+        patched(6, &1u16.to_le_bytes()),
+        ModelError::Shape { .. }
+    ));
+    assert!(matches!(
+        patched(8, &294u32.to_le_bytes()),
+        ModelError::Shape { .. }
+    ));
     let next = ENCODER_VERSION + 1;
     assert_eq!(
         patched(6, &next.to_le_bytes()),

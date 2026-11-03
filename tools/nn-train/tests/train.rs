@@ -82,6 +82,7 @@ fn examples_are_the_card_play_decisions_with_their_targets() {
         .filter(|r| r.view.phase == Phase::Spiel)
         .collect();
     let rows = data.train.rows() + data.validation.rows() + data.test.rows();
+    assert_eq!(data.sources[0].manifest.encoder_version, 1);
     assert_eq!(rows, spiel.len());
     assert!(data.train.rows() > 0);
     for c in &data.coverage {
@@ -95,6 +96,11 @@ fn examples_are_the_card_play_decisions_with_their_targets() {
     let train: Vec<_> = spiel.iter().filter(|r| r.split == Split::Train).collect();
     for (row, r) in train.iter().enumerate() {
         let e = &data.train;
+        let width = skat_nn::FEATURES;
+        assert_eq!(
+            &e.features[row * width..][..width],
+            skat_nn::encode(&r.view)
+        );
         assert_eq!(e.value[row], r.final_points as f32);
         let legal = &e.target[e.offsets[row]..e.offsets[row + 1]];
         assert_eq!(legal.len(), r.view.legal_actions.len());

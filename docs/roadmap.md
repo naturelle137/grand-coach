@@ -51,7 +51,9 @@ decisions in resumable, checksummed shards ([ai.md](ai.md#training-data)).
 first card-play network on 17,590 Strong games (`assets/models/`, D-63): it
 plays card play better than Easy and worse than Medium, with option heads
 for expected points and win chance per card
-([ai.md](ai.md#card-play-network)). Next is the selectable engine with
+([ai.md](ai.md#card-play-network)). Encoder v2 exposes ordered plays,
+public voids and card counts for retraining from the same raw records.
+Training and comparing v2 weights remain open. Next is the selectable engine with
 difficulty levels #77. Pre-play #74, hybrid search #76, debriefing #78 and
 self-play #75 follow in any order. The epic replaces closed proposals #34
 and #35; the app offers the card-play model only in the neural table mode so far. Classic stays default and learned

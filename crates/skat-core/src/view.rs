@@ -6,7 +6,7 @@
 use crate::bidding::BidRecord;
 use crate::card::CardSet;
 use crate::game::{Action, CompletedTrick, Game, Phase, RuleConfig, Trick};
-use crate::rules::Contract;
+use crate::rules::{Contract, GameType};
 use crate::scoring::{GameResult, KontraLevel};
 use crate::seat::Seat;
 
@@ -50,6 +50,43 @@ pub struct PlayerView {
     pub legal_actions: Vec<Action>,
     /// Result once the game is finished.
     pub result: Option<GameResult>,
+}
+
+impl PlayerView {
+    /// Follow classes each seat has publicly failed to serve, including the
+    /// trick on the table. An empty set means no such evidence yet.
+    pub fn proven_voids(&self) -> [CardSet; 3] {
+        let mut voids = [CardSet::EMPTY; 3];
+        if let Some(contract) = self.contract {
+            for trick in &self.tricks {
+                note_voids(contract.game, &mut voids, completed(trick));
+            }
+            note_voids(contract.game, &mut voids, self.current_trick);
+        }
+        voids
+    }
+}
+
+fn completed(trick: &CompletedTrick) -> Trick {
+    Trick {
+        leader: Some(trick.leader),
+        cards: trick.cards.map(Some),
+    }
+}
+
+/// A seat that did not follow the led class holds no card of it.
+fn note_voids(game: GameType, voids: &mut [CardSet; 3], trick: Trick) {
+    let (Some(leader), Some(led)) = (trick.leader, trick.led()) else {
+        return;
+    };
+    let class = game.follow(led);
+    for (i, card) in trick.cards.iter().enumerate().skip(1) {
+        if let Some(card) = card
+            && game.follow(*card) != class
+        {
+            voids[Seat::from_index(leader.index() + i).index()] |= game.cards_of(class);
+        }
+    }
 }
 
 /// Full knowledge of the game. Only for open mode and post-game analysis;

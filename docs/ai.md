@@ -318,12 +318,31 @@ in issue #69. The first trained model, for card play, ships with #73
 - **Crates**: `skat-nn` (between `skat-core` and `skat-analysis`) holds
   the encoder, the action space, the network and CPU inference; AI and
   coach share it. `tools/nn-train` trains outside the app.
-- **Encoder** (`skat_nn::encode`, version `ENCODER_VERSION` = 1): 294
-  numbers from one `PlayerView` only: own hand, own discarded Skat
-  (declarer after Drücken), revealed Ouvert cards, cards of completed
-  tricks by relative seat, the trick in progress, own position, phase,
-  declarer, bidding per seat, contract, Kontra/Re and Augen per party.
-  Seats are relative to the acting seat. Layout in `encoder.rs`.
+- **Encoder**. New supervised networks take 439 numbers from the acting
+  seat's `PlayerView` (v2). The first 294 are the frozen v1 layout,
+  including the hand, known Skat, Ouvert reveal, played cards by seat,
+  ordered current trick, position, bidding, contract and trick Augen per
+  party. For each card in a completed trick, v2 records its play number
+  from 1 to 30 (scaled by 30, zero until played). Every three successive
+  numbers form one trick. The per-seat card sets identify who led it.
+- A failed follow in a completed or current trick marks its led class void
+  for that relative seat. Classic and the encoder use the same public
+  evidence. Buben count as Trumpf in Farbspiel and Grand and follow their
+  printed suit in Null. A clear flag means no observed failure to follow.
+- Card masks identify the unlocated cards and all Trumpf of the contract.
+  Five groups have explicit counts for each side suit and Trumpf, and
+  separate Augen totals: all unplayed cards (including Skat), own hand,
+  known Skat, another seat's exposed hand, and unlocated cards. The last
+  four partition the first. Until a contract is announced the counts use
+  printed suits. The unknown Skat stays pooled with concealed hands.
+  Augen in the current trick and Augen won in tricks by each relative seat
+  are separate. Only the declarer after Drücken can count the known Skat
+  towards their secured Augen. The layout and scaling are in `encoder.rs`.
+- Raw decision shards already store ordered tricks, winners and the
+  current view. Training encodes these rows on load, keeping labels and
+  deal splits. The recipe records its active encoder separately from
+  each source manifest's generation-time version. Runtime inference,
+  evaluation and PPO use the input layout of their model header.
 - **Action space** (`skat_nn::actions`): 621 indices: 63 bid values,
   Hold, Pass, Hand, TakeSkat, 496 discard pairs, 22 announcements,
   32 cards, Kontra, KeinKontra, Re, KeinRe. Part of the encoder version.

@@ -254,6 +254,32 @@ fn pools_parse_and_reject_bad_specs() {
 }
 
 #[test]
+fn legacy_ppo_keeps_the_start_models_encoder() {
+    let header = skat_nn::ModelHeader {
+        encoder_version: 1,
+        shape: skat_nn::NetShape {
+            inputs: 294,
+            ..skat_nn::NetShape::current(8)
+        },
+        phases: Phases::SPIEL,
+    };
+    let start = skat_nn::write_model(&header, nn_train::train::initial(header.shape, 4)).unwrap();
+    assert_eq!(recipe(&start, hyper()).unwrap().encoder_version, 1);
+    let played = play_one(&hyper(), &start, &start, 0, 0).unwrap();
+    assert!(!played.steps.is_empty());
+    assert!(played.steps.iter().all(|s| s.features.len() == 294));
+    let next = update_model(
+        &start,
+        &played.steps,
+        &hyper(),
+        0,
+        &Device::flex().autodiff(),
+    )
+    .unwrap();
+    assert_eq!(model(&next).header(), &header);
+}
+
+#[test]
 fn a_ppo_update_favours_better_than_expected_actions() {
     let bytes = learner();
     let (l, r) = (model(&bytes), model(&reference()));
