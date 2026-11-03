@@ -168,6 +168,14 @@ can the declarer avoid every trick. A transposition table, equivalent
 cards and a sure-tricks bound keep it fast. Tests compare it with a plain
 exhaustive minimax over `settle` on small positions.
 
+The Augen kernel encodes each hand as a 32-bit mask with each follow class
+in descending strength order. It carries the current trick winner, Augen on
+the table and remaining Augen into child positions. Classic visits the same
+moves in the same order and charges the same node budget. Experimental can
+also reuse an adjacent card's proven bound when no outside or table card
+separates the two ranks. Swapping those cards preserves every trick winner
+and changes the declarer's total by at most their point difference.
+
 ## Results
 
 Every option of `PlayerView::legal_actions` gets an `Estimate`, from the

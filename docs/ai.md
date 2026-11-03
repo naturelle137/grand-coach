@@ -66,6 +66,21 @@ not.
 - No level forgets observed history: every analysed decision uses the full
   view, as `skat-analysis` does.
 
+### Experimental opponents
+
+Select **Experimental** in the new-series dialog to play against two
+permitted-view opponents with Strong's bidding, declaring, sampling,
+selection and node budget. The temporary mode starts at 24 worlds.
+In suit and Grand play the CPU solver tightens its existing cashing
+bound. For every guaranteed declarer trick each defender must contribute
+a card, so the cheapest possible such cards from both hands give a safe
+additional lower bound on Augen. The live coach uses this bound too and
+can show a provisional result after 200 ms during card play.
+
+The [latency measurements and GPU threshold probe](../crates/skat-analysis/experiments/strong-gpu/README.md#decision-latency)
+give the sample counts and measured limits. The calibration tool accepts
+`experimental` as a side. See the [paired result](#experimental-versus-strong).
+
 ## Rookie
 
 `Level::Rookie` is Easy plus seeded mistakes (`Mistakes`,
@@ -235,6 +250,27 @@ cargo run --locked --release -p skat-ai --example calibrate -- validation medium
 cargo run --locked --release -p skat-ai --example calibrate -- validation easy strong 100 10 0
 ```
 
+### Experimental versus Strong
+
+On 2026-11-03, commit `65132f6`, both opponents used 24 samples and
+100,000,000 nodes per task. The release calibration ran 200 validation
+deals (12,000–12,199), six seatings per deal, with Kontra/Re on. All
+1,200 games had a declarer. With ten deals in parallel the run took
+34 min 29 s.
+
+| Pair | Deals | Difference per seat-game | Std. error | 95% interval | Verdict |
+|---|---:|---:|---:|---:|---|
+| Experimental − Strong | 200 | +1.83 | 1.92 | [−1.94, +5.59] | inconclusive |
+
+| Opponent | Points/seat-game | Declarer games | Declarer won | Points/declarer game | Defender games | Defenders won | Points/defender game |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Experimental | 28.51 | 600 | 74.2% | 64.1 | 1,200 | 26.8% | 10.7 |
+| Strong | 26.69 | 600 | 72.7% | 59.0 | 1,200 | 26.3% | 10.5 |
+
+```sh
+cargo run --locked --release -p skat-ai --example calibrate -- validation experimental strong 200 10 12000
+```
+
 ## Latency
 
 `cargo run --locked --release -p skat-ai --example latency [positions]`
@@ -291,8 +327,9 @@ in issue #69. The first trained model, for card play, ships with #73
 - **Action space** (`skat_nn::actions`): 621 indices: 63 bid values,
   Hold, Pass, Hand, TakeSkat, 496 discard pairs, 22 announcements,
   32 cards, Kontra, KeinKontra, Re, KeinRe. Part of the encoder version.
-- **Network** (`PolicyValueNet`): input, two hidden ReLU layers of equal
-  width, a policy head (one logit per action), a value head (expected
+- **Network** (`PolicyValueNet`): input, hidden ReLU layers of equal
+  width (two by default; `nn-train train --layers N` for up to eight), a
+  policy head (one logit per action), a value head (expected
   Seeger-Fabian points of the acting seat) and two option heads (#73):
   per action the expected Seeger-Fabian points after it and the logit of
   the probability that the seat's party wins after it. The same
@@ -302,7 +339,8 @@ in issue #69. The first trained model, for card play, ships with #73
   estimates.
 - **Model file** (format version 2; version 1 had no option heads): a
   24-byte header (magic `GCNN`, format and encoder version, layer sizes,
-  covered phases) and the weights in Burn's burnpack format. The caller passes the bytes and their SHA-256 hash;
+  covered phases, number of hidden layers with 0 meaning two, so files
+  written before it was recorded stay valid) and the weights in Burn's burnpack format. The caller passes the bytes and their SHA-256 hash;
   `skat-nn` reads no files.
 - **Safety**: illegal actions are masked out before the softmax, and the
   chosen action is checked against the view again before acting. A
@@ -386,6 +424,10 @@ cargo run --locked --release -p nn-train -- verify OUT_DIR
   (seed 0, one shard each, 101 records, 184 KB); the tests verify it and
   regenerate it identically. No larger dataset is committed.
 
+A classic Strong sampler trial on the RX 6900 XT reached 1,903 deals/hour
+with GPU draws and 1,929 on CPU in ten-minute generator runs. See the
+[experiment and reproduction steps](../crates/skat-analysis/experiments/strong-gpu/README.md).
+
 Pilot on 2026-11-01 (reference hardware of
 [analysis.md](analysis.md#latency-target-and-benchmark), 20 CPUs,
 release build, seed 0, 100 deals in 10 shards; Rust 1.99.1):
@@ -405,6 +447,69 @@ thumb). Strong said Kontra in all 60 decisions that offered it and Re in
 20 of 60: Kontra does not change a defender's Seeger-Fabian points, so
 its option values tie and the teacher's Kontra choices carry little
 signal for training.
+
+### Experimental teacher throughput
+
+On 2026-11-03 the release generator ran sequentially on an i9-10900K
+with seed 0, four game workers and five analysis threads per worker.
+Each seat used the same teacher and 24 samples. Experimental used the
+CPU search bound. Times include generation and shard writes. The
+ten-minute cap lets games already in progress finish.
+
+| Workload | Strong | Experimental | Throughput gain |
+|---|---:|---:|---:|
+| Same 100 deals, ten deals/shard | 3 min 27.2 s | 3 min 08.4 s | +10.0% |
+| Ten-minute cap, one deal/shard | 319 deals in 604.6 s | 340 deals in 607.2 s | +6.1% |
+| Deals/hour at the ten-minute rate | 1,899 | 2,016 | |
+| Projected time for 10,000 deals at that rate | 5 h 16 min | 4 h 58 min | |
+
+All four datasets passed verification for their completed shards. The
+fixed runs produced 4,152 byte-identical records each. The timed runs
+produced 13,541 and 14,431 records respectively. Of their 319 common
+deals, 318 matched byte for byte. On deal 239 Strong exhausted its node
+budget on the opening lead. Experimental completed the search on the
+same view and chose a different card. Across the timed runs Strong
+exhausted the budget on three decisions and Experimental on two.
+Each timing is a single run.
+See the [measurement patch and commands](../crates/skat-analysis/experiments/strong-gpu/README.md#reproduce-the-teacher-comparison).
+
+### Faster Strong search
+
+`generate` uses the compact CPU Augen solver for Strong. The teacher still
+evaluates 24 sampled worlds and records every legal option. `verify` also
+replays each deal and checks every acting view, action and final score.
+The [CPU and Vulkan measurements](../crates/skat-analysis/experiments/strong-gpu/README.md#early-search-endgames)
+include the procedure for comparing complete, byte-identical training shards.
+
+On 2026-11-03 the i9-10900K ran the release generators sequentially on
+the same 1,000 deals (seed 0, ten deals/shard, 20 logical CPUs). Each cell
+is the median of three wall-clock runs including startup and shard writes.
+The reference was `4eb0d75`. All 18 runs produced byte-identical shards
+with 42,486 records and the same eight incomplete analyses. On deal 239
+the opening lead retained all ten options, each with 23 completed worlds.
+
+| Game workers × analysis threads | Previous Strong (deals/h) | Optimised Strong (deals/h) |
+|---|---:|---:|
+| 4 × 5 | 1,917 | 7,280 |
+| 10 × 2 | 2,033 | 7,904 |
+| 20 × 1 | 2,028 | 7,946 |
+
+Best median against best median was **3.91× throughput**, or 74.4% less
+elapsed generation time for a fixed dataset. In a separate serial run
+with one interactive decision at a time, 30 positions per kind gave:
+
+| Decision | Previous median / p90 (s) | Optimised median / p90 (s) |
+|---|---:|---:|
+| Kontra/Re | 0.306 / 2.704 | 0.088 / 0.696 |
+| Trick 1 | 0.771 / 2.244 | 0.216 / 0.681 |
+| Trick 2 | 0.081 / 0.649 | 0.021 / 0.194 |
+| Trick 3 | 0.033 / 0.088 | 0.011 / 0.021 |
+
+Actions, node counts, completed worlds and statuses matched on all 120
+positions. Experimental additionally uses adjacent-card bounds. On fresh
+validation deals 14,000–14,199 (six seatings, 1,200 games), Experimental
+minus Strong was +0.40 Seeger-Fabian points per seat-game (95% interval
+[−3.28, +4.09]). Relative playing strength was inconclusive.
 
 ## Card-play network
 

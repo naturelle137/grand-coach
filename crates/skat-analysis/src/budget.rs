@@ -122,6 +122,10 @@ pub struct Meter {
     nodes: u64,
     limit: u64,
     cancel: Option<Cancel>,
+    #[cfg(feature = "endgame")]
+    pub(crate) endgames_allowed: bool,
+    #[cfg(feature = "endgame")]
+    pub(crate) used_endgame: bool,
 }
 
 /// Nodes between two looks at the cancellation flag.
@@ -134,6 +138,10 @@ impl Meter {
             nodes: 0,
             limit,
             cancel,
+            #[cfg(feature = "endgame")]
+            endgames_allowed: true,
+            #[cfg(feature = "endgame")]
+            used_endgame: false,
         }
     }
 
@@ -157,6 +165,18 @@ impl Meter {
             self.check_cancel()?;
         }
         Ok(())
+    }
+
+    /// Charges the same bounded proof work on either device.
+    #[cfg(feature = "endgame")]
+    pub(crate) fn charge(&mut self, nodes: u32) -> Result<(), Interrupted> {
+        self.used_endgame = true;
+        if u64::from(nodes) > self.limit - self.nodes {
+            self.nodes = self.limit.saturating_add(1);
+            return Err(Interrupted::BudgetExhausted);
+        }
+        self.nodes += u64::from(nodes);
+        self.check_cancel()
     }
 
     /// Fails if cancellation was requested.

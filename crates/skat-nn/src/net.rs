@@ -20,20 +20,41 @@ use crate::encoder::FEATURES;
 pub struct NetShape {
     /// Input features ([`FEATURES`] for the current encoder).
     pub inputs: usize,
-    /// Width of both hidden layers.
+    /// Width of every hidden layer.
     pub hidden: usize,
+    /// Number of hidden layers (at least [`MIN_LAYERS`]).
+    pub layers: usize,
     /// Policy outputs ([`ACTIONS`] for the current encoder).
     pub actions: usize,
 }
 
+/// Fewest hidden layers of a [`PolicyValueNet`] (the shape of every model
+/// file written before the layer count was recorded).
+pub const MIN_LAYERS: usize = 2;
+
+/// Most hidden layers a model file may declare.
+pub const MAX_LAYERS: usize = 8;
+
 impl NetShape {
-    /// The shape for the current encoder with hidden layers of `hidden`.
+    /// The shape for the current encoder with [`MIN_LAYERS`] hidden layers
+    /// of `hidden`.
     pub const fn current(hidden: usize) -> NetShape {
         NetShape {
             inputs: FEATURES,
             hidden,
+            layers: MIN_LAYERS,
             actions: ACTIONS,
         }
+    }
+
+    /// This shape with `layers` hidden layers.
+    pub const fn with_layers(self, layers: usize) -> NetShape {
+        NetShape { layers, ..self }
+    }
+
+    /// Hidden layers after the second one.
+    fn deeper(self) -> usize {
+        self.layers.saturating_sub(MIN_LAYERS)
     }
 }
 
@@ -52,11 +73,15 @@ pub struct Outputs {
     pub win: Tensor<2>,
 }
 
-/// Two hidden ReLU layers, then a policy, a value and two option heads.
+/// Hidden ReLU layers of equal width (`input`, `hidden`, then `deeper`),
+/// then a policy, a value and two option heads. Field names are the keys of
+/// the weights in a model file; a two-layer network has no `deeper` entry,
+/// so files written before deeper networks existed load unchanged.
 #[derive(Module, Debug)]
 pub struct PolicyValueNet {
     input: Linear,
     hidden: Linear,
+    deeper: Vec<Linear>,
     policy: Linear,
     value: Linear,
     score: Linear,
@@ -72,6 +97,9 @@ impl PolicyValueNet {
         PolicyValueNet {
             input: LinearConfig::new(shape.inputs, shape.hidden).init(device),
             hidden: LinearConfig::new(shape.hidden, shape.hidden).init(device),
+            deeper: (0..shape.deeper())
+                .map(|_| LinearConfig::new(shape.hidden, shape.hidden).init(device))
+                .collect(),
             policy: LinearConfig::new(shape.hidden, shape.actions).init(device),
             value: LinearConfig::new(shape.hidden, 1).init(device),
             score: LinearConfig::new(shape.hidden, shape.actions).init(device),
@@ -81,7 +109,7 @@ impl PolicyValueNet {
     }
 
     /// A network of `shape` whose parameters are taken in order from
-    /// `next`: for each layer (input, hidden, policy, value, score, win) its weight
+    /// `next`: for each layer (input, the hidden layers, policy, value, score, win) its weight
     /// matrix row by row (`[inputs, outputs]`), then its bias.
     pub fn from_weights(
         shape: NetShape,
@@ -105,6 +133,9 @@ impl PolicyValueNet {
         PolicyValueNet {
             input: layer(shape.inputs, shape.hidden),
             hidden: layer(shape.hidden, shape.hidden),
+            deeper: (0..shape.deeper())
+                .map(|_| layer(shape.hidden, shape.hidden))
+                .collect(),
             policy: layer(shape.hidden, shape.actions),
             value: layer(shape.hidden, 1),
             score: layer(shape.hidden, shape.actions),
@@ -116,7 +147,10 @@ impl PolicyValueNet {
     /// Every output for features `[batch, inputs]`.
     pub fn forward_all(&self, features: Tensor<2>) -> Outputs {
         let x = self.activation.forward(self.input.forward(features));
-        let x = self.activation.forward(self.hidden.forward(x));
+        let mut x = self.activation.forward(self.hidden.forward(x));
+        for layer in &self.deeper {
+            x = self.activation.forward(layer.forward(x));
+        }
         Outputs {
             policy: self.policy.forward(x.clone()),
             value: self.value.forward(x.clone()),

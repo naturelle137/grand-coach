@@ -239,6 +239,44 @@ impl Opponent {
     }
 }
 
+/// Temporary fair opponent using exact experimental bounds. The sample
+/// budget is explicit so the latency and calibration tools exercise the same path.
+#[derive(Clone, Copy, Debug)]
+pub struct ExperimentalOpponent {
+    /// Independent teacher seed.
+    pub seed: u64,
+    /// World budget per card-play decision.
+    pub samples: u32,
+}
+
+impl ExperimentalOpponent {
+    /// Default experimental budget for interactive play.
+    pub const SAMPLES: u32 = 24;
+
+    /// Final decision with Strong's normal rules, tie breaking and node budget.
+    pub fn decide(&self, view: &PlayerView, cancel: Option<&Cancel>) -> Option<Decision> {
+        let strong = Opponent::new(Level::Strong, self.seed);
+        let Some((mut budget, seed)) = strong.analysis_input(view) else {
+            return strong.decide(view, cancel);
+        };
+        budget.samples = self.samples;
+        let rules = BaselineOpponent.decide(view)?;
+        let Ok(a) = skat_analysis::analyze_experimental(view, budget, seed, cancel, None) else {
+            return Some(Decision {
+                action: rules,
+                status: None,
+                fallback: true,
+            });
+        };
+        let mut rng = ChaCha8Rng::seed_from_u64(0);
+        Some(decision(
+            select(view, &a, rules, 0.0, &mut rng),
+            rules,
+            a.status,
+        ))
+    }
+}
+
 /// The decision for a selected option, or the rules' fallback.
 pub(crate) fn decision(selected: Option<Action>, rules: Action, status: Status) -> Decision {
     match selected {

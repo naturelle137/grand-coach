@@ -81,11 +81,13 @@ fn profile(spec: &str) -> Profile {
 /// a Classic fallback profile.
 #[derive(Clone)]
 enum Side {
+    Experimental,
     Classic(Profile),
     Neural(Arc<NeuralModel>, Profile, Choice),
 }
 
 enum Seated {
+    Experimental(skat_ai::ExperimentalOpponent),
     Classic(Opponent),
     Neural(NeuralOpponent),
 }
@@ -93,6 +95,7 @@ enum Seated {
 impl Player for Seated {
     fn decide(&self, view: &PlayerView, cancel: Option<&Cancel>) -> Option<Decision> {
         match self {
+            Seated::Experimental(o) => o.decide(view, cancel),
             Seated::Classic(o) => Player::decide(o, view, cancel),
             Seated::Neural(o) => Player::decide(o, view, cancel),
         }
@@ -101,6 +104,9 @@ impl Player for Seated {
 
 impl Side {
     fn parse(spec: &str) -> Side {
+        if spec == "experimental" {
+            return Side::Experimental;
+        }
         let (rest, choice) = if let Some(rest) = spec.strip_prefix("nnq:") {
             (rest, Choice::Score)
         } else if let Some(rest) = spec.strip_prefix("nn:") {
@@ -117,6 +123,10 @@ impl Side {
 
     fn seat(&self, seed: u64) -> Seated {
         match self {
+            Side::Experimental => Seated::Experimental(skat_ai::ExperimentalOpponent {
+                seed,
+                samples: skat_ai::ExperimentalOpponent::SAMPLES,
+            }),
             Side::Classic(p) => Seated::Classic(Opponent { profile: *p, seed }),
             Side::Neural(model, p, choice) => Seated::Neural(
                 NeuralOpponent::new(Ok(model.clone()), Opponent { profile: *p, seed })
@@ -127,6 +137,10 @@ impl Side {
 
     fn describe(&self) -> String {
         match self {
+            Side::Experimental => format!(
+                "experimental, {} samples",
+                skat_ai::ExperimentalOpponent::SAMPLES
+            ),
             Side::Classic(p) => describe(p),
             Side::Neural(model, p, choice) => {
                 let hash: String = model.sha256()[..8]
@@ -134,7 +148,8 @@ impl Side {
                     .map(|b| format!("{b:02x}"))
                     .collect();
                 format!(
-                    "learned model {hash}…, hidden width {}, choice {choice:?}, fallback {}",
+                    "learned model {hash}…, {} hidden layers of width {}, choice {choice:?}, fallback {}",
+                    model.header().shape.layers,
                     model.header().shape.hidden,
                     describe(p)
                 )

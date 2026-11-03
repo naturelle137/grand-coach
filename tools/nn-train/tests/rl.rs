@@ -403,3 +403,33 @@ fn no_iteration_starts_after_the_wall_time_cap() {
     assert!(r.state.logs.is_empty());
     assert_eq!(r.model.len(), start.len());
 }
+
+#[test]
+fn a_deeper_start_model_keeps_its_layers() {
+    let shape = skat_nn::NetShape::current(skat_nn::FIXTURE_HIDDEN).with_layers(3);
+    let start = nn_train::train::model_file(nn_train::train::initial(shape, 7), shape);
+    let deep = recipe(&start, hyper()).expect("recipe");
+    assert_eq!(deep.layers, 3);
+    assert_eq!(serde_json::to_value(&deep).unwrap()["layers"], 3);
+    let device = Device::flex().autodiff();
+    let out = run(
+        &scratch("deep"),
+        &deep,
+        &start,
+        &device,
+        limits(1, 1),
+        |_| true,
+    )
+    .expect("run");
+    assert_eq!(model(&out.model).header().shape, shape);
+
+    // Two-layer recipes do not write the field and read back without it,
+    // so runs started before deeper networks resume unchanged.
+    let two = recipe(&learner(), hyper()).expect("recipe");
+    let json = serde_json::to_value(&two).unwrap();
+    assert!(json.get("layers").is_none());
+    assert_eq!(
+        serde_json::from_value::<nn_train::rl::RlRecipe>(json).unwrap(),
+        two
+    );
+}

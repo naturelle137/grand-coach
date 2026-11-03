@@ -29,7 +29,7 @@ enum Measured {
     Mephisto,
 }
 
-const KINDS: [&str; 8] = [
+const KINDS: [&str; 10] = [
     "Reizen",
     "Hand/pickup",
     "Drücken",
@@ -38,6 +38,8 @@ const KINDS: [&str; 8] = [
     "Card play, trick 1",
     "Card play, trick 4",
     "Card play, trick 8",
+    "Card play, trick 2",
+    "Card play, trick 3",
 ];
 
 fn kind(view: &PlayerView) -> Option<usize> {
@@ -58,6 +60,8 @@ fn kind(view: &PlayerView) -> Option<usize> {
         Phase::Spiel if trick == 0 => 5,
         Phase::Spiel if trick == 3 => 6,
         Phase::Spiel if trick == 7 => 7,
+        Phase::Spiel if trick == 1 => 8,
+        Phase::Spiel if trick == 2 => 9,
         _ => return None,
     })
 }
@@ -116,6 +120,76 @@ fn main() {
     println!();
     println!("| Level | Decision | Median | p90 | Max | Incomplete |");
     println!("|---|---|---|---|---|---|");
+    if std::env::args().nth(2).as_deref() == Some("strong") {
+        let strong = Opponent::new(Level::Strong, 1);
+        for k in [4, 5, 8, 9] {
+            let mut times = Vec::new();
+            let mut incomplete = 0;
+            for (index, game) in positions[k].iter().enumerate() {
+                let view = game.view(game.current_seat().unwrap());
+                let start = Instant::now();
+                let (decision, analysis) = strong.decide_analysed(&view, None).unwrap();
+                times.push(start.elapsed());
+                let analysis = analysis.unwrap();
+                incomplete += usize::from(analysis.status != Status::Complete);
+                println!(
+                    "position {k} {index} {} {} {:?} {:?}",
+                    analysis.effort.nodes,
+                    analysis.effort.finished,
+                    analysis.status,
+                    decision.action
+                );
+            }
+            times.sort();
+            println!(
+                "| Strong | {} | {} | {} | {} | {incomplete} |",
+                KINDS[k],
+                show(percentile(&times, 0.5)),
+                show(percentile(&times, 0.9)),
+                show(*times.last().unwrap())
+            );
+        }
+        return;
+    }
+    if std::env::args().nth(2).as_deref() == Some("experimental") {
+        let samples = std::env::args()
+            .nth(3)
+            .map_or(24, |n| n.parse().expect("sample count"));
+        for k in [4, 5] {
+            for (index, game) in positions[k].iter().enumerate() {
+                let view = game.view(game.current_seat().unwrap());
+                let (mut budget, seed) = Opponent::new(Level::Strong, 1)
+                    .analysis_input(&view)
+                    .unwrap();
+                budget.samples = samples;
+                let start = Instant::now();
+                let reference = skat_analysis::analyze(&view, budget, seed, None).unwrap();
+                let cpu = start.elapsed().as_secs_f64();
+                let start = Instant::now();
+                let mut snapshot = None;
+                let result = skat_analysis::analyze_experimental(
+                    &view,
+                    budget,
+                    seed,
+                    None,
+                    Some(&mut |a| {
+                        snapshot.get_or_insert((start.elapsed().as_millis(), a.effort.finished));
+                    }),
+                )
+                .unwrap();
+                let experimental = start.elapsed().as_secs_f64();
+                println!(
+                    "trial {k} {index} {samples} {cpu:.6} {experimental:.6} {} {} {} {} {} {snapshot:?}",
+                    reference.effort.nodes,
+                    result.effort.nodes,
+                    result.effort.finished,
+                    reference.options == result.options,
+                    reference.status == result.status
+                );
+            }
+        }
+        return;
+    }
     let mut players: Vec<(String, Measured)> = Level::ALL
         .map(|level| {
             (

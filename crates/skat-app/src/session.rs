@@ -98,6 +98,8 @@ pub enum Opponents {
     /// Without a model file they play Classic Strong throughout
     /// ([`crate::neural_model_available`]).
     Neural,
+    /// Temporary exact-search opponent and live coach preview.
+    Experimental,
 }
 
 impl Opponents {
@@ -236,6 +238,7 @@ pub struct OpponentJob {
 /// How an opponent decides, with exactly the information it may use.
 #[derive(Clone, Debug)]
 enum Brain {
+    Experimental(skat_ai::ExperimentalOpponent, Box<skat_core::PlayerView>),
     /// From its own seat's view (D-23).
     Fair(Opponent, Box<skat_core::PlayerView>),
     /// With every card known (Mephisto, D-41).
@@ -274,6 +277,7 @@ impl OpponentJob {
     /// and is always legal.
     pub fn run(&self, cancel: Option<&Cancel>) -> OpponentMove {
         let decision = match &self.brain {
+            Brain::Experimental(o, v) => o.decide(v, cancel),
             Brain::Fair(opponent, view) => opponent.decide(view, cancel),
             Brain::Mephisto(game) => Mephisto.decide(game, cancel),
             Brain::Neural(opponent, view) => opponent.decide(view, cancel),
@@ -346,7 +350,10 @@ impl Session {
             dealer: PlayerId(2),
             sheet: ScoreSheet::default(),
             finished: matches!(config.series, SeriesLength::Fixed(0)),
-            coach: CoachState::new(coach_rng.next_u64()),
+            coach: CoachState::new(
+                coach_rng.next_u64(),
+                config.opponents == Opponents::Experimental,
+            ),
         }
     }
 
@@ -442,6 +449,13 @@ impl Session {
     /// played (not weak, or no finished analysis to judge it) or held with
     /// a warning. Fails without changes if the decision changed meanwhile.
     pub fn finish_coach(&mut self, result: CoachResult) -> Result<Vec<AppEvent>, AppError> {
+        if result.is_preview() {
+            let key = self.human_decision().ok_or(AppError::StaleCoachResult)?;
+            if !self.coach.accept_preview(key, result) {
+                return Err(AppError::StaleCoachResult);
+            }
+            return Ok(Vec::new());
+        }
         if self.coach.accept_review(&result) {
             return Ok(Vec::new());
         }
@@ -517,6 +531,13 @@ impl Session {
                 seed,
             }),
             Opponents::Goldfish => fair(Opponent::new(Level::Medium, seed)),
+            Opponents::Experimental => Brain::Experimental(
+                skat_ai::ExperimentalOpponent {
+                    seed,
+                    samples: skat_ai::ExperimentalOpponent::SAMPLES,
+                },
+                Box::new(self.game.view(seat)),
+            ),
             Opponents::Neural => Brain::Neural(
                 Box::new(NeuralOpponent::new(
                     crate::neural::neural_model(),
