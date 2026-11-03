@@ -221,3 +221,35 @@ fn no_epoch_starts_after_the_wall_time_cap() {
     assert_eq!(t.stop, TrainStop::WallTime);
     assert!(t.state.logs.is_empty());
 }
+
+#[test]
+fn deeper_networks_train_and_recipes_of_two_layers_read_as_before() {
+    let h = Hyper {
+        layers: 3,
+        epochs: 2,
+        ..hyper()
+    };
+    let (recipe, data) = recipe(&h);
+    let dir = scratch("deep");
+    let t = train(
+        &dir,
+        &recipe,
+        &data,
+        &Device::flex().autodiff(),
+        NO_CAP,
+        |_| true,
+    )
+    .unwrap();
+    let model = NeuralModel::load(&t.model, &sha256(&t.model)).unwrap();
+    assert_eq!(model.header().shape.layers, 3);
+    let json = serde_json::to_value(&h).unwrap();
+    assert_eq!(json["layers"], 3);
+
+    // Two layers are not written, and a recipe without the field reads as
+    // two layers, so earlier runs resume and compare unchanged.
+    let two = hyper();
+    let mut json = serde_json::to_value(&two).unwrap();
+    assert!(json.get("layers").is_none());
+    json.as_object_mut().unwrap().remove("layers");
+    assert_eq!(serde_json::from_value::<Hyper>(json).unwrap(), two);
+}

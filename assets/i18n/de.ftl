@@ -492,3 +492,6 @@ error-coach-off = Der Coach ist ausgeschaltet.
 error-nothing-pending = Es wartet kein angehaltener Zug.
 error-action-pending = Entscheide zuerst über den angehaltenen Zug.
 error-stale-coach-result = Die Analyse passt nicht mehr zur aktuellen Lage.
+mode-experimental = Experimentell
+mode-experimental-description = Exakte Kartensuche mit zusätzlicher Augenschranke. Der Coach zeigt beim Kartenspiel nach rund 200 ms einen Zwischenstand.
+coach-preview-live = Zwischenstand aus { $finished } von { $total } Kartenverteilungen. Die Suche läuft weiter.

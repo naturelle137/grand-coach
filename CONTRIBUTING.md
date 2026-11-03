@@ -96,6 +96,11 @@ cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan 200 3
 cargo run --locked --release -p skat-ai --example calibrate -- tuning nn:OUT_DIR/model.gcnn easy 20 4
 ```
 
+Early Strong latency and the optional Vulkan training-data benchmark are
+documented with the [CPU/GPU comparison procedure](crates/skat-analysis/experiments/strong-gpu/README.md#early-search-endgames).
+Use `cargo run --locked --release -p skat-ai --example latency -- 30 strong`
+to measure Kontra/Re and the first three tricks on the same views.
+
 Training data come from Strong self-play (see
 [docs/ai.md](docs/ai.md#training-data)). Every run has a wall-time and a
 disk cap and a CPU budget (`--cpus`, split into `--workers` game workers);
@@ -109,8 +114,9 @@ cargo run --locked --release -p nn-train -- verify DATA_DIR
 The card-play network is trained on one or more such runs (see
 [docs/ai.md](docs/ai.md#card-play-network) and the model card in
 `assets/models/`). Training resumes from `OUT_DIR/checkpoint` and stops
-at its wall-time cap; `evaluate` measures a model file on every split,
-and `calibrate` and `latency` measure its play:
+at its wall-time cap; `--layers N` (default 2) trains a deeper network,
+which `rl` keeps when it starts from it. `evaluate` measures a model
+file on every split, and `calibrate` and `latency` measure its play:
 
 ```sh
 cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR... --hidden 512 --epochs 30 --minutes 120
@@ -118,6 +124,45 @@ cargo run --locked --release -p nn-train -- evaluate OUT_DIR/model.gcnn DATA_DIR
 cargo run --locked --release -p skat-ai --example calibrate -- validation nn:assets/models/card-play.gcnn easy 200 6 0
 cargo run --locked --release -p skat-ai --example latency -- 20 nn:assets/models/card-play.gcnn
 ```
+
+Self-play refinement improves a model from game outcomes against a frozen
+opponent pool (see [docs/ai.md](docs/ai.md#self-play-refinement)). One
+process uses all CPUs; it writes a checkpoint after every iteration, so
+rerunning the same command continues exactly where it stopped. `touch
+OUT_DIR/STOP` ends it after the running iteration; `--minutes 0` only
+writes `model.gcnn` and `rl.json` of the current state. Snapshots in
+`OUT_DIR/snapshots` are measured with `calibrate`:
+
+```sh
+cargo run --locked --release -p nn-train -- rl OUT_DIR --start assets/models/card-play.gcnn --minutes 720
+cargo run --locked --release -p skat-ai --example calibrate -- tuning nn:OUT_DIR/snapshots/iter-00010.gcnn medium 100 10 0
+```
+
+To run it unattended for hours, start one instance (it uses every CPU;
+a second one only halves the throughput) from a copy of the binary
+outside the repository, so branch switches and rebuilds do not touch the
+running program. `RUNS` is any directory outside the repository:
+
+```sh
+cargo build --locked --release -p nn-train
+mkdir -p RUNS && cp target/release/nn-train RUNS/
+cd RUNS
+nohup ./nn-train rl run --start /path/to/repo/assets/models/card-play.gcnn --minutes 720 >> run.log 2>&1 &
+tail -f run.log            # one line per iteration: points per pool kind, KL, entropy
+touch run/STOP             # stop after the running iteration (or kill the process)
+```
+
+- **Resume**: run the same `nohup` command again; it continues
+  bit-identically from `run/checkpoint` (the recipe flags must stay the
+  same, `--minutes` counts per start). `--cpus N` leaves CPUs for other
+  work and changes only the speed, not the result.
+- **Progress**: a snapshot is written every 10 iterations
+  (`run/snapshots/iter-NNNNN.gcnn`); measure the newest against the
+  shipped model with
+  `calibrate -- tuning nn:RUNS/run/snapshots/iter-NNNNN.gcnn
+  nn:assets/models/card-play.gcnn 400 20 0` while the run continues
+  (slower, same result). Selection and the final measurement on fresh
+  validation deals follow [docs/ai.md](docs/ai.md#self-play-refinement).
 
 The coach latency per human decision is measured by hand through
 `skat-app` (see [docs/coach.md](docs/coach.md#latency)):

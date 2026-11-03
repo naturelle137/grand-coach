@@ -454,12 +454,38 @@ fn small_positions_match_exhaustive_minimax() {
         }
         assert_eq!(p.check(), Ok(()));
         let v = solver.solve(&p, &mut Meter::unlimited()).unwrap();
+        let mut experimental = Solver::new(game, declarer).with_discard_bound();
+        assert_eq!(
+            experimental.solve(&p, &mut Meter::unlimited()).unwrap(),
+            v,
+            "seed {seed}"
+        );
         if game != GameType::Null {
             let augen = reference_augen(&p);
             assert_eq!(v.augen, Some(AugenClass::of(augen)), "seed {seed}");
-            let exact = solver.exact_augen(&p, &mut Meter::unlimited()).unwrap();
-            assert_eq!(exact, augen, "seed {seed}");
+            for threshold in [31, 61, 90] {
+                assert_eq!(
+                    experimental
+                        .reaches_augen(&p, threshold, &mut Meter::unlimited())
+                        .unwrap(),
+                    augen >= threshold,
+                    "seed {seed}, threshold {threshold}"
+                );
+            }
+            for target in [augen, augen + 1] {
+                let proved = Solver::new(game, declarer)
+                    .with_discard_bound()
+                    .reaches_augen(&p, target, &mut Meter::unlimited())
+                    .unwrap();
+                assert_eq!(
+                    proved,
+                    augen >= target,
+                    "seed {seed} on either side of its exact value"
+                );
+            }
         }
+        let exact = solver.exact_augen(&p, &mut Meter::unlimited()).unwrap();
+        assert_eq!(exact, reference_augen(&p), "seed {seed}");
         for s in stakes_variants(game, declarer_cards) {
             assert_eq!(
                 v.settle(declarer, &s).score,
@@ -503,4 +529,34 @@ fn inconsistent_positions_are_rejected() {
         p.check(),
         Err(skat_analysis::double_dummy::PositionError::SkatSize)
     );
+}
+
+#[test]
+fn classic_budget_counts_match_the_reference_search() {
+    let mut rng = ChaCha8Rng::seed_from_u64(239);
+    // A lead, second hand and third hand across all contracts. A changed
+    // visit count can change a finite-budget teacher despite exact values.
+    for (i, game) in [
+        GameType::Grand,
+        GameType::Farbe(Suit::Karo),
+        GameType::Farbe(Suit::Herz),
+        GameType::Farbe(Suit::Pik),
+        GameType::Farbe(Suit::Kreuz),
+        GameType::Null,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut p = start(&Deal::from_seed(i as u64), game, Seat::from_index(i));
+        for _ in 0..(12 + i % 3) {
+            if p.is_over() {
+                break;
+            }
+            let legal: Vec<_> = p.legal_cards().into_iter().collect();
+            p.play(legal[rng.next_u32() as usize % legal.len()]);
+        }
+        let mut meter = Meter::unlimited();
+        solve(&p, &mut meter).unwrap();
+        assert_eq!(meter.nodes(), [6546, 145, 208, 3786, 278, 0][i]);
+    }
 }

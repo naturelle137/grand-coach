@@ -1,0 +1,85 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 9770a32..96dded4 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -7058,10 +7058,13 @@ dependencies = [
+ name = "skat-analysis"
+ version = "0.1.0"
+ dependencies = [
++ "bytemuck",
++ "pollster",
+  "rand_chacha 0.10.0",
+  "serde",
+  "serde_json",
+  "skat-core",
++ "wgpu",
+ ]
+
+ [[package]]
+diff --git a/crates/skat-analysis/Cargo.toml b/crates/skat-analysis/Cargo.toml
+index 9ad5c33..5ff7fd1 100644
+--- a/crates/skat-analysis/Cargo.toml
++++ b/crates/skat-analysis/Cargo.toml
+@@ -10,6 +10,7 @@ repository.workspace = true
+ publish.workspace = true
+
+ [features]
++gpu-sampling-bench = ["dep:wgpu", "dep:pollster", "dep:bytemuck"]
+ serde = ["dep:serde", "skat-core/serde"]
+
+ [dependencies]
+@@ -22,3 +23,27 @@ serde_json.workspace = true
+
+ [lints]
+ workspace = true
++
++[dependencies.wgpu]
++version = "=30.0.1"
++optional = true
++default-features = false
++features = ["std", "wgsl", "vulkan"]
++
++[dependencies.pollster]
++version = "1"
++optional = true
++
++[dependencies.bytemuck]
++version = "1"
++optional = true
++
++[[example]]
++name = "gpu_samples"
++path = "experiments/strong-gpu/gpu_samples.rs"
++required-features = ["gpu-sampling-bench", "serde"]
++
++[[example]]
++name = "threshold_probe"
++path = "experiments/strong-gpu/threshold_probe.rs"
++required-features = ["gpu-sampling-bench", "serde"]
+diff --git a/crates/skat-analysis/src/analysis.rs b/crates/skat-analysis/src/analysis.rs
+index 7ac24dc..1b94de5 100644
+--- a/crates/skat-analysis/src/analysis.rs
++++ b/crates/skat-analysis/src/analysis.rs
+@@ -471,6 +471,10 @@ fn own_worlds(hidden: &HiddenCards, samples: usize, seed: u64) -> (Vec<World>, b
+     match hidden.enumerate(samples) {
+         Some(all) => (all, true),
+         None => {
++            #[cfg(feature = "gpu-sampling-bench")]
++            if let Some(worlds) = crate::gpu_sampling::sample(hidden, samples, seed) {
++                return (worlds, false);
++            }
+             let mut rng = ChaCha8Rng::seed_from_u64(seed);
+             (
+                 (0..samples).map(|_| hidden.sample(&mut rng)).collect(),
+diff --git a/crates/skat-analysis/src/lib.rs b/crates/skat-analysis/src/lib.rs
+index 1b68c53..5538313 100644
+--- a/crates/skat-analysis/src/lib.rs
++++ b/crates/skat-analysis/src/lib.rs
+@@ -39,3 +39,7 @@ pub use analysis::{
+ pub use budget::{Budget, Cancel, Interrupted, Meter, max_threads, with_max_threads};
+ pub use knowledge::{Knowledge, TrumpfSets};
+ pub use trick::TrickState;
++
++#[cfg(feature = "gpu-sampling-bench")]
++#[path = "../experiments/strong-gpu/gpu_sampling.rs"]
++pub mod gpu_sampling;

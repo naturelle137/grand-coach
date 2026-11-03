@@ -269,6 +269,25 @@ fn card_play_options_and_exact_results() {
     let a = analyze(&view, budget, 8, None).unwrap();
     assert_complete(&view, &a);
     assert!(a.effort.enumerated);
+    let experimental = skat_analysis::analyze_experimental(&view, budget, 8, None, None).unwrap();
+    let live = skat_analysis::analyze_experimental(
+        &view,
+        budget,
+        8,
+        None,
+        Some(&mut |p| {
+            assert_eq!(p.status, Status::InProgress);
+            assert!(
+                p.options
+                    .iter()
+                    .filter_map(|o| o.estimate)
+                    .all(|e| !e.exact)
+            );
+        }),
+    )
+    .unwrap();
+    assert_eq!(live, experimental);
+    assert_eq!(live.options, a.options);
     assert_eq!(f64::from(a.effort.planned), a.effort.distributions);
     for o in &a.options {
         let e = o.estimate.unwrap();

@@ -14,7 +14,8 @@
 //! | 12 | 4 | hidden width |
 //! | 16 | 4 | policy actions |
 //! | 20 | 1 | covered phases (bit 0 Reizen … bit 4 Spiel) |
-//! | 21 | 3 | reserved, zero |
+//! | 21 | 1 | hidden layers; 0 means 2 (files written before it was recorded) |
+//! | 22 | 2 | reserved, zero |
 //!
 //! The caller passes the bytes and their expected SHA-256 hash; this crate
 //! reads no files (no IO below `skat-app`). Inference runs on Burn's
@@ -28,7 +29,7 @@ use skat_core::{Action, Phase, PlayerView};
 
 use crate::actions::{ACTIONS, action_index};
 use crate::encoder::{ENCODER_VERSION, FEATURES, encode, phase_index};
-use crate::net::{NetShape, PolicyValueNet};
+use crate::net::{MAX_LAYERS, MIN_LAYERS, NetShape, PolicyValueNet};
 
 /// Version of the model file layout. Version 2 added the option heads
 /// (expected points and win chance per action).
@@ -124,6 +125,11 @@ pub enum ModelError {
         /// Policy actions in the file.
         actions: u32,
     },
+    /// A number of hidden layers this build does not support.
+    Layers {
+        /// Byte in the file.
+        found: u8,
+    },
     /// Empty or unknown phase set.
     Phases {
         /// Bits in the file.
@@ -209,8 +215,15 @@ pub struct RawOutputs {
 ///
 /// # Errors
 ///
-/// If Burn cannot serialise the weights.
+/// If the header declares an unsupported number of hidden layers or Burn
+/// cannot serialise the weights.
 pub fn write_model(header: &ModelHeader, net: PolicyValueNet) -> Result<Vec<u8>, ModelError> {
+    let layers = header.shape.layers;
+    if !(MIN_LAYERS..=MAX_LAYERS).contains(&layers) {
+        return Err(ModelError::Layers {
+            found: u8::try_from(layers).unwrap_or(u8::MAX),
+        });
+    }
     let weights = net
         .into_record()
         .into_bytes()
@@ -227,7 +240,15 @@ pub fn write_model(header: &ModelHeader, net: PolicyValueNet) -> Result<Vec<u8>,
         out.extend_from_slice(&(n as u32).to_le_bytes());
     }
     out.push(header.phases.bits());
-    out.extend_from_slice(&[0; 3]);
+    // Two layers are written as 0, so such files stay byte-identical to
+    // those of builds that did not record the layer count.
+    let layers = header.shape.layers;
+    out.push(if layers == MIN_LAYERS {
+        0
+    } else {
+        layers as u8
+    });
+    out.extend_from_slice(&[0; 2]);
     out.extend_from_slice(&weights);
     Ok(out)
 }
@@ -272,9 +293,14 @@ pub fn read_header(bytes: &[u8]) -> Result<ModelHeader, ModelError> {
         });
     }
     let phases = Phases::from_bits(bytes[20]).ok_or(ModelError::Phases { bits: bytes[20] })?;
+    let layers = match bytes[21] {
+        0 => MIN_LAYERS,
+        n if (MIN_LAYERS + 1..=MAX_LAYERS).contains(&usize::from(n)) => usize::from(n),
+        found => return Err(ModelError::Layers { found }),
+    };
     Ok(ModelHeader {
         encoder_version: encoder,
-        shape: NetShape::current(hidden as usize),
+        shape: NetShape::current(hidden as usize).with_layers(layers),
         phases,
     })
 }

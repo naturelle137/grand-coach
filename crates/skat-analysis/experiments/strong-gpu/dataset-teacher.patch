@@ -1,0 +1,84 @@
+diff --git a/crates/skat-ai/src/opponent.rs b/crates/skat-ai/src/opponent.rs
+index b8e8141..5f5eb6f 100644
+--- a/crates/skat-ai/src/opponent.rs
++++ b/crates/skat-ai/src/opponent.rs
+@@ -255,25 +255,35 @@ impl ExperimentalOpponent {
+
+     /// Final decision with Strong's normal rules, tie breaking and node budget.
+     pub fn decide(&self, view: &PlayerView, cancel: Option<&Cancel>) -> Option<Decision> {
++        self.decide_analysed(view, cancel)
++            .map(|(decision, _)| decision)
++    }
++
++    /// The same decision plus the option estimates written to the dataset.
++    pub fn decide_analysed(
++        &self,
++        view: &PlayerView,
++        cancel: Option<&Cancel>,
++    ) -> Option<(Decision, Option<Analysis>)> {
+         let strong = Opponent::new(Level::Strong, self.seed);
+         let Some((mut budget, seed)) = strong.analysis_input(view) else {
+-            return strong.decide(view, cancel);
++            return strong.decide_analysed(view, cancel);
+         };
+         budget.samples = self.samples;
+         let rules = BaselineOpponent.decide(view)?;
+         let Ok(a) = skat_analysis::analyze_experimental(view, budget, seed, cancel, None) else {
+-            return Some(Decision {
+-                action: rules,
+-                status: None,
+-                fallback: true,
+-            });
++            return Some((
++                Decision {
++                    action: rules,
++                    status: None,
++                    fallback: true,
++                },
++                None,
++            ));
+         };
+         let mut rng = ChaCha8Rng::seed_from_u64(0);
+-        Some(decision(
+-            select(view, &a, rules, 0.0, &mut rng),
+-            rules,
+-            a.status,
+-        ))
++        let chosen = decision(select(view, &a, rules, 0.0, &mut rng), rules, a.status);
++        Some((chosen, Some(a)))
+     }
+ }
+
+diff --git a/tools/nn-train/src/main.rs b/tools/nn-train/src/main.rs
+index 161072a..f20e2ff 100644
+--- a/tools/nn-train/src/main.rs
++++ b/tools/nn-train/src/main.rs
+@@ -320,7 +320,10 @@ fn generate(args: &[String]) {
+         cpus,
+         workers,
+     };
+-    let teacher = TeacherProfile::STRONG;
++    let teacher = TeacherProfile {
++        name: "experimental",
++        ..TeacherProfile::STRONG
++    };
+     let manifest = Manifest::new(&engine_commit(), teacher, seed, deals, shard_deals);
+     println!(
+         "run: {} deals in {} shards, seed {seed}, profile {}, commit {}",
+diff --git a/tools/nn-train/src/selfplay.rs b/tools/nn-train/src/selfplay.rs
+index dce94d9..7d8b4a1 100644
+--- a/tools/nn-train/src/selfplay.rs
++++ b/tools/nn-train/src/selfplay.rs
+@@ -183,7 +183,11 @@ pub fn teach(view: &PlayerView, teacher: &Opponent) -> Option<(Action, Teacher)>
+             status,
+         },
+         analysis,
+-    ) = teacher.decide_analysed(view, None)?;
++    ) = skat_ai::ExperimentalOpponent {
++        seed: teacher.seed,
++        samples: skat_ai::ExperimentalOpponent::SAMPLES,
++    }
++    .decide_analysed(view, None)?;
+     let options = analysis.map(|a| a.options).unwrap_or_default();
+     Some((
+         action,

@@ -423,3 +423,18 @@ bids as the coach suggests. While the coach computes, the panel shows a translat
 continues for the note, unless the next own decision needs one first. The GUI test `window_stays_responsive_while_the_coach_analyses`
 checks that frames keep returning quickly during a full interactive
 analysis and that acting works meanwhile.
+
+## Experimental live preview
+
+With the Experimental opponents selected, card play and Kontra/Re use a
+200 ms preview deadline. The live coach reports completed worlds and the
+planned count in the currently permitted hint stage. When no world has
+finished yet, it shows the known facts and updates again as soon as one
+world finishes. Faster worlds can be overrepresented in a preview. Each
+world contributes only after all its options have been evaluated. The
+search continues with its original seed, budget and workers.
+
+Only the final result enters the warning check, notes and debriefing. A
+preview for a different decision or budget is discarded. The final estimate
+combines worlds in index order. Timing and thread scheduling therefore
+affect the preview while the final result remains reproducible.

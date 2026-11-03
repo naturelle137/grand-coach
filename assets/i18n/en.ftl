@@ -492,3 +492,6 @@ error-coach-off = The coach is switched off.
 error-nothing-pending = No move is being held back.
 error-action-pending = First decide about the move being held back.
 error-stale-coach-result = The analysis no longer fits the current position.
+mode-experimental = Experimental
+mode-experimental-description = Exact card search with an additional point bound. During card play the coach shows progress after about 200 ms.
+coach-preview-live = Preliminary evaluation from { $finished } of { $total } distributions. Search continues.
