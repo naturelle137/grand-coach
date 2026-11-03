@@ -96,6 +96,11 @@ cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan 200 3
 cargo run --locked --release -p skat-ai --example calibrate -- tuning nn:OUT_DIR/model.gcnn easy 20 4
 ```
 
+Early Strong latency and the optional Vulkan training-data benchmark are
+documented with the [CPU/GPU comparison procedure](crates/skat-analysis/experiments/strong-gpu/README.md#early-search-endgames).
+Use `cargo run --locked --release -p skat-ai --example latency -- 30 strong`
+to measure Kontra/Re and the first three tricks on the same views.
+
 Training data come from Strong self-play (see
 [docs/ai.md](docs/ai.md#training-data)). Every run has a wall-time and a
 disk cap and a CPU budget (`--cpus`, split into `--workers` game workers);

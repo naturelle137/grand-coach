@@ -132,7 +132,8 @@ cargo run --locked -p gui-egui --example screenshots -- DIR  # headless PNGs (D-
 cargo run --locked --release -p nn-train -- smoke cpu  # Burn stack smoke test (#69)
 cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan  # on the GPU
 cargo run --locked --release -p nn-train -- generate DIR --deals 100  # Strong self-play data (#70)
-cargo run --locked --release -p nn-train -- verify DIR  # check a training-data run
+cargo run --locked --release -p nn-train -- verify DIR  # replay and check a training-data run
+cargo run --locked --release -p skat-ai --example latency -- 30 strong  # early Strong decisions
 cargo run --locked --release -p nn-train -- train OUT DIR... --hidden 512  # card-play network (#73)
 cargo run --locked --release -p nn-train -- evaluate MODEL DIR...  # metrics per split
 cargo run --locked --release -p nn-train -- rl OUT --minutes 720  # self-play refinement (#75)

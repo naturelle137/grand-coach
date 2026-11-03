@@ -5072,12 +5072,15 @@ name = "nn-train"
 version = "0.1.0"
 dependencies = [
  "burn",
+ "bytemuck",
+ "pollster",
  "serde",
  "serde_json",
  "skat-ai",
  "skat-analysis",
  "skat-core",
  "skat-nn",
+ "wgpu",
 ]
 
 [[package]]

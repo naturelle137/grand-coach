@@ -10,6 +10,7 @@ repository.workspace = true
 publish.workspace = true
 
 [features]
+endgame = []
 serde = ["dep:serde", "skat-core/serde"]
 
 [dependencies]

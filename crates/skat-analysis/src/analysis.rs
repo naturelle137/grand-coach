@@ -586,9 +586,7 @@ impl Table {
         cancel: Option<&Cancel>,
     ) {
         let results = run_parallel(tasks, |(w, options)| {
-            let mut meter = Meter::new(nodes, cancel.cloned());
-            let outcome = ctx.evaluate(&worlds[*w], options, &mut meter);
-            (outcome, meter.nodes())
+            ctx.task(&worlds[*w], options, nodes, cancel)
         });
         let mut failed = vec![false; worlds.len()];
         for ((w, _), (outcome, used)) in tasks.iter().zip(results) {
@@ -640,10 +638,8 @@ impl Table {
                     loop {
                         let i = next.fetch_add(1, Ordering::Relaxed);
                         let Some(world) = worlds.get(i) else { break };
-                        let mut meter = Meter::new(nodes, cancel.cloned());
-                        let outcome = ctx.evaluate(world, options, &mut meter);
-                        tx.send((i, outcome, meter.nodes()))
-                            .expect("coordinator in scope");
+                        let (outcome, used) = ctx.task(world, options, nodes, cancel);
+                        tx.send((i, outcome, used)).expect("coordinator in scope");
                     }
                 });
             }
@@ -800,6 +796,28 @@ impl<'a> Context<'a> {
             played_by,
             experimental: false,
         })
+    }
+
+    /// Both passes see precisely the same sampled world and option order.
+    /// A bounded experimental proof must never cost the teacher a world
+    /// which fits in the ordinary Strong budget. Report all attempted work.
+    fn task(
+        &self,
+        world: &World,
+        options: &[usize],
+        nodes: u64,
+        cancel: Option<&Cancel>,
+    ) -> (Result<Vec<(usize, Outcome)>, Interrupted>, u64) {
+        let mut meter = Meter::new(nodes, cancel.cloned());
+        let outcome = self.evaluate(world, options, &mut meter);
+        #[cfg(feature = "endgame")]
+        if meter.used_endgame && matches!(outcome, Err(Interrupted::BudgetExhausted)) {
+            let mut classic = Meter::new(nodes, cancel.cloned());
+            classic.endgames_allowed = false;
+            let result = self.evaluate(world, options, &mut classic);
+            return (result, meter.nodes() + classic.nodes());
+        }
+        (outcome, meter.nodes())
     }
 
     /// Outcomes of the options with indices `options` in `world`.

@@ -473,6 +473,44 @@ exhausted the budget on three decisions and Experimental on two.
 Each timing is a single run.
 See the [measurement patch and commands](../crates/skat-analysis/experiments/strong-gpu/README.md#reproduce-the-teacher-comparison).
 
+### Faster Strong search
+
+`generate` uses the compact CPU Augen solver for Strong. The teacher still
+evaluates 24 sampled worlds and records every legal option. `verify` also
+replays each deal and checks every acting view, action and final score.
+The [CPU and Vulkan measurements](../crates/skat-analysis/experiments/strong-gpu/README.md#early-search-endgames)
+include the procedure for comparing complete, byte-identical training shards.
+
+On 2026-11-03 the i9-10900K ran the release generators sequentially on
+the same 1,000 deals (seed 0, ten deals/shard, 20 logical CPUs). Each cell
+is the median of three wall-clock runs including startup and shard writes.
+The reference was `4eb0d75`. All 18 runs produced byte-identical shards
+with 42,486 records and the same eight incomplete analyses. On deal 239
+the opening lead retained all ten options, each with 23 completed worlds.
+
+| Game workers × analysis threads | Previous Strong (deals/h) | Optimised Strong (deals/h) |
+|---|---:|---:|
+| 4 × 5 | 1,917 | 7,280 |
+| 10 × 2 | 2,033 | 7,904 |
+| 20 × 1 | 2,028 | 7,946 |
+
+Best median against best median was **3.91× throughput**, or 74.4% less
+elapsed generation time for a fixed dataset. In a separate serial run
+with one interactive decision at a time, 30 positions per kind gave:
+
+| Decision | Previous median / p90 (s) | Optimised median / p90 (s) |
+|---|---:|---:|
+| Kontra/Re | 0.306 / 2.704 | 0.088 / 0.696 |
+| Trick 1 | 0.771 / 2.244 | 0.216 / 0.681 |
+| Trick 2 | 0.081 / 0.649 | 0.021 / 0.194 |
+| Trick 3 | 0.033 / 0.088 | 0.011 / 0.021 |
+
+Actions, node counts, completed worlds and statuses matched on all 120
+positions. Experimental additionally uses adjacent-card bounds. On fresh
+validation deals 14,000–14,199 (six seatings, 1,200 games), Experimental
+minus Strong was +0.40 Seeger-Fabian points per seat-game (95% interval
+[−3.28, +4.09]). Relative playing strength was inconclusive.
+
 ## Card-play network
 
 The first trained model (#73): `assets/models/card-play.gcnn` with its

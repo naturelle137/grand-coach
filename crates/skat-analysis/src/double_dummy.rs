@@ -29,6 +29,10 @@
 //! Null has its own objective: the declarer wins if it can avoid every
 //! trick, which is the last search alone.
 
+mod augen;
+#[cfg(feature = "endgame")]
+pub use augen::endgame;
+
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 
@@ -314,28 +318,6 @@ fn fast_augen(cards: CardSet) -> u8 {
     11 * count(Ass) + 10 * count(Zehn) + 4 * count(Koenig) + 3 * count(Dame) + 2 * count(Bube)
 }
 
-/// Minimum Augen contributed by any n cards of a hand.
-fn cheapest_points(hand: CardSet, n: usize) -> u8 {
-    let bits = hand.bits();
-    let mut needed = n.saturating_sub((bits & 0x07070707).count_ones() as usize);
-    let mut points = 0;
-    for rank in [
-        skat_core::Rank::Bube,
-        skat_core::Rank::Dame,
-        skat_core::Rank::Koenig,
-        skat_core::Rank::Zehn,
-        skat_core::Rank::Ass,
-    ] {
-        if needed == 0 {
-            break;
-        }
-        let take = needed.min((bits & (0x01010101 << rank.index())).count_ones() as usize);
-        points += take as u8 * rank.augen();
-        needed -= take;
-    }
-    points
-}
-
 /// Moves of one seat (at most twelve cards) without allocation.
 struct Moves {
     cards: [Card; 12],
@@ -359,10 +341,6 @@ impl Moves {
 
     fn as_slice(&self) -> &[Card] {
         &self.cards[..self.len]
-    }
-
-    fn as_mut_slice(&mut self) -> &mut [Card] {
-        &mut self.cards[..self.len]
     }
 }
 
@@ -410,14 +388,13 @@ pub struct Solver {
     extra_bound: bool,
     game: GameType,
     declarer: Seat,
-    /// Follow class (0–3 side suits, 4 Trumpf) of every card index.
-    class: [u8; 32],
+
     /// Cards of each follow class, strongest first.
     order: [Vec<Card>; 5],
     /// Cards of each follow class as a set.
     class_cards: [CardSet; 5],
     /// Bounds of the declarer's future Augen and the best card found.
-    augen: Table<(u8, u8, Option<Card>)>,
+    augen: augen::Search,
     no_trick: Table<bool>,
     all_tricks: Table<bool>,
 }
@@ -425,7 +402,6 @@ pub struct Solver {
 impl Solver {
     /// A solver for `game` with `declarer`.
     pub fn new(game: GameType, declarer: Seat) -> Solver {
-        let mut class = [0u8; 32];
         let mut order: [Vec<Card>; 5] = Default::default();
         for card in CardSet::ALL {
             let c = if game.is_trump(card) {
@@ -433,7 +409,6 @@ impl Solver {
             } else {
                 card.suit().index()
             };
-            class[usize::from(card.index())] = c;
             order[usize::from(c)].push(card);
         }
         for cards in &mut order {
@@ -454,16 +429,15 @@ impl Solver {
             extra_bound: false,
             game,
             declarer,
-            class,
+            augen: augen::Search::new(game, declarer, &order),
             order,
             class_cards,
-            augen: Table::default(),
             no_trick: Table::default(),
             all_tricks: Table::default(),
         }
     }
 
-    /// Enables the experimental lower bound on the defenders' contribution.
+    /// Enables the experimental discard and adjacent-card bounds.
     pub fn with_discard_bound(mut self) -> Self {
         self.extra_bound = true;
         self
@@ -654,130 +628,11 @@ impl Solver {
     fn max_augen(
         &mut self,
         pos: &mut Position,
-        mut alpha: u8,
-        mut beta: u8,
+        alpha: u8,
+        beta: u8,
         meter: &mut Meter,
     ) -> Result<u8, Interrupted> {
-        meter.tick()?;
-        if pos.is_over() || beta == 0 {
-            return Ok(0);
-        }
-        let remaining = fast_augen(pos.hands[0] | pos.hands[1] | pos.hands[2] | table(pos));
-        if remaining <= alpha {
-            return Ok(remaining);
-        }
-        if self.declarer_leads(pos) {
-            let (tricks, augen) = self.sure_tricks(pos);
-            if tricks == pos.hands[self.declarer.index()].len() {
-                return Ok(remaining);
-            }
-            // Each guaranteed trick also consumes one card from each defender.
-            let mut augen = augen;
-            if self.extra_bound && tricks > 0 && augen < beta {
-                for seat in Seat::ALL {
-                    if seat != self.declarer {
-                        augen += cheapest_points(pos.hands[seat.index()], tricks);
-                    }
-                }
-            }
-            if augen >= beta {
-                return Ok(augen);
-            }
-        }
-        let at_start = pos.trick.is_empty();
-        let key = Self::key(pos);
-        let mut hint = None;
-        if at_start && let Some(&(lo, hi, best)) = self.augen.get(&key) {
-            hint = best;
-            if lo >= beta || lo == hi {
-                return Ok(lo);
-            }
-            if hi <= alpha {
-                return Ok(hi);
-            }
-            alpha = alpha.max(lo);
-            beta = beta.min(hi);
-        }
-        let (alpha0, beta0) = (alpha, beta);
-        let maximise = pos.to_move() == self.declarer;
-        let mut moves = self.moves(pos, true);
-        self.order_moves(pos, moves.as_mut_slice());
-        if let Some(i) = hint.and_then(|h| moves.as_slice().iter().position(|&c| c == h)) {
-            moves.as_mut_slice()[..=i].rotate_right(1);
-        }
-        let mut best: Option<u8> = None;
-        let mut best_card = None;
-        for &card in moves.as_slice() {
-            let mut child = *pos;
-            let before = child.declarer_augen;
-            child.play(card);
-            let gained = child.declarer_augen - before;
-            let a = alpha.saturating_sub(gained);
-            let b = beta.saturating_sub(gained);
-            let value = gained + self.max_augen(&mut child, a, b.max(a + 1), meter)?;
-            let better = best.is_none_or(|v| if maximise { value > v } else { value < v });
-            if better {
-                best = Some(value);
-                best_card = Some(card);
-            }
-            if maximise {
-                alpha = alpha.max(value);
-            } else {
-                beta = beta.min(value);
-            }
-            if alpha >= beta {
-                break;
-            }
-        }
-        let value = best.expect("a seat with cards has a legal card");
-        if at_start {
-            let entry = self.augen.entry(key).or_insert((0, 120, None));
-            entry.2 = best_card;
-            if value <= alpha0 {
-                entry.1 = entry.1.min(value);
-            } else if value >= beta0 {
-                entry.0 = entry.0.max(value);
-            } else {
-                (entry.0, entry.1) = (value, value);
-            }
-        }
-        Ok(value)
-    }
-
-    /// Move ordering: when leading, high Augen first; when following and the
-    /// own side wins the trick, smear high Augen; otherwise the cheapest card
-    /// that takes the trick, then the lowest losers.
-    fn order_moves(&self, pos: &Position, moves: &mut [Card]) {
-        let strength = |c: Card| {
-            let order = &self.order[usize::from(self.class[usize::from(c.index())])];
-            order.iter().position(|&o| o == c).unwrap_or(0)
-        };
-        let Some(led) = pos.trick.led() else {
-            moves.sort_by_key(|&c| (std::cmp::Reverse(c.augen()), strength(c)));
-            return;
-        };
-        let leader = pos.trick.leader.expect("trick has a leader");
-        let (mut best, mut best_seat) = (led, leader);
-        for (i, card) in pos.trick.cards.iter().enumerate().skip(1) {
-            if let Some(card) = *card
-                && self.game.beats(card, best, led)
-            {
-                best = card;
-                best_seat = Seat::from_index(leader.index() + i);
-            }
-        }
-        let me = pos.to_move();
-        let own_side = (best_seat == self.declarer) == (me == self.declarer);
-        moves.sort_by_key(|&c| {
-            let wins = self.game.beats(c, best, led);
-            if own_side {
-                (u8::from(wins), 0, 255 - c.augen())
-            } else if wins {
-                (0, 255 - strength(c) as u8, c.augen())
-            } else {
-                (1, 0, c.augen())
-            }
-        });
+        self.augen.run(pos, alpha, beta, self.extra_bound, meter)
     }
 
     /// Whether the side that wants `goal` can force it from here on (the

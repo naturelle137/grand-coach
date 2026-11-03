@@ -16,7 +16,13 @@ impl Backend {
         let instance = w::Instance::default();
         let adapter = pollster::block_on(instance.enumerate_adapters(w::Backends::VULKAN))
             .into_iter()
-            .find(|a| a.get_info().name.contains("6900 XT"))?;
+            .filter(|a| {
+                matches!(
+                    a.get_info().device_type,
+                    w::DeviceType::DiscreteGpu | w::DeviceType::IntegratedGpu
+                )
+            })
+            .min_by_key(|a| a.get_info().device_type != w::DeviceType::DiscreteGpu)?;
         eprintln!("GPU compute: {}", adapter.get_info().name);
         let (device, queue) =
             pollster::block_on(adapter.request_device(&Default::default())).ok()?;

@@ -19,7 +19,12 @@ serde.workspace = true
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 burn = { workspace = true, features = ["autodiff", "optim"] }
 
+wgpu = { version = "=30.0.1", optional = true, default-features = false, features = ["vulkan", "wgsl", "std"] }
+pollster = { version = "1", optional = true }
+bytemuck = { version = "1", optional = true }
+
 [features]
+vulkan-search = ["skat-analysis/endgame", "dep:wgpu", "dep:pollster", "dep:bytemuck"]
 # GPU training via wgpu/Vulkan (`smoke vulkan`); needs a GPU adapter, so
 # the tests of `scripts/check.sh` leave it off (docs/testing.md).
 vulkan = ["burn/vulkan"]
