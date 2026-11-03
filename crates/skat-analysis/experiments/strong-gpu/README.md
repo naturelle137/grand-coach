@@ -133,8 +133,9 @@ cargo run --locked --release -p skat-ai --example latency -- 1 experimental 2400
 
 All four final option vectors and statuses matched. The 2,400-world
 first-trick example still searched 7.99 billion nodes with the bound.
-The one-second p90 goal was missed even at 24 worlds. A playing-strength
-validation run was therefore deferred.
+The one-second p90 goal was missed even at 24 worlds. The subsequent
+[playing-strength validation](../../../../docs/ai.md#experimental-versus-strong)
+used 200 independent deals.
 
 ## GPU threshold probe
 
@@ -175,3 +176,33 @@ proofs. In the eighth trick every query finished on the GPU at both caps.
 This late-game saving is under a millisecond on the tested batch.
 The bounded GPU search uses neither the CPU solver's transposition tables
 nor its move ordering. The probe remains outside the interactive path.
+
+## Reproduce the teacher comparison
+
+Use a clean disposable checkout of this branch and a fresh output directory.
+The standalone measurement patch selects Experimental for every seat and
+records its final option values. Both teachers use 24 samples.
+
+```sh
+bench=$(mktemp -d)
+cargo build --locked --release -p nn-train
+cp target/release/nn-train "$bench/strong"
+git apply crates/skat-analysis/experiments/strong-gpu/dataset-teacher.patch
+cargo build --locked --release -p nn-train
+cp target/release/nn-train "$bench/experimental"
+git apply -R crates/skat-analysis/experiments/strong-gpu/dataset-teacher.patch
+
+for teacher in strong experimental; do
+    "$bench/$teacher" generate "$bench/$teacher-fixed" --deals 100 --shard-deals 10 \
+        --minutes 30 --seed 0 --cpus 20 --workers 4 --max-mb 1024
+    "$bench/$teacher" verify "$bench/$teacher-fixed"
+done
+for teacher in experimental strong; do
+    "$bench/$teacher" generate "$bench/$teacher-timed" --deals 10000 --shard-deals 1 \
+        --minutes 10 --seed 0 --cpus 20 --workers 4 --max-mb 1024
+    "$bench/$teacher" verify "$bench/$teacher-timed"
+done
+```
+
+See [training-data throughput](../../../../docs/ai.md#experimental-teacher-throughput)
+for results.

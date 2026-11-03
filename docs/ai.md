@@ -79,7 +79,7 @@ can show a provisional result after 200 ms during card play.
 
 The [latency measurements and GPU threshold probe](../crates/skat-analysis/experiments/strong-gpu/README.md#decision-latency)
 give the sample counts and measured limits. The calibration tool accepts
-`experimental` as a side for a future paired comparison with Strong.
+`experimental` as a side. See the [paired result](#experimental-versus-strong).
 
 ## Rookie
 
@@ -248,6 +248,27 @@ Reproduce:
 cargo run --locked --release -p skat-ai --example calibrate -- validation easy medium 200 10 0
 cargo run --locked --release -p skat-ai --example calibrate -- validation medium strong 200 10 0
 cargo run --locked --release -p skat-ai --example calibrate -- validation easy strong 100 10 0
+```
+
+### Experimental versus Strong
+
+On 2026-11-03, commit `65132f6`, both opponents used 24 samples and
+100,000,000 nodes per task. The release calibration ran 200 validation
+deals (12,000–12,199), six seatings per deal, with Kontra/Re on. All
+1,200 games had a declarer. With ten deals in parallel the run took
+34 min 29 s.
+
+| Pair | Deals | Difference per seat-game | Std. error | 95% interval | Verdict |
+|---|---:|---:|---:|---:|---|
+| Experimental − Strong | 200 | +1.83 | 1.92 | [−1.94, +5.59] | inconclusive |
+
+| Opponent | Points/seat-game | Declarer games | Declarer won | Points/declarer game | Defender games | Defenders won | Points/defender game |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Experimental | 28.51 | 600 | 74.2% | 64.1 | 1,200 | 26.8% | 10.7 |
+| Strong | 26.69 | 600 | 72.7% | 59.0 | 1,200 | 26.3% | 10.5 |
+
+```sh
+cargo run --locked --release -p skat-ai --example calibrate -- validation experimental strong 200 10 12000
 ```
 
 ## Latency
@@ -426,6 +447,31 @@ thumb). Strong said Kontra in all 60 decisions that offered it and Re in
 20 of 60: Kontra does not change a defender's Seeger-Fabian points, so
 its option values tie and the teacher's Kontra choices carry little
 signal for training.
+
+### Experimental teacher throughput
+
+On 2026-11-03 the release generator ran sequentially on an i9-10900K
+with seed 0, four game workers and five analysis threads per worker.
+Each seat used the same teacher and 24 samples. Experimental used the
+CPU search bound. Times include generation and shard writes. The
+ten-minute cap lets games already in progress finish.
+
+| Workload | Strong | Experimental | Throughput gain |
+|---|---:|---:|---:|
+| Same 100 deals, ten deals/shard | 3 min 27.2 s | 3 min 08.4 s | +10.0% |
+| Ten-minute cap, one deal/shard | 319 deals in 604.6 s | 340 deals in 607.2 s | +6.1% |
+| Deals/hour at the ten-minute rate | 1,899 | 2,016 | |
+| Projected time for 10,000 deals at that rate | 5 h 16 min | 4 h 58 min | |
+
+All four datasets passed verification for their completed shards. The
+fixed runs produced 4,152 byte-identical records each. The timed runs
+produced 13,541 and 14,431 records respectively. Of their 319 common
+deals, 318 matched byte for byte. On deal 239 Strong exhausted its node
+budget on the opening lead. Experimental completed the search on the
+same view and chose a different card. Across the timed runs Strong
+exhausted the budget on three decisions and Experimental on two.
+Each timing is a single run.
+See the [measurement patch and commands](../crates/skat-analysis/experiments/strong-gpu/README.md#reproduce-the-teacher-comparison).
 
 ## Card-play network
 
