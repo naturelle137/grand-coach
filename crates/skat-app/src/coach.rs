@@ -116,14 +116,41 @@ pub struct CoachJob {
     budget: Budget,
     seed: u64,
     review: bool,
+    experimental: bool,
 }
 
 impl CoachJob {
     /// Analyses and explains the decision. `cancel` stops the analysis; a
     /// cancelled result is never presented as advice.
     pub fn run(&self, cancel: Option<&Cancel>) -> CoachResult {
+        self.run_with_preview(cancel, |_| {})
+    }
+
+    /// Reports progress at 200 ms and, if that snapshot was empty, again at the
+    /// first completed world. Only the return value is final.
+    pub fn run_with_preview(
+        &self,
+        cancel: Option<&Cancel>,
+        mut publish: impl FnMut(CoachResult),
+    ) -> CoachResult {
+        let wrap = |e: Explanation| CoachResult {
+            key: self.key,
+            budget: self.budget,
+            seed: self.seed,
+            outcome: Ok(Box::new(e)),
+        };
         let explanation = match &self.all {
             Some(all) => advise_known(&self.view, all, self.budget, cancel),
+            None if self.experimental => {
+                let mut send = |e| publish(wrap(e));
+                skat_coach::advise_experimental(
+                    &self.view,
+                    self.budget,
+                    self.seed,
+                    cancel,
+                    if self.review { None } else { Some(&mut send) },
+                )
+            }
             None => advise(&self.view, self.budget, self.seed, cancel),
         };
         let outcome = match explanation {
@@ -178,6 +205,12 @@ pub struct CoachResult {
 }
 
 impl CoachResult {
+    /// Snapshot of ongoing work. Never resolves a warning or a review.
+    pub fn is_preview(&self) -> bool {
+        self.explanation()
+            .is_some_and(|e| e.status == Status::InProgress)
+    }
+
     /// `true` if the analysis was cancelled or failed.
     pub fn is_unavailable(&self) -> bool {
         self.outcome.is_err()
@@ -344,12 +377,14 @@ pub(crate) struct Reviewed {
 /// Coach state of a session.
 #[derive(Clone, Debug)]
 pub(crate) struct CoachState {
+    experimental: bool,
     pub(crate) settings: CoachSettings,
     pub(crate) budget: Budget,
     /// The coach's own seed, from a separate stream of the series seed.
     pub(crate) seed: u64,
     /// The last result, for its decision only.
     pub(crate) cache: Option<CoachResult>,
+    preview: Option<CoachResult>,
     /// The decision the human asked about, and the stage asked for.
     pub(crate) requested: Option<(DecisionKey, Stage)>,
     /// The decision whose advice the human put away.
@@ -368,12 +403,14 @@ pub(crate) struct CoachState {
 }
 
 impl CoachState {
-    pub(crate) fn new(seed: u64) -> CoachState {
+    pub(crate) fn new(seed: u64, experimental: bool) -> CoachState {
         CoachState {
+            experimental,
             settings: CoachSettings::default(),
             budget: Budget::INTERACTIVE,
             seed,
             cache: None,
+            preview: None,
             requested: None,
             skipped: None,
             pending: None,
@@ -395,6 +432,7 @@ impl CoachState {
     /// Forgets everything tied to a decision (after any action).
     pub(crate) fn decision_changed(&mut self) {
         self.cache = None;
+        self.preview = None;
         self.requested = None;
         self.skipped = None;
         self.pending = None;
@@ -616,11 +654,20 @@ impl CoachState {
         CoachJob {
             key,
             seed: decision_seed(base, &view),
+            experimental: self.experimental && view.phase == skat_core::Phase::Spiel,
             view: Box::new(view),
             all: all.map(Box::new),
             budget: self.budget,
             review: false,
         }
+    }
+
+    pub(crate) fn accept_preview(&mut self, key: DecisionKey, result: CoachResult) -> bool {
+        if result.key != key || result.budget != self.budget || self.result(key).is_some() {
+            return false;
+        }
+        self.preview = Some(result);
+        true
     }
 
     /// Accepts `result` if it belongs to `key` and the current budget.
@@ -665,7 +712,14 @@ impl CoachState {
                 Advice::NoLesson
             }
             None => Advice::None,
-            Some(stage) => match result.map(|r| &r.outcome) {
+            Some(stage) => match result
+                .or_else(|| {
+                    self.preview
+                        .as_ref()
+                        .filter(|r| r.key == key && r.budget == self.budget)
+                })
+                .map(|r| &r.outcome)
+            {
                 None => Advice::Computing,
                 Some(Ok(e)) if e.complete() => Advice::Ready(Box::new(hints_for(e, stage, focus))),
                 Some(Ok(e)) => Advice::Provisional(Box::new(hints_for(e, stage, focus))),
@@ -686,5 +740,42 @@ impl CoachState {
             return None;
         }
         self.explanation(key)?.warning(action)
+    }
+}
+
+#[cfg(test)]
+mod preview_tests {
+    use super::*;
+    use crate::{Command, Session, SessionConfig};
+
+    #[test]
+    fn preview_cannot_finish_a_warning_or_replace_a_final_result() {
+        let mut session = Session::new(SessionConfig::default());
+        session.run_opponents();
+        session.set_coach_budget(Budget {
+            samples: 2,
+            nodes_per_task: 20,
+        });
+        session
+            .execute(Command::SetCoach(CoachSettings {
+                warnings: true,
+                ..CoachSettings::default()
+            }))
+            .unwrap();
+        session.execute(Command::RequestAdvice).unwrap();
+        let job = session.coach_job().unwrap();
+        let action = session.view().legal_actions[0];
+        session.execute(Command::Act(action)).unwrap();
+        let result = job.run(None);
+        let mut preview = result.clone();
+        preview.outcome.as_mut().unwrap().status = Status::InProgress;
+        session.finish_coach(preview.clone()).unwrap();
+        let view = session.view().coach;
+        assert!(matches!(view.advice, Advice::Provisional(_)));
+        assert!(matches!(view.pending, Some(Pending::Checking { .. })));
+        assert!(session.coach_result().is_none());
+        assert!(session.coach_job().unwrap().same_decision(&job));
+        session.finish_coach(result).unwrap();
+        assert!(session.finish_coach(preview).is_err());
     }
 }

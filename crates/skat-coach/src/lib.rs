@@ -1190,6 +1190,32 @@ pub fn advise(
     explain(view, &analysis)
 }
 
+/// Fair experimental search, with an optional provisional explanation.
+pub fn advise_experimental(
+    view: &PlayerView,
+    budget: Budget,
+    seed: u64,
+    cancel: Option<&Cancel>,
+    preview: Option<&mut dyn FnMut(Explanation)>,
+) -> Option<Explanation> {
+    let analysis = match preview {
+        Some(send) => skat_analysis::analyze_experimental(
+            view,
+            budget,
+            seed,
+            cancel,
+            Some(&mut |a| {
+                if let Some(e) = explain(view, a) {
+                    send(e);
+                }
+            }),
+        ),
+        None => skat_analysis::analyze_experimental(view, budget, seed, cancel, None),
+    }
+    .ok()?;
+    explain(view, &analysis)
+}
+
 /// Like [`advise`], but every option is evaluated in the real deal
 /// `all`, exactly, as Mephisto does: the all-seeing coach of God Mode
 /// (D-62). Only for uses allowed to see every card. The explanation keeps

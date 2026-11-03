@@ -116,6 +116,45 @@ fn main() {
     println!();
     println!("| Level | Decision | Median | p90 | Max | Incomplete |");
     println!("|---|---|---|---|---|---|");
+    if std::env::args().nth(2).as_deref() == Some("experimental") {
+        let samples = std::env::args()
+            .nth(3)
+            .map_or(24, |n| n.parse().expect("sample count"));
+        for k in [4, 5] {
+            for (index, game) in positions[k].iter().enumerate() {
+                let view = game.view(game.current_seat().unwrap());
+                let (mut budget, seed) = Opponent::new(Level::Strong, 1)
+                    .analysis_input(&view)
+                    .unwrap();
+                budget.samples = samples;
+                let start = Instant::now();
+                let reference = skat_analysis::analyze(&view, budget, seed, None).unwrap();
+                let cpu = start.elapsed().as_secs_f64();
+                let start = Instant::now();
+                let mut snapshot = None;
+                let result = skat_analysis::analyze_experimental(
+                    &view,
+                    budget,
+                    seed,
+                    None,
+                    Some(&mut |a| {
+                        snapshot.get_or_insert((start.elapsed().as_millis(), a.effort.finished));
+                    }),
+                )
+                .unwrap();
+                let experimental = start.elapsed().as_secs_f64();
+                println!(
+                    "trial {k} {index} {samples} {cpu:.6} {experimental:.6} {} {} {} {} {} {snapshot:?}",
+                    reference.effort.nodes,
+                    result.effort.nodes,
+                    result.effort.finished,
+                    reference.options == result.options,
+                    reference.status == result.status
+                );
+            }
+        }
+        return;
+    }
     let mut players: Vec<(String, Measured)> = Level::ALL
         .map(|level| {
             (
