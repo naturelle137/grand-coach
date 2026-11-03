@@ -134,8 +134,9 @@ cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan  # on
 cargo run --locked --release -p nn-train -- generate DIR --deals 100  # Strong self-play data (#70)
 cargo run --locked --release -p nn-train -- verify DIR  # replay and check a training-data run
 cargo run --locked --release -p skat-ai --example latency -- 30 strong  # early Strong decisions
-cargo run --locked --release -p nn-train -- train OUT DIR... --hidden 512  # card-play network (#73)
+cargo run --locked --release -p nn-train -- train OUT DIR... --hidden 512  # card-play network (#73); --belief-weight X
 cargo run --locked --release -p nn-train -- evaluate MODEL DIR...  # metrics per split
+cargo run --locked --release -p nn-train -- probe MODEL DIR... --belief FILE  # intra-game dependencies
 cargo run --locked --release -p nn-train -- rl OUT --minutes 720  # self-play refinement (#75)
 ```
 

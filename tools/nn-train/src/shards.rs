@@ -228,27 +228,44 @@ pub struct Verified {
     pub records: u64,
 }
 
+/// Replays deal `deal` of the run with the actions of `rows` (its records,
+/// in order) and calls `visit` with each record and the game in the state
+/// the record was decided in. Returns the finished game. Fails when the
+/// records do not fit the game: an extra decision, an illegal action, or
+/// an error returned by `visit`.
+pub fn replay_deal(
+    manifest: &Manifest,
+    deal: u64,
+    rows: &[DecisionRecord],
+    mut visit: impl FnMut(&DecisionRecord, &Game) -> Result<(), String>,
+) -> Result<Game, String> {
+    let mut game = Game::new(RunSeed(manifest.seed).deal_seed(deal), manifest.rules);
+    for r in rows {
+        if game.current_seat().is_none() {
+            return Err(format!("extra decision in deal {deal}"));
+        }
+        visit(r, &game)?;
+        game.apply(r.action)
+            .map_err(|e| format!("deal {deal}: {e:?}"))?;
+    }
+    Ok(game)
+}
+
 /// Replays each complete deal, so even a checksum-valid shard cannot omit
 /// a forced move, a thrown-in game, or the final decision of a seat.
 fn check_games(manifest: &Manifest, shard: u64, records: &[DecisionRecord]) -> Result<(), String> {
     let mut rest = records;
     for deal in manifest.shard_range(shard) {
-        let seed = RunSeed(manifest.seed).deal_seed(deal);
-        let split = crate::selfplay::Split::of(seed);
-        let mut game = Game::new(seed, manifest.rules);
+        let split = crate::selfplay::Split::of(RunSeed(manifest.seed).deal_seed(deal));
         let len = rest.iter().take_while(|r| r.deal == deal).count();
         let (rows, next) = rest.split_at(len);
-        for r in rows {
-            let seat = game
-                .current_seat()
-                .ok_or_else(|| format!("extra decision in deal {deal}"))?;
+        let game = replay_deal(manifest, deal, rows, |r, game| {
+            let seat = game.current_seat().expect("checked by replay_deal");
             if r.deal != deal || r.split != split || r.view != game.view(seat) {
                 return Err(format!("decision differs from replay in deal {deal}"));
             }
-            crate::selfplay::check_record(r)?;
-            game.apply(r.action)
-                .map_err(|e| format!("deal {deal}: {e:?}"))?;
-        }
+            crate::selfplay::check_record(r)
+        })?;
         if game.current_seat().is_some() {
             return Err(format!("missing decision in deal {deal}"));
         }

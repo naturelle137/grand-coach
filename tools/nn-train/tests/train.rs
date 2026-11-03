@@ -259,3 +259,92 @@ fn deeper_networks_train_and_recipes_of_two_layers_read_as_before() {
     json.as_object_mut().unwrap().remove("layers");
     assert_eq!(serde_json::from_value::<Hyper>(json).unwrap(), two);
 }
+
+#[test]
+fn belief_targets_locate_every_hidden_card() {
+    use nn_train::shards::{read_manifest, replay_deal};
+    use nn_train::train::{NOT_HIDDEN, belief_target, belief_targets};
+    let dir = fixture();
+    let manifest = read_manifest(&dir).unwrap();
+    let records = read_shard(&dir, 0).unwrap();
+    let targets = belief_targets(&manifest, &records).unwrap();
+    assert_eq!(targets.len(), records.len());
+    let mut checked = 0;
+    replay_deal(&manifest, records[0].deal, &records, |r, game| {
+        let all = game.omniscient_view();
+        let target = belief_target(&r.view, &all);
+        let hidden = skat_nn::unseen_cards(&r.view);
+        for card in skat_core::CardSet::ALL {
+            let place = target[usize::from(card.index())];
+            if !hidden.contains(card) {
+                assert_eq!(place, NOT_HIDDEN);
+                continue;
+            }
+            // Relative seats 1 and 2 map to places 0 and 1, the Skat to 2.
+            let holder = match place {
+                2 => all.skat,
+                p => all.hands[(r.view.seat.index() + usize::from(p) + 1) % 3],
+            };
+            assert!(holder.contains(card), "{card:?} in deal {}", r.deal);
+            checked += 1;
+        }
+        Ok(())
+    })
+    .unwrap();
+    assert!(checked > 100);
+}
+
+#[test]
+fn a_belief_head_trains_resumes_and_stays_out_of_the_model_file() {
+    let h = Hyper {
+        belief_weight: 0.5,
+        epochs: 3,
+        ..hyper()
+    };
+    let (recipe, data) = recipe(&h);
+    assert_eq!(data.train.belief.len(), 32 * data.train.rows());
+    let go = |dir: &Path, stop_after: Option<usize>| {
+        train(
+            dir,
+            &recipe,
+            &data,
+            &Device::flex().autodiff(),
+            NO_CAP,
+            |log| Some(log.epoch) != stop_after,
+        )
+        .unwrap()
+    };
+    let a = go(&scratch("belief-a"), None);
+    // The fixture's two deals are both training deals: measure there.
+    use nn_train::train::{evaluate_with, initial, initial_belief, read_model};
+    let (net, head) = read_model(&a.model, a.belief.as_deref()).unwrap();
+    let trained = evaluate_with(&net, head.as_ref(), &data.train, &h);
+    let shape = skat_nn::NetShape::current(16);
+    let start = evaluate_with(
+        &initial(shape, h.seed),
+        Some(&initial_belief(16, h.seed, &Device::flex())),
+        &data.train,
+        &h,
+    );
+    assert!(start.belief_bits > 0.0 && trained.belief_bits > 0.0);
+    assert!(
+        trained.belief_bits < start.belief_bits,
+        "{start:?} {trained:?}"
+    );
+    // Without a head no belief is reported.
+    assert_eq!(evaluate_with(&net, None, &data.train, &h).belief_bits, 0.0);
+    let dir = scratch("belief-resumed");
+    go(&dir, Some(1));
+    let resumed = go(&dir, None);
+    assert_eq!(resumed.model, a.model);
+    assert_eq!(resumed.belief, a.belief);
+
+    // The model file is a plain network of the usual shape.
+    let model = NeuralModel::load(&a.model, &sha256(&a.model)).unwrap();
+    assert_eq!(model.header().shape.hidden, 16);
+
+    // Without the weight nothing changes in the recipe.
+    let json = serde_json::to_value(hyper()).unwrap();
+    assert!(json.get("belief_weight").is_none());
+    assert_eq!(serde_json::to_value(&h).unwrap()["belief_weight"], 0.5);
+}

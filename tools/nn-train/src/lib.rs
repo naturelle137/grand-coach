@@ -7,6 +7,7 @@
 //! from game outcomes ([`rl`]), issue #75. The binary `nn-train` drives
 //! them.
 
+pub mod probe;
 pub mod rl;
 pub mod selfplay;
 pub mod shards;

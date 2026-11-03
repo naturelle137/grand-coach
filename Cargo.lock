@@ -5074,6 +5074,7 @@ dependencies = [
  "burn",
  "bytemuck",
  "pollster",
+ "rand_chacha 0.10.0",
  "serde",
  "serde_json",
  "skat-ai",
