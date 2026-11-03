@@ -90,3 +90,88 @@ Changing pruning or table reuse can change which distributions finish
 within the budget. Batching independent games supplies more worlds without
 removing that porting work. The measured sampler therefore stays an
 experiment outside the regular build.
+
+## Decision latency
+
+On the same machine, one interactive analysis at a time used the first
+30 positions in each early-play and Kontra/Re class from the existing
+`skat-ai` latency benchmark. Both searches saw exactly the same worlds,
+node budget and legal options. The reference uses the original solver.
+The experimental column includes the coordinator that publishes live
+analysis snapshots. Times are seconds, measured from the permitted view
+to all final option estimates, before UI rendering.
+
+| Decision | Worlds | CPU median / p90 | Experimental median / p90 | Experimental max |
+|---|---:|---:|---:|---:|
+| First trick | 6 | 0.249 / 1.159 | 0.245 / 1.052 | 4.036 |
+| First trick | 24 | 0.742 / 2.242 | 0.709 / 1.932 | 5.578 |
+| Kontra/Re | 6 | 0.128 / 0.507 | 0.122 / 0.401 | 1.793 |
+| Kontra/Re | 24 | 0.309 / 2.483 | 0.301 / 2.357 | 3.355 |
+
+All 120 comparisons matched in final option estimates and status. At 24
+samples the new bound reduced searched nodes by 8.5% in the first trick
+and 4.9% for Kontra/Re. Of the 60 decisions at this budget, 42 needed a
+preview. All 42 callbacks arrived at 200 ms (whole milliseconds), with
+1–23 fully evaluated worlds. The others finished before the deadline.
+
+For larger budgets only the first position of each class was used. These
+measurements describe individual positions and do not estimate p90.
+
+```sh
+cargo run --locked --release -p skat-ai --example latency -- 30 experimental 6
+cargo run --locked --release -p skat-ai --example latency -- 30 experimental 24
+cargo run --locked --release -p skat-ai --example latency -- 1 experimental 240
+cargo run --locked --release -p skat-ai --example latency -- 1 experimental 2400
+```
+
+| Decision | Worlds | CPU | Experimental | Complete worlds at 200 ms |
+|---|---:|---:|---:|---:|
+| First trick | 240 | 11.85 s | 11.03 s | 1 |
+| First trick | 2,400 | 118.11 s | 117.22 s | 1 |
+| Kontra/Re | 240 | 0.37 s | 0.35 s | 167 |
+| Kontra/Re | 2,400 | 3.70 s | 2.95 s | 150 |
+
+All four final option vectors and statuses matched. The 2,400-world
+first-trick example still searched 7.99 billion nodes with the bound.
+The one-second p90 goal was missed even at 24 worlds. A playing-strength
+validation run was therefore deferred.
+
+## GPU threshold probe
+
+In a disposable checkout with `enable.patch` applied, run:
+
+```sh
+cargo run --locked --release -p skat-analysis --example threshold_probe \
+  --features serde,gpu-sampling-bench
+```
+
+The probe asks whether the declarer can force at least 61 Augen after a
+legal card play. It draws hidden cards from the acting player's view in
+the checked-in Kreuz fixture at tricks 1, 4 and 8. It cycles through the
+legal cards and samples with replacement to hold the batch sizes fixed.
+A GPU invocation runs Boolean minimax on one position using an explicit
+search stack. The kernel reports unresolved when it reaches its work cap.
+Every conclusive answer is checked against the CPU threshold solver.
+The hybrid timing includes packing, transfers, dispatch, readback and
+the original CPU search for unresolved queries. The CPU-only column uses
+the same positions and thread budget. These timings cover one threshold
+per position. A full Strong decision needs all its options and additional
+thresholds or trick objectives.
+
+| Trick | Batch | GPU cap | Proved on GPU | CPU only | Hybrid |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 24 | 8,192 | 0 | 230.86 ms | 255.68 ms |
+| 1 | 240 | 8,192 | 0 | 1,229.94 ms | 1,271.13 ms |
+| 1 | 2,400 | 8,192 | 0 | 11,581.88 ms | 12,085.96 ms |
+| 4 | 24 | 8,192 | 16 | 1.21 ms | 18.34 ms |
+| 4 | 240 | 8,192 | 172 | 3.75 ms | 36.47 ms |
+| 4 | 2,400 | 8,192 | 1,685 | 27.02 ms | 51.51 ms |
+| 8 | 24 | 8,192 | 24 | 0.28 ms | 0.42 ms |
+| 8 | 240 | 8,192 | 240 | 0.67 ms | 0.37 ms |
+| 8 | 2,400 | 8,192 | 2,400 | 1.01 ms | 0.65 ms |
+
+At the smaller cap of 512 transitions, the opening still had zero GPU
+proofs. In the eighth trick every query finished on the GPU at both caps.
+This late-game saving is under a millisecond on the tested batch.
+The bounded GPU search uses neither the CPU solver's transposition tables
+nor its move ordering. The probe remains outside the interactive path.

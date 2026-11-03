@@ -34,7 +34,7 @@ mod trick;
 
 pub use analysis::{
     Analysis, Assumption, CardClass, Effort, Estimate, Inference, Observation, OptionValue, Status,
-    analyze, analyze_forgetful, analyze_known, utility,
+    analyze, analyze_experimental, analyze_forgetful, analyze_known, utility,
 };
 pub use budget::{Budget, Cancel, Interrupted, Meter, max_threads, with_max_threads};
 pub use knowledge::{Knowledge, TrumpfSets};

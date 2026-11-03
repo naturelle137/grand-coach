@@ -66,6 +66,21 @@ not.
 - No level forgets observed history: every analysed decision uses the full
   view, as `skat-analysis` does.
 
+### Experimental opponents
+
+Select **Experimental** in the new-series dialog to play against two
+permitted-view opponents with Strong's bidding, declaring, sampling,
+selection and node budget. The temporary mode starts at 24 worlds.
+In suit and Grand play the CPU solver tightens its existing cashing
+bound. For every guaranteed declarer trick each defender must contribute
+a card, so the cheapest possible such cards from both hands give a safe
+additional lower bound on Augen. The live coach uses this bound too and
+can show a provisional result after 200 ms during card play.
+
+The [latency measurements and GPU threshold probe](../crates/skat-analysis/experiments/strong-gpu/README.md#decision-latency)
+give the sample counts and measured limits. The calibration tool accepts
+`experimental` as a side for a future paired comparison with Strong.
+
 ## Rookie
 
 `Level::Rookie` is Easy plus seeded mistakes (`Mistakes`,

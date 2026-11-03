@@ -28,7 +28,7 @@ index 9ad5c33..5ff7fd1 100644
  serde = ["dep:serde", "skat-core/serde"]
 
  [dependencies]
-@@ -22,3 +23,22 @@ serde_json.workspace = true
+@@ -22,3 +23,27 @@ serde_json.workspace = true
 
  [lints]
  workspace = true
@@ -50,6 +50,11 @@ index 9ad5c33..5ff7fd1 100644
 +[[example]]
 +name = "gpu_samples"
 +path = "experiments/strong-gpu/gpu_samples.rs"
++required-features = ["gpu-sampling-bench", "serde"]
++
++[[example]]
++name = "threshold_probe"
++path = "experiments/strong-gpu/threshold_probe.rs"
 +required-features = ["gpu-sampling-bench", "serde"]
 diff --git a/crates/skat-analysis/src/analysis.rs b/crates/skat-analysis/src/analysis.rs
 index 7ac24dc..1b94de5 100644

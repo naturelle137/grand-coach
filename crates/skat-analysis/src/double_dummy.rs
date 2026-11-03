@@ -314,6 +314,28 @@ fn fast_augen(cards: CardSet) -> u8 {
     11 * count(Ass) + 10 * count(Zehn) + 4 * count(Koenig) + 3 * count(Dame) + 2 * count(Bube)
 }
 
+/// Minimum Augen contributed by any n cards of a hand.
+fn cheapest_points(hand: CardSet, n: usize) -> u8 {
+    let bits = hand.bits();
+    let mut needed = n.saturating_sub((bits & 0x07070707).count_ones() as usize);
+    let mut points = 0;
+    for rank in [
+        skat_core::Rank::Bube,
+        skat_core::Rank::Dame,
+        skat_core::Rank::Koenig,
+        skat_core::Rank::Zehn,
+        skat_core::Rank::Ass,
+    ] {
+        if needed == 0 {
+            break;
+        }
+        let take = needed.min((bits & (0x01010101 << rank.index())).count_ones() as usize);
+        points += take as u8 * rank.augen();
+        needed -= take;
+    }
+    points
+}
+
 /// Moves of one seat (at most twelve cards) without allocation.
 struct Moves {
     cards: [Card; 12],
@@ -385,6 +407,7 @@ enum Goal {
 /// positions (also of different deals): its tables are keyed by the full
 /// card distribution.
 pub struct Solver {
+    extra_bound: bool,
     game: GameType,
     declarer: Seat,
     /// Follow class (0–3 side suits, 4 Trumpf) of every card index.
@@ -428,6 +451,7 @@ impl Solver {
         }
         let class_cards = order.clone().map(|cards| cards.into_iter().collect());
         Solver {
+            extra_bound: false,
             game,
             declarer,
             class,
@@ -437,6 +461,12 @@ impl Solver {
             no_trick: Table::default(),
             all_tricks: Table::default(),
         }
+    }
+
+    /// Enables the experimental lower bound on the defenders' contribution.
+    pub fn with_discard_bound(mut self) -> Self {
+        self.extra_bound = true;
+        self
     }
 
     /// Solves `pos` (which must match the solver's game and declarer and
@@ -499,6 +529,21 @@ impl Solver {
             augen: Some(class),
             tricks,
         })
+    }
+
+    /// Whether a suit or Grand declarer can force the given final Augen total.
+    /// The position must match this solver, as for [`Solver::solve`].
+    pub fn reaches_augen(
+        &mut self,
+        pos: &Position,
+        target: u8,
+        meter: &mut Meter,
+    ) -> Result<bool, Interrupted> {
+        assert!(
+            self.game != GameType::Null && pos.game == self.game && pos.declarer == self.declarer
+        );
+        let mut p = *pos;
+        self.reaches(&mut p, pos.declarer_augen + pos.skat.augen(), target, meter)
     }
 
     /// Exact final Augen of the declarer (with the Skat) under perfect play
@@ -625,6 +670,15 @@ impl Solver {
             let (tricks, augen) = self.sure_tricks(pos);
             if tricks == pos.hands[self.declarer.index()].len() {
                 return Ok(remaining);
+            }
+            // Each guaranteed trick also consumes one card from each defender.
+            let mut augen = augen;
+            if self.extra_bound && tricks > 0 && augen < beta {
+                for seat in Seat::ALL {
+                    if seat != self.declarer {
+                        augen += cheapest_points(pos.hands[seat.index()], tricks);
+                    }
+                }
             }
             if augen >= beta {
                 return Ok(augen);

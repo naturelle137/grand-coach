@@ -981,7 +981,18 @@ pub fn hints(i18n: &I18n, view: &TableView, h: &Hints, figures: bool) -> Vec<Lin
         ),
         line(objective(i18n, h.role, h.objective), Style::Normal),
     ];
-    if !complete {
+    if h.status == skat_app::coach_model::Status::InProgress {
+        out.push(line(
+            i18n.tf(
+                "coach-preview-live",
+                &[
+                    ("finished", h.basis.finished.into()),
+                    ("total", h.basis.planned.into()),
+                ],
+            ),
+            Style::Strong,
+        ));
+    } else if !complete {
         out.push(line(i18n.t("coach-provisional"), Style::Strong));
     }
     if let Some(l) = &h.lesson {

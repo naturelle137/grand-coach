@@ -454,9 +454,24 @@ fn small_positions_match_exhaustive_minimax() {
         }
         assert_eq!(p.check(), Ok(()));
         let v = solver.solve(&p, &mut Meter::unlimited()).unwrap();
+        let mut experimental = Solver::new(game, declarer).with_discard_bound();
+        assert_eq!(
+            experimental.solve(&p, &mut Meter::unlimited()).unwrap(),
+            v,
+            "seed {seed}"
+        );
         if game != GameType::Null {
             let augen = reference_augen(&p);
             assert_eq!(v.augen, Some(AugenClass::of(augen)), "seed {seed}");
+            for threshold in [31, 61, 90] {
+                assert_eq!(
+                    experimental
+                        .reaches_augen(&p, threshold, &mut Meter::unlimited())
+                        .unwrap(),
+                    augen >= threshold,
+                    "seed {seed}, threshold {threshold}"
+                );
+            }
             let exact = solver.exact_augen(&p, &mut Meter::unlimited()).unwrap();
             assert_eq!(exact, augen, "seed {seed}");
         }

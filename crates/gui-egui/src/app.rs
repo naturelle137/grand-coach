@@ -70,6 +70,7 @@ enum Mode {
     Mephisto,
     God,
     Neural,
+    Experimental,
 }
 
 /// An opponent decision computed on a background thread. Dropping it
@@ -320,7 +321,11 @@ impl GrandCoachApp {
             let run = job.clone();
             std::thread::spawn(move || {
                 // The receiver is gone if the analysis was dropped.
-                let _ = sender.send(run.run(Some(&stop)));
+                let final_result = run.run_with_preview(Some(&stop), |preview| {
+                    let _ = sender.send(preview);
+                    repaint.request_repaint();
+                });
+                let _ = sender.send(final_result);
                 repaint.request_repaint();
             });
             self.coach_thinking = Some(CoachThinking {
@@ -332,7 +337,11 @@ impl GrandCoachApp {
         if let Some(thinking) = &self.coach_thinking {
             match thinking.result.try_recv() {
                 Ok(result) => {
-                    self.coach_thinking = None;
+                    if !result.is_preview() {
+                        self.coach_thinking = None;
+                    } else {
+                        ctx.request_repaint();
+                    }
                     match self.session.finish_coach(result) {
                         Ok(events) => self.handle(Ok(events), now),
                         // Computed for an earlier decision: ignore it.
@@ -633,6 +642,7 @@ impl GrandCoachApp {
                 Opponents::Goldfish => Mode::Goldfish,
                 Opponents::Mephisto => Mode::Mephisto,
                 Opponents::GodMode => Mode::God,
+                Opponents::Experimental => Mode::Experimental,
                 Opponents::Neural => Mode::Neural,
             },
             levels: match config.opponents {
@@ -711,6 +721,10 @@ impl GrandCoachApp {
                     i.tf("status-opponents", &[("mode", i.t("mode-mephisto").into())])
                 }
                 Opponents::GodMode => i.tf("status-opponents", &[("mode", i.t("mode-god").into())]),
+                Opponents::Experimental => i.tf(
+                    "status-opponents",
+                    &[("mode", i.t("mode-experimental").into())],
+                ),
                 Opponents::Neural => {
                     i.tf("status-opponents", &[("mode", i.t("mode-neural").into())])
                 }
@@ -1309,6 +1323,11 @@ impl GrandCoachApp {
                 ui.radio_value(&mut draft.mode, Mode::Mephisto, self.t("mode-mephisto"));
                 ui.radio_value(&mut draft.mode, Mode::God, self.t("mode-god"))
                     .on_hover_text(self.t("mode-god-description"));
+                ui.radio_value(
+                    &mut draft.mode,
+                    Mode::Experimental,
+                    self.t("mode-experimental"),
+                );
                 ui.radio_value(&mut draft.mode, Mode::Neural, self.t("mode-neural"))
                     .on_hover_text(self.t("mode-neural-description"));
                 let mut notes = Vec::new();
@@ -1322,6 +1341,7 @@ impl GrandCoachApp {
                     Mode::Goldfish => notes.push("mode-goldfish-description"),
                     Mode::Mephisto => {}
                     Mode::God => notes.push("mode-god-description"),
+                    Mode::Experimental => notes.push("mode-experimental-description"),
                     Mode::Neural => {
                         notes.push("mode-neural-description");
                         if !skat_app::neural_model_available() {
@@ -1371,6 +1391,7 @@ impl GrandCoachApp {
                     Mode::Goldfish => Opponents::Goldfish,
                     Mode::Mephisto => Opponents::Mephisto,
                     Mode::God => Opponents::GodMode,
+                    Mode::Experimental => Opponents::Experimental,
                     Mode::Neural => Opponents::Neural,
                 },
             });

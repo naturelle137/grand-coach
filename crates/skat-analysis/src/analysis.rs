@@ -74,6 +74,8 @@ pub enum Status {
     Cancelled,
     /// It is not this seat's turn: nothing to evaluate.
     NoDecision,
+    /// Display-only snapshot while the search continues.
+    InProgress,
 }
 
 /// One legal action and its value.
@@ -307,8 +309,21 @@ pub fn analyze_known(
     analyze_with(view, budget, 0, cancel, Worlds::Known(world))
 }
 
+/// Experimental exact bound and optional display-only snapshot at 200 ms.
+/// A callback never changes the final work budget or sampling order.
+pub fn analyze_experimental(
+    view: &PlayerView,
+    budget: Budget,
+    seed: u64,
+    cancel: Option<&Cancel>,
+    preview: Option<&mut dyn FnMut(&Analysis)>,
+) -> Result<Analysis, Vec<Diagnostic>> {
+    analyze_with(view, budget, seed, cancel, Worlds::Experimental(preview))
+}
+
 /// Where the distributions of an analysis come from.
-enum Worlds {
+enum Worlds<'a> {
+    Experimental(Option<&'a mut dyn FnMut(&Analysis)>),
     /// Sampled (or enumerated) from the seat's information set.
     Sampled,
     /// Sampled, then forgotten cards swapped in.
@@ -322,10 +337,12 @@ fn analyze_with(
     budget: Budget,
     seed: u64,
     cancel: Option<&Cancel>,
-    source: Worlds,
+    mut source: Worlds<'_>,
 ) -> Result<Analysis, Vec<Diagnostic>> {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(200);
     let hidden = HiddenCards::from_view(view)?;
-    let ctx = Context::new(view)?;
+    let mut ctx = Context::new(view)?;
+    ctx.experimental = matches!(source, Worlds::Experimental(_));
     let observations = observations(view);
     let known = matches!(source, Worlds::Known(_));
     let assumptions = assumptions(view.phase, known);
@@ -360,7 +377,7 @@ fn analyze_with(
             }
             (vec![world], true)
         }
-        Worlds::Sampled | Worlds::Forgetful(_) => {
+        Worlds::Sampled | Worlds::Forgetful(_) | Worlds::Experimental(_) => {
             let (mut worlds, enumerated) = own_worlds(&hidden, samples, seed);
             if let Worlds::Forgetful(forgotten) = source {
                 let mut rng = ChaCha8Rng::seed_from_u64(seed ^ FORGET_STREAM);
@@ -384,6 +401,56 @@ fn analyze_with(
     let staged = view.phase == Phase::Druecken && worlds.len() > SCREEN_WORLDS;
     let mut table = Table::new(worlds.len(), n_options);
     let all: Vec<usize> = (0..n_options).collect();
+    let finish = |table: &Table, observations, assumptions| {
+        let weights: Vec<f64> = worlds
+            .iter()
+            .zip(&table.complete)
+            .map(|(w, &ok)| if ok { evidence::weight(view, w) } else { 0.0 })
+            .collect();
+        let exact = enumerated && table.status == Status::Complete && !staged;
+        let options = view
+            .legal_actions
+            .iter()
+            .enumerate()
+            .map(|(i, &action)| OptionValue {
+                action,
+                estimate: table.estimate(&weights, i, exact),
+            })
+            .collect();
+        let total: f64 = weights.iter().sum();
+        let squares: f64 = weights.iter().map(|w| w * w).sum();
+        let inferences = if known {
+            // What the seat could deduce from its own view, not the known deal.
+            let (own, enumerated) = own_worlds(&hidden, samples, seed);
+            let weights: Vec<f64> = own.iter().map(|w| evidence::weight(view, w)).collect();
+            inferences(view, &hidden, &own, &weights, enumerated)
+        } else {
+            inferences(view, &hidden, &worlds, &weights, enumerated)
+        };
+        Analysis {
+            seat: view.seat,
+            phase: view.phase,
+            status: table.status,
+            options,
+            observations,
+            assumptions,
+            inferences,
+            effort: Effort {
+                planned: worlds.len() as u32,
+                finished: table.complete.iter().filter(|&&c| c).count() as u32,
+                distributions,
+                enumerated,
+                effective_samples: if squares > 0.0 {
+                    total * total / squares
+                } else {
+                    0.0
+                },
+                nodes: table.nodes,
+                seed,
+                known,
+            },
+        }
+    };
     if staged {
         // Screening: every option on the first distributions, one task per
         // option; then the best options on the remaining distributions.
@@ -411,57 +478,18 @@ fn analyze_with(
         let tasks: Vec<Task> = (0..n_options).map(|o| (0, vec![o])).collect();
         table.run(&ctx, &worlds, &tasks, nodes, cancel);
     } else {
-        let tasks: Vec<Task> = (0..worlds.len()).map(|w| (w, all.clone())).collect();
-        table.run(&ctx, &worlds, &tasks, nodes, cancel);
+        if let Worlds::Experimental(Some(publish)) = &mut source
+            && view.phase == Phase::Spiel
+        {
+            table.run_live(&ctx, &worlds, nodes, cancel, deadline, |table| {
+                publish(&finish(table, observations.clone(), assumptions.clone()))
+            });
+        } else {
+            let tasks: Vec<Task> = (0..worlds.len()).map(|w| (w, all.clone())).collect();
+            table.run(&ctx, &worlds, &tasks, nodes, cancel);
+        }
     }
-    let weights: Vec<f64> = worlds
-        .iter()
-        .zip(&table.complete)
-        .map(|(w, &ok)| if ok { evidence::weight(view, w) } else { 0.0 })
-        .collect();
-    let exact = enumerated && table.status == Status::Complete && !staged;
-    let options = view
-        .legal_actions
-        .iter()
-        .enumerate()
-        .map(|(i, &action)| OptionValue {
-            action,
-            estimate: table.estimate(&weights, i, exact),
-        })
-        .collect();
-    let total: f64 = weights.iter().sum();
-    let squares: f64 = weights.iter().map(|w| w * w).sum();
-    let inferences = if known {
-        // What the seat could deduce from its own view, not the known deal.
-        let (own, enumerated) = own_worlds(&hidden, samples, seed);
-        let weights: Vec<f64> = own.iter().map(|w| evidence::weight(view, w)).collect();
-        inferences(view, &hidden, &own, &weights, enumerated)
-    } else {
-        inferences(view, &hidden, &worlds, &weights, enumerated)
-    };
-    Ok(Analysis {
-        seat: view.seat,
-        phase: view.phase,
-        status: table.status,
-        options,
-        observations,
-        assumptions,
-        inferences,
-        effort: Effort {
-            planned: worlds.len() as u32,
-            finished: table.complete.iter().filter(|&&c| c).count() as u32,
-            distributions,
-            enumerated,
-            effective_samples: if squares > 0.0 {
-                total * total / squares
-            } else {
-                0.0
-            },
-            nodes: table.nodes,
-            seed,
-            known,
-        },
-    })
+    Ok(finish(&table, observations, assumptions))
 }
 
 /// Distributions of the seat's information set: all of them if there are
@@ -590,6 +618,84 @@ impl Table {
         }
     }
 
+    /// A single coordinator owns aggregation. Worker completion order affects
+    /// the provisional set only. The final estimate always visits world indices in order.
+    fn run_live(
+        &mut self,
+        ctx: &Context<'_>,
+        worlds: &[World],
+        nodes: u64,
+        cancel: Option<&Cancel>,
+        deadline: std::time::Instant,
+        mut preview: impl FnMut(&Table),
+    ) {
+        use std::sync::mpsc;
+        let next = AtomicUsize::new(0);
+        let options: Vec<_> = (0..ctx.view.legal_actions.len()).collect();
+        let (tx, rx) = mpsc::channel();
+        std::thread::scope(|scope| {
+            for _ in 0..crate::max_threads().min(worlds.len()) {
+                let (tx, next, options) = (tx.clone(), &next, &options);
+                scope.spawn(move || {
+                    loop {
+                        let i = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(world) = worlds.get(i) else { break };
+                        let mut meter = Meter::new(nodes, cancel.cloned());
+                        let outcome = ctx.evaluate(world, options, &mut meter);
+                        tx.send((i, outcome, meter.nodes()))
+                            .expect("coordinator in scope");
+                    }
+                });
+            }
+            drop(tx);
+            let mut awaiting_deadline = true;
+            let mut awaiting_first_value = false;
+            let mut received = 0;
+            while received < worlds.len() {
+                let msg = if awaiting_deadline {
+                    match rx
+                        .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+                    {
+                        Ok(msg) => Some(msg),
+                        Err(mpsc::RecvTimeoutError::Timeout) => None,
+                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                    }
+                } else {
+                    let Ok(msg) = rx.recv() else { break };
+                    Some(msg)
+                };
+                if let Some((i, outcome, n)) = msg {
+                    received += 1;
+                    self.nodes += n;
+                    match outcome {
+                        Ok(values) => {
+                            self.complete[i] = true;
+                            for (o, v) in values {
+                                self.outcomes[i][o] = Some(v);
+                            }
+                        }
+                        Err(Interrupted::Cancelled) => self.status = Status::Cancelled,
+                        Err(Interrupted::BudgetExhausted) if self.status != Status::Cancelled => {
+                            self.status = Status::BudgetExhausted
+                        }
+                        _ => {}
+                    }
+                }
+                if received < worlds.len()
+                    && ((awaiting_deadline && std::time::Instant::now() >= deadline)
+                        || (awaiting_first_value && self.complete.iter().any(|&done| done)))
+                {
+                    awaiting_deadline = false;
+                    awaiting_first_value = !self.complete.iter().any(|&done| done);
+                    let status = self.status;
+                    self.status = Status::InProgress;
+                    preview(self);
+                    self.status = status;
+                }
+            }
+        });
+    }
+
     /// Weighted estimate of `option` over the finished distributions on
     /// which it was evaluated.
     fn estimate(&self, weights: &[f64], option: usize, exact: bool) -> Option<Estimate> {
@@ -664,6 +770,7 @@ struct Outcome {
 
 /// Facts shared by all distributions.
 struct Context<'a> {
+    experimental: bool,
     view: &'a PlayerView,
     /// Cards each seat played so far.
     played_by: [CardSet; 3],
@@ -688,7 +795,11 @@ impl<'a> Context<'a> {
         if needs_contract && (view.contract.is_none() || view.declarer.is_none()) {
             return Err(vec![Diagnostic::InvalidHistory]);
         }
-        Ok(Context { view, played_by })
+        Ok(Context {
+            view,
+            played_by,
+            experimental: false,
+        })
     }
 
     /// Outcomes of the options with indices `options` in `world`.
@@ -699,7 +810,10 @@ impl<'a> Context<'a> {
         meter: &mut Meter,
     ) -> Result<Vec<(usize, Outcome)>, Interrupted> {
         meter.check_cancel()?;
-        let mut solvers = Solvers::default();
+        let mut solvers = Solvers {
+            experimental: self.experimental,
+            ..Default::default()
+        };
         if self.view.phase == Phase::Spiel {
             return self.evaluate_play(world, options, meter, &mut solvers);
         }
@@ -1010,6 +1124,7 @@ fn cached(
 /// distribution, so node counts do not depend on evaluation order).
 #[derive(Default)]
 struct Solvers {
+    experimental: bool,
     solvers: Vec<((GameType, Seat), Solver)>,
     solved: Vec<(Position, DdValue)>,
 }
@@ -1023,8 +1138,15 @@ impl Solvers {
         let index = match self.solvers.iter().position(|(k, _)| *k == key) {
             Some(i) => i,
             None => {
-                self.solvers
-                    .push((key, Solver::new(pos.game, pos.declarer)));
+                let solver = Solver::new(pos.game, pos.declarer);
+                self.solvers.push((
+                    key,
+                    if self.experimental {
+                        solver.with_discard_bound()
+                    } else {
+                        solver
+                    },
+                ));
                 self.solvers.len() - 1
             }
         };
