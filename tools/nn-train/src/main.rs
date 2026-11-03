@@ -11,7 +11,7 @@
 //! cargo run --locked --release -p nn-train -- fixture SEED OUT_FILE
 //! cargo run --locked --release -p nn-train -- generate OUT_DIR [--deals N]
 //!     [--shard-deals N] [--seed N] [--minutes N] [--max-mb N] [--cpus N]
-//!     [--workers N]
+//!     [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4]
 //! cargo run --locked --release -p nn-train -- verify DIR
 //! cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR...
 //!     [--hidden N] [--batch N] [--lr X] [--epochs N] [--value-weight X]
@@ -50,6 +50,9 @@
 //! cap or after the iteration during which `OUT_DIR/STOP` appeared, and
 //! writes the current learner `model.gcnn` and `rl.json` (recipe, logs,
 //! snapshots).
+
+#[cfg(feature = "vulkan-search")]
+mod endgame;
 
 use std::time::Instant;
 
@@ -320,7 +323,26 @@ fn generate(args: &[String]) {
         cpus,
         workers,
     };
-    let teacher = TeacherProfile::STRONG;
+    let backend = text_flag(args, "--search-backend", "cpu");
+    let depth = flag(args, "--rest-tricks", 3u8);
+    assert!((2..=4).contains(&depth), "--rest-tricks needs 2, 3 or 4");
+    #[cfg(feature = "vulkan-search")]
+    let experiment = (backend != "cpu").then(|| endgame::Run::start(backend, depth, cpus.get()));
+    #[cfg(not(feature = "vulkan-search"))]
+    assert_eq!(
+        backend, "cpu",
+        "enable vulkan-search for an endgame backend"
+    );
+    let teacher = TeacherProfile {
+        name: match (backend, depth) {
+            ("cpu" | "profile", _) => "strong",
+            ("vulkan" | "cpu-endgame", 2) => "strong-endgame-2",
+            ("vulkan" | "cpu-endgame", 3) => "strong-endgame-3",
+            ("vulkan" | "cpu-endgame", 4) => "strong-endgame-4",
+            _ => panic!("invalid search backend or rest-tricks"),
+        },
+        ..TeacherProfile::STRONG
+    };
     let manifest = Manifest::new(&engine_commit(), teacher, seed, deals, shard_deals);
     println!(
         "run: {} deals in {} shards, seed {seed}, profile {}, commit {}",
@@ -336,6 +358,10 @@ fn generate(args: &[String]) {
         limits.threads()
     );
     let report = generate(dir, &manifest, teacher, limits).expect("generate");
+    #[cfg(feature = "vulkan-search")]
+    if let Some(experiment) = experiment {
+        experiment.report();
+    }
     let secs = report.elapsed.as_secs_f64();
     println!(
         "shards: {} skipped, {} written; stop: {:?}",
@@ -730,7 +756,7 @@ fn main() {
             eprintln!("       nn-train fixture SEED OUT_FILE");
             eprintln!(
                 "       nn-train generate OUT_DIR [--deals N] [--shard-deals N] [--seed N] \
-                 [--minutes N] [--max-mb N] [--cpus N] [--workers N]"
+                 [--minutes N] [--max-mb N] [--cpus N] [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4]"
             );
             eprintln!("       nn-train verify DIR");
             eprintln!("       nn-train evaluate MODEL DATA_DIR...");

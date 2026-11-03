@@ -473,6 +473,14 @@ exhausted the budget on three decisions and Experimental on two.
 Each timing is a single run.
 See the [measurement patch and commands](../crates/skat-analysis/experiments/strong-gpu/README.md#reproduce-the-teacher-comparison).
 
+### Faster Strong search
+
+`generate` uses the compact CPU Augen solver for Strong. The teacher still
+evaluates 24 sampled worlds and records every legal option. `verify` also
+replays each deal and checks every acting view, action and final score.
+The [CPU and Vulkan measurements](../crates/skat-analysis/experiments/strong-gpu/README.md#early-search-endgames)
+include the procedure for comparing complete, byte-identical training shards.
+
 ## Card-play network
 
 The first trained model (#73): `assets/models/card-play.gcnn` with its

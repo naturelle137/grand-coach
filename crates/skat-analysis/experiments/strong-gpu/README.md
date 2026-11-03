@@ -206,3 +206,50 @@ done
 
 See [training-data throughput](../../../../docs/ai.md#experimental-teacher-throughput)
 for results.
+
+## Early search endgames
+
+Strong's CPU solver uses suit-ordered card masks, an incremental trick
+winner and one integer ordering key per legal move. The optional generator
+experiment shares a Vulkan proof queue between games. Select a backend
+explicitly with the `vulkan-search` build feature:
+
+- `cpu` runs ordinary Strong.
+- `profile` times unresolved null-window subtrees at the start of a trick,
+  after CPU bounds and table hits. For early suit and Grand roots it replays
+  sampled jobs in batches of up to 256 and checks their Boolean answers.
+- `cpu-endgame` and `vulkan` use the same capped integer proof and charge
+  identical transitions. At most half the CPU lanes (at least one) wait
+  on Vulkan. The remaining lanes keep searching. Device loss and a full
+  queue route work to CPU. The first 1,024 device queries are checked
+  against CPU including transition counts. The generator stops sending
+  queries if dispatch and readback take longer than the CPU work saved.
+- `--rest-tricks 2|3|4` selects the frontier (default 3). These experimental
+  teachers carry the frontier in their manifest. A world that exhausts
+  the experimental budget gets one fresh Classic attempt with all its
+  original options so a resolvable teacher label is retained.
+
+A six-deal pilot on the RX 6900 XT (seed 0, six game workers) measured
+summed wall time within the early Augen searches. Each row profiles a
+separate run. Subtree times exclude cache hits. The CPU replay column is
+the sum of original subtree times for the sampled, proved queries. GPU
+time includes dispatch and readback. Other work was active on the host.
+
+| Remaining tricks | Eligible share | GPU proofs checked | CPU subtree time | GPU time |
+|---:|---:|---:|---:|---:|
+| 2 | 6.7% | 24,675 | 16.5 ms | 46.0 ms |
+| 3 | 31.9% | 32,768 | 39.5 ms | 127.0 ms |
+| 4 | 64.7% | 32,768 | 86.0 ms | 441.8 ms |
+
+Reproduce on a fresh output directory for each run. Build outside the
+timed interval. The matrix runner takes two prebuilt release generators,
+alternates their order, replays every deal and compares every shard byte.
+
+```sh
+cargo build --locked --release -p nn-train --features vulkan-search
+target/release/nn-train generate OUT --search-backend profile --rest-tricks 3 \
+  --deals 6 --seed 0 --shard-deals 1 --workers 6 --cpus 6
+python3 crates/skat-analysis/experiments/strong-gpu/teacher_throughput.py \
+  REFERENCE_BINARY CANDIDATE_BINARY NEW_OUTPUT_DIR
+cargo run --locked --release -p skat-ai --example latency -- 30 strong
+```

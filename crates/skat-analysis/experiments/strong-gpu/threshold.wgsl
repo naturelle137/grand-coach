@@ -24,6 +24,10 @@ fn legal(idx: u32, node: Node) -> u32 {
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let idx = id.x;
     if idx >= arrayLength(&jobs) { return; }
+    // The generator requests the deterministic transition count in the
+    // upper output bits. The standalone probe only requests the verdict.
+    let counted = (jobs[idx].limit & 0x80000000u) != 0u;
+    let cap = jobs[idx].limit & 0x7fffffffu;
     let decl = jobs[idx].declarer;
     let target_score = jobs[idx].target_score;
     var stack: array<Node, 32>;
@@ -43,8 +47,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         } else if n.moves == 0u {
             result = !maximise;
         } else {
-            if visited >= jobs[idx].limit {
-                output[idx] = 2u;
+            if visited >= cap {
+                output[idx] = select(0u, visited << 2u, counted) | 2u;
                 return;
             }
             visited++;
@@ -83,7 +87,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         // disproves a minimising node. Otherwise try the parent's next move.
         loop {
             if depth == 0u {
-                output[idx] = u32(result);
+                output[idx] = select(0u, visited << 2u, counted) | u32(result);
                 return;
             }
             depth--;

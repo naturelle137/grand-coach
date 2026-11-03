@@ -24,7 +24,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
-use skat_core::RuleConfig;
+use skat_core::{Game, RuleConfig};
 use skat_nn::{ENCODER_VERSION, sha256};
 
 use crate::selfplay::{
@@ -228,6 +228,45 @@ pub struct Verified {
     pub records: u64,
 }
 
+/// Replays each complete deal, so even a checksum-valid shard cannot omit
+/// a forced move, a thrown-in game, or the final decision of a seat.
+fn check_games(manifest: &Manifest, shard: u64, records: &[DecisionRecord]) -> Result<(), String> {
+    let mut rest = records;
+    for deal in manifest.shard_range(shard) {
+        let seed = RunSeed(manifest.seed).deal_seed(deal);
+        let split = crate::selfplay::Split::of(seed);
+        let mut game = Game::new(seed, manifest.rules);
+        let len = rest.iter().take_while(|r| r.deal == deal).count();
+        let (rows, next) = rest.split_at(len);
+        for r in rows {
+            let seat = game
+                .current_seat()
+                .ok_or_else(|| format!("extra decision in deal {deal}"))?;
+            if r.deal != deal || r.split != split || r.view != game.view(seat) {
+                return Err(format!("decision differs from replay in deal {deal}"));
+            }
+            crate::selfplay::check_record(r)?;
+            game.apply(r.action)
+                .map_err(|e| format!("deal {deal}: {e:?}"))?;
+        }
+        if game.current_seat().is_some() {
+            return Err(format!("missing decision in deal {deal}"));
+        }
+        let points = game.result().map(|r| r.seeger_fabian()).unwrap_or_default();
+        if rows
+            .iter()
+            .any(|r| r.final_points != points[r.view.seat.index()])
+        {
+            return Err(format!("final score differs in deal {deal}"));
+        }
+        rest = next;
+    }
+    if !rest.is_empty() {
+        return Err("extra records after the last deal".into());
+    }
+    Ok(())
+}
+
 /// Reads every shard of the run in `dir` and checks its records. Corrupt
 /// shards and unusable records are errors; incomplete shards are counted.
 pub fn verify(dir: &Path) -> Result<Verified, ShardError> {
@@ -236,16 +275,8 @@ pub fn verify(dir: &Path) -> Result<Verified, ShardError> {
     for index in 0..manifest.shards() {
         match read_shard(dir, index) {
             Ok(records) => {
-                for r in &records {
-                    if !manifest.shard_range(index).contains(&r.deal) {
-                        return Err(ShardError::Corrupt(format!(
-                            "deal {} in shard {index}",
-                            r.deal
-                        )));
-                    }
-                    crate::selfplay::check_record(r)
-                        .map_err(|e| ShardError::Corrupt(format!("shard {index}: {e}")))?;
-                }
+                check_games(&manifest, index, &records)
+                    .map_err(|e| ShardError::Corrupt(format!("shard {index}: {e}")))?;
                 out.complete += 1;
                 out.records += records.len() as u64;
             }
@@ -493,4 +524,22 @@ pub fn generate(
     report.elapsed = start.elapsed();
     report.stop = stop.into_inner().expect("lock").unwrap_or(Stop::Finished);
     Ok(report)
+}
+
+#[cfg(test)]
+mod replay_tests {
+    use super::*;
+
+    #[test]
+    fn replay_detects_missing_decisions_and_incorrect_scores() {
+        let manifest = Manifest::new("fixture", TeacherProfile::STRONG, 0, 1, 1);
+        let bytes = include_bytes!("../fixtures/selfplay/shard-00000.jsonl");
+        let mut rows = parse_records(bytes).unwrap();
+        check_games(&manifest, 0, &rows).unwrap();
+        assert!(check_games(&manifest, 0, &rows[..rows.len() - 1]).is_err());
+        rows[0].final_points += 1;
+        assert!(check_games(&manifest, 0, &rows).is_err());
+        rows.remove(0);
+        assert!(check_games(&manifest, 0, &rows).is_err());
+    }
 }
