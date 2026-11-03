@@ -388,6 +388,10 @@ cargo run --locked --release -p nn-train -- verify OUT_DIR
   (seed 0, one shard each, 101 records, 184 KB); the tests verify it and
   regenerate it identically. No larger dataset is committed.
 
+A classic Strong sampler trial on the RX 6900 XT reached 1,903 deals/hour
+with GPU draws and 1,929 on CPU in ten-minute generator runs. See the
+[experiment and reproduction steps](../crates/skat-analysis/experiments/strong-gpu/README.md).
+
 Pilot on 2026-11-01 (reference hardware of
 [analysis.md](analysis.md#latency-target-and-benchmark), 20 CPUs,
 release build, seed 0, 100 deals in 10 shards; Rust 1.99.1):
