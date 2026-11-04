@@ -3,7 +3,8 @@
 //! Training of the card-play network (#73) on the fixture dataset: only
 //! card-play decisions become examples, targets follow the recipe, and a
 //! run is reproducible from its recipe, also when it is interrupted and
-//! resumed.
+//! resumed, and a plateau schedule lowers the learning rate from the best
+//! weights before it stops the run.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,7 +14,7 @@ use burn::tensor::Device;
 use nn_train::selfplay::{DecisionKind, Split};
 use nn_train::shards::read_shard;
 use nn_train::train::{
-    Hyper, PHASES, Recipe, TRAIN_FORMAT, TrainLimits, TrainStop, Trained, load, train,
+    Hyper, PHASES, Plateau, Recipe, TRAIN_FORMAT, TrainLimits, TrainStop, Trained, load, train,
 };
 use skat_core::Phase;
 use skat_nn::{ENCODER_VERSION, NeuralModel, sha256};
@@ -347,4 +348,125 @@ fn a_belief_head_trains_resumes_and_stays_out_of_the_model_file() {
     let json = serde_json::to_value(hyper()).unwrap();
     assert!(json.get("belief_weight").is_none());
     assert_eq!(serde_json::to_value(&h).unwrap()["belief_weight"], 0.5);
+}
+
+/// Hashes of the last checkpoint's weights and best weights.
+fn checkpoint_hashes(dir: &Path) -> (String, String) {
+    let state: serde_json::Value =
+        serde_json::from_slice(&fs::read(dir.join("checkpoint/state.json")).unwrap()).unwrap();
+    let hash = |i: usize| {
+        state["checkpoint"]["sha256"][i]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    (hash(0), hash(2))
+}
+
+#[test]
+fn a_plateau_lowers_the_rate_from_the_best_weights_then_stops() {
+    // The fixture's deals are all training deals, so the validation loss
+    // never improves after the first epoch: every later epoch is stale.
+    let h = Hyper {
+        plateau: Some(Plateau {
+            patience: 1,
+            decay: 0.5,
+            decays: 2,
+        }),
+        ..hyper()
+    };
+    let (scheduled, data) = recipe(&h);
+    let go = |dir: &Path, stop_after: Option<usize>| {
+        train(
+            dir,
+            &scheduled,
+            &data,
+            &Device::flex().autodiff(),
+            NO_CAP,
+            |log| Some(log.epoch) != stop_after,
+        )
+        .unwrap()
+    };
+    let a = go(&scratch("plateau-a"), None);
+    assert_eq!(a.stop, TrainStop::Plateau);
+    assert_eq!(a.state.best_epoch, 1);
+    assert_eq!(a.state.decays, [2, 3]);
+    let rates: Vec<f64> = a.state.logs.iter().map(|l| l.learning_rate).collect();
+    let lr = h.learning_rate;
+    assert_eq!(
+        rates,
+        [lr, lr, lr / 2.0, lr / 4.0],
+        "stops after the last rate's plateau"
+    );
+    // The model is the best epoch's: the same as a one-epoch run.
+    let (one, one_data) = recipe(&Hyper {
+        epochs: 1,
+        ..hyper()
+    });
+    let first = train(
+        &scratch("plateau-one"),
+        &one,
+        &one_data,
+        &Device::flex().autodiff(),
+        NO_CAP,
+        |_| true,
+    )
+    .unwrap();
+    assert_eq!(a.model, first.model);
+
+    // A decay continues from the best weights: the checkpoint after epoch
+    // 2 holds them as its current weights, unlike a run without schedule.
+    let dir = scratch("plateau-resumed");
+    let part = go(&dir, Some(2));
+    assert_eq!(part.state.decays, [2]);
+    let (weights, best) = checkpoint_hashes(&dir);
+    assert_eq!(weights, best);
+    let plain = scratch("plateau-plain");
+    run(&plain, Some(2));
+    let (weights, best) = checkpoint_hashes(&plain);
+    assert_ne!(weights, best);
+
+    // Resuming across a decay gives the uninterrupted run; a stopped run
+    // starts no further epoch.
+    let resumed = go(&dir, None);
+    assert_eq!(resumed.model, a.model);
+    let logs = |t: &Trained| -> Vec<_> {
+        t.state
+            .logs
+            .iter()
+            .map(|l| (l.train_loss, l.learning_rate, l.validation))
+            .collect()
+    };
+    assert_eq!(logs(&resumed), logs(&a));
+    assert_eq!(resumed.state.decays, a.state.decays);
+    let again = go(&dir, None);
+    assert_eq!(again.stop, TrainStop::Plateau);
+    assert_eq!(again.state.logs.len(), 4);
+
+    // Without a schedule the recipe is unchanged; a schedule is recorded.
+    assert!(
+        serde_json::to_value(hyper())
+            .unwrap()
+            .get("plateau")
+            .is_none()
+    );
+    assert_eq!(serde_json::to_value(&h).unwrap()["plateau"]["patience"], 1);
+    // A patience of 0 is refused.
+    let (bad, data) = recipe(&Hyper {
+        plateau: Some(Plateau {
+            patience: 0,
+            decay: 0.5,
+            decays: 1,
+        }),
+        ..hyper()
+    });
+    let refused = train(
+        &scratch("plateau-bad"),
+        &bad,
+        &data,
+        &Device::flex().autodiff(),
+        NO_CAP,
+        |_| true,
+    );
+    assert!(refused.is_err());
 }

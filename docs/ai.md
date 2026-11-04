@@ -557,7 +557,16 @@ training manifest `card-play.json` and model card `card-play.md`
   its SHA-256) is written and `state.json` points at it last; a restart
   with the same recipe resumes bit-identically, a different recipe or a
   corrupt checkpoint is refused. No epoch starts after the wall-time cap
-  (`--minutes`). The output is the epoch with the lowest validation loss
+  (`--minutes`). With `--patience N`, N epochs without a lower validation
+  loss continue from the best weights (Adam state kept) with the learning
+  rate times `--lr-decay` (default 0.1), at most `--lr-decays` times
+  (default 1); the next plateau stops the run (`plateau` in
+  `train.json`). The decays are part of the checkpoint, so a resumed run
+  stays bit-identical. On 2026-11-04 one decay to lr 0.0001 after the best
+  epoch of a 2×512 run on 66,700 Strong games lowered the validation loss
+  from 1.778 to 1.727 and gained +0.73 points per seat-game (95 %
+  interval [−0.27, +1.72], 4,000 deals) against the undecayed model.
+  The output is the epoch with the lowest validation loss
   and `train.json`: recipe (data hashes, encoder version,
   hyperparameters, seed), trainer commit, coverage per split and kind,
   epoch logs, metrics per split, model size and hash.
