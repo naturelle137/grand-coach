@@ -14,6 +14,7 @@ skat-core = { workspace = true, features = ["serde"] }
 skat-nn = { workspace = true, features = ["fixture"] }
 skat-analysis = { workspace = true, features = ["serde"] }
 skat-ai = { workspace = true, features = ["serde"] }
+rand_chacha.workspace = true
 serde.workspace = true
 # Exact f64 round trip of the teacher values in the records.
 serde_json = { workspace = true, features = ["float_roundtrip"] }

@@ -318,12 +318,37 @@ in issue #69. The first trained model, for card play, ships with #73
 - **Crates**: `skat-nn` (between `skat-core` and `skat-analysis`) holds
   the encoder, the action space, the network and CPU inference; AI and
   coach share it. `tools/nn-train` trains outside the app.
-- **Encoder** (`skat_nn::encode`, version `ENCODER_VERSION` = 1): 294
-  numbers from one `PlayerView` only: own hand, own discarded Skat
-  (declarer after Drücken), revealed Ouvert cards, cards of completed
-  tricks by relative seat, the trick in progress, own position, phase,
-  declarer, bidding per seat, contract, Kontra/Re and Augen per party.
-  Seats are relative to the acting seat. Layout in `encoder.rs`.
+- **Encoder**. New supervised networks take 634 numbers from the acting
+  seat's `PlayerView` (v2). The first 294 are the frozen v1 layout,
+  including the hand, known Skat, Ouvert reveal, played cards by seat,
+  ordered current trick, position, bidding, contract and trick Augen per
+  party. For each card in a completed trick, v2 records its play number
+  from 1 to 30 (scaled by 30, zero until played). Every three successive
+  numbers form one trick. The per-seat card sets identify who led it.
+- A failed follow in a completed or current trick marks its led class void
+  for that relative seat. Classic and the encoder use the same public
+  evidence. Buben count as Trumpf in Farbspiel and Grand and follow their
+  printed suit in Null. A clear flag means no observed failure to follow.
+- Card masks identify the unlocated cards and all Trumpf of the contract.
+  Five groups have explicit counts for each side suit and Trumpf, and
+  separate Augen totals: all unplayed cards (including Skat), own hand,
+  known Skat, another seat's exposed hand, and unlocated cards. The last
+  four partition the first. Until a contract is announced the counts use
+  printed suits. The unknown Skat stays pooled with concealed hands.
+  Augen in the current trick and Augen won in tricks by each relative seat
+  are separate. Only the declarer after Drücken can count the known Skat
+  towards their secured Augen. The layout and scaling are in `encoder.rs`.
+- How earlier decisions were taken, the evidence about hidden hands that
+  card sets do not show: for each card of a completed trick whether it was
+  led, followed, trumped or discarded (follow classes of the contract), and
+  whether it fell into a trick won by its player's own party (schmieren)
+  or by the other party; per relative seat the bid standing when it
+  passed, an upper bound on its hand.
+- Raw decision shards already store ordered tricks, winners and the
+  current view. Training encodes these rows on load, keeping labels and
+  deal splits. The recipe records its active encoder separately from
+  each source manifest's generation-time version. Runtime inference,
+  evaluation and PPO use the input layout of their model header.
 - **Action space** (`skat_nn::actions`): 621 indices: 63 bid values,
   Hold, Pass, Hand, TakeSkat, 496 discard pairs, 22 announcements,
   32 cards, Kontra, KeinKontra, Re, KeinRe. Part of the encoder version.
@@ -532,7 +557,16 @@ training manifest `card-play.json` and model card `card-play.md`
   its SHA-256) is written and `state.json` points at it last; a restart
   with the same recipe resumes bit-identically, a different recipe or a
   corrupt checkpoint is refused. No epoch starts after the wall-time cap
-  (`--minutes`). The output is the epoch with the lowest validation loss
+  (`--minutes`). With `--patience N`, N epochs without a lower validation
+  loss continue from the best weights (Adam state kept) with the learning
+  rate times `--lr-decay` (default 0.1), at most `--lr-decays` times
+  (default 1); the next plateau stops the run (`plateau` in
+  `train.json`). The decays are part of the checkpoint, so a resumed run
+  stays bit-identical. On 2026-11-04 one decay to lr 0.0001 after the best
+  epoch of a 2×512 run on 66,700 Strong games lowered the validation loss
+  from 1.778 to 1.727 and gained +0.73 points per seat-game (95 %
+  interval [−0.27, +1.72], 4,000 deals) against the undecayed model.
+  The output is the epoch with the lowest validation loss
   and `train.json`: recipe (data hashes, encoder version,
   hyperparameters, seed), trainer commit, coverage per split and kind,
   epoch logs, metrics per split, model size and hash.
@@ -614,6 +648,88 @@ alongside.
 These are measurements, not gates (D-07): the network plays card play
 better than Easy and worse than Medium; Classic stays the default.
 Limits are listed in the model card.
+
+## Decision dependencies
+
+The decisions of one game depend on each other in two ways. Their value
+targets are shared: every card-play row of a seat carries the same final
+points. Their information is causal: each earlier action of another seat
+follows from its hidden hand. `nn-train probe` measures both on whole
+validation deals (`tools/nn-train/src/probe.rs`):
+
+- the intra-class correlation (ICC) of the value residuals per (deal,
+  seat) and per deal, with the effective number of independent rows;
+- the change of policy loss and agreement when each encoder block is
+  zeroed, overall and by completed tricks;
+- bits per hidden card of its true place (replayed deal) under the hard
+  constraints alone (uniform samples, as Classic), with Classic's bidding
+  evidence, and under the learned belief head.
+
+`train --belief-weight X` adds that head: a training-only linear layer on
+the last hidden layer. It predicts the place of every card the seat cannot
+see (next seat, seat after, Skat), so the shared layers have to infer
+hidden hands from the history. The model file stays a plain network; the
+head is written to `belief.bpk` for the probe. Validation loss for model
+selection excludes it. It adds about 5 % per epoch (64.4 s → 67.9 s) and
+nothing at inference.
+
+Runs on 2026-11-03 (i9-10900K, CPU, the #73 data and recipe: 2×512,
+lr 0.001, batch 256, seed 0, at most 12 epochs, stopped after two epochs
+without a better validation loss). Pilot: the earlier 439-feature v2. M1:
+the extended 634-feature v2. M2: M1 with belief weight 0.5. Probes use the
+same 10,026 rows of 320 validation deals, 256 samples per row.
+
+| Model | Best epoch | Test agreement | Value RMSE train / validation | ICC per (deal, seat) |
+|---|---|---|---|---|
+| v1 #73 supervised | 10 | 75.6 % | – / 45.3 | 0.780 |
+| v2 pilot | 7 of 9 | 75.65 % | 24.3 / 43.4 | – |
+| M1 | 7 of 9 | 75.09 % | 22.9 / 45.5 | 0.821 |
+| M2 | 12 of 12 | 74.96 % | – / 44.8 | 0.787 |
+
+An ICC near 0.8 means 10,026 rows carry about as much value information
+as 1,150–1,200 independent ones. The residual against the teacher's
+chosen-option value has an ICC of 0.45–0.49. The value overfits within a
+few epochs (train RMSE half of validation), so the shared target, not the
+encoder, limits the value head.
+
+Hidden-card bits (lower is better):
+
+| Completed tricks | Constraints | + bidding evidence | M2 belief head |
+|---|---|---|---|
+| 0 | 1.228 | 1.204 | 1.176 |
+| 2 | 1.229 | 1.202 | 1.177 |
+| 4 | 1.183 | 1.152 | 1.166 |
+| 6 | 1.133 | 1.093 | 1.178 |
+| 8 | 1.025 | 0.960 | 1.153 |
+| all | 1.184 | 1.153 | 1.170 |
+
+The head beats Classic's beliefs only in the first tricks (about 0.03
+bits per card). Later it loses, because it does not enforce voids and hand
+sizes exactly. In Strong self-play the card play reveals little about
+hidden hands beyond the constraints. Zeroing the new blocks (play context,
+party of the trick, pass values) changes M1's policy loss by at most
+0.012. Zeroing the unseen-card mask changes it by 0.33, the Trumpf mask by
+0.13.
+
+Arena (`calibrate`, tuning suite, A − B in points per seat-game, 95 %
+interval):
+
+| A | B | Deals | A − B | 95 % interval |
+|---|---|---|---|---|
+| v2 pilot | v1 #73 supervised | 2,000 | −1.95 | [−3.55, −0.34] |
+| M1 | v1 #73 supervised | 2,000 | −0.64 | [−2.15, +0.88] |
+| M2 | v1 #73 supervised | 2,000 | −2.46 | [−3.89, −1.04] |
+| v2 pilot | v1 RL arm A (iter 170) | 2,000 | −7.25 | [−8.99, −5.51] |
+| M1 | v1 RL arm A (iter 170) | 2,000 | −8.20 | [−9.91, −6.50] |
+| M1 | Easy | 400 | +5.61 | [+2.39, +8.83] |
+| v2 pilot | Medium | 400 | −13.88 | [−17.75, −10.01] |
+| M1 | Medium | 400 | −13.03 | [−16.40, −9.66] |
+| M1 | Strong | 200 | −14.60 | [−19.06, −10.14] |
+
+M1 ties v1 and the belief head costs strength at weight 0.5. These are
+measurements, not gates (D-07). The extended v2 encoder stays; the belief
+head stays a diagnostic; the value target shared per game is the next
+lever.
 
 ## Self-play refinement
 

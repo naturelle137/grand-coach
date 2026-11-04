@@ -144,13 +144,35 @@ impl PolicyValueNet {
         }
     }
 
+    /// Width of the feature rows this network accepts.
+    pub fn inputs(&self) -> usize {
+        self.input.weight.dims()[0]
+    }
+
     /// Every output for features `[batch, inputs]`.
     pub fn forward_all(&self, features: Tensor<2>) -> Outputs {
+        self.heads(self.trunk(features))
+    }
+
+    /// Width of the last hidden layer.
+    pub fn hidden_width(&self) -> usize {
+        self.hidden.weight.dims()[1]
+    }
+
+    /// Activations `[batch, hidden]` of the last hidden layer, the shared
+    /// representation that every head reads. Training attaches auxiliary
+    /// heads here (`tools/nn-train`); they are not part of a model file.
+    pub fn trunk(&self, features: Tensor<2>) -> Tensor<2> {
         let x = self.activation.forward(self.input.forward(features));
         let mut x = self.activation.forward(self.hidden.forward(x));
         for layer in &self.deeper {
             x = self.activation.forward(layer.forward(x));
         }
+        x
+    }
+
+    /// Every output from trunk activations `x` ([`PolicyValueNet::trunk`]).
+    pub fn heads(&self, x: Tensor<2>) -> Outputs {
         Outputs {
             policy: self.policy.forward(x.clone()),
             value: self.value.forward(x.clone()),

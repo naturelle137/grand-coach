@@ -49,13 +49,13 @@ use serde::{Deserialize, Serialize};
 use skat_ai::{Level, NeuralOpponent, Opponent, Player, Profile};
 use skat_core::{Action, Game, PlayerView, Seat};
 use skat_nn::{
-    ACTIONS, ENCODER_VERSION, FEATURES, HEADER_BYTES, NeuralModel, PolicyValueNet, action_index,
-    encode, masked_softmax, read_header, sha256,
+    ACTIONS, HEADER_BYTES, ModelHeader, NeuralModel, PolicyValueNet, action_index, masked_softmax,
+    read_header, sha256, write_model,
 };
 
 use crate::selfplay::{RULES, mix};
 use crate::train::{
-    PHASES, SplitMix, VALUE_SCALE, from_record, hex, model_file, record_bytes, tensor, write_atomic,
+    PHASES, SplitMix, VALUE_SCALE, from_record, hex, record_bytes, tensor, write_atomic,
 };
 
 /// Version of the self-play recipe and run-directory layout.
@@ -397,15 +397,12 @@ pub fn load_net(model: &[u8], device: &Device) -> io::Result<PolicyValueNet> {
 ///
 /// # Errors
 ///
-/// If `start` is not a valid model file of the current encoder.
+/// If `start` is not a supported model file.
 pub fn recipe(start: &[u8], hyper: RlHyper) -> io::Result<RlRecipe> {
     let header = read_header(start).map_err(|e| io::Error::other(format!("{e:?}")))?;
-    if header.encoder_version != ENCODER_VERSION {
-        return Err(io::Error::other("start model has another encoder version"));
-    }
     Ok(RlRecipe {
         rl_format: RL_FORMAT,
-        encoder_version: ENCODER_VERSION,
+        encoder_version: header.encoder_version,
         phases: PHASES.bits(),
         start_sha256: hex(&sha256(start)),
         hidden: header.shape.hidden,
@@ -487,7 +484,12 @@ pub fn learner_step(
         .iter()
         .map(|&a| action_index(a).ok_or_else(|| io::Error::other("action without index")))
         .collect::<io::Result<_>>()?;
-    let features = encode(view);
+    if learner.header().encoder_version != reference.header().encoder_version {
+        return Err(io::Error::other(
+            "learner and reference use different encoders",
+        ));
+    }
+    let features = learner.features(view);
     let out = learner.forward_all(features.clone());
     let probs = masked_softmax(&out.logits, &indices)
         .ok_or_else(|| io::Error::other("learner gave a non-finite policy"))?;
@@ -670,7 +672,8 @@ struct StepBatch {
 
 fn step_batch(steps: &[&Step], advantages: &[f32], device: &Device) -> StepBatch {
     let n = steps.len();
-    let mut features = Vec::with_capacity(n * FEATURES);
+    let inputs = steps[0].features.len();
+    let mut features = Vec::with_capacity(n * inputs);
     let mut mask = vec![-1e9f32; n * ACTIONS];
     let mut taken = vec![0.0f32; n * ACTIONS];
     let mut reference = vec![0.0f32; n * ACTIONS];
@@ -691,7 +694,7 @@ fn step_batch(steps: &[&Step], advantages: &[f32], device: &Device) -> StepBatch
     }
     let column = |v: Vec<f32>| tensor(v, [n, 1], device);
     StepBatch {
-        features: tensor(features, [n, FEATURES], device),
+        features: tensor(features, [n, inputs], device),
         mask: tensor(mask, [n, ACTIONS], device),
         taken: tensor(taken, [n, ACTIONS], device),
         reference: tensor(reference, [n, ACTIONS], device),
@@ -810,6 +813,14 @@ pub fn update_model(
     device: &Device,
 ) -> io::Result<Vec<u8>> {
     let header = read_header(model).map_err(|e| io::Error::other(format!("{e:?}")))?;
+    if steps
+        .iter()
+        .any(|s| s.features.len() != header.shape.inputs)
+    {
+        return Err(io::Error::other(
+            "step features do not match the model encoder",
+        ));
+    }
     let mut optim = AdamConfig::new().init();
     let (net, _) = update(
         load_net(model, device)?,
@@ -819,7 +830,15 @@ pub fn update_model(
         iteration,
         device,
     );
-    Ok(model_file(net.valid(), header.shape))
+    rl_model_file(net.valid(), &header)
+}
+
+fn rl_model_file(net: PolicyValueNet, start: &ModelHeader) -> io::Result<Vec<u8>> {
+    let header = ModelHeader {
+        phases: PHASES,
+        ..*start
+    };
+    write_model(&header, net).map_err(|e| io::Error::other(format!("{e:?}")))
 }
 
 fn checkpoint_dir(out: &Path) -> PathBuf {
@@ -932,7 +951,7 @@ pub fn run(
         if began.elapsed() >= limits.wall_time {
             break RlStop::WallTime;
         }
-        let current = model_file(net.valid(), shape);
+        let current = rl_model_file(net.valid(), &header)?;
         if iteration > 0
             && hyper.snapshot_every > 0
             && iteration.is_multiple_of(hyper.snapshot_every)
@@ -1038,7 +1057,7 @@ pub fn run(
         }
     };
     Ok(RlRun {
-        model: model_file(net.valid(), shape),
+        model: rl_model_file(net.valid(), &header)?,
         state,
         stop,
     })

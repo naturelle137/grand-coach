@@ -16,6 +16,13 @@
 //!   action the teacher's expected Seeger-Fabian points (squared error,
 //!   weight `score_weight`) and win chance (cross-entropy on the win logit,
 //!   weight `win_weight`). Weights 0 train the policy and value only.
+//! - **Belief** (auxiliary, `belief_weight` > 0): for every card the seat
+//!   cannot see, its true place (next seat, the seat after, the Skat),
+//!   from a replay of the deal. A training-only head on the shared hidden
+//!   layer learns it with a cross-entropy, so the trunk has to infer hidden
+//!   hands from the earlier decisions in the view. The model file holds
+//!   only the [`PolicyValueNet`]; the head is saved next to it
+//!   (`belief.bpk`) for `nn-train probe`. Model selection ignores it.
 //!
 //! The only model input is the encoded [`PlayerView`](skat_core::PlayerView)
 //! of the record; final points and option values are targets.
@@ -27,27 +34,32 @@
 //! same recipe resumes it and gives the same model as an uninterrupted
 //! run. No epoch starts after the wall-time cap. The model with the lowest
 //! validation loss is kept.
+//!
+//! With a [`Plateau`] schedule the run lowers the learning rate when the
+//! validation loss stagnates: it continues from the best weights with a
+//! smaller rate, and stops early once the last allowed rate stagnates too.
 
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use burn::module::Module;
+use burn::module::{Module, Param, ParamId};
+use burn::nn::{Linear, LinearConfig};
 use burn::optim::{AdamConfig, GradientsParams, ModuleOptimizer};
 use burn::store::ModuleRecord;
 use burn::tensor::activation::log_softmax;
 use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 use skat_ai::Status;
-use skat_core::Phase;
+use skat_core::{OmniscientView, Phase, PlayerView};
 use skat_nn::{
     ACTIONS, ENCODER_VERSION, FEATURES, MIN_LAYERS, ModelHeader, NetShape, Phases, PolicyValueNet,
-    action_index, encode, sha256, write_model,
+    action_index, encode, sha256, unseen_cards, write_model,
 };
 
 use crate::selfplay::{DecisionKind, DecisionRecord, Split};
-use crate::shards::{Manifest, read_manifest, read_shard};
+use crate::shards::{Manifest, read_manifest, read_shard, replay_deal};
 
 /// Version of the training recipe and run-directory layout.
 pub const TRAIN_FORMAT: u32 = 2;
@@ -60,6 +72,35 @@ pub const VALUE_SCALE: f32 = 60.0;
 
 /// Rows per forward pass when evaluating.
 const EVAL_BATCH: usize = 4096;
+
+/// Places of a hidden card for the belief head, relative to the acting
+/// seat: the next seat, the seat after it, the Skat.
+pub const BELIEF_PLACES: usize = 3;
+
+/// Outputs of the belief head: [`BELIEF_PLACES`] logits per card.
+pub const BELIEF_OUTPUTS: usize = 32 * BELIEF_PLACES;
+
+/// Belief target of a card the acting seat can see.
+pub const NOT_HIDDEN: u8 = u8::MAX;
+
+/// The true place of every card `view.seat` cannot see
+/// ([`unseen_cards`]), [`NOT_HIDDEN`] for the others. `all` is the full
+/// state the view was taken from (a training target, never an input).
+pub fn belief_target(view: &PlayerView, all: &OmniscientView) -> [u8; 32] {
+    let mut target = [NOT_HIDDEN; 32];
+    for card in unseen_cards(view) {
+        let place = if all.skat.contains(card) {
+            2
+        } else {
+            let seat = (0..3)
+                .find(|&s| all.hands[s].contains(card))
+                .expect("every unplayed card is in a hand or the Skat");
+            (seat + 3 - view.seat.index()) % 3 - 1
+        };
+        target[usize::from(card.index())] = place as u8;
+    }
+    target
+}
 
 /// Hyperparameters of a training run.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -92,8 +133,34 @@ pub struct Hyper {
     pub score_weight: f32,
     /// Weight of the option win-chance loss.
     pub win_weight: f32,
+    /// Weight of the auxiliary belief loss (0: no belief head); omitted
+    /// from the recipe when 0, so earlier recipes read and compare as
+    /// before.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub belief_weight: f32,
     /// Seed of the initial weights and the example order.
     pub seed: u64,
+    /// Learning-rate schedule on a validation plateau (none: constant
+    /// rate until the epoch or wall-time cap); omitted from the recipe
+    /// when absent, so earlier recipes read and compare as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plateau: Option<Plateau>,
+}
+
+/// Reduce-on-plateau with early stopping. After `patience` epochs without
+/// a lower validation loss, counted from the best epoch or the last decay
+/// (whichever is later), the run continues from the best weights (Adam
+/// state kept) with the learning rate multiplied by `decay`, at most
+/// `decays` times; the next plateau stops the run. `decays` 0 is plain
+/// early stopping.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Plateau {
+    /// Epochs without improvement that make a plateau (at least 1).
+    pub patience: usize,
+    /// Factor of the learning rate per decay, in (0, 1).
+    pub decay: f64,
+    /// Maximum number of decays.
+    pub decays: usize,
 }
 
 impl Default for Hyper {
@@ -110,7 +177,9 @@ impl Default for Hyper {
             soft_temperature: 5.0,
             score_weight: 1.0,
             win_weight: 1.0,
+            belief_weight: 0.0,
             seed: 0,
+            plateau: None,
         }
     }
 }
@@ -168,8 +237,12 @@ pub struct Metrics {
     /// highest predicted score is the teacher's.
     pub score_agreement: f64,
     /// The training loss: policy loss plus the weighted value, score and
-    /// win losses.
+    /// win losses (without the belief loss).
     pub loss: f64,
+    /// Cross-entropy of the belief head in bits per hidden card; omitted
+    /// (0) without a belief head.
+    #[serde(default, skip_serializing_if = "is_zero_f64")]
+    pub belief_bits: f64,
 }
 
 /// What happened in one epoch.
@@ -179,6 +252,9 @@ pub struct EpochLog {
     pub epoch: usize,
     /// Mean training loss over the epoch's batches.
     pub train_loss: f64,
+    /// Learning rate of the epoch (0 in logs written before schedules).
+    #[serde(default)]
+    pub learning_rate: f64,
     /// Validation metrics after the epoch.
     pub validation: Metrics,
     /// Wall time of the epoch in seconds (informational).
@@ -194,8 +270,45 @@ pub struct State {
     pub logs: Vec<EpochLog>,
     /// Epoch of the best model so far (lowest validation loss).
     pub best_epoch: usize,
+    /// Epochs after which the learning rate was decayed ([`Plateau`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decays: Vec<usize>,
     /// Files of the last completed epoch.
     pub checkpoint: Option<Checkpoint>,
+}
+
+impl State {
+    /// Learning rate of the next epoch.
+    pub fn learning_rate(&self) -> f64 {
+        let hyper = &self.recipe.hyper;
+        let decay = hyper.plateau.map_or(1.0, |p| p.decay);
+        let decays = i32::try_from(self.decays.len()).unwrap_or(i32::MAX);
+        hyper.learning_rate * decay.powi(decays)
+    }
+
+    /// Completed epochs since the best epoch or the last decay, whichever
+    /// is later.
+    pub fn stale_epochs(&self) -> usize {
+        let since = self
+            .decays
+            .last()
+            .map_or(self.best_epoch, |&d| d.max(self.best_epoch));
+        self.logs.len().saturating_sub(since)
+    }
+
+    /// Whether the schedule has reached a plateau.
+    fn plateau(&self) -> Option<Plateau> {
+        self.recipe
+            .hyper
+            .plateau
+            .filter(|p| self.stale_epochs() >= p.patience)
+    }
+
+    /// Whether the run stops: a plateau after the last allowed decay.
+    fn exhausted(&self) -> bool {
+        self.plateau()
+            .is_some_and(|p| self.decays.len() >= p.decays)
+    }
 }
 
 /// Where the files of a completed epoch are, with their SHA-256 hashes
@@ -204,12 +317,24 @@ pub struct State {
 pub struct Checkpoint {
     /// Subdirectory of `checkpoint/`.
     pub dir: String,
-    /// Hashes of `weights.bpk`, `optimizer.bpk`, `best.bpk`, hexadecimal.
+    /// Hashes of `weights.bpk`, `optimizer.bpk`, `best.bpk` and, with a
+    /// belief head, `belief.bpk` and `best-belief.bpk`, hexadecimal.
     pub sha256: Vec<String>,
 }
 
-/// The verified files of the checkpoint `state` points at.
-fn read_checkpoint(dir: &Path, state: &State) -> io::Result<[Vec<u8>; 3]> {
+/// Files of a checkpoint, in the order of [`Checkpoint::sha256`]; the
+/// belief files only with a belief head.
+const CHECKPOINT_FILES: [&str; 5] = [
+    "weights.bpk",
+    "optimizer.bpk",
+    "best.bpk",
+    "belief.bpk",
+    "best-belief.bpk",
+];
+
+/// The verified files of the checkpoint `state` points at: the first
+/// `count` of [`CHECKPOINT_FILES`].
+fn read_checkpoint(dir: &Path, state: &State, count: usize) -> io::Result<Vec<Vec<u8>>> {
     let checkpoint = state
         .checkpoint
         .as_ref()
@@ -223,11 +348,14 @@ fn read_checkpoint(dir: &Path, state: &State) -> io::Result<[Vec<u8>; 3]> {
         }
         Ok(bytes)
     };
-    Ok([
-        read(0, "weights.bpk")?,
-        read(1, "optimizer.bpk")?,
-        read(2, "best.bpk")?,
-    ])
+    if checkpoint.sha256.len() != count {
+        return Err(io::Error::other("checkpoint has other files"));
+    }
+    CHECKPOINT_FILES[..count]
+        .iter()
+        .enumerate()
+        .map(|(i, file)| read(i, file))
+        .collect()
 }
 
 /// The result of a finished run (`train.json`).
@@ -255,7 +383,8 @@ pub struct TrainManifest {
     pub model_bytes: usize,
     /// SHA-256 of the model file, hexadecimal.
     pub model_sha256: String,
-    /// Why the run stopped: `finished` or `wall-time`.
+    /// Why the run stopped: `finished`, `wall-time`, `stopped` or
+    /// `plateau`.
     pub stop: String,
 }
 
@@ -292,21 +421,27 @@ pub struct Examples {
     pub option_score: Vec<f32>,
     /// Teacher's win chance per legal action (0 without options).
     pub option_win: Vec<f32>,
+    /// Belief targets ([`belief_target`]), 32 per row; empty unless the
+    /// examples were loaded with them.
+    pub belief: Vec<u8>,
 }
 
 /// Tensors of a batch.
-struct Batch {
-    features: Tensor<2>,
+pub(crate) struct Batch {
+    pub(crate) features: Tensor<2>,
     /// 0 for legal, -1e9 for illegal actions.
-    mask: Tensor<2>,
-    policy: Tensor<2>,
-    value: Tensor<2>,
+    pub(crate) mask: Tensor<2>,
+    pub(crate) policy: Tensor<2>,
+    pub(crate) value: Tensor<2>,
     /// 1 for legal actions with a teacher option value, else 0.
     option_mask: Tensor<2>,
     score: Tensor<2>,
     win: Tensor<2>,
     /// Number of ones in `option_mask`.
     options: usize,
+    /// One-hot belief targets `[batch, BELIEF_OUTPUTS]` (zero for cards
+    /// the seat sees) and the number of hidden cards, if loaded.
+    belief: Option<(Tensor<2>, usize)>,
 }
 
 impl Examples {
@@ -315,15 +450,21 @@ impl Examples {
         self.value.len()
     }
 
-    fn new() -> Examples {
+    pub(crate) fn new() -> Examples {
         Examples {
             offsets: vec![0],
             ..Examples::default()
         }
     }
 
-    /// Adds `record` if it is a card-play decision.
-    fn push(&mut self, r: &DecisionRecord, hyper: &Hyper) -> bool {
+    /// Adds `record` if it is a card-play decision, with its belief target
+    /// if given.
+    pub(crate) fn push(
+        &mut self,
+        r: &DecisionRecord,
+        hyper: &Hyper,
+        belief: Option<[u8; 32]>,
+    ) -> bool {
         if r.view.phase != Phase::Spiel || !PHASES.contains(r.view.phase) {
             return false;
         }
@@ -393,13 +534,16 @@ impl Examples {
         self.offsets.push(self.legal.len());
         self.chosen.push(chosen as u32);
         self.value.push(value);
+        if let Some(belief) = belief {
+            self.belief.extend(belief);
+        }
         true
     }
 
     /// Tensors for the rows `rows`.
-    fn batch(&self, rows: &[usize], device: &Device) -> Batch {
+    pub(crate) fn batch(&self, rows: &[usize], inputs: usize, device: &Device) -> Batch {
         let n = rows.len();
-        let mut features = Vec::with_capacity(n * FEATURES);
+        let mut features = Vec::with_capacity(n * inputs);
         let mut mask = vec![-1e9f32; n * ACTIONS];
         let mut target = vec![0.0f32; n * ACTIONS];
         let mut option_mask = vec![0.0f32; n * ACTIONS];
@@ -407,8 +551,11 @@ impl Examples {
         let mut win = vec![0.0f32; n * ACTIONS];
         let mut value = Vec::with_capacity(n);
         let mut options = 0;
+        let with_belief = self.belief.len() == 32 * self.rows();
+        let mut belief = vec![0.0f32; if with_belief { n * BELIEF_OUTPUTS } else { 0 }];
+        let mut hidden = 0;
         for (b, &r) in rows.iter().enumerate() {
-            features.extend_from_slice(&self.features[r * FEATURES..][..FEATURES]);
+            features.extend_from_slice(&self.features[r * FEATURES..][..inputs]);
             for i in self.offsets[r]..self.offsets[r + 1] {
                 let a = b * ACTIONS + self.legal[i] as usize;
                 mask[a] = 0.0;
@@ -421,9 +568,17 @@ impl Examples {
                 }
             }
             value.push(self.value[r]);
+            if with_belief {
+                for (c, &place) in self.belief[32 * r..][..32].iter().enumerate() {
+                    if place != NOT_HIDDEN {
+                        belief[b * BELIEF_OUTPUTS + c * BELIEF_PLACES + usize::from(place)] = 1.0;
+                        hidden += 1;
+                    }
+                }
+            }
         }
         Batch {
-            features: tensor(features, [n, FEATURES], device),
+            features: tensor(features, [n, inputs], device),
             mask: tensor(mask, [n, ACTIONS], device),
             policy: tensor(target, [n, ACTIONS], device),
             value: tensor(value, [n, 1], device),
@@ -431,6 +586,7 @@ impl Examples {
             score: tensor(score, [n, ACTIONS], device),
             win: tensor(win, [n, ACTIONS], device),
             options,
+            belief: with_belief.then(|| (tensor(belief, [n, BELIEF_OUTPUTS], device), hidden)),
         }
     }
 }
@@ -459,9 +615,35 @@ pub(crate) fn hex(bytes: &[u8]) -> String {
 }
 
 /// Reads every complete shard of the runs in `dirs` and encodes their
-/// card-play decisions with the targets of `hyper`. Incomplete shards are
-/// skipped (and counted in the source); corrupt ones are errors.
+/// card-play decisions with the targets of `hyper`, with belief targets if
+/// `hyper.belief_weight` > 0. Incomplete shards are skipped (and counted in
+/// the source); corrupt ones are errors.
 pub fn load(dirs: &[PathBuf], hyper: &Hyper) -> io::Result<Data> {
+    load_with(dirs, hyper, hyper.belief_weight > 0.0)
+}
+
+/// The belief target of each record of `records` (one shard, deals in
+/// order), from a replay of its deal.
+pub fn belief_targets(
+    manifest: &Manifest,
+    records: &[DecisionRecord],
+) -> Result<Vec<[u8; 32]>, String> {
+    let mut targets = Vec::with_capacity(records.len());
+    let mut rest = records;
+    while let Some(first) = rest.first() {
+        let len = rest.iter().take_while(|r| r.deal == first.deal).count();
+        let (rows, next) = rest.split_at(len);
+        replay_deal(manifest, first.deal, rows, |r, game| {
+            targets.push(belief_target(&r.view, &game.omniscient_view()));
+            Ok(())
+        })?;
+        rest = next;
+    }
+    Ok(targets)
+}
+
+/// [`load`], with belief targets if `beliefs`.
+pub fn load_with(dirs: &[PathBuf], hyper: &Hyper, beliefs: bool) -> io::Result<Data> {
     let mut data = Data {
         train: Examples::new(),
         validation: Examples::new(),
@@ -483,14 +665,20 @@ pub fn load(dirs: &[PathBuf], hyper: &Hyper) -> io::Result<Data> {
             let shard = fs::read(crate::shards::shard_path(dir, index))?;
             hashes.extend_from_slice(&sha256(&shard));
             shards += 1;
-            for r in &records {
+            let targets = if beliefs {
+                belief_targets(&manifest, &records)
+                    .map_err(|e| io::Error::other(format!("{}: {e}", dir.display())))?
+            } else {
+                Vec::new()
+            };
+            for (i, r) in records.iter().enumerate() {
                 crate::selfplay::check_record(r).map_err(io::Error::other)?;
                 let (examples, split) = match r.split {
                     Split::Train => (&mut data.train, 0),
                     Split::Validation => (&mut data.validation, 1),
                     Split::Test => (&mut data.test, 2),
                 };
-                if examples.push(r, hyper) {
+                if examples.push(r, hyper, targets.get(i).copied()) {
                     *counts
                         .entry((split, DecisionKind::of(&r.view)))
                         .or_default() += 1;
@@ -535,6 +723,60 @@ impl SplitMix {
 
 const INIT_KEY: u64 = 0x696e_6974;
 const ORDER_KEY: u64 = 0x6f72_6465;
+const BELIEF_KEY: u64 = 0x6265_6c66;
+
+/// First parameter id of the belief head, far above the network's.
+const BELIEF_PARAM: u64 = 1_000_000;
+
+/// The network being trained: the model plus the optional training-only
+/// belief head on its last hidden layer. Without the head it has exactly
+/// the network's parameters, so checkpoints of earlier runs resume.
+#[derive(Module, Debug)]
+pub struct TrainNet {
+    /// The model.
+    pub net: PolicyValueNet,
+    /// The belief head (`hidden → BELIEF_OUTPUTS`), if trained.
+    pub belief: Option<Linear>,
+}
+
+/// The initial belief head for `hidden` units: uniform in ±1/sqrt(hidden),
+/// drawn from the seed.
+pub fn initial_belief(hidden: usize, seed: u64, device: &Device) -> Linear {
+    let mut rng = SplitMix(seed ^ BELIEF_KEY);
+    let bound = 1.0 / (hidden as f32).sqrt();
+    let mut draw =
+        |n: usize| -> Vec<f32> { (0..n).map(|_| (rng.unit() * 2.0 - 1.0) * bound).collect() };
+    let weight = draw(hidden * BELIEF_OUTPUTS);
+    let bias = draw(BELIEF_OUTPUTS);
+    let mut linear = LinearConfig::new(hidden, BELIEF_OUTPUTS).init(device);
+    linear.weight = Param::initialized(
+        ParamId::from(BELIEF_PARAM + 1),
+        Tensor::from_data(TensorData::new(weight, [hidden, BELIEF_OUTPUTS]), device),
+    );
+    linear.bias = Some(Param::initialized(
+        ParamId::from(BELIEF_PARAM + 2),
+        Tensor::from_data(TensorData::new(bias, [BELIEF_OUTPUTS]), device),
+    ));
+    linear
+}
+
+/// A belief head for `hidden` units from its record bytes.
+pub fn belief_from_record(hidden: usize, bytes: Vec<u8>, device: &Device) -> io::Result<Linear> {
+    let record =
+        ModuleRecord::from_bytes(Bytes::from_bytes_vec(bytes)).map_err(io::Error::other)?;
+    LinearConfig::new(hidden, BELIEF_OUTPUTS)
+        .init(device)
+        .try_load_record(record)
+        .map_err(|e| io::Error::other(e.to_string()))
+}
+
+/// Belief logits `[batch, BELIEF_OUTPUTS]` of the head for trunk
+/// activations `x`, as log-probabilities over the places of each card
+/// (`[batch, 32, BELIEF_PLACES]`).
+pub fn belief_log_probs(head: &Linear, x: Tensor<2>) -> Tensor<3> {
+    let n = x.dims()[0];
+    log_softmax(head.forward(x).reshape([n, 32, BELIEF_PLACES]), 2)
+}
 
 /// The initial network: every weight and bias uniform in
 /// ±1/sqrt(fan_in) (Burn's and PyTorch's default bound), drawn from the
@@ -573,7 +815,7 @@ fn order(rows: usize, seed: u64, epoch: usize) -> Vec<usize> {
     order
 }
 
-pub(crate) fn record_bytes(net: &PolicyValueNet) -> Vec<u8> {
+pub(crate) fn record_bytes<M: Module>(net: &M) -> Vec<u8> {
     net.clone()
         .into_record()
         .into_bytes()
@@ -609,6 +851,9 @@ struct Losses {
     scores: Tensor<2>,
     /// Option entries in the batch.
     options: usize,
+    /// Belief cross-entropy summed per row (`[n, 1]`, nats) and the number
+    /// of hidden cards, with a head and targets.
+    belief: Option<(Tensor<2>, usize)>,
 }
 
 impl Losses {
@@ -622,12 +867,31 @@ impl Losses {
         if hyper.win_weight > 0.0 {
             loss = loss + self.win.sum() * (hyper.win_weight * per_option);
         }
+        if let Some((belief, hidden)) = self.belief
+            && hyper.belief_weight > 0.0
+        {
+            loss = loss + belief.sum() * (hyper.belief_weight / hidden.max(1) as f32);
+        }
         loss
     }
 }
 
-fn losses(net: &PolicyValueNet, b: Batch) -> Losses {
-    let o = net.forward_all(b.features);
+fn losses(net: &PolicyValueNet, head: Option<&Linear>, b: Batch) -> Losses {
+    let x = net.trunk(b.features);
+    let belief = match (head, b.belief) {
+        (Some(head), Some((target, hidden))) => {
+            let n = target.dims()[0];
+            let target = target.reshape([n, 32, BELIEF_PLACES]);
+            let ce = (belief_log_probs(head, x.clone()) * target)
+                .sum_dim(2)
+                .sum_dim(1)
+                .reshape([n, 1])
+                .neg();
+            Some((ce, hidden))
+        }
+        _ => None,
+    };
+    let o = net.heads(x);
     let logits = o.policy + b.mask;
     let policy = (log_softmax(logits.clone(), 1) * b.policy).sum_dim(1).neg();
     let value = ((o.value - b.value) / VALUE_SCALE).powi_scalar(2);
@@ -647,6 +911,7 @@ fn losses(net: &PolicyValueNet, b: Batch) -> Losses {
         logits,
         scores: o.score,
         options: b.options,
+        belief,
     }
 }
 
@@ -672,14 +937,31 @@ fn best(row: &[f32], legal: &[u32]) -> usize {
 
 /// Metrics of `net` (on the CPU, no autodiff) on `examples`.
 pub fn evaluate(net: &PolicyValueNet, examples: &Examples, hyper: &Hyper) -> Metrics {
+    evaluate_with(net, None, examples, hyper)
+}
+
+/// [`evaluate`], with the belief cross-entropy of `head` if given and the
+/// examples have belief targets.
+pub fn evaluate_with(
+    net: &PolicyValueNet,
+    head: Option<&Linear>,
+    examples: &Examples,
+    hyper: &Hyper,
+) -> Metrics {
     let device = Device::flex();
+    let inputs = net.inputs();
     let rows = examples.rows();
     let (mut policy_sum, mut value_sum, mut score_sum, mut win_sum) = (0.0, 0.0, 0.0, 0.0);
     let (mut agree, mut score_agree, mut options, mut with_options) = (0, 0, 0, 0);
+    let (mut belief_sum, mut hidden) = (0.0, 0);
     let all: Vec<usize> = (0..rows).collect();
     for chunk in all.chunks(EVAL_BATCH) {
-        let l = losses(net, examples.batch(chunk, &device));
+        let l = losses(net, head, examples.batch(chunk, inputs, &device));
         options += l.options;
+        if let Some((belief, n)) = l.belief {
+            belief_sum += sum(belief);
+            hidden += n;
+        }
         policy_sum += sum(l.policy);
         value_sum += sum(l.value);
         score_sum += sum(l.score);
@@ -716,6 +998,7 @@ pub fn evaluate(net: &PolicyValueNet, examples: &Examples, hyper: &Hyper) -> Met
             + f64::from(hyper.value_weight) * value_mse
             + f64::from(hyper.score_weight) * score_mse
             + f64::from(hyper.win_weight) * win_loss,
+        belief_bits: belief_sum / hidden.max(1) as f64 / std::f64::consts::LN_2,
     }
 }
 
@@ -735,6 +1018,9 @@ pub enum TrainStop {
     WallTime,
     /// The progress callback stopped the run.
     Stopped,
+    /// The validation loss stagnated after the last allowed learning-rate
+    /// decay ([`Plateau`]).
+    Plateau,
 }
 
 /// The result of [`train`].
@@ -742,6 +1028,8 @@ pub enum TrainStop {
 pub struct Trained {
     /// The best model's file.
     pub model: Vec<u8>,
+    /// Record bytes of the best model's belief head, if trained.
+    pub belief: Option<Vec<u8>>,
     /// Progress (complete if `stop` is `Finished`).
     pub state: State,
     /// Why it stopped.
@@ -763,6 +1051,17 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
 /// Serde default of a layer count: [`MIN_LAYERS`].
 pub(crate) const fn min_layers() -> usize {
     MIN_LAYERS
+}
+
+/// Whether a weight is 0 (then it is not serialised).
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde passes a reference
+pub(crate) fn is_zero(x: &f32) -> bool {
+    *x == 0.0
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde passes a reference
+fn is_zero_f64(x: &f64) -> bool {
+    *x == 0.0
 }
 
 /// Whether a layer count is [`MIN_LAYERS`] (then it is not serialised).
@@ -795,61 +1094,104 @@ pub fn train(
 ) -> io::Result<Trained> {
     let start = Instant::now();
     let hyper = &recipe.hyper;
+    if recipe.encoder_version != ENCODER_VERSION {
+        return Err(io::Error::other(
+            "training recipe has another encoder version",
+        ));
+    }
+    if let Some(p) = hyper.plateau
+        && (p.patience == 0 || !(p.decay > 0.0 && p.decay < 1.0))
+    {
+        return Err(io::Error::other(
+            "plateau schedule needs a patience of at least 1 and a decay in (0, 1)",
+        ));
+    }
     let shape = NetShape::current(hyper.hidden).with_layers(hyper.layers);
     let dir = checkpoint_dir(out);
     fs::create_dir_all(&dir)?;
     let adam = AdamConfig::new();
 
-    let (mut net, mut optim, mut state, mut best) = match fs::read(dir.join("state.json")) {
-        Ok(bytes) => {
-            let state: State = serde_json::from_slice(&bytes).map_err(io::Error::other)?;
-            if state.recipe != *recipe {
-                return Err(io::Error::other(format!(
-                    "{} holds a run with another recipe",
-                    out.display()
-                )));
+    let with_belief = hyper.belief_weight > 0.0;
+    let files = if with_belief { 5 } else { 3 };
+    let (mut net, mut optim, mut state, mut best, mut best_belief) =
+        match fs::read(dir.join("state.json")) {
+            Ok(bytes) => {
+                let state: State = serde_json::from_slice(&bytes).map_err(io::Error::other)?;
+                if state.recipe != *recipe {
+                    return Err(io::Error::other(format!(
+                        "{} holds a run with another recipe",
+                        out.display()
+                    )));
+                }
+                let mut checkpoint = read_checkpoint(&dir, &state, files)?.into_iter();
+                let mut next = || checkpoint.next().expect("checked count");
+                let net = from_record(shape, next(), device)?;
+                let optim: ModuleOptimizer = adam
+                    .init()
+                    .from_bytes(Bytes::from_bytes_vec(next()))
+                    .map_err(io::Error::other)?;
+                let best = next();
+                let (belief, best_belief) = if with_belief {
+                    let head = belief_from_record(shape.hidden, next(), device)?;
+                    (Some(head), Some(next()))
+                } else {
+                    (None, None)
+                };
+                (TrainNet { net, belief }, optim, state, best, best_belief)
             }
-            let [weights, optimizer, best] = read_checkpoint(&dir, &state)?;
-            let net = from_record(shape, weights, device)?;
-            let optim: ModuleOptimizer = adam
-                .init()
-                .from_bytes(Bytes::from_bytes_vec(optimizer))
-                .map_err(io::Error::other)?;
-            (net, optim, state, best)
-        }
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            let initial = initial(shape, hyper.seed);
-            let bytes = record_bytes(&initial);
-            let net = from_record(shape, bytes.clone(), device)?;
-            let state = State {
-                recipe: recipe.clone(),
-                logs: Vec::new(),
-                best_epoch: 0,
-                checkpoint: None,
-            };
-            (net, adam.init(), state, bytes)
-        }
-        Err(e) => return Err(e),
-    };
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                let initial = initial(shape, hyper.seed);
+                let bytes = record_bytes(&initial);
+                let net = from_record(shape, bytes.clone(), device)?;
+                let belief = with_belief.then(|| initial_belief(shape.hidden, hyper.seed, device));
+                let best_belief = belief.as_ref().map(record_bytes);
+                let state = State {
+                    recipe: recipe.clone(),
+                    logs: Vec::new(),
+                    best_epoch: 0,
+                    decays: Vec::new(),
+                    checkpoint: None,
+                };
+                (
+                    TrainNet { net, belief },
+                    adam.init(),
+                    state,
+                    bytes,
+                    best_belief,
+                )
+            }
+            Err(e) => return Err(e),
+        };
 
     let mut stop = TrainStop::Finished;
     let rows = data.train.rows();
     for epoch in state.logs.len()..hyper.epochs {
+        if state.exhausted() {
+            stop = TrainStop::Plateau;
+            break;
+        }
         if start.elapsed() >= limits.wall_time {
             stop = TrainStop::WallTime;
             break;
         }
         let began = Instant::now();
+        let learning_rate = state.learning_rate();
         let (mut sum, mut batches) = (0.0f64, 0usize);
         for chunk in order(rows, hyper.seed, epoch).chunks(hyper.batch.max(1)) {
-            let loss = losses(&net, data.train.batch(chunk, device)).total(hyper);
+            let batch = data.train.batch(chunk, shape.inputs, device);
+            let loss = losses(&net.net, net.belief.as_ref(), batch).total(hyper);
             sum += f64::from(loss.clone().into_scalar::<f32>());
             batches += 1;
             let grads = GradientsParams::from_grads(loss.backward(), &net);
-            net = optim.step(hyper.learning_rate, net, grads);
+            net = optim.step(learning_rate, net, grads);
         }
         let current = net.valid();
-        let validation = evaluate(&current, &data.validation, hyper);
+        let validation = evaluate_with(
+            &current.net,
+            current.belief.as_ref(),
+            &data.validation,
+            hyper,
+        );
         let improved = state
             .logs
             .get(state.best_epoch.wrapping_sub(1))
@@ -857,26 +1199,41 @@ pub fn train(
         state.logs.push(EpochLog {
             epoch: epoch + 1,
             train_loss: sum / batches.max(1) as f64,
+            learning_rate,
             validation,
             seconds: began.elapsed().as_secs_f64(),
         });
         let go_on = progress(state.logs.last().expect("just pushed"));
         if improved {
             state.best_epoch = epoch + 1;
-            best = record_bytes(&current);
+            best = record_bytes(&current.net);
+            best_belief = current.belief.as_ref().map(record_bytes);
+        }
+        // On a plateau with decays left, continue from the best weights
+        // with a smaller rate; the checkpoint below already holds them.
+        if state
+            .plateau()
+            .is_some_and(|p| state.decays.len() < p.decays)
+        {
+            state.decays.push(epoch + 1);
+            net.net = from_record(shape, best.clone(), device)?;
+            if let Some(head) = &best_belief {
+                net.belief = Some(belief_from_record(shape.hidden, head.clone(), device)?);
+            }
         }
         // Each epoch's files go into their own directory; `state.json`,
         // written last and atomically, points at it with their hashes. An
         // interrupted checkpoint leaves the previous state valid.
         let name = format!("epoch-{:04}", epoch + 1);
-        let files = [
-            ("weights.bpk", record_bytes(&net)),
-            (
-                "optimizer.bpk",
-                optim.into_bytes().map_err(io::Error::other)?.to_vec(),
-            ),
-            ("best.bpk", best.clone()),
+        let mut files = vec![
+            record_bytes(&net.net),
+            optim.into_bytes().map_err(io::Error::other)?.to_vec(),
+            best.clone(),
         ];
+        if let (Some(head), Some(best_head)) = (&net.belief, &best_belief) {
+            files.extend([record_bytes(head), best_head.clone()]);
+        }
+        let files: Vec<(&str, Vec<u8>)> = CHECKPOINT_FILES.into_iter().zip(files).collect();
         fs::create_dir_all(dir.join(&name))?;
         state.checkpoint = Some(Checkpoint {
             dir: name.clone(),
@@ -898,10 +1255,15 @@ pub fn train(
             stop = TrainStop::Stopped;
             break;
         }
+        if state.exhausted() && state.logs.len() < hyper.epochs {
+            stop = TrainStop::Plateau;
+            break;
+        }
     }
     let best_net = from_record(shape, best, &Device::flex())?;
     Ok(Trained {
         model: model_file(best_net, shape),
+        belief: best_belief,
         state,
         stop,
     })
@@ -916,6 +1278,24 @@ pub fn evaluate_model(model: &[u8], examples: &Examples, hyper: &Hyper) -> io::R
         &Device::flex(),
     )?;
     Ok(evaluate(&net, examples, hyper))
+}
+
+/// A model file's network and, if given, its belief head (record bytes).
+pub fn read_model(
+    model: &[u8],
+    belief: Option<&[u8]>,
+) -> io::Result<(PolicyValueNet, Option<Linear>)> {
+    let header = skat_nn::read_header(model).map_err(|e| io::Error::other(format!("{e:?}")))?;
+    let device = Device::flex();
+    let net = from_record(
+        header.shape,
+        model[skat_nn::HEADER_BYTES..].to_vec(),
+        &device,
+    )?;
+    let head = belief
+        .map(|b| belief_from_record(header.shape.hidden, b.to_vec(), &device))
+        .transpose()?;
+    Ok((net, head))
 }
 
 /// Hex form of a hash, for manifests.
