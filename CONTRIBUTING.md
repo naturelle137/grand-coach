@@ -118,7 +118,10 @@ at its wall-time cap; `--layers N` (default 2) trains a deeper network,
 which `rl` keeps when it starts from it. `evaluate` measures a model
 file on every split, and `calibrate` and `latency` measure its play.
 `train --belief-weight X` adds the training-only belief head and writes
-`OUT_DIR/belief.bpk`. `probe` measures how the decisions of one game
+`OUT_DIR/belief.bpk`. `train --patience N` lowers the learning rate
+after N epochs without a lower validation loss and continues from the best
+weights (`--lr-decay X`, default 0.1; `--lr-decays N`, default 1); the
+next plateau stops the run early. `probe` measures how the decisions of one game
 depend on each other on validation deals: value-residual correlation,
 the effect of each encoder block, and hidden-card bits (Classic's
 constraints, its bidding evidence, the belief head with `--belief`).
@@ -129,6 +132,7 @@ continues with its v1 inputs.
 
 ```sh
 cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR... --hidden 512 --epochs 30 --minutes 120
+cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR... --hidden 512 --epochs 60 --minutes 600 --patience 3 --lr-decay 0.1 --lr-decays 1
 cargo run --locked --release -p nn-train -- evaluate OUT_DIR/model.gcnn DATA_DIR...
 cargo run --locked --release -p nn-train -- probe OUT_DIR/model.gcnn DATA_DIR... --belief OUT_DIR/belief.bpk --json probe.json
 cargo run --locked --release -p skat-ai --example calibrate -- validation nn:assets/models/card-play.gcnn easy 200 6 0

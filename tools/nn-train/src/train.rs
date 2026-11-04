@@ -34,6 +34,10 @@
 //! same recipe resumes it and gives the same model as an uninterrupted
 //! run. No epoch starts after the wall-time cap. The model with the lowest
 //! validation loss is kept.
+//!
+//! With a [`Plateau`] schedule the run lowers the learning rate when the
+//! validation loss stagnates: it continues from the best weights with a
+//! smaller rate, and stops early once the last allowed rate stagnates too.
 
 use std::fs;
 use std::io;
@@ -136,6 +140,27 @@ pub struct Hyper {
     pub belief_weight: f32,
     /// Seed of the initial weights and the example order.
     pub seed: u64,
+    /// Learning-rate schedule on a validation plateau (none: constant
+    /// rate until the epoch or wall-time cap); omitted from the recipe
+    /// when absent, so earlier recipes read and compare as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plateau: Option<Plateau>,
+}
+
+/// Reduce-on-plateau with early stopping. After `patience` epochs without
+/// a lower validation loss, counted from the best epoch or the last decay
+/// (whichever is later), the run continues from the best weights (Adam
+/// state kept) with the learning rate multiplied by `decay`, at most
+/// `decays` times; the next plateau stops the run. `decays` 0 is plain
+/// early stopping.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Plateau {
+    /// Epochs without improvement that make a plateau (at least 1).
+    pub patience: usize,
+    /// Factor of the learning rate per decay, in (0, 1).
+    pub decay: f64,
+    /// Maximum number of decays.
+    pub decays: usize,
 }
 
 impl Default for Hyper {
@@ -154,6 +179,7 @@ impl Default for Hyper {
             win_weight: 1.0,
             belief_weight: 0.0,
             seed: 0,
+            plateau: None,
         }
     }
 }
@@ -226,6 +252,9 @@ pub struct EpochLog {
     pub epoch: usize,
     /// Mean training loss over the epoch's batches.
     pub train_loss: f64,
+    /// Learning rate of the epoch (0 in logs written before schedules).
+    #[serde(default)]
+    pub learning_rate: f64,
     /// Validation metrics after the epoch.
     pub validation: Metrics,
     /// Wall time of the epoch in seconds (informational).
@@ -241,8 +270,45 @@ pub struct State {
     pub logs: Vec<EpochLog>,
     /// Epoch of the best model so far (lowest validation loss).
     pub best_epoch: usize,
+    /// Epochs after which the learning rate was decayed ([`Plateau`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decays: Vec<usize>,
     /// Files of the last completed epoch.
     pub checkpoint: Option<Checkpoint>,
+}
+
+impl State {
+    /// Learning rate of the next epoch.
+    pub fn learning_rate(&self) -> f64 {
+        let hyper = &self.recipe.hyper;
+        let decay = hyper.plateau.map_or(1.0, |p| p.decay);
+        let decays = i32::try_from(self.decays.len()).unwrap_or(i32::MAX);
+        hyper.learning_rate * decay.powi(decays)
+    }
+
+    /// Completed epochs since the best epoch or the last decay, whichever
+    /// is later.
+    pub fn stale_epochs(&self) -> usize {
+        let since = self
+            .decays
+            .last()
+            .map_or(self.best_epoch, |&d| d.max(self.best_epoch));
+        self.logs.len().saturating_sub(since)
+    }
+
+    /// Whether the schedule has reached a plateau.
+    fn plateau(&self) -> Option<Plateau> {
+        self.recipe
+            .hyper
+            .plateau
+            .filter(|p| self.stale_epochs() >= p.patience)
+    }
+
+    /// Whether the run stops: a plateau after the last allowed decay.
+    fn exhausted(&self) -> bool {
+        self.plateau()
+            .is_some_and(|p| self.decays.len() >= p.decays)
+    }
 }
 
 /// Where the files of a completed epoch are, with their SHA-256 hashes
@@ -317,7 +383,8 @@ pub struct TrainManifest {
     pub model_bytes: usize,
     /// SHA-256 of the model file, hexadecimal.
     pub model_sha256: String,
-    /// Why the run stopped: `finished` or `wall-time`.
+    /// Why the run stopped: `finished`, `wall-time`, `stopped` or
+    /// `plateau`.
     pub stop: String,
 }
 
@@ -951,6 +1018,9 @@ pub enum TrainStop {
     WallTime,
     /// The progress callback stopped the run.
     Stopped,
+    /// The validation loss stagnated after the last allowed learning-rate
+    /// decay ([`Plateau`]).
+    Plateau,
 }
 
 /// The result of [`train`].
@@ -1029,6 +1099,13 @@ pub fn train(
             "training recipe has another encoder version",
         ));
     }
+    if let Some(p) = hyper.plateau
+        && (p.patience == 0 || !(p.decay > 0.0 && p.decay < 1.0))
+    {
+        return Err(io::Error::other(
+            "plateau schedule needs a patience of at least 1 and a decay in (0, 1)",
+        ));
+    }
     let shape = NetShape::current(hyper.hidden).with_layers(hyper.layers);
     let dir = checkpoint_dir(out);
     fs::create_dir_all(&dir)?;
@@ -1072,6 +1149,7 @@ pub fn train(
                     recipe: recipe.clone(),
                     logs: Vec::new(),
                     best_epoch: 0,
+                    decays: Vec::new(),
                     checkpoint: None,
                 };
                 (
@@ -1088,11 +1166,16 @@ pub fn train(
     let mut stop = TrainStop::Finished;
     let rows = data.train.rows();
     for epoch in state.logs.len()..hyper.epochs {
+        if state.exhausted() {
+            stop = TrainStop::Plateau;
+            break;
+        }
         if start.elapsed() >= limits.wall_time {
             stop = TrainStop::WallTime;
             break;
         }
         let began = Instant::now();
+        let learning_rate = state.learning_rate();
         let (mut sum, mut batches) = (0.0f64, 0usize);
         for chunk in order(rows, hyper.seed, epoch).chunks(hyper.batch.max(1)) {
             let batch = data.train.batch(chunk, shape.inputs, device);
@@ -1100,7 +1183,7 @@ pub fn train(
             sum += f64::from(loss.clone().into_scalar::<f32>());
             batches += 1;
             let grads = GradientsParams::from_grads(loss.backward(), &net);
-            net = optim.step(hyper.learning_rate, net, grads);
+            net = optim.step(learning_rate, net, grads);
         }
         let current = net.valid();
         let validation = evaluate_with(
@@ -1116,6 +1199,7 @@ pub fn train(
         state.logs.push(EpochLog {
             epoch: epoch + 1,
             train_loss: sum / batches.max(1) as f64,
+            learning_rate,
             validation,
             seconds: began.elapsed().as_secs_f64(),
         });
@@ -1124,6 +1208,18 @@ pub fn train(
             state.best_epoch = epoch + 1;
             best = record_bytes(&current.net);
             best_belief = current.belief.as_ref().map(record_bytes);
+        }
+        // On a plateau with decays left, continue from the best weights
+        // with a smaller rate; the checkpoint below already holds them.
+        if state
+            .plateau()
+            .is_some_and(|p| state.decays.len() < p.decays)
+        {
+            state.decays.push(epoch + 1);
+            net.net = from_record(shape, best.clone(), device)?;
+            if let Some(head) = &best_belief {
+                net.belief = Some(belief_from_record(shape.hidden, head.clone(), device)?);
+            }
         }
         // Each epoch's files go into their own directory; `state.json`,
         // written last and atomically, points at it with their hashes. An
@@ -1157,6 +1253,10 @@ pub fn train(
         }
         if !go_on && state.logs.len() < hyper.epochs {
             stop = TrainStop::Stopped;
+            break;
+        }
+        if state.exhausted() && state.logs.len() < hyper.epochs {
+            stop = TrainStop::Plateau;
             break;
         }
     }

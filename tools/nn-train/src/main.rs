@@ -17,7 +17,7 @@
 //!     [--hidden N] [--batch N] [--lr X] [--epochs N] [--value-weight X]
 //!     [--value-mix X] [--soft-weight X] [--soft-temperature X]
 //!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
-//!     [--device cpu|vulkan]
+//!     [--device cpu|vulkan] [--patience N [--lr-decay X] [--lr-decays N]]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
 //!     [--games N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W] [--seed N]
@@ -41,7 +41,10 @@
 //! [`nn_train::train`]); it resumes from `OUT_DIR/checkpoint`, stops at
 //! its wall-time cap and writes `model.gcnn` (the epoch with the lowest
 //! validation loss) and `train.json` (recipe with data hashes, coverage,
-//! epoch logs, metrics per split, model hash). `evaluate` reports a
+//! epoch logs, metrics per split, model hash). With `--patience N`, N
+//! epochs without a lower validation loss continue from the best weights
+//! with the learning rate times `--lr-decay` (default 0.1), at most
+//! `--lr-decays` times (default 1); the next such plateau stops the run. `evaluate` reports a
 //! model file's metrics on every split of the given runs, so models
 //! trained on different data compare on the same examples. `rl` refines
 //! a model by self-play against a frozen opponent pool (#75,
@@ -415,8 +418,8 @@ fn device(kind: &str) -> Device {
 
 fn train(args: &[String]) {
     use nn_train::train::{
-        Hyper, PHASES, Recipe, TRAIN_FORMAT, TrainLimits, TrainManifest, TrainStop, evaluate_with,
-        hex_hash, load, read_model, train,
+        Hyper, PHASES, Plateau, Recipe, TRAIN_FORMAT, TrainLimits, TrainManifest, TrainStop,
+        evaluate_with, hex_hash, load, read_model, train,
     };
     let out = std::path::PathBuf::from(args.first().expect("train OUT_DIR DATA_DIR..."));
     let dirs: Vec<std::path::PathBuf> = args[1..]
@@ -440,6 +443,11 @@ fn train(args: &[String]) {
         win_weight: flag(args, "--win-weight", d.win_weight),
         belief_weight: flag(args, "--belief-weight", d.belief_weight),
         seed: flag(args, "--seed", d.seed),
+        plateau: args.iter().any(|a| a == "--patience").then(|| Plateau {
+            patience: flag(args, "--patience", 2),
+            decay: flag(args, "--lr-decay", 0.1),
+            decays: flag(args, "--lr-decays", 1),
+        }),
     };
     let minutes: f64 = flag(args, "--minutes", 60.0);
     let kind = text_flag(args, "--device", "cpu");
@@ -473,10 +481,11 @@ fn train(args: &[String]) {
         limits,
         |log| {
             println!(
-                "epoch {:3}: train loss {:.4}, validation loss {:.4}, policy {:.4}, \
+                "epoch {:3}: lr {:.1e}, train loss {:.4}, validation loss {:.4}, policy {:.4}, \
                  agreement {:.2} %, value RMSE {:.1}, score RMSE {:.1}, win loss {:.4}, \
                  score agreement {:.2} %, belief {:.3} bits, {:.0} s",
                 log.epoch,
+                log.learning_rate,
                 log.train_loss,
                 log.validation.loss,
                 log.validation.policy_loss,
@@ -510,6 +519,7 @@ fn train(args: &[String]) {
             TrainStop::Finished => "finished",
             TrainStop::WallTime => "wall-time",
             TrainStop::Stopped => "stopped",
+            TrainStop::Plateau => "plateau",
         }
         .to_string(),
     };
@@ -878,7 +888,8 @@ fn main() {
                 "       nn-train train OUT_DIR DATA_DIR... [--hidden N] [--batch N] [--lr X] \
                  [--epochs N] [--value-weight X] [--value-mix X] [--soft-weight X] \
                  [--soft-temperature X] [--score-weight X] [--win-weight X] [--belief-weight X] \
-                 [--seed N] [--minutes N] [--device cpu|vulkan]"
+                 [--seed N] [--minutes N] [--device cpu|vulkan] \
+                 [--patience N [--lr-decay X] [--lr-decays N]]"
             );
             std::process::exit(2);
         }
