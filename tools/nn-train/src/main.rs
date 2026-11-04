@@ -17,7 +17,7 @@
 //!     [--hidden N] [--batch N] [--lr X] [--epochs N] [--value-weight X]
 //!     [--value-mix X] [--soft-weight X] [--soft-temperature X]
 //!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
-//!     [--device cpu|vulkan]
+//!     [--device cpu|vulkan] [--patience N [--lr-decay X] [--lr-decays N]]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
 //!     [--games N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W] [--seed N]
@@ -41,7 +41,10 @@
 //! [`nn_train::train`]); it resumes from `OUT_DIR/checkpoint`, stops at
 //! its wall-time cap and writes `model.gcnn` (the epoch with the lowest
 //! validation loss) and `train.json` (recipe with data hashes, coverage,
-//! epoch logs, metrics per split, model hash). `evaluate` reports a
+//! epoch logs, metrics per split, model hash). With `--patience N`, N
+//! epochs without a lower validation loss continue from the best weights
+//! with the learning rate times `--lr-decay` (default 0.1), at most
+//! `--lr-decays` times (default 1); the next such plateau stops the run. `evaluate` reports a
 //! model file's metrics on every split of the given runs, so models
 //! trained on different data compare on the same examples. `rl` refines
 //! a model by self-play against a frozen opponent pool (#75,
@@ -415,8 +418,8 @@ fn device(kind: &str) -> Device {
 
 fn train(args: &[String]) {
     use nn_train::train::{
-        Hyper, PHASES, Recipe, TRAIN_FORMAT, TrainLimits, TrainManifest, TrainStop, evaluate_model,
-        hex_hash, load, train,
+        Hyper, PHASES, Plateau, Recipe, TRAIN_FORMAT, TrainLimits, TrainManifest, TrainStop,
+        evaluate_with, hex_hash, load, read_model, train,
     };
     let out = std::path::PathBuf::from(args.first().expect("train OUT_DIR DATA_DIR..."));
     let dirs: Vec<std::path::PathBuf> = args[1..]
@@ -438,7 +441,13 @@ fn train(args: &[String]) {
         soft_temperature: flag(args, "--soft-temperature", d.soft_temperature),
         score_weight: flag(args, "--score-weight", d.score_weight),
         win_weight: flag(args, "--win-weight", d.win_weight),
+        belief_weight: flag(args, "--belief-weight", d.belief_weight),
         seed: flag(args, "--seed", d.seed),
+        plateau: args.iter().any(|a| a == "--patience").then(|| Plateau {
+            patience: flag(args, "--patience", 2),
+            decay: flag(args, "--lr-decay", 0.1),
+            decays: flag(args, "--lr-decays", 1),
+        }),
     };
     let minutes: f64 = flag(args, "--minutes", 60.0);
     let kind = text_flag(args, "--device", "cpu");
@@ -472,10 +481,11 @@ fn train(args: &[String]) {
         limits,
         |log| {
             println!(
-                "epoch {:3}: train loss {:.4}, validation loss {:.4}, policy {:.4}, \
+                "epoch {:3}: lr {:.1e}, train loss {:.4}, validation loss {:.4}, policy {:.4}, \
                  agreement {:.2} %, value RMSE {:.1}, score RMSE {:.1}, win loss {:.4}, \
-                 score agreement {:.2} %, {:.0} s",
+                 score agreement {:.2} %, belief {:.3} bits, {:.0} s",
                 log.epoch,
+                log.learning_rate,
                 log.train_loss,
                 log.validation.loss,
                 log.validation.policy_loss,
@@ -484,13 +494,15 @@ fn train(args: &[String]) {
                 log.validation.score_rmse,
                 log.validation.win_loss,
                 100.0 * log.validation.score_agreement,
+                log.validation.belief_bits,
                 log.seconds
             );
             true
         },
     )
     .expect("train");
-    let metrics = |examples| evaluate_model(&trained.model, examples, &hyper).expect("evaluate");
+    let (net, head) = read_model(&trained.model, trained.belief.as_deref()).expect("read model");
+    let metrics = |examples| evaluate_with(&net, head.as_ref(), examples, &hyper);
     let manifest = TrainManifest {
         recipe,
         engine_commit: commit,
@@ -507,10 +519,14 @@ fn train(args: &[String]) {
             TrainStop::Finished => "finished",
             TrainStop::WallTime => "wall-time",
             TrainStop::Stopped => "stopped",
+            TrainStop::Plateau => "plateau",
         }
         .to_string(),
     };
     std::fs::write(out.join("model.gcnn"), &trained.model).expect("write model");
+    if let Some(belief) = &trained.belief {
+        std::fs::write(out.join("belief.bpk"), belief).expect("write belief head");
+    }
     let mut json = serde_json::to_vec_pretty(&manifest).expect("manifest serialises");
     json.push(b'\n');
     std::fs::write(out.join("train.json"), json).expect("write train.json");
@@ -687,6 +703,102 @@ fn rl(args: &[String]) {
     );
 }
 
+fn probe(args: &[String]) {
+    use nn_train::probe::{ProbeConfig, probe};
+    use nn_train::selfplay::Split;
+    let model = std::fs::read(args.first().expect("probe MODEL DATA_DIR...")).expect("read model");
+    let dirs: Vec<std::path::PathBuf> = args[1..]
+        .iter()
+        .take_while(|a| !a.starts_with("--"))
+        .map(std::path::PathBuf::from)
+        .collect();
+    assert!(!dirs.is_empty(), "probe needs at least one DATA_DIR");
+    let belief = match text_flag(args, "--belief", "") {
+        "" => None,
+        path => Some(std::fs::read(path).expect("read belief head")),
+    };
+    let (net, head) =
+        nn_train::train::read_model(&model, belief.as_deref()).expect("read model and head");
+    let threads = std::thread::available_parallelism().map_or(1, usize::from);
+    let config = ProbeConfig {
+        rows: flag(args, "--rows", 20_000),
+        samples: flag(args, "--samples", 256),
+        seed: flag(args, "--seed", 0),
+        threads: flag(args, "--threads", threads),
+        split: Split::Validation,
+    };
+    let start = Instant::now();
+    let r = probe(&net, head.as_ref(), &dirs, config).expect("probe");
+    println!(
+        "{} rows from {} validation deals, {} inputs ({} views the sampler rejects), {:.0} s",
+        r.rows,
+        r.deals,
+        r.inputs,
+        r.inconsistent,
+        start.elapsed().as_secs_f64()
+    );
+    println!("value residual ICC (rows, groups, RMSE, ICC, effective rows):");
+    for (name, i) in [
+        ("final points by (deal, seat)", r.label.final_by_seat),
+        ("final points by deal", r.label.final_by_deal),
+        ("chosen option by (deal, seat)", r.label.option_by_seat),
+    ] {
+        println!(
+            "  {name:32} {:7} {:6} {:6.1} {:6.3} {:9.0}",
+            i.rows, i.groups, i.rmse, i.icc, i.effective_rows
+        );
+    }
+    println!(
+        "policy loss {:.4}, agreement {:.2} %; by completed tricks: {}",
+        r.base.policy_loss,
+        100.0 * r.base.agreement,
+        r.base
+            .loss_by_trick
+            .iter()
+            .map(|l| format!("{l:.3}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    println!("zeroed block: Δ policy loss, Δ agreement (points), Δ loss by completed tricks");
+    let mut blocks = r.blocks.clone();
+    blocks.sort_by(|a, b| b.policy_loss_delta.total_cmp(&a.policy_loss_delta));
+    for b in &blocks {
+        println!(
+            "  {:16} {:+.4} {:+6.2}  {}",
+            b.block,
+            b.policy_loss_delta,
+            100.0 * b.agreement_delta,
+            b.loss_delta_by_trick
+                .iter()
+                .map(|l| format!("{l:+.3}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+    }
+    println!("hidden-card bits per card: tricks, cards, constraints, + bidding, head");
+    for b in &r.belief {
+        let label = if b.tricks == 10 {
+            "all".to_string()
+        } else {
+            b.tricks.to_string()
+        };
+        println!(
+            "  {label:>3} {:7} {:.3} {:.3} {:.3}",
+            b.hidden, b.uniform_bits, b.evidence_bits, b.head_bits
+        );
+    }
+    if let Some(path) = args
+        .iter()
+        .position(|a| a == "--json")
+        .and_then(|i| args.get(i + 1))
+    {
+        let mut json = serde_json::to_vec_pretty(&r).expect("report serialises");
+        json.push(b'\n');
+        std::fs::write(path, json).expect("write report");
+        println!("wrote {path}");
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
@@ -694,6 +806,7 @@ fn main() {
         Some("train") => train(&args[1..]),
         Some("evaluate") => evaluate(&args[1..]),
         Some("rl") => rl(&args[1..]),
+        Some("probe") => probe(&args[1..]),
         Some("verify") => {
             let dir = args.get(1).expect("verify DIR");
             match nn_train::shards::verify(std::path::Path::new(dir)) {
@@ -761,6 +874,10 @@ fn main() {
             eprintln!("       nn-train verify DIR");
             eprintln!("       nn-train evaluate MODEL DATA_DIR...");
             eprintln!(
+                "       nn-train probe MODEL DATA_DIR... [--belief FILE] [--rows N] [--samples N] \
+                 [--seed N] [--threads N] [--json FILE]"
+            );
+            eprintln!(
                 "       nn-train rl OUT_DIR [--start MODEL] [--games N] [--batch N] [--passes N] \
                  [--lr X] [--clip X] [--value-weight X] [--score-weight X] [--win-weight X] \
                  [--entropy-weight X] [--reference-weight X] [--snapshot-every N] \
@@ -770,7 +887,9 @@ fn main() {
             eprintln!(
                 "       nn-train train OUT_DIR DATA_DIR... [--hidden N] [--batch N] [--lr X] \
                  [--epochs N] [--value-weight X] [--value-mix X] [--soft-weight X] \
-                 [--soft-temperature X] [--score-weight X] [--win-weight X] [--seed N] [--minutes N] [--device cpu|vulkan]"
+                 [--soft-temperature X] [--score-weight X] [--win-weight X] [--belief-weight X] \
+                 [--seed N] [--minutes N] [--device cpu|vulkan] \
+                 [--patience N [--lr-decay X] [--lr-decays N]]"
             );
             std::process::exit(2);
         }

@@ -22,7 +22,7 @@ mod model;
 pub mod net;
 
 pub use actions::{ACTIONS, action_at, action_index};
-pub use encoder::{ENCODER_VERSION, FEATURES, encode};
+pub use encoder::{BLOCKS, ENCODER_VERSION, FEATURES, encode, unseen_cards};
 #[cfg(feature = "fixture")]
 pub use fixture::{FIXTURE_HIDDEN, fixture_model};
 pub use model::{
