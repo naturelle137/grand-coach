@@ -12,6 +12,7 @@
 //! cargo run --locked --release -p nn-train -- generate OUT_DIR [--deals N]
 //!     [--shard-deals N] [--seed N] [--minutes N] [--max-mb N] [--cpus N]
 //!     [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4]
+//!     [--table teacher|easy-mix]
 //! cargo run --locked --release -p nn-train -- verify DIR
 //! cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR...
 //!     [--hidden N] [--batch N] [--lr X] [--epochs N] [--value-weight X]
@@ -305,7 +306,7 @@ fn flag<T: std::str::FromStr>(args: &[String], name: &str, default: T) -> T {
 }
 
 fn generate(args: &[String]) {
-    use nn_train::selfplay::{DecisionKind, TeacherProfile};
+    use nn_train::selfplay::{DecisionKind, Table, TeacherProfile};
     use nn_train::shards::{Limits, Manifest, generate};
     use std::num::NonZeroUsize;
 
@@ -346,12 +347,16 @@ fn generate(args: &[String]) {
         },
         ..TeacherProfile::STRONG
     };
-    let manifest = Manifest::new(&engine_commit(), teacher, seed, deals, shard_deals);
+    let table_name = text_flag(args, "--table", "teacher");
+    let table = Table::parse(table_name)
+        .unwrap_or_else(|| panic!("unknown table {table_name}: teacher or easy-mix"));
+    let manifest = Manifest::new(&engine_commit(), teacher, table, seed, deals, shard_deals);
     println!(
-        "run: {} deals in {} shards, seed {seed}, profile {}, commit {}",
+        "run: {} deals in {} shards, seed {seed}, profile {}, table {}, commit {}",
         deals,
         manifest.shards(),
         teacher.name,
+        table.name(),
         manifest.engine_commit
     );
     println!(
@@ -387,6 +392,18 @@ fn generate(args: &[String]) {
             );
         }
         println!("incomplete teacher analyses: {}", report.incomplete);
+        if table != Table::Teacher {
+            for (roles, n) in &report.roles {
+                println!(
+                    "card-play roles {} (declarer|defenders, T teacher, E Easy): {n} deals",
+                    roles.label()
+                );
+            }
+            println!(
+                "Easy actions that differ from the teacher's label: {}",
+                report.overruled
+            );
+        }
         println!(
             "projection for 10,000 games: {:.1} h, {:.0} MB",
             10_000.0 / games_per_hour,
@@ -570,11 +587,7 @@ fn evaluate(args: &[String]) {
     assert!(!dirs.is_empty(), "evaluate needs at least one DATA_DIR");
     let hyper = Hyper::default();
     let data = load(&dirs, &hyper).expect("load data");
-    for (name, examples) in [
-        ("train", &data.train),
-        ("validation", &data.validation),
-        ("test", &data.test),
-    ] {
+    let report = |name: &str, examples: &nn_train::train::Examples| {
         let m = evaluate_model(&model, examples, &hyper).expect("evaluate");
         println!(
             "{name}: {} examples, policy {:.4}, agreement {:.2} %, value RMSE {:.1}, \
@@ -587,6 +600,31 @@ fn evaluate(args: &[String]) {
             m.win_loss,
             100.0 * m.score_agreement
         );
+    };
+    for (name, examples) in [
+        ("train", &data.train),
+        ("validation", &data.validation),
+        ("test", &data.test),
+    ] {
+        report(name, examples);
+    }
+    // Origin of the test examples: who played the acting seat and the
+    // card-play roles (labels are always the teacher's).
+    let test = &data.test;
+    if test.roles.iter().any(|r| r.easy() > 0) {
+        use nn_train::selfplay::{Player, Roles};
+        for player in [Player::Teacher, Player::Easy] {
+            let part = test.select(|r| test.player[r] == player);
+            if part.rows() > 0 {
+                report(&format!("  test, {player:?} seat"), &part);
+            }
+        }
+        for roles in Roles::ALL {
+            let part = test.select(|r| test.roles[r] == roles);
+            if part.rows() > 0 {
+                report(&format!("  test, roles {}", roles.label()), &part);
+            }
+        }
     }
 }
 
@@ -869,7 +907,8 @@ fn main() {
             eprintln!("       nn-train fixture SEED OUT_FILE");
             eprintln!(
                 "       nn-train generate OUT_DIR [--deals N] [--shard-deals N] [--seed N] \
-                 [--minutes N] [--max-mb N] [--cpus N] [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4]"
+                 [--minutes N] [--max-mb N] [--cpus N] [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4] \
+                 [--table teacher|easy-mix]"
             );
             eprintln!("       nn-train verify DIR");
             eprintln!("       nn-train evaluate MODEL DATA_DIR...");

@@ -7,7 +7,8 @@
 use std::collections::BTreeSet;
 
 use nn_train::selfplay::{
-    DecisionKind, DecisionRecord, RULES, RunSeed, Split, TeacherProfile, play, play_deal, teach,
+    DecisionKind, DecisionRecord, RULES, RunSeed, Split, Table, TeacherProfile, play, play_deal,
+    teach,
 };
 use skat_ai::{Budget, Level, Opponent, Profile, Status};
 use skat_core::{
@@ -88,7 +89,7 @@ fn substitute(deal: Deal, records: &[DecisionRecord], k: usize) -> Option<Deal> 
 fn hidden_cards_do_not_change_a_record() {
     let mut checked = 0;
     for deal in 0..2 {
-        let records = play_deal(SEED, TEST_TEACHER.profile, deal);
+        let records = play_deal(SEED, TEST_TEACHER.profile, Table::Teacher, deal);
         let original = Deal::from_seed(SEED.deal_seed(deal));
         for k in 0..records.len() {
             let Some(other) = substitute(original, &records, k) else {
@@ -167,7 +168,7 @@ fn records_cover_phases_roles_seats_and_visibility() {
     let mut roles = BTreeSet::new();
     let mut analysed = 0;
     for deal in 0..6 {
-        let records = play_deal(SEED, TEST_TEACHER.profile, deal);
+        let records = play_deal(SEED, TEST_TEACHER.profile, Table::Teacher, deal);
         assert!(!records.is_empty());
         check_visibility(Deal::from_seed(SEED.deal_seed(deal)), &[], &records);
         let split = Split::of(SEED.deal_seed(deal));
@@ -286,7 +287,7 @@ fn ouvert_records_show_the_revealed_declarer_cards() {
         game.apply(a).expect("legal");
         history.push(a);
     }
-    let (records, end) = play(game, &teachers(), 0, Split::Train);
+    let (records, end) = play(game, &teachers(), None, 0, Split::Train);
     assert!(end.result().is_some());
     check_visibility(fixed_deal(), &history, &records);
     // The Kontra round comes before the reveal; in card play every
@@ -322,7 +323,7 @@ fn re_decisions_are_recorded() {
     game.apply(Action::Play(card(Suit::Kreuz, Rank::Bube)))
         .expect("legal");
     game.apply(Action::Kontra).expect("MH may say Kontra");
-    let (records, _) = play(game, &teachers(), 0, Split::Train);
+    let (records, _) = play(game, &teachers(), None, 0, Split::Train);
     let re = &records[0];
     assert_eq!(re.view.seat, Seat::Vorhand);
     assert_eq!(re.view.legal_actions, vec![Action::Re, Action::KeinRe]);

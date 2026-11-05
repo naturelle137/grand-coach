@@ -10,6 +10,13 @@
 //! hold raw data, not tensors: the encoder runs at training time, so data
 //! survive encoder changes.
 //!
+//! With [`Table::EasyMix`] the teacher still bids and declares at every
+//! seat, but card play (with Kontra/Re) seats 0 to 3 Easy players, drawn as
+//! [`Roles`] once the declarer is known. At an Easy seat the teacher still
+//! analyses and labels the decision; Easy's action only drives the game
+//! ([`DecisionRecord::played`]). Weak players thus widen the positions
+//! without ever becoming a training target.
+//!
 //! Seeds: deal and teacher seeds come from separate keys mixed with the
 //! run seed and the deal index; teacher seeds are never derived from a deal
 //! seed. Seeds and the deal index are bookkeeping, not model inputs; the
@@ -20,7 +27,9 @@ use skat_ai::{Decision, Level, Opponent, OptionValue, Profile, Status};
 use skat_core::{Action, Game, Phase, PlayerView, RuleConfig, Seat};
 
 /// Version of the record format; bumped on every incompatible change.
-pub const RECORD_FORMAT: u32 = 1;
+/// Format 2 adds the optional [`DecisionRecord::played`] and
+/// [`DecisionRecord::lineup`]; format-1 records read as teacher-only.
+pub const RECORD_FORMAT: u32 = 2;
 
 /// Rules of the generated games: ISkO with Kontra/Re (D-03, D-26).
 pub const RULES: RuleConfig = RuleConfig { kontra_re: true };
@@ -75,14 +84,195 @@ pub struct DecisionRecord {
     /// The acting seat's permitted view: the only model input. It holds the
     /// seat, the phase and the legal actions.
     pub view: PlayerView,
-    /// The teacher's chosen action, one of `view.legal_actions`.
+    /// The teacher's chosen action, one of `view.legal_actions`: the
+    /// policy label, also at an Easy seat.
     pub action: Action,
+    /// The action applied to the game when another player than the teacher
+    /// held the seat (an Easy seat of [`Table::EasyMix`]); `None`: the
+    /// teacher's `action`. Bookkeeping for the replay, never a target.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub played: Option<Action>,
+    /// Card-play lineup, indexed by seat, in a [`Table::EasyMix`] game from
+    /// the start of card play on; `None` before it and in teacher-only
+    /// games. Bookkeeping (grouping, replay check), never a model input.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lineup: Option<[Player; 3]>,
     /// The teacher's option values.
     pub teacher: Teacher,
     /// The acting seat's Seeger-Fabian points at the end of the game (0 for
     /// a thrown-in deal). A future outcome: a training target, never an
     /// input.
     pub final_points: i32,
+}
+
+impl DecisionRecord {
+    /// The action that moved the game on: [`played`](Self::played) if set,
+    /// else the teacher's [`action`](Self::action).
+    pub fn applied(&self) -> Action {
+        self.played.unwrap_or(self.action)
+    }
+
+    /// Who played the acting seat.
+    pub fn player(&self) -> Player {
+        self.lineup
+            .map_or(Player::Teacher, |l| l[self.view.seat.index()])
+    }
+
+    /// Card-play roles of the record's game; teacher-only without a
+    /// lineup or declarer.
+    pub fn roles(&self) -> Roles {
+        match (self.lineup, self.view.declarer) {
+            (Some(lineup), Some(declarer)) => Roles::of(lineup, declarer),
+            _ => Roles::TEACHERS,
+        }
+    }
+}
+
+/// Who holds a seat in card play.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum Player {
+    /// The run's teacher profile (Strong).
+    Teacher,
+    /// Classic Easy: rules of thumb without search.
+    Easy,
+}
+
+/// Card-play players by role: the declarer and the two defenders, the
+/// defender after the declarer first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Roles {
+    /// The declarer.
+    pub declarer: Player,
+    /// The defenders: the seat after the declarer, then the seat after
+    /// that.
+    pub defenders: [Player; 2],
+}
+
+impl Roles {
+    /// Teachers in every role.
+    pub const TEACHERS: Roles = Roles::from_code(0);
+
+    /// All eight role lineups, by [`code`](Self::code).
+    pub const ALL: [Roles; 8] = [
+        Roles::from_code(0),
+        Roles::from_code(1),
+        Roles::from_code(2),
+        Roles::from_code(3),
+        Roles::from_code(4),
+        Roles::from_code(5),
+        Roles::from_code(6),
+        Roles::from_code(7),
+    ];
+
+    /// The lineup with code `code`: bit 0 an Easy declarer, bits 1 and 2
+    /// Easy defenders in seat order after the declarer.
+    pub const fn from_code(code: u8) -> Roles {
+        const fn player(easy: bool) -> Player {
+            if easy { Player::Easy } else { Player::Teacher }
+        }
+        Roles {
+            declarer: player(code & 1 != 0),
+            defenders: [player(code & 2 != 0), player(code & 4 != 0)],
+        }
+    }
+
+    /// The code of [`from_code`](Self::from_code).
+    pub fn code(self) -> u8 {
+        let easy = |p: Player| u8::from(p == Player::Easy);
+        easy(self.declarer) | easy(self.defenders[0]) << 1 | easy(self.defenders[1]) << 2
+    }
+
+    /// Number of Easy players.
+    pub fn easy(self) -> usize {
+        self.code().count_ones() as usize
+    }
+
+    /// The lineup by seat with `declarer` as declarer.
+    pub fn lineup(self, declarer: Seat) -> [Player; 3] {
+        let mut lineup = [Player::Teacher; 3];
+        lineup[declarer.index()] = self.declarer;
+        lineup[declarer.next().index()] = self.defenders[0];
+        lineup[declarer.next().next().index()] = self.defenders[1];
+        lineup
+    }
+
+    /// The roles of a seat lineup with `declarer` as declarer.
+    pub fn of(lineup: [Player; 3], declarer: Seat) -> Roles {
+        Roles {
+            declarer: lineup[declarer.index()],
+            defenders: [
+                lineup[declarer.next().index()],
+                lineup[declarer.next().next().index()],
+            ],
+        }
+    }
+
+    /// Short label, declarer first: `T|TE` is a teacher declarer against a
+    /// teacher and an Easy defender (T teacher, E Easy).
+    pub fn label(self) -> String {
+        let c = |p: Player| if p == Player::Teacher { 'T' } else { 'E' };
+        format!(
+            "{}|{}{}",
+            c(self.declarer),
+            c(self.defenders[0]),
+            c(self.defenders[1])
+        )
+    }
+}
+
+/// Who plays the cards in a run's games.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Table {
+    /// The teacher at every seat.
+    #[default]
+    Teacher,
+    /// The teacher bids and declares; card play seats 0 to 3 Easy players
+    /// by [`EASY_MIX_WEIGHTS`].
+    EasyMix,
+}
+
+/// Weights of the role lineups of [`Table::EasyMix`], by
+/// [`Roles::code`]. Every lineup with exactly one Easy player weighs 2,
+/// the rest 1: one weak player with two teachers is the trainer's table
+/// (one learner, two AI seats), whether the learner declares (`E|TT`) or
+/// defends beside a strong partner (`T|ET`, `T|TE`). The declarer's seat
+/// follows from the deal, so all 24 seat-and-role lineups occur.
+pub const EASY_MIX_WEIGHTS: [u32; 8] = [1, 2, 2, 1, 2, 1, 1, 1];
+
+impl Table {
+    /// Name in the manifest and on the command line.
+    pub fn name(self) -> &'static str {
+        match self {
+            Table::Teacher => "teacher",
+            Table::EasyMix => "easy-mix",
+        }
+    }
+
+    /// The table named `name`.
+    pub fn parse(name: &str) -> Option<Table> {
+        [Table::Teacher, Table::EasyMix]
+            .into_iter()
+            .find(|t| t.name() == name)
+    }
+
+    /// The card-play roles for the draw `draw` (uniform `u64`); `None` for
+    /// a teacher-only table.
+    pub fn roles(self, draw: u64) -> Option<Roles> {
+        match self {
+            Table::Teacher => None,
+            Table::EasyMix => {
+                let total: u32 = EASY_MIX_WEIGHTS.iter().sum();
+                let mut pick = (draw % u64::from(total)) as u32;
+                for (code, &w) in EASY_MIX_WEIGHTS.iter().enumerate() {
+                    if pick < w {
+                        return Some(Roles::from_code(code as u8));
+                    }
+                    pick -= w;
+                }
+                unreachable!("pick is below the total weight")
+            }
+        }
+    }
 }
 
 /// Kind of a decision, for statistics and coverage.
@@ -142,6 +332,8 @@ pub struct RunSeed(pub u64);
 const DEAL_KEY: u64 = 0x6465_616c;
 const TEACHER_KEY: u64 = 0x7465_6163;
 const SPLIT_KEY: u64 = 0x7370_6c74;
+const TABLE_KEY: u64 = 0x7461_626c;
+const PLAYER_KEY: u64 = 0x706c_6179;
 
 impl RunSeed {
     /// Seed of the cards of deal `deal`.
@@ -153,6 +345,26 @@ impl RunSeed {
     /// does not depend on the deal seed.
     pub fn teacher_seed(self, deal: u64, seat: Seat) -> u64 {
         mix(mix(mix(self.0, TEACHER_KEY), deal), seat.index() as u64)
+    }
+
+    /// Draw of the card-play roles of deal `deal` ([`Table::roles`]), from
+    /// its own key; it does not depend on the cards.
+    pub fn table_draw(self, deal: u64) -> u64 {
+        mix(mix(self.0, TABLE_KEY), deal)
+    }
+
+    /// Seed of the non-teacher player on `seat` in deal `deal`.
+    pub fn player_seed(self, deal: u64, seat: Seat) -> u64 {
+        mix(mix(mix(self.0, PLAYER_KEY), deal), seat.index() as u64)
+    }
+}
+
+/// The card-play lineup in `view`'s game when `roles` are drawn: `None`
+/// before card play or without roles.
+pub fn lineup(view: &PlayerView, roles: Option<Roles>) -> Option<[Player; 3]> {
+    match (roles, view.phase, view.declarer) {
+        (Some(roles), Phase::Spiel, Some(declarer)) => Some(roles.lineup(declarer)),
+        _ => None,
     }
 }
 
@@ -196,15 +408,18 @@ pub fn teach(view: &PlayerView, teacher: &Opponent) -> Option<(Action, Teacher)>
 }
 
 /// Plays `game` from its current state to the end with `teachers` (indexed
-/// by seat) and records every decision. `deal` and `split` are copied into
-/// the records. Returns the records in decision order and the finished game.
+/// by seat) and records every decision. In card play an Easy seat of
+/// `roles` is played by `players` (indexed by seat) while its teacher still
+/// labels the decision. `deal` and `split` are copied into the records.
+/// Returns the records in decision order and the finished game.
 ///
 /// # Panics
 ///
-/// If a teacher chooses no action or an illegal one.
+/// If a teacher or player chooses no action or an illegal one.
 pub fn play(
     mut game: Game,
     teachers: &[Opponent; 3],
+    seating: Option<(Roles, &[Opponent; 3])>,
     deal: u64,
     split: Split,
 ) -> (Vec<DecisionRecord>, Game) {
@@ -212,12 +427,25 @@ pub fn play(
     while let Some(seat) = game.current_seat() {
         let view = game.view(seat);
         let (action, teacher) = teach(&view, &teachers[seat.index()]).expect("seat to move");
-        game.apply(action).expect("teachers choose legal actions");
+        let lineup = lineup(&view, seating.map(|(r, _)| r));
+        let played = match (lineup, seating) {
+            (Some(l), Some((_, players))) if l[seat.index()] == Player::Easy => Some(
+                players[seat.index()]
+                    .decide(&view, None)
+                    .expect("seat to move")
+                    .action,
+            ),
+            _ => None,
+        };
+        game.apply(played.unwrap_or(action))
+            .expect("teachers and players choose legal actions");
         records.push(DecisionRecord {
             deal,
             split,
             view,
             action,
+            played,
+            lineup,
             teacher,
             final_points: 0,
         });
@@ -231,17 +459,23 @@ pub fn play(
     (records, game)
 }
 
-/// Plays deal `deal` of run `seed` with three teachers of `profile` and
-/// returns its records.
-pub fn play_deal(seed: RunSeed, profile: Profile, deal: u64) -> Vec<DecisionRecord> {
+/// Plays deal `deal` of run `seed` at `table` with teachers of `profile`
+/// and returns its records.
+pub fn play_deal(seed: RunSeed, profile: Profile, table: Table, deal: u64) -> Vec<DecisionRecord> {
     let deal_seed = seed.deal_seed(deal);
     let teachers = Seat::ALL.map(|s| Opponent {
         profile,
         seed: seed.teacher_seed(deal, s),
     });
+    let players = Seat::ALL.map(|s| Opponent {
+        profile: Level::Easy.profile(),
+        seed: seed.player_seed(deal, s),
+    });
+    let seating = table.roles(seed.table_draw(deal)).map(|r| (r, &players));
     play(
         Game::new(deal_seed, RULES),
         &teachers,
+        seating,
         deal,
         Split::of(deal_seed),
     )
@@ -254,6 +488,14 @@ pub fn play_deal(seed: RunSeed, profile: Profile, deal: u64) -> Vec<DecisionReco
 pub fn check_record(r: &DecisionRecord) -> Result<(), String> {
     if !r.view.legal_actions.contains(&r.action) {
         return Err(format!("illegal action {:?}", r.action));
+    }
+    if let Some(played) = r.played
+        && !r.view.legal_actions.contains(&played)
+    {
+        return Err(format!("illegal played action {played:?}"));
+    }
+    if r.played.is_some() != (r.player() == Player::Easy) {
+        return Err("played action and lineup disagree".into());
     }
     if r.view
         .legal_actions

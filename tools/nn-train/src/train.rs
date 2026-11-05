@@ -11,7 +11,12 @@
 //!   (`softmax(expected_score / soft_temperature)`, share `soft_weight`).
 //! - **Value**: the seat's final Seeger-Fabian points, mixed with the
 //!   expected score of the chosen option when the teacher's analysis is
-//!   complete (share `value_mix`).
+//!   complete (share `value_mix`). In card play with an Easy player
+//!   (`Table::EasyMix`) the final points reflect Easy's play, not the
+//!   teacher's, so a complete analysis gives the value alone.
+//!
+//! The policy label is always the teacher's: at an Easy seat its analysis
+//! labels the position Easy reached, Easy's own action is never a target.
 //! - **Options** (when the teacher's analysis is complete): for every legal
 //!   action the teacher's expected Seeger-Fabian points (squared error,
 //!   weight `score_weight`) and win chance (cross-entropy on the win logit,
@@ -58,7 +63,7 @@ use skat_nn::{
     action_index, encode, sha256, unseen_cards, write_model,
 };
 
-use crate::selfplay::{DecisionKind, DecisionRecord, Split};
+use crate::selfplay::{DecisionKind, DecisionRecord, Player, Roles, Split};
 use crate::shards::{Manifest, read_manifest, read_shard, replay_deal};
 
 /// Version of the training recipe and run-directory layout.
@@ -424,6 +429,10 @@ pub struct Examples {
     /// Belief targets ([`belief_target`]), 32 per row; empty unless the
     /// examples were loaded with them.
     pub belief: Vec<u8>,
+    /// Who played the acting seat, per row (bookkeeping for reports).
+    pub player: Vec<Player>,
+    /// Card-play roles of the row's game, per row (bookkeeping).
+    pub roles: Vec<Roles>,
 }
 
 /// Tensors of a batch.
@@ -515,7 +524,11 @@ impl Examples {
         }
         let final_points = r.final_points as f32;
         let value = if complete {
-            let m = hyper.value_mix;
+            let m = if r.roles().easy() > 0 {
+                1.0
+            } else {
+                hyper.value_mix
+            };
             (1.0 - m) * final_points + m * scores[chosen] as f32
         } else {
             final_points
@@ -534,10 +547,38 @@ impl Examples {
         self.offsets.push(self.legal.len());
         self.chosen.push(chosen as u32);
         self.value.push(value);
+        self.player.push(r.player());
+        self.roles.push(r.roles());
         if let Some(belief) = belief {
             self.belief.extend(belief);
         }
         true
+    }
+
+    /// The rows for which `keep(row)` holds, in order.
+    pub fn select(&self, keep: impl Fn(usize) -> bool) -> Examples {
+        let mut out = Examples::new();
+        let with_belief = self.belief.len() == 32 * self.rows();
+        for r in (0..self.rows()).filter(|&r| keep(r)) {
+            let span = self.offsets[r]..self.offsets[r + 1];
+            out.features
+                .extend_from_slice(&self.features[r * FEATURES..][..FEATURES]);
+            out.legal.extend_from_slice(&self.legal[span.clone()]);
+            out.target.extend_from_slice(&self.target[span.clone()]);
+            out.option_score
+                .extend_from_slice(&self.option_score[span.clone()]);
+            out.option_win.extend_from_slice(&self.option_win[span]);
+            out.offsets.push(out.legal.len());
+            out.chosen.push(self.chosen[r]);
+            out.value.push(self.value[r]);
+            out.has_options.push(self.has_options[r]);
+            out.player.push(self.player[r]);
+            out.roles.push(self.roles[r]);
+            if with_belief {
+                out.belief.extend_from_slice(&self.belief[32 * r..][..32]);
+            }
+        }
+        out
     }
 
     /// Tensors for the rows `rows`.

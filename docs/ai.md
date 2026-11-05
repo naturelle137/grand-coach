@@ -415,16 +415,20 @@ cargo run --locked --release -p nn-train -- generate OUT_DIR --deals 100 --minut
 cargo run --locked --release -p nn-train -- verify OUT_DIR
 ```
 
-- **Games**: three Strong opponents per deal, ISkO with Kontra/Re.
+- **Games**: three Strong opponents per deal, ISkO with Kontra/Re
+  (`--table teacher`, the default), or Easy players in card play
+  (`--table easy-mix`, [below](#easy-mix-tables)).
   Every decision of every seat is recorded, so Reizen, Hand/pickup,
   Drücken, announcement, Kontra/Re and card play are all covered. Strong
   bids and declares by the rules of thumb, so those records carry no
   option values.
-- **Record** (format version 1, one JSON line each): deal index and split,
+- **Record** (format version 2, one JSON line each): deal index and split,
   the acting seat's `PlayerView` (with phase and legal actions), the
-  chosen action, Strong's option values (`OptionValue` per legal action)
+  teacher's chosen action, Strong's option values (`OptionValue` per legal action)
   with the analysis status and fallback flag, and the seat's final
-  Seeger-Fabian points (0 if thrown in). Records are raw; the encoder
+  Seeger-Fabian points (0 if thrown in). Easy-mix card play adds the
+  seat lineup and, at an Easy seat, the action Easy actually played;
+  format-1 records read as teacher-only. Records are raw; the encoder
   runs at training time. The view is the only model input: deal index,
   seeds and the final points are bookkeeping or targets.
 - **Seeds**: deal and teacher seeds come from separate keys mixed with
@@ -448,6 +452,42 @@ cargo run --locked --release -p nn-train -- verify OUT_DIR
 - **Fixture**: `tools/nn-train/fixtures/selfplay` holds two Strong deals
   (seed 0, one shard each, 101 records, 184 KB); the tests verify it and
   regenerate it identically. No larger dataset is committed.
+
+### Easy-mix tables
+
+Strong-only games stay in the positions Strong steers into, and the
+network meets other positions against weaker players or when it errs.
+`--table easy-mix` widens the positions without teaching weak play:
+
+- Strong bids and declares at every seat. Once card play starts, the
+  run draws the card-play roles (declarer, defender after the declarer,
+  second defender), each Strong or Easy, from its own seed key,
+  independent of the cards. The declarer's seat follows from the deal,
+  so all 24 combinations of seat and role occur. Bidding by Strong keeps
+  the roles independent of the lineup, so they can be weighted.
+- Weights: lineups with exactly one Easy player weigh 2, the other five
+  1 (`EASY_MIX_WEIGHTS`). One weak player beside two strong seats is the
+  trainer's table: a learner declaring against strong defenders (`E|TT`)
+  or defending beside a strong partner (`T|ET`, `T|TE`).
+- At an Easy seat Strong still analyses and labels the decision. Easy's
+  action only moves the game on. A good Easy move scores high in
+  Strong's option values, a mistake low; Easy's choice is never a target.
+- Training uses Strong's option score alone as the value target of
+  mixed card play, because the final points reflect Easy's play.
+  `--soft-weight` makes the policy learn from all option values, not only
+  the best one. `evaluate` splits the test metrics by who held the seat
+  and by roles.
+- `verify` replays Easy's actions and checks every lineup against the
+  run's draw.
+
+Pilot on 2026-11-05 (20 CPUs, 10 workers × 2 threads, seed 0, 100
+deals, release build, engine `bac189f` plus this change): 4,118 records
+in 40 s, 8,929 deals/hour (Strong-only on the same commit: 8,098),
+73,037 bytes per deal; roles `T|TT` 9, `T|TE` 22, `T|ET` 20, `T|EE` 6,
+`E|TT` 23, `E|TE` 7, `E|ET` 8, `E|EE` 5 deals; 247 Easy card-play
+actions differed from Strong's label. Strong still analyses every
+card-play decision, so throughput stays about the same; each timing is a
+single run.
 
 A classic Strong sampler trial on the RX 6900 XT reached 1,903 deals/hour
 with GPU draws and 1,929 on CPU in ten-minute generator runs. See the
