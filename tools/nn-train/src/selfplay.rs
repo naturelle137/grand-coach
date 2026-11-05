@@ -10,10 +10,11 @@
 //! hold raw data, not tensors: the encoder runs at training time, so data
 //! survive encoder changes.
 //!
-//! With [`Table::EasyMix`] the teacher still bids and declares at every
-//! seat, but card play (with Kontra/Re) seats 0 to 3 Easy players, drawn as
-//! [`Roles`] once the declarer is known. At an Easy seat the teacher still
-//! analyses and labels the decision; Easy's action only drives the game
+//! With a mixed [`Table`] (`easy-mix`, `rookie-mix`, `medium-mix`,
+//! `level-mix`) the teacher still bids and declares at every seat, but card
+//! play (with Kontra/Re) seats 0 to 3 weaker players, drawn as [`Roles`]
+//! once the declarer is known. At such a seat the teacher still analyses
+//! and labels the decision; the weaker player's action only drives the game
 //! ([`DecisionRecord::played`]). Weak players thus widen the positions
 //! without ever becoming a training target.
 //!
@@ -128,13 +129,50 @@ impl DecisionRecord {
     }
 }
 
+/// Makes the opponent that plays a non-teacher seat.
+pub type MakePlayer<'a> = &'a dyn Fn(Player, Seat) -> Opponent;
+
 /// Who holds a seat in card play.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Player {
     /// The run's teacher profile (Strong).
     Teacher,
+    /// Classic Rookie: rules of thumb with seeded mistakes.
+    Rookie,
     /// Classic Easy: rules of thumb without search.
     Easy,
+    /// Classic Medium: analysed card play with a small budget.
+    Medium,
+}
+
+impl Player {
+    /// All players, the teacher first.
+    pub const ALL: [Player; 4] = [
+        Player::Teacher,
+        Player::Rookie,
+        Player::Easy,
+        Player::Medium,
+    ];
+
+    /// The classic level of a non-teacher player; `None` for the teacher.
+    pub fn level(self) -> Option<Level> {
+        match self {
+            Player::Teacher => None,
+            Player::Rookie => Some(Level::Rookie),
+            Player::Easy => Some(Level::Easy),
+            Player::Medium => Some(Level::Medium),
+        }
+    }
+
+    /// Letter in [`Roles::label`].
+    fn letter(self) -> char {
+        match self {
+            Player::Teacher => 'T',
+            Player::Rookie => 'R',
+            Player::Easy => 'E',
+            Player::Medium => 'M',
+        }
+    }
 }
 
 /// Card-play players by role: the declarer and the two defenders, the
@@ -150,41 +188,30 @@ pub struct Roles {
 
 impl Roles {
     /// Teachers in every role.
-    pub const TEACHERS: Roles = Roles::from_code(0);
+    pub const TEACHERS: Roles = Roles {
+        declarer: Player::Teacher,
+        defenders: [Player::Teacher; 2],
+    };
 
-    /// All eight role lineups, by [`code`](Self::code).
-    pub const ALL: [Roles; 8] = [
-        Roles::from_code(0),
-        Roles::from_code(1),
-        Roles::from_code(2),
-        Roles::from_code(3),
-        Roles::from_code(4),
-        Roles::from_code(5),
-        Roles::from_code(6),
-        Roles::from_code(7),
-    ];
-
-    /// The lineup with code `code`: bit 0 an Easy declarer, bits 1 and 2
-    /// Easy defenders in seat order after the declarer.
-    pub const fn from_code(code: u8) -> Roles {
-        const fn player(easy: bool) -> Player {
-            if easy { Player::Easy } else { Player::Teacher }
+    /// The lineup where bit 0 of `bits` makes the declarer `weak`, bit 1
+    /// the defender after the declarer and bit 2 the other defender; every
+    /// other role is the teacher. `bits` 0 to 7 give all eight lineups.
+    pub const fn from_bits(bits: u8, weak: Player) -> Roles {
+        const fn pick(on: bool, weak: Player) -> Player {
+            if on { weak } else { Player::Teacher }
         }
         Roles {
-            declarer: player(code & 1 != 0),
-            defenders: [player(code & 2 != 0), player(code & 4 != 0)],
+            declarer: pick(bits & 1 != 0, weak),
+            defenders: [pick(bits & 2 != 0, weak), pick(bits & 4 != 0, weak)],
         }
     }
 
-    /// The code of [`from_code`](Self::from_code).
-    pub fn code(self) -> u8 {
-        let easy = |p: Player| u8::from(p == Player::Easy);
-        easy(self.declarer) | easy(self.defenders[0]) << 1 | easy(self.defenders[1]) << 2
-    }
-
-    /// Number of Easy players.
-    pub fn easy(self) -> usize {
-        self.code().count_ones() as usize
+    /// Number of players other than the teacher.
+    pub fn weak(self) -> usize {
+        [self.declarer, self.defenders[0], self.defenders[1]]
+            .into_iter()
+            .filter(|&p| p != Player::Teacher)
+            .count()
     }
 
     /// The lineup by seat with `declarer` as declarer.
@@ -208,14 +235,14 @@ impl Roles {
     }
 
     /// Short label, declarer first: `T|TE` is a teacher declarer against a
-    /// teacher and an Easy defender (T teacher, E Easy).
+    /// teacher and an Easy defender (T teacher, R Rookie, E Easy, M
+    /// Medium).
     pub fn label(self) -> String {
-        let c = |p: Player| if p == Player::Teacher { 'T' } else { 'E' };
         format!(
             "{}|{}{}",
-            c(self.declarer),
-            c(self.defenders[0]),
-            c(self.defenders[1])
+            self.declarer.letter(),
+            self.defenders[0].letter(),
+            self.defenders[1].letter()
         )
     }
 }
@@ -229,10 +256,18 @@ pub enum Table {
     /// The teacher bids and declares; card play seats 0 to 3 Easy players
     /// by [`EASY_MIX_WEIGHTS`].
     EasyMix,
+    /// Like `EasyMix` with Rookie players; each of the eight lineups of
+    /// teacher and Rookie draws equally often.
+    RookieMix,
+    /// Like `RookieMix` with Medium players.
+    MediumMix,
+    /// Every card-play role is Easy, Medium or the teacher, each with
+    /// probability 1/3, independently (27 lineups).
+    LevelMix,
 }
 
-/// Weights of the role lineups of [`Table::EasyMix`], by
-/// [`Roles::code`]. Every lineup with exactly one Easy player weighs 2,
+/// Weights of the role lineups of [`Table::EasyMix`], by the `bits` of
+/// [`Roles::from_bits`]. Every lineup with exactly one Easy player weighs 2,
 /// the rest 1: one weak player with two teachers is the trainer's table
 /// (one learner, two AI seats), whether the learner declares (`E|TT`) or
 /// defends beside a strong partner (`T|ET`, `T|TE`). The declarer's seat
@@ -240,19 +275,29 @@ pub enum Table {
 pub const EASY_MIX_WEIGHTS: [u32; 8] = [1, 2, 2, 1, 2, 1, 1, 1];
 
 impl Table {
+    /// All tables.
+    pub const ALL: [Table; 5] = [
+        Table::Teacher,
+        Table::EasyMix,
+        Table::RookieMix,
+        Table::MediumMix,
+        Table::LevelMix,
+    ];
+
     /// Name in the manifest and on the command line.
     pub fn name(self) -> &'static str {
         match self {
             Table::Teacher => "teacher",
             Table::EasyMix => "easy-mix",
+            Table::RookieMix => "rookie-mix",
+            Table::MediumMix => "medium-mix",
+            Table::LevelMix => "level-mix",
         }
     }
 
     /// The table named `name`.
     pub fn parse(name: &str) -> Option<Table> {
-        [Table::Teacher, Table::EasyMix]
-            .into_iter()
-            .find(|t| t.name() == name)
+        Table::ALL.into_iter().find(|t| t.name() == name)
     }
 
     /// The card-play roles for the draw `draw` (uniform `u64`); `None` for
@@ -263,13 +308,30 @@ impl Table {
             Table::EasyMix => {
                 let total: u32 = EASY_MIX_WEIGHTS.iter().sum();
                 let mut pick = (draw % u64::from(total)) as u32;
-                for (code, &w) in EASY_MIX_WEIGHTS.iter().enumerate() {
+                for (bits, &w) in EASY_MIX_WEIGHTS.iter().enumerate() {
                     if pick < w {
-                        return Some(Roles::from_code(code as u8));
+                        return Some(Roles::from_bits(bits as u8, Player::Easy));
                     }
                     pick -= w;
                 }
                 unreachable!("pick is below the total weight")
+            }
+            Table::RookieMix => Some(Roles::from_bits((draw % 8) as u8, Player::Rookie)),
+            Table::MediumMix => Some(Roles::from_bits((draw % 8) as u8, Player::Medium)),
+            Table::LevelMix => {
+                let mut rest = draw % 27;
+                let mut role = || {
+                    let p = [Player::Easy, Player::Medium, Player::Teacher][(rest % 3) as usize];
+                    rest /= 3;
+                    p
+                };
+                let declarer = role();
+                let first = role();
+                let second = role();
+                Some(Roles {
+                    declarer,
+                    defenders: [first, second],
+                })
             }
         }
     }
@@ -408,9 +470,9 @@ pub fn teach(view: &PlayerView, teacher: &Opponent) -> Option<(Action, Teacher)>
 }
 
 /// Plays `game` from its current state to the end with `teachers` (indexed
-/// by seat) and records every decision. In card play an Easy seat of
-/// `roles` is played by `players` (indexed by seat) while its teacher still
-/// labels the decision. `deal` and `split` are copied into the records.
+/// by seat) and records every decision. In card play a non-teacher seat of
+/// `roles` is played by the opponent `players` makes for it while its
+/// teacher still labels the decision. `deal` and `split` are copied into the records.
 /// Returns the records in decision order and the finished game.
 ///
 /// # Panics
@@ -419,7 +481,7 @@ pub fn teach(view: &PlayerView, teacher: &Opponent) -> Option<(Action, Teacher)>
 pub fn play(
     mut game: Game,
     teachers: &[Opponent; 3],
-    seating: Option<(Roles, &[Opponent; 3])>,
+    seating: Option<(Roles, MakePlayer<'_>)>,
     deal: u64,
     split: Split,
 ) -> (Vec<DecisionRecord>, Game) {
@@ -429,8 +491,8 @@ pub fn play(
         let (action, teacher) = teach(&view, &teachers[seat.index()]).expect("seat to move");
         let lineup = lineup(&view, seating.map(|(r, _)| r));
         let played = match (lineup, seating) {
-            (Some(l), Some((_, players))) if l[seat.index()] == Player::Easy => Some(
-                players[seat.index()]
+            (Some(l), Some((_, players))) if l[seat.index()] != Player::Teacher => Some(
+                players(l[seat.index()], seat)
                     .decide(&view, None)
                     .expect("seat to move")
                     .action,
@@ -467,11 +529,13 @@ pub fn play_deal(seed: RunSeed, profile: Profile, table: Table, deal: u64) -> Ve
         profile,
         seed: seed.teacher_seed(deal, s),
     });
-    let players = Seat::ALL.map(|s| Opponent {
-        profile: Level::Easy.profile(),
-        seed: seed.player_seed(deal, s),
-    });
-    let seating = table.roles(seed.table_draw(deal)).map(|r| (r, &players));
+    let players = |player: Player, seat: Seat| Opponent {
+        profile: player.level().expect("a non-teacher player").profile(),
+        seed: seed.player_seed(deal, seat),
+    };
+    let seating = table
+        .roles(seed.table_draw(deal))
+        .map(|r| (r, &players as MakePlayer));
     play(
         Game::new(deal_seed, RULES),
         &teachers,
@@ -494,7 +558,7 @@ pub fn check_record(r: &DecisionRecord) -> Result<(), String> {
     {
         return Err(format!("illegal played action {played:?}"));
     }
-    if r.played.is_some() != (r.player() == Player::Easy) {
+    if r.played.is_some() != (r.player() != Player::Teacher) {
         return Err("played action and lineup disagree".into());
     }
     if r.view

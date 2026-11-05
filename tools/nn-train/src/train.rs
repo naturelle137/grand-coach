@@ -524,7 +524,7 @@ impl Examples {
         }
         let final_points = r.final_points as f32;
         let value = if complete {
-            let m = if r.roles().easy() > 0 {
+            let m = if r.roles().weak() > 0 {
                 1.0
             } else {
                 hyper.value_mix

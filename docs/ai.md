@@ -480,6 +480,22 @@ network meets other positions against weaker players or when it errs.
 - `verify` replays Easy's actions and checks every lineup against the
   run's draw.
 
+Further mixed tables work the same way (bidding by Strong, roles drawn
+from their own key, Strong labels at every seat, `verify` replays the
+weaker players' actions):
+
+| `--table` | Card-play role players |
+|-----------|------------------------|
+| `rookie-mix` | Rookie or Strong; each of the 8 lineups equally likely (0 to 3 Rookies) |
+| `medium-mix` | Medium or Strong; as `rookie-mix` |
+| `level-mix` | Easy, Medium or Strong per role, independently (27 lineups) |
+
+No table seats Mephisto. Mephisto decides with every card known, so its
+bids and cards would carry information about hidden hands that no real
+opponent gives (the belief head would learn it), and positions it reaches
+are labelled by Strong's model of ordinary opponents. Mephisto stays a
+table mode and an evaluation opponent only.
+
 Pilot on 2026-11-05 (20 CPUs, 10 workers × 2 threads, seed 0, 100
 deals, release build, engine `bac189f` plus this change): 4,118 records
 in 40 s, 8,929 deals/hour (Strong-only on the same commit: 8,098),

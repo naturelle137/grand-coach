@@ -97,10 +97,10 @@ impl Manifest {
                     "deal: mix(mix(seed, DEAL_KEY), deal); teacher: \
                      mix(mix(mix(seed, TEACHER_KEY), deal), seat); SplitMix64 finaliser"
                 }
-                Table::EasyMix => {
+                _ => {
                     "deal: mix(mix(seed, DEAL_KEY), deal); teacher: \
                      mix(mix(mix(seed, TEACHER_KEY), deal), seat); roles: \
-                     mix(mix(seed, TABLE_KEY), deal) mod total weight; Easy: \
+                     mix(mix(seed, TABLE_KEY), deal) per table; weaker players: \
                      mix(mix(mix(seed, PLAYER_KEY), deal), seat); SplitMix64 finaliser"
                 }
             }
@@ -398,7 +398,7 @@ pub struct Report {
     pub incomplete: u64,
     /// Played-out deals (with card play) per card-play roles.
     pub roles: BTreeMap<Roles, u64>,
-    /// Card-play decisions where Easy's action differs from the teacher's.
+    /// Card-play decisions where a weaker player's action differs from the teacher's.
     pub overruled: u64,
     /// Wall time of the invocation.
     pub elapsed: Duration,
