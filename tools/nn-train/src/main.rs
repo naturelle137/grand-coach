@@ -12,7 +12,7 @@
 //! cargo run --locked --release -p nn-train -- generate OUT_DIR [--deals N]
 //!     [--shard-deals N] [--seed N] [--minutes N] [--max-mb N] [--cpus N]
 //!     [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4]
-//!     [--table teacher|easy-mix]
+//!     [--table teacher|easy-mix|rookie-mix|medium-mix|level-mix]
 //! cargo run --locked --release -p nn-train -- verify DIR
 //! cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR...
 //!     [--hidden N] [--batch N] [--lr X] [--epochs N] [--value-weight X]
@@ -348,8 +348,9 @@ fn generate(args: &[String]) {
         ..TeacherProfile::STRONG
     };
     let table_name = text_flag(args, "--table", "teacher");
-    let table = Table::parse(table_name)
-        .unwrap_or_else(|| panic!("unknown table {table_name}: teacher or easy-mix"));
+    let table = Table::parse(table_name).unwrap_or_else(|| {
+        panic!("unknown table {table_name}: teacher, easy-mix, rookie-mix, medium-mix or level-mix")
+    });
     let manifest = Manifest::new(&engine_commit(), teacher, table, seed, deals, shard_deals);
     println!(
         "run: {} deals in {} shards, seed {seed}, profile {}, table {}, commit {}",
@@ -395,12 +396,12 @@ fn generate(args: &[String]) {
         if table != Table::Teacher {
             for (roles, n) in &report.roles {
                 println!(
-                    "card-play roles {} (declarer|defenders, T teacher, E Easy): {n} deals",
+                    "card-play roles {} (declarer|defenders, T teacher, R Rookie, E Easy, M Medium): {n} deals",
                     roles.label()
                 );
             }
             println!(
-                "Easy actions that differ from the teacher's label: {}",
+                "weaker players' actions that differ from the teacher's label: {}",
                 report.overruled
             );
         }
@@ -611,15 +612,16 @@ fn evaluate(args: &[String]) {
     // Origin of the test examples: who played the acting seat and the
     // card-play roles (labels are always the teacher's).
     let test = &data.test;
-    if test.roles.iter().any(|r| r.easy() > 0) {
-        use nn_train::selfplay::{Player, Roles};
-        for player in [Player::Teacher, Player::Easy] {
+    if test.roles.iter().any(|r| r.weak() > 0) {
+        use nn_train::selfplay::Player;
+        for player in Player::ALL {
             let part = test.select(|r| test.player[r] == player);
             if part.rows() > 0 {
                 report(&format!("  test, {player:?} seat"), &part);
             }
         }
-        for roles in Roles::ALL {
+        let lineups: std::collections::BTreeSet<_> = test.roles.iter().copied().collect();
+        for roles in lineups {
             let part = test.select(|r| test.roles[r] == roles);
             if part.rows() > 0 {
                 report(&format!("  test, roles {}", roles.label()), &part);
@@ -908,7 +910,7 @@ fn main() {
             eprintln!(
                 "       nn-train generate OUT_DIR [--deals N] [--shard-deals N] [--seed N] \
                  [--minutes N] [--max-mb N] [--cpus N] [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4] \
-                 [--table teacher|easy-mix]"
+                 [--table teacher|easy-mix|rookie-mix|medium-mix|level-mix]"
             );
             eprintln!("       nn-train verify DIR");
             eprintln!("       nn-train evaluate MODEL DATA_DIR...");
