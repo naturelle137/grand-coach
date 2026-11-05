@@ -9,7 +9,7 @@ use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use nn_train::selfplay::{RunSeed, TeacherProfile, play_deal};
+use nn_train::selfplay::{RunSeed, Table, TeacherProfile, play_deal};
 use nn_train::shards::{
     Limits, Manifest, ShardError, Stop, generate, read_manifest, read_shard, shard_path, to_jsonl,
 };
@@ -40,7 +40,7 @@ fn limits(workers: usize) -> Limits {
 }
 
 fn manifest() -> Manifest {
-    Manifest::new("test-commit", TEST_TEACHER, 7, 4, 1)
+    Manifest::new("test-commit", TEST_TEACHER, Table::Teacher, 7, 4, 1)
 }
 
 /// A fresh scratch directory for one test.
@@ -81,7 +81,10 @@ fn resumed_generation_matches_an_uninterrupted_run() {
     // Shard contents are the records of their deals, in order.
     for index in 0..4 {
         let records = read_shard(&full, index).unwrap();
-        assert_eq!(records, play_deal(RunSeed(7), TEST_TEACHER.profile, index));
+        assert_eq!(
+            records,
+            play_deal(RunSeed(7), TEST_TEACHER.profile, Table::Teacher, index)
+        );
         assert_eq!(
             to_jsonl(&records),
             fs::read(shard_path(&full, index)).unwrap()
@@ -152,7 +155,7 @@ fn caps_and_manifests_are_enforced() {
 
     // Another run in the same directory, a mismatching profile or more
     // workers than CPUs are refused.
-    let other = Manifest::new("test-commit", TEST_TEACHER, 8, 4, 1);
+    let other = Manifest::new("test-commit", TEST_TEACHER, Table::Teacher, 8, 4, 1);
     assert!(generate(&dir, &other, TEST_TEACHER, limits(1)).is_err());
     assert!(generate(&dir, &m, TeacherProfile::STRONG, limits(1)).is_err());
     let oversubscribed = Limits {

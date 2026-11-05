@@ -111,6 +111,9 @@ cargo run --locked --release -p nn-train -- generate DATA_DIR --deals 100 --minu
 cargo run --locked --release -p nn-train -- verify DATA_DIR
 ```
 
+`--table easy-mix` seats Easy players in card play while Strong still
+labels every decision ([docs/ai.md](docs/ai.md#easy-mix-tables)).
+
 The card-play network is trained on one or more such runs (see
 [docs/ai.md](docs/ai.md#card-play-network) and the model card in
 `assets/models/`). Training resumes from `OUT_DIR/checkpoint` and stops

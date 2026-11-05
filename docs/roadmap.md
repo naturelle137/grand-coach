@@ -46,7 +46,9 @@ arena, `tools/nn-train` trains on CPU or GPU
 ([ai.md](ai.md#learned-engine-runtime)).
 [#70](https://github.com/naturelle137/grand-coach/issues/70) adds training
 data: `nn-train generate` records Strong self-play as raw permitted-view
-decisions in resumable, checksummed shards ([ai.md](ai.md#training-data)).
+decisions in resumable, checksummed shards ([ai.md](ai.md#training-data));
+`--table easy-mix` seats weighted Easy lineups in card play with Strong
+labels ([ai.md](ai.md#easy-mix-tables)).
 [#73](https://github.com/naturelle137/grand-coach/issues/73) trained the
 first card-play network on 17,590 Strong games (`assets/models/`, D-63): it
 plays card play better than Easy and worse than Medium, with option heads

@@ -28,7 +28,8 @@ use skat_core::{Game, RuleConfig};
 use skat_nn::{ENCODER_VERSION, sha256};
 
 use crate::selfplay::{
-    DecisionKind, DecisionRecord, RECORD_FORMAT, RULES, RunSeed, TeacherProfile, play_deal,
+    DecisionKind, DecisionRecord, RECORD_FORMAT, RULES, Roles, RunSeed, Table, TeacherProfile,
+    lineup, play_deal,
 };
 
 /// Version of the directory layout and manifest.
@@ -63,6 +64,14 @@ pub struct Manifest {
     pub shard_deals: u64,
     /// Split rule.
     pub split: String,
+    /// Card-play table ([`Table::name`]); manifests without it are
+    /// teacher-only.
+    #[serde(default = "teacher_table")]
+    pub table: String,
+}
+
+fn teacher_table() -> String {
+    Table::Teacher.name().to_string()
 }
 
 impl Manifest {
@@ -70,6 +79,7 @@ impl Manifest {
     pub fn new(
         engine_commit: &str,
         teacher: TeacherProfile,
+        table: Table,
         seed: u64,
         deals: u64,
         shard_deals: u64,
@@ -82,14 +92,30 @@ impl Manifest {
             profile: teacher.name.to_string(),
             profile_detail: format!("{:?}", teacher.profile),
             seed,
-            seed_scheme: "deal: mix(mix(seed, DEAL_KEY), deal); teacher: \
-                          mix(mix(mix(seed, TEACHER_KEY), deal), seat); SplitMix64 finaliser"
-                .to_string(),
+            seed_scheme: match table {
+                Table::Teacher => {
+                    "deal: mix(mix(seed, DEAL_KEY), deal); teacher: \
+                     mix(mix(mix(seed, TEACHER_KEY), deal), seat); SplitMix64 finaliser"
+                }
+                Table::EasyMix => {
+                    "deal: mix(mix(seed, DEAL_KEY), deal); teacher: \
+                     mix(mix(mix(seed, TEACHER_KEY), deal), seat); roles: \
+                     mix(mix(seed, TABLE_KEY), deal) mod total weight; Easy: \
+                     mix(mix(mix(seed, PLAYER_KEY), deal), seat); SplitMix64 finaliser"
+                }
+            }
+            .to_string(),
             rules: RULES,
             deals,
             shard_deals: shard_deals.max(1),
             split: "by deal seed: train 80 %, validation 10 %, test 10 %".to_string(),
+            table: table.name().to_string(),
         }
+    }
+
+    /// The card-play table of the run.
+    pub fn table(&self) -> Result<Table, String> {
+        Table::parse(&self.table).ok_or_else(|| format!("unknown table {}", self.table))
     }
 
     /// Number of shards.
@@ -228,8 +254,8 @@ pub struct Verified {
     pub records: u64,
 }
 
-/// Replays deal `deal` of the run with the actions of `rows` (its records,
-/// in order) and calls `visit` with each record and the game in the state
+/// Replays deal `deal` of the run with the applied actions of `rows` (its
+/// records, in order; [`DecisionRecord::applied`]) and calls `visit` with each record and the game in the state
 /// the record was decided in. Returns the finished game. Fails when the
 /// records do not fit the game: an extra decision, an illegal action, or
 /// an error returned by `visit`.
@@ -245,7 +271,7 @@ pub fn replay_deal(
             return Err(format!("extra decision in deal {deal}"));
         }
         visit(r, &game)?;
-        game.apply(r.action)
+        game.apply(r.applied())
             .map_err(|e| format!("deal {deal}: {e:?}"))?;
     }
     Ok(game)
@@ -254,15 +280,20 @@ pub fn replay_deal(
 /// Replays each complete deal, so even a checksum-valid shard cannot omit
 /// a forced move, a thrown-in game, or the final decision of a seat.
 fn check_games(manifest: &Manifest, shard: u64, records: &[DecisionRecord]) -> Result<(), String> {
+    let table = manifest.table()?;
     let mut rest = records;
     for deal in manifest.shard_range(shard) {
         let split = crate::selfplay::Split::of(RunSeed(manifest.seed).deal_seed(deal));
+        let roles = table.roles(RunSeed(manifest.seed).table_draw(deal));
         let len = rest.iter().take_while(|r| r.deal == deal).count();
         let (rows, next) = rest.split_at(len);
         let game = replay_deal(manifest, deal, rows, |r, game| {
             let seat = game.current_seat().expect("checked by replay_deal");
             if r.deal != deal || r.split != split || r.view != game.view(seat) {
                 return Err(format!("decision differs from replay in deal {deal}"));
+            }
+            if r.lineup != lineup(&r.view, roles) {
+                return Err(format!("lineup differs from the run's draw in deal {deal}"));
             }
             crate::selfplay::check_record(r)
         })?;
@@ -365,6 +396,10 @@ pub struct Report {
     pub kinds: BTreeMap<DecisionKind, u64>,
     /// Decisions with an incomplete teacher analysis.
     pub incomplete: u64,
+    /// Played-out deals (with card play) per card-play roles.
+    pub roles: BTreeMap<Roles, u64>,
+    /// Card-play decisions where Easy's action differs from the teacher's.
+    pub overruled: u64,
     /// Wall time of the invocation.
     pub elapsed: Duration,
     /// Why it stopped.
@@ -408,6 +443,7 @@ pub fn generate(
     limits: Limits,
 ) -> io::Result<Report> {
     let start = Instant::now();
+    let table = manifest.table().map_err(io::Error::other)?;
     if manifest.profile != teacher.name
         || manifest.profile_detail != format!("{:?}", teacher.profile)
     {
@@ -459,6 +495,8 @@ pub fn generate(
         bytes: 0,
         kinds: BTreeMap::new(),
         incomplete: 0,
+        roles: BTreeMap::new(),
+        overruled: 0,
         elapsed: Duration::ZERO,
         stop: Stop::Finished,
     });
@@ -492,7 +530,7 @@ pub fn generate(
                                 pending.fetch_sub(size, Ordering::SeqCst);
                                 return;
                             }
-                            let deal_records = play_deal(seed, teacher.profile, deal);
+                            let deal_records = play_deal(seed, teacher.profile, table, deal);
                             let bytes = to_jsonl(&deal_records).len() as u64;
                             size += bytes;
                             pending.fetch_add(bytes, Ordering::SeqCst);
@@ -521,7 +559,14 @@ pub fn generate(
                         r.deals += info.end_deal - info.first_deal;
                         r.records += info.records;
                         r.bytes += info.bytes;
+                        let mut played_out = std::collections::BTreeSet::new();
                         for rec in &records {
+                            if rec.view.phase == skat_core::Phase::Spiel
+                                && played_out.insert(rec.deal)
+                            {
+                                *r.roles.entry(rec.roles()).or_default() += 1;
+                            }
+                            r.overruled += u64::from(rec.played.is_some_and(|p| p != rec.action));
                             *r.kinds.entry(DecisionKind::of(&rec.view)).or_default() += 1;
                             r.incomplete += u64::from(matches!(
                                 rec.teacher.status,
@@ -549,7 +594,7 @@ mod replay_tests {
 
     #[test]
     fn replay_detects_missing_decisions_and_incorrect_scores() {
-        let manifest = Manifest::new("fixture", TeacherProfile::STRONG, 0, 1, 1);
+        let manifest = Manifest::new("fixture", TeacherProfile::STRONG, Table::Teacher, 0, 1, 1);
         let bytes = include_bytes!("../fixtures/selfplay/shard-00000.jsonl");
         let mut rows = parse_records(bytes).unwrap();
         check_games(&manifest, 0, &rows).unwrap();
