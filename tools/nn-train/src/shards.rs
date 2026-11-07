@@ -185,12 +185,38 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// The SHA-256 of shard `index`'s data file as its `.done` file states it
+/// (`None` for an incomplete shard), without reading the data. Equals the
+/// hash of the data for every shard that [`read_shard`] accepts.
+pub fn shard_digest(dir: &Path, index: u64) -> Result<Option<[u8; 32]>, ShardError> {
+    let done = match fs::read(done_path(dir, index)) {
+        Ok(d) => d,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e.into()),
+    };
+    let info: ShardInfo =
+        serde_json::from_slice(&done).map_err(|e| ShardError::Corrupt(e.to_string()))?;
+    let hex = info.sha256.as_bytes();
+    if hex.len() != 64 {
+        return Err(ShardError::Corrupt("malformed hash in .done".into()));
+    }
+    let mut digest = [0u8; 32];
+    for (i, byte) in digest.iter_mut().enumerate() {
+        let pair = std::str::from_utf8(&hex[2 * i..2 * i + 2])
+            .ok()
+            .and_then(|p| u8::from_str_radix(p, 16).ok())
+            .ok_or_else(|| ShardError::Corrupt("malformed hash in .done".into()))?;
+        *byte = pair;
+    }
+    Ok(Some(digest))
+}
+
 /// The verified `.done` information and data of shard `index`.
 fn verified(
     dir: &Path,
     manifest: &Manifest,
     index: u64,
-) -> Result<(ShardInfo, Vec<u8>), ShardError> {
+) -> Result<(ShardInfo, Vec<u8>, [u8; 32]), ShardError> {
     let done = match fs::read(done_path(dir, index)) {
         Ok(d) => d,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Err(ShardError::Incomplete),
@@ -211,10 +237,11 @@ fn verified(
         }
         Err(e) => return Err(e.into()),
     };
-    if data.len() as u64 != info.bytes || hex(&sha256(&data)) != info.sha256 {
+    let digest = sha256(&data);
+    if data.len() as u64 != info.bytes || hex(&digest) != info.sha256 {
         return Err(ShardError::Corrupt("checksum mismatch".into()));
     }
-    Ok((info, data))
+    Ok((info, data, digest))
 }
 
 /// Reads the run's manifest.
@@ -226,13 +253,22 @@ pub fn read_manifest(dir: &Path) -> io::Result<Manifest> {
 /// Reads the records of a complete shard; incomplete or corrupt shards are
 /// rejected.
 pub fn read_shard(dir: &Path, index: u64) -> Result<Vec<DecisionRecord>, ShardError> {
+    read_shard_hashed(dir, index).map(|(records, _)| records)
+}
+
+/// [`read_shard`] with the SHA-256 of the shard's data file (verified
+/// against its `.done` file), from a single read.
+pub fn read_shard_hashed(
+    dir: &Path,
+    index: u64,
+) -> Result<(Vec<DecisionRecord>, [u8; 32]), ShardError> {
     let manifest = read_manifest(dir)?;
-    let (info, data) = verified(dir, &manifest, index)?;
+    let (info, data, digest) = verified(dir, &manifest, index)?;
     let records = parse_records(&data)?;
     if records.len() as u64 != info.records {
         return Err(ShardError::Corrupt("record count differs".into()));
     }
-    Ok(records)
+    Ok((records, digest))
 }
 
 fn parse_records(data: &[u8]) -> Result<Vec<DecisionRecord>, ShardError> {

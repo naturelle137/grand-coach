@@ -458,7 +458,7 @@ pub fn probe(
         }
         let mut zeroed = examples.clone();
         for r in 0..zeroed.rows() {
-            zeroed.features[r * skat_nn::FEATURES..][range.clone()].fill(0.0);
+            zeroed.features.fill(r, range.clone(), 0.0);
         }
         let s = score(&forward(net, None, &zeroed), &rows);
         blocks.push(BlockEffect {

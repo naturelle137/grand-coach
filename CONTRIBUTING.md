@@ -128,6 +128,14 @@ next plateau stops the run early. `probe` measures how the decisions of one game
 depend on each other on validation deals: value-residual correlation,
 the effect of each encoder block, and hidden-card bits (Classic's
 constraints, its bidding evidence, the belief head with `--belief`).
+`--cache CACHE_DIR` stores the loaded examples in one file per data set
+and target settings and reads them back in seconds on the next run
+(delete the directory to free the space). `--data-on-device GB` keeps the
+training rows in GPU memory if they fit in GB (leave room for the
+desktop, the network and a second process), otherwise batches come from
+RAM. `--device vulkan:discrete` or `vulkan:integrated` picks the GPU
+(`vulkan` alone takes the default adapter), so two runs can train in
+parallel on a discrete and an integrated GPU.
 Start supervised training in a fresh output directory to train encoder v2
 from existing raw shards. For v2 self-play refinement, pass the resulting
 `OUT_DIR/model.gcnn` to `rl --start`. Starting from the bundled model
@@ -136,6 +144,7 @@ continues with its v1 inputs.
 ```sh
 cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR... --hidden 512 --epochs 30 --minutes 120
 cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR... --hidden 512 --epochs 60 --minutes 600 --patience 3 --lr-decay 0.1 --lr-decays 1
+cargo run --locked --release -p nn-train --features vulkan -- train OUT_DIR DATA_DIR... --hidden 512 --device vulkan --cache CACHE_DIR --data-on-device 12
 cargo run --locked --release -p nn-train -- evaluate OUT_DIR/model.gcnn DATA_DIR...
 cargo run --locked --release -p nn-train -- probe OUT_DIR/model.gcnn DATA_DIR... --belief OUT_DIR/belief.bpk --json probe.json
 cargo run --locked --release -p skat-ai --example calibrate -- validation nn:assets/models/card-play.gcnn easy 200 6 0
