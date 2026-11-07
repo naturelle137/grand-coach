@@ -612,9 +612,11 @@ training manifest `card-play.json` and model card `card-play.md`
   `--queue LxH,...` trains several shapes in one process on data loaded
   once (one copy in RAM instead of one per run): one thread per
   `--workers` device takes the next shape when it is free (`last:DEVICE`
-  from the end of the list), each into `OUT_DIR/<L>x<H>` with its own
-  recipe, checkpoint and `train.log`. CPU training uses about one core
-  per worker, so several `cpu` workers run in parallel.
+  from the end of the list, `once:DEVICE` only one), each into
+  `OUT_DIR/<L>x<H>` with its own recipe, checkpoint and `train.log`.
+  CPU training uses about one core per worker, so several `cpu` workers
+  run in parallel; they slow each other down (2x384 on all data: 45 min
+  per epoch with eight CPU workers, 4x896 on the RX 6900 XT 10 min).
 - **Training data in memory** (`tools/nn-train/src/{features,cache,resident}.rs`):
   examples keep one byte per feature, a code into a per-feature table of
   the exact `f32` values (lossless, bit-identical on decode; more than 256

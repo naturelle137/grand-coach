@@ -21,7 +21,7 @@
 //!     [--device cpu|vulkan[:discrete|:integrated[:N]]]
 //!     [--patience N [--lr-decay X] [--lr-decays N]]
 //!     [--cache DIR] [--data-on-device GB]
-//!     [--queue LxH,LxH... [--workers cpu,cpu,last:vulkan:discrete]]
+//!     [--queue LxH,LxH... [--workers once:cpu,last:vulkan:discrete]]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
 //!     [--games N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W] [--seed N]
@@ -58,7 +58,8 @@
 //! several networks (layers x hidden width) on the data loaded once: one
 //! thread per `--workers` device takes the next network when it is free
 //! and trains it into `OUT_DIR/<L>x<H>` (log in `train.log` there;
-//! a worker written `last:DEVICE` takes from the end of the queue); a
+//! a worker written `last:DEVICE` takes from the end of the queue,
+//! `once:DEVICE` trains one network and stops); a
 //! restarted queue skips finished networks and resumes interrupted ones;
 //! a repeated shape trains again into `OUT_DIR/<L>x<H>-2` and so on.
 //! `evaluate` reports a
@@ -595,15 +596,10 @@ fn train(args: &[String]) {
         for kind in workers.split(',') {
             let (jobs, data, options, out, hyper) = (&jobs, &data, &options, &out, &hyper);
             scope.spawn(move || {
-                // `last:` takes from the end of the queue, so a fast device
-                // can work through the largest networks of a list sorted
-                // by cost while the others start at the front.
-                let (last, kind) = kind
-                    .strip_prefix("last:")
-                    .map_or((false, kind), |k| (true, k));
+                let (spec, kind) = worker_spec(kind);
                 loop {
                     let mut queue = jobs.lock().expect("queue lock");
-                    let next = if last {
+                    let next = if spec.last {
                         queue.pop_back()
                     } else {
                         queue.pop_front()
@@ -635,10 +631,43 @@ fn train(args: &[String]) {
                         "{kind}: {name} finished ({:.1} h)",
                         began.elapsed().as_secs_f64() / 3600.0
                     );
+                    if spec.once {
+                        break;
+                    }
                 }
             });
         }
     });
+}
+
+/// How a queue worker takes networks.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct WorkerSpec {
+    /// From the end of the queue (`last:`), so a fast device can work
+    /// through the largest networks of a list sorted by cost while the
+    /// others start at the front.
+    last: bool,
+    /// Trains one network, then stops (`once:`), so a slow device does
+    /// not pick up a large network late in the queue.
+    once: bool,
+}
+
+/// The prefixes and device of a `--workers` item, e.g.
+/// `once:last:vulkan:discrete`.
+fn worker_spec(item: &str) -> (WorkerSpec, &str) {
+    let mut spec = WorkerSpec::default();
+    let mut rest = item;
+    loop {
+        if let Some(r) = rest.strip_prefix("last:") {
+            spec.last = true;
+            rest = r;
+        } else if let Some(r) = rest.strip_prefix("once:") {
+            spec.once = true;
+            rest = r;
+        } else {
+            return (spec, rest);
+        }
+    }
 }
 
 /// Settings of `train` shared by every network of a queue.
@@ -1159,6 +1188,24 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn worker_prefixes_set_direction_and_count() {
+        let both = WorkerSpec {
+            last: true,
+            once: true,
+        };
+        assert_eq!(worker_spec("cpu"), (WorkerSpec::default(), "cpu"));
+        assert_eq!(
+            worker_spec("last:vulkan:discrete").0,
+            WorkerSpec {
+                last: true,
+                once: false
+            }
+        );
+        assert_eq!(worker_spec("once:last:vulkan"), (both, "vulkan"));
+        assert_eq!(worker_spec("last:once:cpu"), (both, "cpu"));
+    }
 
     #[test]
     fn queue_lists_layers_and_width() {

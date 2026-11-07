@@ -143,7 +143,9 @@ worker) takes the next network when it is free and trains it into
 `OUT_DIR/<L>x<H>` (`-2`, `-3`... for a repeated shape) with its log in
 `train.log`; a worker written `last:vulkan:discrete` takes from the end
 of the queue, so with the list sorted by cost the GPU trains the largest
-networks while CPU workers start with the smallest. A restarted queue
+networks while CPU workers start with the smallest; `once:cpu` trains one
+network and stops, so a slow worker does not pick up a large network
+late in the queue. A restarted queue
 skips finished networks and resumes interrupted ones.
 Start supervised training in a fresh output directory to train encoder v2
 from existing raw shards. For v2 self-play refinement, pass the resulting
