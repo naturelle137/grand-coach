@@ -609,6 +609,12 @@ training manifest `card-play.json` and model card `card-play.md`
   Mini-batch Adam on the CPU or with `--device vulkan` (the default
   adapter); `vulkan:discrete[:N]` and `vulkan:integrated[:N]` pick the
   N-th adapter of that kind, so parallel runs can use different GPUs.
+  `--queue LxH,...` trains several shapes in one process on data loaded
+  once (one copy in RAM instead of one per run): one thread per
+  `--workers` device takes the next shape when it is free (`last:DEVICE`
+  from the end of the list), each into `OUT_DIR/<L>x<H>` with its own
+  recipe, checkpoint and `train.log`. CPU training uses about one core
+  per worker, so several `cpu` workers run in parallel.
 - **Training data in memory** (`tools/nn-train/src/{features,cache,resident}.rs`):
   examples keep one byte per feature, a code into a per-feature table of
   the exact `f32` values (lossless, bit-identical on decode; more than 256
