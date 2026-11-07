@@ -55,12 +55,9 @@ fn the_cache_returns_exactly_the_loaded_data() {
     // The cheap sources (from .done files) equal the loaded ones.
     let loaded = load_with(&[fixture()], &hyper, false).unwrap();
     assert_eq!(sources(&[fixture()]).unwrap(), loaded.sources);
-    // A damaged cache file is rebuilt.
-    let file = fs::read_dir(&cache)
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .find(|p| p.extension().is_some_and(|x| x == "gcdata"))
-        .unwrap();
+    // A damaged cache file is rebuilt (the file of this key; the cache
+    // also holds the one with belief targets).
+    let file = cache.join(format!("{}.gcdata", key(&loaded.sources, &hyper, false)));
     let bytes = fs::read(&file).unwrap();
     fs::write(&file, &bytes[..bytes.len() / 2]).unwrap();
     let (data, used) = load_cached(&[fixture()], &hyper, false, &cache).unwrap();
