@@ -606,7 +606,9 @@ training manifest `card-play.json` and model card `card-play.md`
   mean of the final Seeger-Fabian points and the chosen option's expected
   points for the value, and Strong's expected points and win chance per
   legal card for the option heads (when the analysis was complete).
-  Mini-batch Adam on the CPU or with `--device vulkan`.
+  Mini-batch Adam on the CPU or with `--device vulkan` (the default
+  adapter); `vulkan:discrete[:N]` and `vulkan:integrated[:N]` pick the
+  N-th adapter of that kind, so parallel runs can use different GPUs.
 - **Training data in memory** (`tools/nn-train/src/{features,cache,resident}.rs`):
   examples keep one byte per feature, a code into a per-feature table of
   the exact `f32` values (lossless, bit-identical on decode; more than 256

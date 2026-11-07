@@ -18,7 +18,8 @@
 //!     [--hidden N] [--batch N] [--lr X] [--epochs N] [--value-weight X]
 //!     [--value-mix X] [--soft-weight X] [--soft-temperature X]
 //!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
-//!     [--device cpu|vulkan] [--patience N [--lr-decay X] [--lr-decays N]]
+//!     [--device cpu|vulkan[:discrete|:integrated[:N]]]
+//!     [--patience N [--lr-decay X] [--lr-decays N]]
 //!     [--cache DIR] [--data-on-device GB]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
@@ -430,14 +431,56 @@ fn text_flag<'a>(args: &'a [String], name: &str, default: &'a str) -> &'a str {
     }
 }
 
+/// The GPU a `--device` value names: `vulkan` (the default adapter),
+/// `vulkan:discrete[:N]` or `vulkan:integrated[:N]` (the N-th adapter of
+/// that kind, from 0), so parallel runs can use different GPUs; `None` for
+/// `cpu`.
+fn gpu_kind(kind: &str) -> Result<Option<burn::tensor::DeviceKind>, String> {
+    use burn::tensor::DeviceKind;
+    let mut parts = kind.split(':');
+    let (api, class, index) = (parts.next(), parts.next(), parts.next());
+    if parts.next().is_some() {
+        return Err(format!("unknown device {kind}"));
+    }
+    let index = match index {
+        None => 0,
+        Some(i) => i
+            .parse::<usize>()
+            .map_err(|_| format!("bad adapter index in {kind}"))?,
+    };
+    match (api, class) {
+        (Some("cpu"), None) => Ok(None),
+        (Some("vulkan"), None) => Ok(Some(DeviceKind::DefaultDevice)),
+        (Some("vulkan"), Some("discrete")) => Ok(Some(DeviceKind::DiscreteGpu(index))),
+        (Some("vulkan"), Some("integrated")) => Ok(Some(DeviceKind::IntegratedGpu(index))),
+        _ => Err(format!(
+            "unknown device {kind}: cpu, vulkan, vulkan:discrete[:N] or vulkan:integrated[:N]"
+        )),
+    }
+}
+
 fn device(kind: &str) -> Device {
-    match kind {
-        "cpu" => Device::flex(),
+    match gpu_kind(kind) {
+        Err(e) => panic!("{e}"),
+        Ok(None) => Device::flex(),
         #[cfg(feature = "vulkan")]
-        "vulkan" => Device::vulkan(burn::tensor::DeviceKind::DefaultDevice),
+        Ok(Some(gpu)) => Device::vulkan(gpu),
         #[cfg(not(feature = "vulkan"))]
-        "vulkan" => panic!("vulkan needs a build with --features vulkan"),
-        other => panic!("unknown device {other}: cpu or vulkan"),
+        Ok(Some(_)) => panic!("{kind} needs a build with --features vulkan"),
+    }
+}
+
+/// The adapter name of `device` (the `--device` value without a GPU
+/// backend).
+fn device_name(device: &Device, kind: &str) -> String {
+    #[cfg(feature = "vulkan")]
+    return device
+        .identity()
+        .map_or_else(|| kind.to_string(), |i| i.name);
+    #[cfg(not(feature = "vulkan"))]
+    {
+        let _ = device;
+        kind.to_string()
     }
 }
 
@@ -504,7 +547,9 @@ fn train(args: &[String]) {
         data.test.rows(),
         start.elapsed().as_secs_f64()
     );
-    let autodiff = device(kind).autodiff();
+    let plain = device(kind);
+    println!("device: {}", device_name(&plain, kind));
+    let autodiff = plain.autodiff();
     // Optional: the training split's feature rows in device memory, if
     // they fit the budget in GB; otherwise batches come from RAM.
     let budget: f64 = flag(args, "--data-on-device", 0.0);
@@ -912,13 +957,7 @@ fn main() {
         Some("smoke") => {
             let kind = args.get(1).map_or("cpu", String::as_str);
             let device = device(kind);
-            // Adapter names exist only with a GPU backend compiled in.
-            #[cfg(feature = "vulkan")]
-            let name = device
-                .identity()
-                .map_or_else(|| kind.to_string(), |i| i.name);
-            #[cfg(not(feature = "vulkan"))]
-            let name = kind.to_string();
+            let name = device_name(&device, kind);
             let (games, steps) = (arg(&args, 2, 200u64), arg(&args, 3, 300usize));
             let start = Instant::now();
             let report = smoke(&device.autodiff(), games, steps);
@@ -954,7 +993,10 @@ fn main() {
             println!("wrote {out} ({} bytes, sha256 {hash})", bytes.len());
         }
         _ => {
-            eprintln!("usage: nn-train smoke [cpu|vulkan] [GAMES] [STEPS] [OUT_DIR]");
+            eprintln!(
+                "usage: nn-train smoke [cpu|vulkan[:discrete|:integrated[:N]]] [GAMES] [STEPS] \
+                 [OUT_DIR]"
+            );
             eprintln!("       nn-train fixture SEED OUT_FILE");
             eprintln!(
                 "       nn-train generate OUT_DIR [--deals N] [--shard-deals N] [--seed N] \
@@ -978,7 +1020,7 @@ fn main() {
                 "       nn-train train OUT_DIR DATA_DIR... [--hidden N] [--batch N] [--lr X] \
                  [--epochs N] [--value-weight X] [--value-mix X] [--soft-weight X] \
                  [--soft-temperature X] [--score-weight X] [--win-weight X] [--belief-weight X] \
-                 [--seed N] [--minutes N] [--device cpu|vulkan] \
+                 [--seed N] [--minutes N] [--device cpu|vulkan[:discrete|:integrated[:N]]] \
                  [--patience N [--lr-decay X] [--lr-decays N]] [--cache DIR] \
                  [--data-on-device GB]"
             );
@@ -993,6 +1035,30 @@ mod tests {
 
     /// The training stack on the CPU: the loss falls and both checkpoints
     /// round-trip (GPU training is run by hand, `docs/testing.md`).
+    #[test]
+    fn device_values_name_cpu_and_gpu_kinds() {
+        use burn::tensor::DeviceKind;
+        assert_eq!(gpu_kind("cpu"), Ok(None));
+        assert_eq!(gpu_kind("vulkan"), Ok(Some(DeviceKind::DefaultDevice)));
+        assert_eq!(
+            gpu_kind("vulkan:discrete"),
+            Ok(Some(DeviceKind::DiscreteGpu(0)))
+        );
+        assert_eq!(
+            gpu_kind("vulkan:integrated:1"),
+            Ok(Some(DeviceKind::IntegratedGpu(1)))
+        );
+        for bad in [
+            "gpu",
+            "vulkan:virtual",
+            "vulkan:discrete:x",
+            "cpu:1",
+            "vulkan:discrete:0:0",
+        ] {
+            assert!(gpu_kind(bad).is_err(), "{bad}");
+        }
+    }
+
     #[test]
     fn cpu_smoke_training_round_trips() {
         let report = smoke(&Device::flex().autodiff(), 4, 30);

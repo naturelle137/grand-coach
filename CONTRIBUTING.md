@@ -133,7 +133,9 @@ and target settings and reads them back in seconds on the next run
 (delete the directory to free the space). `--data-on-device GB` keeps the
 training rows in GPU memory if they fit in GB (leave room for the
 desktop, the network and a second process), otherwise batches come from
-RAM.
+RAM. `--device vulkan:discrete` or `vulkan:integrated` picks the GPU
+(`vulkan` alone takes the default adapter), so two runs can train in
+parallel on a discrete and an integrated GPU.
 Start supervised training in a fresh output directory to train encoder v2
 from existing raw shards. For v2 self-play refinement, pass the resulting
 `OUT_DIR/model.gcnn` to `rl --start`. Starting from the bundled model
