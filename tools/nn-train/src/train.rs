@@ -59,12 +59,14 @@ use serde::{Deserialize, Serialize};
 use skat_ai::Status;
 use skat_core::{OmniscientView, Phase, PlayerView};
 use skat_nn::{
-    ACTIONS, ENCODER_VERSION, FEATURES, MIN_LAYERS, ModelHeader, NetShape, Phases, PolicyValueNet,
+    ACTIONS, ENCODER_VERSION, MIN_LAYERS, ModelHeader, NetShape, Phases, PolicyValueNet,
     action_index, encode, sha256, unseen_cards, write_model,
 };
 
+use crate::features::FeatureCodes;
+use crate::resident::ResidentRows;
 use crate::selfplay::{DecisionKind, DecisionRecord, Player, Roles, Split};
-use crate::shards::{Manifest, read_manifest, read_shard, replay_deal};
+use crate::shards::{Manifest, read_manifest, read_shard_hashed, replay_deal};
 
 /// Version of the training recipe and run-directory layout.
 pub const TRAIN_FORMAT: u32 = 2;
@@ -404,12 +406,13 @@ pub struct Coverage {
     pub examples: usize,
 }
 
-/// Encoded examples, row-major and compact: legal actions and policy
-/// targets are stored per legal action.
-#[derive(Clone, Debug, Default)]
+/// Encoded examples, row-major and compact: feature rows as one-byte
+/// codes ([`FeatureCodes`], lossless), legal actions and policy targets
+/// per legal action.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Examples {
-    /// Feature rows, [`FEATURES`] each.
-    pub features: Vec<f32>,
+    /// Feature rows, [`skat_nn::FEATURES`] each.
+    pub features: FeatureCodes,
     /// Start of each row's legal actions in `legal`; one more than rows.
     pub offsets: Vec<usize>,
     /// Action indices of the legal actions.
@@ -443,14 +446,14 @@ pub(crate) struct Batch {
     pub(crate) policy: Tensor<2>,
     pub(crate) value: Tensor<2>,
     /// 1 for legal actions with a teacher option value, else 0.
-    option_mask: Tensor<2>,
-    score: Tensor<2>,
-    win: Tensor<2>,
+    pub(crate) option_mask: Tensor<2>,
+    pub(crate) score: Tensor<2>,
+    pub(crate) win: Tensor<2>,
     /// Number of ones in `option_mask`.
-    options: usize,
+    pub(crate) options: usize,
     /// One-hot belief targets `[batch, BELIEF_OUTPUTS]` (zero for cards
     /// the seat sees) and the number of hidden cards, if loaded.
-    belief: Option<(Tensor<2>, usize)>,
+    pub(crate) belief: Option<(Tensor<2>, usize)>,
 }
 
 impl Examples {
@@ -533,7 +536,7 @@ impl Examples {
         } else {
             final_points
         };
-        self.features.extend(encode(&r.view));
+        self.features.push_row(&encode(&r.view));
         self.has_options.push(complete);
         if complete {
             self.option_score.extend(scores.iter().map(|&x| x as f32));
@@ -558,11 +561,11 @@ impl Examples {
     /// The rows for which `keep(row)` holds, in order.
     pub fn select(&self, keep: impl Fn(usize) -> bool) -> Examples {
         let mut out = Examples::new();
+        out.features = FeatureCodes::with_table_of(&self.features);
         let with_belief = self.belief.len() == 32 * self.rows();
         for r in (0..self.rows()).filter(|&r| keep(r)) {
             let span = self.offsets[r]..self.offsets[r + 1];
-            out.features
-                .extend_from_slice(&self.features[r * FEATURES..][..FEATURES]);
+            out.features.push_row_of(&self.features, r);
             out.legal.extend_from_slice(&self.legal[span.clone()]);
             out.target.extend_from_slice(&self.target[span.clone()]);
             out.option_score
@@ -596,7 +599,7 @@ impl Examples {
         let mut belief = vec![0.0f32; if with_belief { n * BELIEF_OUTPUTS } else { 0 }];
         let mut hidden = 0;
         for (b, &r) in rows.iter().enumerate() {
-            features.extend_from_slice(&self.features[r * FEATURES..][..inputs]);
+            self.features.decode_into(r, inputs, &mut features);
             for i in self.offsets[r]..self.offsets[r + 1] {
                 let a = b * ACTIONS + self.legal[i] as usize;
                 mask[a] = 0.0;
@@ -698,13 +701,12 @@ pub fn load_with(dirs: &[PathBuf], hyper: &Hyper, beliefs: bool) -> io::Result<D
         let mut hashes = Vec::new();
         let mut shards = 0;
         for index in 0..manifest.shards() {
-            let records = match read_shard(dir, index) {
+            let (records, digest) = match read_shard_hashed(dir, index) {
                 Ok(r) => r,
                 Err(crate::shards::ShardError::Incomplete) => continue,
                 Err(e) => return Err(io::Error::other(format!("{}: {e}", dir.display()))),
             };
-            let shard = fs::read(crate::shards::shard_path(dir, index))?;
-            hashes.extend_from_slice(&sha256(&shard));
+            hashes.extend_from_slice(&digest);
             shards += 1;
             let targets = if beliefs {
                 belief_targets(&manifest, &records)
@@ -976,7 +978,7 @@ fn best(row: &[f32], legal: &[u32]) -> usize {
     best
 }
 
-/// Metrics of `net` (on the CPU, no autodiff) on `examples`.
+/// Metrics of `net` (no autodiff, on the device the net lives on) on `examples`.
 pub fn evaluate(net: &PolicyValueNet, examples: &Examples, hyper: &Hyper) -> Metrics {
     evaluate_with(net, None, examples, hyper)
 }
@@ -989,7 +991,12 @@ pub fn evaluate_with(
     examples: &Examples,
     hyper: &Hyper,
 ) -> Metrics {
-    let device = Device::flex();
+    // A net trained on the GPU is evaluated there; a CPU net gets Flex.
+    let device = net
+        .devices()
+        .into_iter()
+        .next()
+        .unwrap_or_else(Device::flex);
     let inputs = net.inputs();
     let rows = examples.rows();
     let (mut policy_sum, mut value_sum, mut score_sum, mut win_sum) = (0.0, 0.0, 0.0, 0.0);
@@ -1131,6 +1138,22 @@ pub fn train(
     data: &Data,
     device: &Device,
     limits: TrainLimits,
+    progress: impl FnMut(&EpochLog) -> bool,
+) -> io::Result<Trained> {
+    train_with(out, recipe, data, None, device, limits, progress)
+}
+
+/// [`train`], with the training split's feature rows resident on `device`
+/// if `resident` is given ([`ResidentRows`], uploaded from
+/// `data.train.features`). The recipe and checkpoints do not depend on it;
+/// a run may resume with or without it.
+pub fn train_with(
+    out: &Path,
+    recipe: &Recipe,
+    data: &Data,
+    resident: Option<&ResidentRows>,
+    device: &Device,
+    limits: TrainLimits,
     mut progress: impl FnMut(&EpochLog) -> bool,
 ) -> io::Result<Trained> {
     let start = Instant::now();
@@ -1148,6 +1171,13 @@ pub fn train(
         ));
     }
     let shape = NetShape::current(hyper.hidden).with_layers(hyper.layers);
+    if let Some(r) = resident
+        && (r.rows() != data.train.rows() || r.inputs() != shape.inputs)
+    {
+        return Err(io::Error::other(
+            "resident rows do not match the training split and network",
+        ));
+    }
     let dir = checkpoint_dir(out);
     fs::create_dir_all(&dir)?;
     let adam = AdamConfig::new();
@@ -1219,7 +1249,14 @@ pub fn train(
         let learning_rate = state.learning_rate();
         let (mut sum, mut batches) = (0.0f64, 0usize);
         for chunk in order(rows, hyper.seed, epoch).chunks(hyper.batch.max(1)) {
-            let batch = data.train.batch(chunk, shape.inputs, device);
+            let batch = match resident {
+                Some(r) => {
+                    let mut grouped = chunk.to_vec();
+                    r.group(&mut grouped);
+                    r.batch(&data.train, &grouped, device)
+                }
+                None => data.train.batch(chunk, shape.inputs, device),
+            };
             let loss = losses(&net.net, net.belief.as_ref(), batch).total(hyper);
             sum += f64::from(loss.clone().into_scalar::<f32>());
             batches += 1;

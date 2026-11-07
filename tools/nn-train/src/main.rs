@@ -18,7 +18,9 @@
 //!     [--hidden N] [--batch N] [--lr X] [--epochs N] [--value-weight X]
 //!     [--value-mix X] [--soft-weight X] [--soft-temperature X]
 //!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
-//!     [--device cpu|vulkan] [--patience N [--lr-decay X] [--lr-decays N]]
+//!     [--device cpu|vulkan[:discrete|:integrated[:N]]]
+//!     [--patience N [--lr-decay X] [--lr-decays N]]
+//!     [--cache DIR] [--data-on-device GB]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
 //!     [--games N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W] [--seed N]
@@ -45,7 +47,13 @@
 //! epoch logs, metrics per split, model hash). With `--patience N`, N
 //! epochs without a lower validation loss continue from the best weights
 //! with the learning rate times `--lr-decay` (default 0.1), at most
-//! `--lr-decays` times (default 1); the next such plateau stops the run. `evaluate` reports a
+//! `--lr-decays` times (default 1); the next such plateau stops the run.
+//! Examples are held with one byte per feature ([`nn_train::features`]).
+//! `--cache DIR` keeps the loaded data in a binary file per data set and
+//! target settings ([`nn_train::cache`]) and reads it back on the next run.
+//! `--data-on-device GB` keeps the training rows in device memory if they
+//! fit in GB ([`nn_train::resident`]; for `--device vulkan`), otherwise
+//! batches come from RAM as without it. `evaluate` reports a
 //! model file's metrics on every split of the given runs, so models
 //! trained on different data compare on the same examples. `rl` refines
 //! a model by self-play against a frozen opponent pool (#75,
@@ -423,21 +431,64 @@ fn text_flag<'a>(args: &'a [String], name: &str, default: &'a str) -> &'a str {
     }
 }
 
+/// The GPU a `--device` value names: `vulkan` (the default adapter),
+/// `vulkan:discrete[:N]` or `vulkan:integrated[:N]` (the N-th adapter of
+/// that kind, from 0), so parallel runs can use different GPUs; `None` for
+/// `cpu`.
+fn gpu_kind(kind: &str) -> Result<Option<burn::tensor::DeviceKind>, String> {
+    use burn::tensor::DeviceKind;
+    let mut parts = kind.split(':');
+    let (api, class, index) = (parts.next(), parts.next(), parts.next());
+    if parts.next().is_some() {
+        return Err(format!("unknown device {kind}"));
+    }
+    let index = match index {
+        None => 0,
+        Some(i) => i
+            .parse::<usize>()
+            .map_err(|_| format!("bad adapter index in {kind}"))?,
+    };
+    match (api, class) {
+        (Some("cpu"), None) => Ok(None),
+        (Some("vulkan"), None) => Ok(Some(DeviceKind::DefaultDevice)),
+        (Some("vulkan"), Some("discrete")) => Ok(Some(DeviceKind::DiscreteGpu(index))),
+        (Some("vulkan"), Some("integrated")) => Ok(Some(DeviceKind::IntegratedGpu(index))),
+        _ => Err(format!(
+            "unknown device {kind}: cpu, vulkan, vulkan:discrete[:N] or vulkan:integrated[:N]"
+        )),
+    }
+}
+
 fn device(kind: &str) -> Device {
-    match kind {
-        "cpu" => Device::flex(),
+    match gpu_kind(kind) {
+        Err(e) => panic!("{e}"),
+        Ok(None) => Device::flex(),
         #[cfg(feature = "vulkan")]
-        "vulkan" => Device::vulkan(burn::tensor::DeviceKind::DefaultDevice),
+        Ok(Some(gpu)) => Device::vulkan(gpu),
         #[cfg(not(feature = "vulkan"))]
-        "vulkan" => panic!("vulkan needs a build with --features vulkan"),
-        other => panic!("unknown device {other}: cpu or vulkan"),
+        Ok(Some(_)) => panic!("{kind} needs a build with --features vulkan"),
+    }
+}
+
+/// The adapter name of `device` (the `--device` value without a GPU
+/// backend).
+fn device_name(device: &Device, kind: &str) -> String {
+    #[cfg(feature = "vulkan")]
+    return device
+        .identity()
+        .map_or_else(|| kind.to_string(), |i| i.name);
+    #[cfg(not(feature = "vulkan"))]
+    {
+        let _ = device;
+        kind.to_string()
     }
 }
 
 fn train(args: &[String]) {
+    use nn_train::resident::ResidentRows;
     use nn_train::train::{
         Hyper, PHASES, Plateau, Recipe, TRAIN_FORMAT, TrainLimits, TrainManifest, TrainStop,
-        evaluate_with, hex_hash, load, read_model, train,
+        evaluate_with, hex_hash, load_with, read_model, train_with,
     };
     let out = std::path::PathBuf::from(args.first().expect("train OUT_DIR DATA_DIR..."));
     let dirs: Vec<std::path::PathBuf> = args[1..]
@@ -472,14 +523,56 @@ fn train(args: &[String]) {
     // Read now: the tree may change while a long run trains.
     let commit = engine_commit();
     let start = Instant::now();
-    let data = load(&dirs, &hyper).expect("load training data");
+    let beliefs = hyper.belief_weight > 0.0;
+    let cache = text_flag(args, "--cache", "");
+    let (data, from) = if cache.is_empty() {
+        let data = load_with(&dirs, &hyper, beliefs).expect("load training data");
+        (data, "runs")
+    } else {
+        use nn_train::cache::{CacheUse, load_cached};
+        let (data, used) = load_cached(&dirs, &hyper, beliefs, std::path::Path::new(cache))
+            .expect("load training data");
+        (
+            data,
+            match used {
+                CacheUse::Hit => "cache",
+                CacheUse::Written => "runs, cache written",
+            },
+        )
+    };
     println!(
-        "examples: {} train, {} validation, {} test ({:.0} s to load)",
+        "examples: {} train, {} validation, {} test ({:.0} s to load from {from})",
         data.train.rows(),
         data.validation.rows(),
         data.test.rows(),
         start.elapsed().as_secs_f64()
     );
+    let plain = device(kind);
+    println!("device: {}", device_name(&plain, kind));
+    let autodiff = plain.autodiff();
+    // Optional: the training split's feature rows in device memory, if
+    // they fit the budget in GB; otherwise batches come from RAM.
+    let budget: f64 = flag(args, "--data-on-device", 0.0);
+    let inputs = NetShape::current(hyper.hidden).inputs;
+    let need = ResidentRows::bytes(&data.train.features, inputs);
+    let resident = if budget <= 0.0 {
+        None
+    } else if need as f64 > budget * 1e9 {
+        println!(
+            "data on device: {:.1} GB needed, budget {budget:.1} GB; batches come from RAM",
+            need as f64 / 1e9
+        );
+        None
+    } else {
+        let began = Instant::now();
+        let r = ResidentRows::upload(&data.train.features, inputs, &autodiff);
+        println!(
+            "data on device: {:.1} GB of training rows uploaded ({:.0} s)",
+            need as f64 / 1e9,
+            began.elapsed().as_secs_f64()
+        );
+        Some(r)
+    };
     let recipe = Recipe {
         train_format: TRAIN_FORMAT,
         encoder_version: ENCODER_VERSION,
@@ -491,11 +584,12 @@ fn train(args: &[String]) {
     let limits = TrainLimits {
         wall_time: std::time::Duration::from_secs_f64(minutes * 60.0),
     };
-    let trained = train(
+    let trained = train_with(
         &out,
         &recipe,
         &data,
-        &device(kind).autodiff(),
+        resident.as_ref(),
+        &autodiff,
         limits,
         |log| {
             println!(
@@ -863,13 +957,7 @@ fn main() {
         Some("smoke") => {
             let kind = args.get(1).map_or("cpu", String::as_str);
             let device = device(kind);
-            // Adapter names exist only with a GPU backend compiled in.
-            #[cfg(feature = "vulkan")]
-            let name = device
-                .identity()
-                .map_or_else(|| kind.to_string(), |i| i.name);
-            #[cfg(not(feature = "vulkan"))]
-            let name = kind.to_string();
+            let name = device_name(&device, kind);
             let (games, steps) = (arg(&args, 2, 200u64), arg(&args, 3, 300usize));
             let start = Instant::now();
             let report = smoke(&device.autodiff(), games, steps);
@@ -905,7 +993,10 @@ fn main() {
             println!("wrote {out} ({} bytes, sha256 {hash})", bytes.len());
         }
         _ => {
-            eprintln!("usage: nn-train smoke [cpu|vulkan] [GAMES] [STEPS] [OUT_DIR]");
+            eprintln!(
+                "usage: nn-train smoke [cpu|vulkan[:discrete|:integrated[:N]]] [GAMES] [STEPS] \
+                 [OUT_DIR]"
+            );
             eprintln!("       nn-train fixture SEED OUT_FILE");
             eprintln!(
                 "       nn-train generate OUT_DIR [--deals N] [--shard-deals N] [--seed N] \
@@ -929,8 +1020,9 @@ fn main() {
                 "       nn-train train OUT_DIR DATA_DIR... [--hidden N] [--batch N] [--lr X] \
                  [--epochs N] [--value-weight X] [--value-mix X] [--soft-weight X] \
                  [--soft-temperature X] [--score-weight X] [--win-weight X] [--belief-weight X] \
-                 [--seed N] [--minutes N] [--device cpu|vulkan] \
-                 [--patience N [--lr-decay X] [--lr-decays N]]"
+                 [--seed N] [--minutes N] [--device cpu|vulkan[:discrete|:integrated[:N]]] \
+                 [--patience N [--lr-decay X] [--lr-decays N]] [--cache DIR] \
+                 [--data-on-device GB]"
             );
             std::process::exit(2);
         }
@@ -943,6 +1035,30 @@ mod tests {
 
     /// The training stack on the CPU: the loss falls and both checkpoints
     /// round-trip (GPU training is run by hand, `docs/testing.md`).
+    #[test]
+    fn device_values_name_cpu_and_gpu_kinds() {
+        use burn::tensor::DeviceKind;
+        assert_eq!(gpu_kind("cpu"), Ok(None));
+        assert_eq!(gpu_kind("vulkan"), Ok(Some(DeviceKind::DefaultDevice)));
+        assert_eq!(
+            gpu_kind("vulkan:discrete"),
+            Ok(Some(DeviceKind::DiscreteGpu(0)))
+        );
+        assert_eq!(
+            gpu_kind("vulkan:integrated:1"),
+            Ok(Some(DeviceKind::IntegratedGpu(1)))
+        );
+        for bad in [
+            "gpu",
+            "vulkan:virtual",
+            "vulkan:discrete:x",
+            "cpu:1",
+            "vulkan:discrete:0:0",
+        ] {
+            assert!(gpu_kind(bad).is_err(), "{bad}");
+        }
+    }
+
     #[test]
     fn cpu_smoke_training_round_trips() {
         let report = smoke(&Device::flex().autodiff(), 4, 30);
