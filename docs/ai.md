@@ -607,6 +607,30 @@ training manifest `card-play.json` and model card `card-play.md`
   points for the value, and Strong's expected points and win chance per
   legal card for the option heads (when the analysis was complete).
   Mini-batch Adam on the CPU or with `--device vulkan`.
+- **Training data in memory** (`tools/nn-train/src/{features,cache,resident}.rs`):
+  examples keep one byte per feature, a code into a per-feature table of
+  the exact `f32` values (lossless, bit-identical on decode; more than 256
+  distinct values of a feature stop the load instead of rounding), about
+  a quarter of the earlier `f32` rows. `--cache DIR` writes the loaded
+  data once to `DIR/<key>.gcdata` and reads it back on later runs; the
+  key covers the cache format, encoder version, every source run
+  (manifest and the shard hashes of its `.done` files, in order) and the
+  target hyperparameters (`soft_weight`, `soft_temperature`, `value_mix`,
+  belief targets), so changed data or targets never reuse a stale file;
+  the run directories are only read. `--data-on-device GB` keeps the
+  training split's feature codes on the training device (four per `i32`,
+  1 GiB buffers) if they fit in GB; a step then uploads row indices and
+  the sparse per-action targets, and the device decodes features and
+  scatters targets into the dense tables. Batches have the same values as
+  the RAM path (a test trains both bit-identically on the CPU); without
+  enough budget the run falls back to RAM. Neither option enters the
+  recipe, so a run resumes with or without them. Measured on 2026-11-07
+  (100,000 easy-mix games, 2.45 million training examples, 2×512, RX 6900
+  XT via Vulkan): loading from the runs 69 s (before: 83–164 s), from the
+  cache 2 s (2.3 GB file); peak RAM 2.5 GB; one epoch 61 s at batch 256
+  and 32 s at batch 1024 from RAM, 58 s and 30 s with the rows on the
+  device (1.6 GB). The losses from RAM equal those of the earlier `f32`
+  storage. Device residency mainly helps when the CPU is busy elsewhere.
 - **Reproducibility**: initial weights and example order come from the
   recipe's seed (SplitMix64), never from a device's random state. After
   every epoch a checkpoint (weights, Adam state, best weights, each with

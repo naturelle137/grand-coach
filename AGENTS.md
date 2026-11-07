@@ -135,7 +135,7 @@ cargo run --locked --release -p nn-train -- generate DIR --deals 100  # Strong s
 cargo run --locked --release -p nn-train -- generate DIR --deals 100 --table easy-mix  # Easy in card play, Strong labels
 cargo run --locked --release -p nn-train -- verify DIR  # replay and check a training-data run
 cargo run --locked --release -p skat-ai --example latency -- 30 strong  # early Strong decisions
-cargo run --locked --release -p nn-train -- train OUT DIR... --hidden 512  # card-play network (#73); --belief-weight X, --patience N
+cargo run --locked --release -p nn-train -- train OUT DIR... --hidden 512  # card-play network (#73); --belief-weight X, --patience N, --cache DIR, --data-on-device GB
 cargo run --locked --release -p nn-train -- evaluate MODEL DIR...  # metrics per split
 cargo run --locked --release -p nn-train -- probe MODEL DIR... --belief FILE  # intra-game dependencies
 cargo run --locked --release -p nn-train -- rl OUT --minutes 720  # self-play refinement (#75)

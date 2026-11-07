@@ -19,6 +19,7 @@
 //!     [--value-mix X] [--soft-weight X] [--soft-temperature X]
 //!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
 //!     [--device cpu|vulkan] [--patience N [--lr-decay X] [--lr-decays N]]
+//!     [--cache DIR] [--data-on-device GB]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
 //!     [--games N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W] [--seed N]
@@ -45,7 +46,13 @@
 //! epoch logs, metrics per split, model hash). With `--patience N`, N
 //! epochs without a lower validation loss continue from the best weights
 //! with the learning rate times `--lr-decay` (default 0.1), at most
-//! `--lr-decays` times (default 1); the next such plateau stops the run. `evaluate` reports a
+//! `--lr-decays` times (default 1); the next such plateau stops the run.
+//! Examples are held with one byte per feature ([`nn_train::features`]).
+//! `--cache DIR` keeps the loaded data in a binary file per data set and
+//! target settings ([`nn_train::cache`]) and reads it back on the next run.
+//! `--data-on-device GB` keeps the training rows in device memory if they
+//! fit in GB ([`nn_train::resident`]; for `--device vulkan`), otherwise
+//! batches come from RAM as without it. `evaluate` reports a
 //! model file's metrics on every split of the given runs, so models
 //! trained on different data compare on the same examples. `rl` refines
 //! a model by self-play against a frozen opponent pool (#75,
@@ -435,9 +442,10 @@ fn device(kind: &str) -> Device {
 }
 
 fn train(args: &[String]) {
+    use nn_train::resident::ResidentRows;
     use nn_train::train::{
         Hyper, PHASES, Plateau, Recipe, TRAIN_FORMAT, TrainLimits, TrainManifest, TrainStop,
-        evaluate_with, hex_hash, load, read_model, train,
+        evaluate_with, hex_hash, load_with, read_model, train_with,
     };
     let out = std::path::PathBuf::from(args.first().expect("train OUT_DIR DATA_DIR..."));
     let dirs: Vec<std::path::PathBuf> = args[1..]
@@ -472,14 +480,54 @@ fn train(args: &[String]) {
     // Read now: the tree may change while a long run trains.
     let commit = engine_commit();
     let start = Instant::now();
-    let data = load(&dirs, &hyper).expect("load training data");
+    let beliefs = hyper.belief_weight > 0.0;
+    let cache = text_flag(args, "--cache", "");
+    let (data, from) = if cache.is_empty() {
+        let data = load_with(&dirs, &hyper, beliefs).expect("load training data");
+        (data, "runs")
+    } else {
+        use nn_train::cache::{CacheUse, load_cached};
+        let (data, used) = load_cached(&dirs, &hyper, beliefs, std::path::Path::new(cache))
+            .expect("load training data");
+        (
+            data,
+            match used {
+                CacheUse::Hit => "cache",
+                CacheUse::Written => "runs, cache written",
+            },
+        )
+    };
     println!(
-        "examples: {} train, {} validation, {} test ({:.0} s to load)",
+        "examples: {} train, {} validation, {} test ({:.0} s to load from {from})",
         data.train.rows(),
         data.validation.rows(),
         data.test.rows(),
         start.elapsed().as_secs_f64()
     );
+    let autodiff = device(kind).autodiff();
+    // Optional: the training split's feature rows in device memory, if
+    // they fit the budget in GB; otherwise batches come from RAM.
+    let budget: f64 = flag(args, "--data-on-device", 0.0);
+    let inputs = NetShape::current(hyper.hidden).inputs;
+    let need = ResidentRows::bytes(&data.train.features, inputs);
+    let resident = if budget <= 0.0 {
+        None
+    } else if need as f64 > budget * 1e9 {
+        println!(
+            "data on device: {:.1} GB needed, budget {budget:.1} GB; batches come from RAM",
+            need as f64 / 1e9
+        );
+        None
+    } else {
+        let began = Instant::now();
+        let r = ResidentRows::upload(&data.train.features, inputs, &autodiff);
+        println!(
+            "data on device: {:.1} GB of training rows uploaded ({:.0} s)",
+            need as f64 / 1e9,
+            began.elapsed().as_secs_f64()
+        );
+        Some(r)
+    };
     let recipe = Recipe {
         train_format: TRAIN_FORMAT,
         encoder_version: ENCODER_VERSION,
@@ -491,11 +539,12 @@ fn train(args: &[String]) {
     let limits = TrainLimits {
         wall_time: std::time::Duration::from_secs_f64(minutes * 60.0),
     };
-    let trained = train(
+    let trained = train_with(
         &out,
         &recipe,
         &data,
-        &device(kind).autodiff(),
+        resident.as_ref(),
+        &autodiff,
         limits,
         |log| {
             println!(
@@ -930,7 +979,8 @@ fn main() {
                  [--epochs N] [--value-weight X] [--value-mix X] [--soft-weight X] \
                  [--soft-temperature X] [--score-weight X] [--win-weight X] [--belief-weight X] \
                  [--seed N] [--minutes N] [--device cpu|vulkan] \
-                 [--patience N [--lr-decay X] [--lr-decays N]]"
+                 [--patience N [--lr-decay X] [--lr-decays N]] [--cache DIR] \
+                 [--data-on-device GB]"
             );
             std::process::exit(2);
         }
