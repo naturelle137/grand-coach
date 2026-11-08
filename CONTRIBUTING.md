@@ -135,7 +135,18 @@ training rows in GPU memory if they fit in GB (leave room for the
 desktop, the network and a second process), otherwise batches come from
 RAM. `--device vulkan:discrete` or `vulkan:integrated` picks the GPU
 (`vulkan` alone takes the default adapter), so two runs can train in
-parallel on a discrete and an integrated GPU.
+parallel on a discrete and an integrated GPU. `--queue 2x512,4x512`
+trains several networks (layers x width, in this order) on data loaded
+once: one thread per `--workers` device (default `cpu`, e.g.
+`cpu,cpu,cpu,cpu,vulkan:discrete`; CPU training uses about one core per
+worker) takes the next network when it is free and trains it into
+`OUT_DIR/<L>x<H>` (`-2`, `-3`... for a repeated shape) with its log in
+`train.log`; a worker written `last:vulkan:discrete` takes from the end
+of the queue, so with the list sorted by cost the GPU trains the largest
+networks while CPU workers start with the smallest; `once:cpu` trains one
+network and stops, so a slow worker does not pick up a large network
+late in the queue. A restarted queue
+skips finished networks and resumes interrupted ones.
 Start supervised training in a fresh output directory to train encoder v2
 from existing raw shards. For v2 self-play refinement, pass the resulting
 `OUT_DIR/model.gcnn` to `rl --start`. Starting from the bundled model
@@ -145,6 +156,7 @@ continues with its v1 inputs.
 cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR... --hidden 512 --epochs 30 --minutes 120
 cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR... --hidden 512 --epochs 60 --minutes 600 --patience 3 --lr-decay 0.1 --lr-decays 1
 cargo run --locked --release -p nn-train --features vulkan -- train OUT_DIR DATA_DIR... --hidden 512 --device vulkan --cache CACHE_DIR --data-on-device 12
+cargo run --locked --release -p nn-train --features vulkan -- train OUT_DIR DATA_DIR... --queue 2x512,4x512 --workers cpu,vulkan:discrete --cache CACHE_DIR --data-on-device 12
 cargo run --locked --release -p nn-train -- evaluate OUT_DIR/model.gcnn DATA_DIR...
 cargo run --locked --release -p nn-train -- probe OUT_DIR/model.gcnn DATA_DIR... --belief OUT_DIR/belief.bpk --json probe.json
 cargo run --locked --release -p skat-ai --example calibrate -- validation nn:assets/models/card-play.gcnn easy 200 6 0

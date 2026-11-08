@@ -21,6 +21,7 @@
 //!     [--device cpu|vulkan[:discrete|:integrated[:N]]]
 //!     [--patience N [--lr-decay X] [--lr-decays N]]
 //!     [--cache DIR] [--data-on-device GB]
+//!     [--queue LxH,LxH... [--workers once:cpu,last:vulkan:discrete]]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
 //!     [--games N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W] [--seed N]
@@ -53,7 +54,15 @@
 //! target settings ([`nn_train::cache`]) and reads it back on the next run.
 //! `--data-on-device GB` keeps the training rows in device memory if they
 //! fit in GB ([`nn_train::resident`]; for `--device vulkan`), otherwise
-//! batches come from RAM as without it. `evaluate` reports a
+//! batches come from RAM as without it. `--queue 2x512,4x512` trains
+//! several networks (layers x hidden width) on the data loaded once: one
+//! thread per `--workers` device takes the next network when it is free
+//! and trains it into `OUT_DIR/<L>x<H>` (log in `train.log` there;
+//! a worker written `last:DEVICE` takes from the end of the queue,
+//! `once:DEVICE` trains one network and stops); a
+//! restarted queue skips finished networks and resumes interrupted ones;
+//! a repeated shape trains again into `OUT_DIR/<L>x<H>-2` and so on.
+//! `evaluate` reports a
 //! model file's metrics on every split of the given runs, so models
 //! trained on different data compare on the same examples. `rl` refines
 //! a model by self-play against a frozen opponent pool (#75,
@@ -484,12 +493,31 @@ fn device_name(device: &Device, kind: &str) -> String {
     }
 }
 
+/// The networks of a training queue (`--queue 2x512,4x512`): layers,
+/// hidden width and output directory name, `<L>x<H>`, with `-2`, `-3`...
+/// for a repeated shape.
+fn queue_jobs(spec: &str) -> Vec<(usize, usize, String)> {
+    let mut seen = std::collections::HashMap::<&str, usize>::new();
+    spec.split(',')
+        .map(|job| {
+            let (layers, hidden) = job
+                .split_once('x')
+                .and_then(|(l, h)| Some((l.parse().ok()?, h.parse().ok()?)))
+                .unwrap_or_else(|| panic!("--queue needs LAYERSxHIDDEN items, got {job}"));
+            let n = seen.entry(job).or_insert(0);
+            *n += 1;
+            let name = if *n == 1 {
+                format!("{layers}x{hidden}")
+            } else {
+                format!("{layers}x{hidden}-{n}")
+            };
+            (layers, hidden, name)
+        })
+        .collect()
+}
+
 fn train(args: &[String]) {
-    use nn_train::resident::ResidentRows;
-    use nn_train::train::{
-        Hyper, PHASES, Plateau, Recipe, TRAIN_FORMAT, TrainLimits, TrainManifest, TrainStop,
-        evaluate_with, hex_hash, load_with, read_model, train_with,
-    };
+    use nn_train::train::{Hyper, Plateau, load_with};
     let out = std::path::PathBuf::from(args.first().expect("train OUT_DIR DATA_DIR..."));
     let dirs: Vec<std::path::PathBuf> = args[1..]
         .iter()
@@ -518,10 +546,13 @@ fn train(args: &[String]) {
             decays: flag(args, "--lr-decays", 1),
         }),
     };
-    let minutes: f64 = flag(args, "--minutes", 60.0);
-    let kind = text_flag(args, "--device", "cpu");
-    // Read now: the tree may change while a long run trains.
-    let commit = engine_commit();
+    let queue = text_flag(args, "--queue", "");
+    let options = TrainOptions {
+        minutes: flag(args, "--minutes", 60.0),
+        budget: flag(args, "--data-on-device", 0.0),
+        // Read now: the tree may change while a long run trains.
+        commit: engine_commit(),
+    };
     let start = Instant::now();
     let beliefs = hyper.belief_weight > 0.0;
     let cache = text_flag(args, "--cache", "");
@@ -547,30 +578,153 @@ fn train(args: &[String]) {
         data.test.rows(),
         start.elapsed().as_secs_f64()
     );
+    if queue.is_empty() {
+        let kind = text_flag(args, "--device", "cpu");
+        train_one(&out, hyper, &data, kind, &options, &mut std::io::stdout());
+        return;
+    }
+    // Queue: the data is loaded once and shared by one thread per device
+    // (`--workers cpu,vulkan:discrete`); each takes the next network when
+    // it is free (several `cpu` workers use several cores). A network
+    // trains in OUT_DIR/<L>x<H> (-2, -3... when repeated) with its log in
+    // train.log there; finished ones (model.gcnn present) are skipped,
+    // interrupted ones resume from their checkpoint.
+    let jobs: std::collections::VecDeque<_> = queue_jobs(queue).into();
+    let jobs = std::sync::Mutex::new(jobs);
+    let workers = text_flag(args, "--workers", "cpu");
+    std::thread::scope(|scope| {
+        for kind in workers.split(',') {
+            let (jobs, data, options, out, hyper) = (&jobs, &data, &options, &out, &hyper);
+            scope.spawn(move || {
+                let (spec, kind) = worker_spec(kind);
+                loop {
+                    let mut queue = jobs.lock().expect("queue lock");
+                    let next = if spec.last {
+                        queue.pop_back()
+                    } else {
+                        queue.pop_front()
+                    };
+                    drop(queue);
+                    let Some((layers, hidden, name)) = next else {
+                        break;
+                    };
+                    let dir = out.join(&name);
+                    if dir.join("model.gcnn").exists() {
+                        println!("{kind}: {name} already trained, skipped");
+                        continue;
+                    }
+                    std::fs::create_dir_all(&dir).expect("create job directory");
+                    let mut log = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(dir.join("train.log"))
+                        .expect("open train.log");
+                    println!("{kind}: {name} started ({})", dir.display());
+                    let began = Instant::now();
+                    let job = nn_train::train::Hyper {
+                        layers,
+                        hidden,
+                        ..hyper.clone()
+                    };
+                    train_one(&dir, job, data, kind, options, &mut log);
+                    println!(
+                        "{kind}: {name} finished ({:.1} h)",
+                        began.elapsed().as_secs_f64() / 3600.0
+                    );
+                    if spec.once {
+                        break;
+                    }
+                }
+            });
+        }
+    });
+}
+
+/// How a queue worker takes networks.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct WorkerSpec {
+    /// From the end of the queue (`last:`), so a fast device can work
+    /// through the largest networks of a list sorted by cost while the
+    /// others start at the front.
+    last: bool,
+    /// Trains one network, then stops (`once:`), so a slow device does
+    /// not pick up a large network late in the queue.
+    once: bool,
+}
+
+/// The prefixes and device of a `--workers` item, e.g.
+/// `once:last:vulkan:discrete`.
+fn worker_spec(item: &str) -> (WorkerSpec, &str) {
+    let mut spec = WorkerSpec::default();
+    let mut rest = item;
+    loop {
+        if let Some(r) = rest.strip_prefix("last:") {
+            spec.last = true;
+            rest = r;
+        } else if let Some(r) = rest.strip_prefix("once:") {
+            spec.once = true;
+            rest = r;
+        } else {
+            return (spec, rest);
+        }
+    }
+}
+
+/// Settings of `train` shared by every network of a queue.
+struct TrainOptions {
+    /// Wall-time cap per network in minutes.
+    minutes: f64,
+    /// `--data-on-device` budget in GB (0: batches from RAM).
+    budget: f64,
+    /// Engine commit for the manifest.
+    commit: String,
+}
+
+/// Trains one network on `data` on the device `kind` into `out`, writing
+/// the progress to `log`.
+fn train_one(
+    out: &std::path::Path,
+    hyper: nn_train::train::Hyper,
+    data: &nn_train::train::Data,
+    kind: &str,
+    options: &TrainOptions,
+    log: &mut dyn std::io::Write,
+) {
+    use nn_train::resident::ResidentRows;
+    use nn_train::train::{
+        PHASES, Recipe, TRAIN_FORMAT, TrainLimits, TrainManifest, TrainStop, evaluate_with,
+        hex_hash, read_model, train_with,
+    };
+    // Lines go to stdout or a log file; a full disk must not stop training.
+    let mut say = |line: String| {
+        let _ = writeln!(log, "{line}");
+        let _ = log.flush();
+    };
+    let start = Instant::now();
     let plain = device(kind);
-    println!("device: {}", device_name(&plain, kind));
+    say(format!("device: {}", device_name(&plain, kind)));
     let autodiff = plain.autodiff();
     // Optional: the training split's feature rows in device memory, if
     // they fit the budget in GB; otherwise batches come from RAM.
-    let budget: f64 = flag(args, "--data-on-device", 0.0);
+    let budget = options.budget;
     let inputs = NetShape::current(hyper.hidden).inputs;
     let need = ResidentRows::bytes(&data.train.features, inputs);
     let resident = if budget <= 0.0 {
         None
     } else if need as f64 > budget * 1e9 {
-        println!(
+        say(format!(
             "data on device: {:.1} GB needed, budget {budget:.1} GB; batches come from RAM",
             need as f64 / 1e9
-        );
+        ));
         None
     } else {
         let began = Instant::now();
         let r = ResidentRows::upload(&data.train.features, inputs, &autodiff);
-        println!(
+        say(format!(
             "data on device: {:.1} GB of training rows uploaded ({:.0} s)",
             need as f64 / 1e9,
             began.elapsed().as_secs_f64()
-        );
+        ));
         Some(r)
     };
     let recipe = Recipe {
@@ -580,19 +734,19 @@ fn train(args: &[String]) {
         data: data.sources.clone(),
         hyper: hyper.clone(),
     };
-    println!("hyperparameters: {hyper:?}");
+    say(format!("hyperparameters: {hyper:?}"));
     let limits = TrainLimits {
-        wall_time: std::time::Duration::from_secs_f64(minutes * 60.0),
+        wall_time: std::time::Duration::from_secs_f64(options.minutes * 60.0),
     };
     let trained = train_with(
-        &out,
+        out,
         &recipe,
-        &data,
+        data,
         resident.as_ref(),
         &autodiff,
         limits,
         |log| {
-            println!(
+            say(format!(
                 "epoch {:3}: lr {:.1e}, train loss {:.4}, validation loss {:.4}, policy {:.4}, \
                  agreement {:.2} %, value RMSE {:.1}, score RMSE {:.1}, win loss {:.4}, \
                  score agreement {:.2} %, belief {:.3} bits, {:.0} s",
@@ -608,16 +762,17 @@ fn train(args: &[String]) {
                 100.0 * log.validation.score_agreement,
                 log.validation.belief_bits,
                 log.seconds
-            );
+            ));
             true
         },
     )
     .expect("train");
+    drop(resident);
     let (net, head) = read_model(&trained.model, trained.belief.as_deref()).expect("read model");
     let metrics = |examples| evaluate_with(&net, head.as_ref(), examples, &hyper);
     let manifest = TrainManifest {
         recipe,
-        engine_commit: commit,
+        engine_commit: options.commit.clone(),
         device: kind.to_string(),
         coverage: data.coverage.clone(),
         logs: trained.state.logs.clone(),
@@ -635,25 +790,26 @@ fn train(args: &[String]) {
         }
         .to_string(),
     };
-    std::fs::write(out.join("model.gcnn"), &trained.model).expect("write model");
     if let Some(belief) = &trained.belief {
         std::fs::write(out.join("belief.bpk"), belief).expect("write belief head");
     }
     let mut json = serde_json::to_vec_pretty(&manifest).expect("manifest serialises");
     json.push(b'\n');
     std::fs::write(out.join("train.json"), json).expect("write train.json");
-    println!(
+    // Last: a queue treats a directory with model.gcnn as finished.
+    std::fs::write(out.join("model.gcnn"), &trained.model).expect("write model");
+    say(format!(
         "best epoch {} of {}; stop: {}",
         manifest.best_epoch,
         manifest.logs.len(),
         manifest.stop
-    );
+    ));
     for (name, m) in [
         ("train", manifest.train),
         ("validation", manifest.validation),
         ("test", manifest.test),
     ] {
-        println!(
+        say(format!(
             "{name}: {} examples, loss {:.4}, policy {:.4}, agreement {:.2} %, value RMSE {:.1}, \
              score RMSE {:.1}, win loss {:.4}, score agreement {:.2} %",
             m.examples,
@@ -664,15 +820,15 @@ fn train(args: &[String]) {
             m.score_rmse,
             m.win_loss,
             100.0 * m.score_agreement
-        );
+        ));
     }
-    println!(
+    say(format!(
         "wrote {} ({} bytes, sha256 {}), train.json; {:.0} s",
         out.join("model.gcnn").display(),
         manifest.model_bytes,
         manifest.model_sha256,
         start.elapsed().as_secs_f64()
-    );
+    ));
 }
 
 fn evaluate(args: &[String]) {
@@ -1032,6 +1188,45 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn worker_prefixes_set_direction_and_count() {
+        let both = WorkerSpec {
+            last: true,
+            once: true,
+        };
+        assert_eq!(worker_spec("cpu"), (WorkerSpec::default(), "cpu"));
+        assert_eq!(
+            worker_spec("last:vulkan:discrete").0,
+            WorkerSpec {
+                last: true,
+                once: false
+            }
+        );
+        assert_eq!(worker_spec("once:last:vulkan"), (both, "vulkan"));
+        assert_eq!(worker_spec("last:once:cpu"), (both, "cpu"));
+    }
+
+    #[test]
+    fn queue_lists_layers_and_width() {
+        let job = |l, h, name: &str| (l, h, name.to_string());
+        assert_eq!(queue_jobs("2x512"), vec![job(2, 512, "2x512")]);
+        assert_eq!(
+            queue_jobs("4x384,8x768,4x384,4x384"),
+            vec![
+                job(4, 384, "4x384"),
+                job(8, 768, "8x768"),
+                job(4, 384, "4x384-2"),
+                job(4, 384, "4x384-3")
+            ]
+        );
+        for bad in ["512", "2x", "x512", "2x512,", "2*512"] {
+            assert!(
+                std::panic::catch_unwind(|| queue_jobs(bad)).is_err(),
+                "{bad}"
+            );
+        }
+    }
 
     /// The training stack on the CPU: the loss falls and both checkpoints
     /// round-trip (GPU training is run by hand, `docs/testing.md`).
