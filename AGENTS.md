@@ -127,6 +127,7 @@ cargo run --locked -p notices                 # regenerate THIRD-PARTY-NOTICES
 cargo run --locked --release -p skat-analysis --example bench  # analysis latency
 cargo run --locked --release -p skat-ai --example latency       # AI latency per level
 cargo run --locked --release -p skat-ai --example calibrate -- validation medium strong 200 10 0
+cargo run --locked --release -p skat-ai --example tournament -- CONFIG OUT.tsv tuning 2000 20 0  # role tournament
 cargo run --locked --release -p skat-app --example coach_latency # coach latency
 cargo run --locked -p gui-egui --example screenshots -- DIR  # headless PNGs (D-45)
 cargo run --locked --release -p nn-train -- smoke cpu  # Burn stack smoke test (#69)

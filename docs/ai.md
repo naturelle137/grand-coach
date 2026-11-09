@@ -41,6 +41,22 @@ not.
   reported as inconclusive (or reversed) and calibration continues on the
   tuning suite before a new validation attempt.
 
+### Role tournament
+
+`calibrate` compares two profiles. To rank many players by role, the
+example `tournament -- CONFIG OUT.tsv <suite> <deals> <parallel> <first>`
+plays configured constellations (`match DECLARER DEFENDER DEFENDER`, players
+as in `calibrate`) on the same suite deals. All Classic levels except
+Rookie and every model fallback bid and declare by the same rules of thumb,
+so a deal's declarer seat and contract do not depend on the seating: the
+runner finds them with three Easy players, skips thrown-in deals and plays
+each match once per deal with its declarer on that seat. Mixed defender
+pairs swap seats between even and odd deals. A game whose declarer or
+contract differs is flagged. Seeds depend on suite, deal and seat only, so
+all matches of a deal share random numbers and differences are paired.
+Results are one tab-separated row per game, appended; a restart skips the
+games already written.
+
 ## Levels
 
 | Level | Before card play | Card play, Kontra/Re | Budget |
