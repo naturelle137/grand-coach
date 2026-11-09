@@ -55,7 +55,9 @@ pairs swap seats between even and odd deals. A game whose declarer or
 contract differs is flagged. Seeds depend on suite, deal and seat only, so
 all matches of a deal share random numbers and differences are paired.
 Results are one tab-separated row per game, appended; a restart skips the
-games already written.
+games already written. A player spec ending in `+rk` says Kontra and Re by
+the rules of thumb and lets the player choose only among the other actions,
+to separate Kontra/Re from card play.
 
 ## Levels
 
