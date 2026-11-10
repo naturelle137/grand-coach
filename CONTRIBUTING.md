@@ -85,6 +85,13 @@ cargo run --locked --release -p skat-ai --example calibrate -- validation medium
 cargo run --locked --release -p skat-ai --example latency
 ```
 
+Many players are ranked by role (declarer, defender, mixed pairs) with the
+[role tournament](docs/ai.md#role-tournament):
+
+```sh
+cargo run --locked --release -p skat-ai --example tournament -- CONFIG OUT.tsv tuning 2000 20 0
+```
+
 Learned models are trained outside the app with `tools/nn-train` (see
 [docs/ai.md](docs/ai.md#learned-engine-runtime)). The smoke test trains a
 small network on the CPU or, with `vulkan` (feature `vulkan`), on the GPU and checks the
