@@ -31,7 +31,7 @@ use crate::train::{
 };
 
 /// Version of the cache file layout and of the cached target computation.
-pub const CACHE_FORMAT: u32 = 1;
+pub const CACHE_FORMAT: u32 = 2;
 
 const MAGIC: &[u8; 8] = b"GCDATA\0\x01";
 

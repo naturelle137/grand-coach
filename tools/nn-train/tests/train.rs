@@ -16,6 +16,7 @@ use nn_train::shards::read_shard;
 use nn_train::train::{
     Hyper, PHASES, Plateau, Recipe, TRAIN_FORMAT, TrainLimits, TrainStop, Trained, load, train,
 };
+use skat_ai::{KontraRule, kontra_by_rules, kontra_rule};
 use skat_core::Phase;
 use skat_nn::{ENCODER_VERSION, NeuralModel, sha256};
 
@@ -78,10 +79,28 @@ fn examples_are_the_card_play_decisions_with_their_targets() {
     let records: Vec<_> = (0..2)
         .flat_map(|i| read_shard(&fixture(), i).unwrap())
         .collect();
+    // Kontra follows the rules of thumb (#108): a decision where they say
+    // Kontra is left out, otherwise its Kontra actions go and a Kontra
+    // label of the (pre-#108) teacher becomes its best card.
+    let mut relabelled = 0;
     let spiel: Vec<_> = records
         .iter()
         .filter(|r| r.view.phase == Phase::Spiel)
+        .filter_map(|r| match kontra_rule(&r.view) {
+            KontraRule::Free => Some((r, r.view.legal_actions.clone(), r.action)),
+            KontraRule::Rules(_) => None,
+            KontraRule::Without(v) => {
+                let action = if v.legal_actions.contains(&r.action) {
+                    r.action
+                } else {
+                    relabelled += 1;
+                    kontra_by_rules(&r.view, &r.teacher.options).expect("complete analysis")
+                };
+                Some((r, v.legal_actions, action))
+            }
+        })
         .collect();
+    assert!(relabelled > 0, "the fixture has teacher Kontras");
     let rows = data.train.rows() + data.validation.rows() + data.test.rows();
     assert_eq!(data.sources[0].manifest.encoder_version, 1);
     assert_eq!(rows, spiel.len());
@@ -94,17 +113,20 @@ fn examples_are_the_card_play_decisions_with_their_targets() {
     }
     // With `value_mix` 0 the value target is the seat's final points; the
     // policy target is the teacher's action.
-    let train: Vec<_> = spiel.iter().filter(|r| r.split == Split::Train).collect();
-    for (row, r) in train.iter().enumerate() {
+    let train: Vec<_> = spiel
+        .iter()
+        .filter(|(r, _, _)| r.split == Split::Train)
+        .collect();
+    for (row, (r, legal_actions, action)) in train.iter().enumerate() {
         let e = &data.train;
         // The compact feature storage is lossless: bit-identical values.
         let bits = |v: &[f32]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
         assert_eq!(bits(&e.features.row(row)), bits(&skat_nn::encode(&r.view)));
         assert_eq!(e.value[row], r.final_points as f32);
         let legal = &e.target[e.offsets[row]..e.offsets[row + 1]];
-        assert_eq!(legal.len(), r.view.legal_actions.len());
+        assert_eq!(legal.len(), legal_actions.len());
         let chosen = e.chosen[row] as usize;
-        assert_eq!(r.view.legal_actions[chosen], r.action);
+        assert_eq!(legal_actions[chosen], *action);
         assert_eq!(legal[chosen], 1.0);
     }
 

@@ -3,8 +3,12 @@
 //! Supervised training of the card-play network (#73) on teacher self-play
 //! records (#70).
 //!
-//! Examples are the card-play decisions (phase Spiel, Kontra/Re included)
-//! of the training split. Targets:
+//! Examples are the card-play decisions (phase Spiel, Re included) of the
+//! training split. Kontra follows the rules of thumb (#108): a decision
+//! where they say Kontra is left out; otherwise the Kontra actions are
+//! removed and a Kontra label of the teacher becomes the card it would have
+//! chosen without Kontra ([`skat_ai::kontra_by_rules`] on its option
+//! values; without values the decision is left out). Targets:
 //!
 //! - **Policy**: the teacher's chosen action, optionally mixed with a soft
 //!   distribution from the teacher's complete option values
@@ -56,7 +60,7 @@ use burn::store::ModuleRecord;
 use burn::tensor::activation::log_softmax;
 use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
-use skat_ai::Status;
+use skat_ai::{KontraRule, Status, kontra_by_rules, kontra_rule};
 use skat_core::{OmniscientView, Phase, PlayerView};
 use skat_nn::{
     ACTIONS, ENCODER_VERSION, MIN_LAYERS, ModelHeader, NetShape, Phases, PolicyValueNet,
@@ -65,11 +69,11 @@ use skat_nn::{
 
 use crate::features::FeatureCodes;
 use crate::resident::ResidentRows;
-use crate::selfplay::{DecisionKind, DecisionRecord, Player, Roles, Split};
+use crate::selfplay::{DecisionKind, DecisionRecord, Player, Roles, Split, Teacher};
 use crate::shards::{Manifest, read_manifest, read_shard_hashed, replay_deal};
 
 /// Version of the training recipe and run-directory layout.
-pub const TRAIN_FORMAT: u32 = 2;
+pub const TRAIN_FORMAT: u32 = 3;
 
 /// Phases the trained model decides; everything else stays Classic.
 pub const PHASES: Phases = Phases::SPIEL;
@@ -456,6 +460,39 @@ pub(crate) struct Batch {
     pub(crate) belief: Option<(Tensor<2>, usize)>,
 }
 
+/// `record` with Kontra by the rules of thumb (#108): `Some(None)` if the
+/// decision offers no Kontra, `Some(Some(_))` without the Kontra actions and
+/// with a card label, `None` if the rules say Kontra or no card label is
+/// known.
+fn without_kontra(record: &DecisionRecord) -> Option<Option<DecisionRecord>> {
+    let view = match kontra_rule(&record.view) {
+        KontraRule::Free => return Some(None),
+        KontraRule::Rules(_) => return None,
+        KontraRule::Without(view) => view,
+    };
+    let action = if view.legal_actions.contains(&record.action) {
+        record.action
+    } else {
+        kontra_by_rules(&record.view, &record.teacher.options)?
+    };
+    let options = record
+        .teacher
+        .options
+        .iter()
+        .filter(|o| view.legal_actions.contains(&o.action))
+        .cloned()
+        .collect();
+    Some(Some(DecisionRecord {
+        view,
+        action,
+        teacher: Teacher {
+            options,
+            ..record.teacher.clone()
+        },
+        ..record.clone()
+    }))
+}
+
 impl Examples {
     /// Number of rows.
     pub fn rows(&self) -> usize {
@@ -480,6 +517,15 @@ impl Examples {
         if r.view.phase != Phase::Spiel || !PHASES.contains(r.view.phase) {
             return false;
         }
+        let relabelled;
+        let r = match without_kontra(r) {
+            Some(Some(record)) => {
+                relabelled = record;
+                &relabelled
+            }
+            Some(None) => r,
+            None => return false,
+        };
         let legal: Vec<u32> = r
             .view
             .legal_actions
@@ -1379,4 +1425,84 @@ pub fn read_model(
 /// Hex form of a hash, for manifests.
 pub fn hex_hash(bytes: &[u8]) -> String {
     hex(&sha256(bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use skat_ai::{BaselineOpponent, Budget, Opponent, Profile};
+    use skat_core::{Action, Game, RuleConfig};
+
+    use super::*;
+    use crate::selfplay::teach;
+
+    /// A record of a teacher that analyses Kontra (the pre-#108 teacher).
+    fn record(view: &PlayerView) -> DecisionRecord {
+        let teacher = Opponent {
+            profile: Profile {
+                budget: Some(Budget {
+                    samples: 2,
+                    nodes_per_task: Budget::INTERACTIVE.nodes_per_task,
+                }),
+                search_kontra: true,
+                ..Profile::RULES
+            },
+            seed: 1,
+        };
+        let (action, teacher) = teach(view, &teacher).unwrap();
+        DecisionRecord {
+            deal: 0,
+            split: Split::Train,
+            view: view.clone(),
+            action,
+            played: None,
+            lineup: None,
+            teacher,
+            final_points: 0,
+        }
+    }
+
+    #[test]
+    fn kontra_labels_follow_the_rules_of_thumb() {
+        let (mut relabelled, mut dropped, mut free) = (0, 0, 0);
+        for seed in 0..200 {
+            let mut game = Game::new(seed, RuleConfig { kontra_re: true });
+            while let Some(seat) = game.current_seat() {
+                let view = game.view(seat);
+                let rules = BaselineOpponent.decide(&view).unwrap();
+                if view.phase == Phase::Spiel && view.legal_actions.contains(&Action::Kontra) {
+                    let r = record(&view);
+                    match without_kontra(&r) {
+                        None => {
+                            assert_eq!(rules, Action::Kontra);
+                            dropped += 1;
+                        }
+                        Some(Some(n)) => {
+                            assert!(!n.view.legal_actions.contains(&Action::Kontra));
+                            assert!(n.view.legal_actions.contains(&n.action));
+                            assert_eq!(n.teacher.options.len(), n.view.legal_actions.len());
+                            if r.action == Action::Kontra {
+                                assert_eq!(
+                                    Some(n.action),
+                                    kontra_by_rules(&r.view, &r.teacher.options)
+                                );
+                                relabelled += 1;
+                            } else {
+                                assert_eq!(n.action, r.action);
+                            }
+                        }
+                        Some(None) => panic!("a Kontra decision passed unchanged"),
+                    }
+                } else if view.phase == Phase::Spiel && free < 5 {
+                    let r = record(&view);
+                    assert!(matches!(without_kontra(&r), Some(None)));
+                    free += 1;
+                }
+                game.apply(rules).unwrap();
+            }
+            if relabelled >= 3 && dropped >= 1 {
+                return;
+            }
+        }
+        panic!("too few Kontra decisions: {relabelled} relabelled, {dropped} dropped");
+    }
 }
