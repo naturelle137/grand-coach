@@ -24,7 +24,8 @@
 //!     [--queue LxH,LxH... [--workers once:cpu,last:vulkan:discrete]]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
-//!     [--games N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W] [--seed N]
+//!     [--games N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W]
+//!     [--mixed KIND+KIND=W,...] [--seed N]
 //!     [--minutes N] [--iterations N] [--cpus N] [--workers N] (more: usage)
 //! ```
 //!
@@ -893,7 +894,7 @@ struct RlManifest<'a> {
 }
 
 fn rl(args: &[String]) {
-    use nn_train::rl::{RlHyper, RlLimits, parse_pool, recipe, run};
+    use nn_train::rl::{RlHyper, RlLimits, parse_mixed, parse_pool, recipe, run};
     use std::num::NonZeroUsize;
 
     let out = std::path::PathBuf::from(args.first().expect("rl OUT_DIR --start MODEL [flags]"));
@@ -918,6 +919,8 @@ fn rl(args: &[String]) {
                 .unwrap_or_else(|e| panic!("--pool: {e}")),
             None => d.pool,
         },
+        mixed: parse_mixed(text_flag(args, "--mixed", ""))
+            .unwrap_or_else(|e| panic!("--mixed: {e}")),
         seed: flag(args, "--seed", d.seed),
     };
     let all = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
@@ -952,7 +955,9 @@ fn rl(args: &[String]) {
             let pool: Vec<String> = log
                 .pool
                 .iter()
-                .map(|(k, l)| format!("{} {:+.1} ({})", k.name(), l.difference(), l.games))
+                .map(|(k, l)| (k.name().to_string(), l))
+                .chain(log.tables.iter().map(|(n, l)| (n.clone(), l)))
+                .map(|(n, l)| format!("{n} {:+.1} ({})", l.difference(), l.games))
                 .collect();
             println!(
                 "iteration {:5}: {} decisions, reward {:+.1}, vs pool [{}], value RMSE {:.1}, \
@@ -1169,7 +1174,8 @@ fn main() {
                 "       nn-train rl OUT_DIR [--start MODEL] [--games N] [--batch N] [--passes N] \
                  [--lr X] [--clip X] [--value-weight X] [--score-weight X] [--win-weight X] \
                  [--entropy-weight X] [--reference-weight X] [--snapshot-every N] \
-                 [--pool-snapshots N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W] [--seed N] \
+                 [--pool-snapshots N] [--pool easy=W,medium=W,strong=W,ref=W,snap=W] \
+                 [--mixed KIND+KIND=W,...] [--seed N] \
                  [--minutes N] [--iterations N] [--cpus N] [--workers N]"
             );
             eprintln!(

@@ -19,7 +19,8 @@
 //! [`RlHyper::passes`] passes of mini-batch Adam over their learner
 //! decisions. The opponents of a game come from a frozen pool
 //! ([`PoolKind`]): Classic profiles, the reference model and older learner
-//! snapshots. Seats rotate with the game index like
+//! snapshots, either one kind on every opponent seat or a mixed table of
+//! two kinds ([`RlHyper::mixed`]). Seats rotate with the game index like
 //! [`skat_ai::arena::SEATINGS`]: the learner alone on each seat against two
 //! copies of the opponent, or as a pair against one; every seat and role
 //! is covered. The learner decides pre-play by the rules of thumb (the
@@ -67,6 +68,7 @@ const POOL_KEY: u64 = 0x726c_706f_6f6c;
 const OPPONENT_KEY: u64 = 0x726c_6f70_706f;
 const SAMPLE_KEY: u64 = 0x726c_7361_6d70;
 const ORDER_KEY: u64 = 0x726c_6f72_6465;
+const MIXED_KEY: u64 = 0x726c_6d69_7865;
 
 /// Which seats the learner holds in game `g` of an iteration (`true`:
 /// learner), like [`skat_ai::arena::SEATINGS`] with the learner as A.
@@ -140,6 +142,35 @@ pub fn parse_pool(spec: &str) -> Result<Vec<(PoolKind, u32)>, String> {
     Ok(pool)
 }
 
+/// Parses mixed tables such as `easy+strong=2,medium+strong=1` (an empty
+/// spec gives none).
+///
+/// # Errors
+///
+/// On an unknown kind, an entry without two kinds or a missing weight.
+pub fn parse_mixed(spec: &str) -> Result<Vec<([PoolKind; 2], u32)>, String> {
+    let mut mixed = Vec::new();
+    for part in spec.split(',').filter(|p| !p.is_empty()) {
+        let (names, weight) = part
+            .split_once('=')
+            .ok_or_else(|| format!("mixed entry {part:?} needs KIND+KIND=WEIGHT"))?;
+        let (a, b) = names
+            .split_once('+')
+            .ok_or_else(|| format!("mixed entry {part:?} needs KIND+KIND=WEIGHT"))?;
+        let kind = |n: &str| PoolKind::parse(n).ok_or_else(|| format!("unknown pool kind {n:?}"));
+        let weight = weight
+            .parse()
+            .map_err(|_| format!("mixed weight {weight:?} is not a number"))?;
+        mixed.push(([kind(a)?, kind(b)?], weight));
+    }
+    Ok(mixed)
+}
+
+/// The name of a mixed table in logs, e.g. `easy+strong`.
+pub fn table_name(table: [PoolKind; 2]) -> String {
+    format!("{}+{}", table[0].name(), table[1].name())
+}
+
 /// Hyperparameters of a self-play run. Everything here determines the
 /// result; caps that only decide where a run stops are [`RlLimits`].
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -170,6 +201,13 @@ pub struct RlHyper {
     pub pool_snapshots: usize,
     /// Opponent kinds with their weights per game.
     pub pool: Vec<(PoolKind, u32)>,
+    /// Mixed tables with their weights per game, drawn together with
+    /// `pool`: with the learner alone each kind takes one opponent seat
+    /// (which one alternates), with the learner as a pair one of the two
+    /// takes the opponent seat. Omitted when empty, so runs without mixed
+    /// tables resume and compare as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mixed: Vec<([PoolKind; 2], u32)>,
     /// Run seed.
     pub seed: u64,
 }
@@ -190,6 +228,7 @@ impl Default for RlHyper {
             snapshot_every: 10,
             pool_snapshots: 8,
             pool: parse_pool("easy=1,medium=2,strong=2,ref=1,snap=3").expect("valid default"),
+            mixed: Vec::new(),
             seed: 0,
         }
     }
@@ -270,8 +309,13 @@ pub struct Played {
     pub deal_seed: u64,
     /// Every action of the game in order, for replays.
     pub actions: Vec<Action>,
-    /// The opponent kind.
-    pub kind: PoolKind,
+    /// The opponent kinds: the same kind twice for a plain pool entry,
+    /// a mixed table otherwise.
+    pub table: [PoolKind; 2],
+    /// The opponent kind on each seat (`None` for the learner's seats).
+    pub opponents: [Option<PoolKind>; 3],
+    /// The declarer (`None` if thrown in).
+    pub declarer: Option<Seat>,
     /// The learner's seats.
     pub learner: [bool; 3],
     /// Final Seeger-Fabian points per seat (zeros if thrown in).
@@ -295,6 +339,12 @@ pub struct KindLog {
     pub opponent_seats: usize,
     /// Sum of the opponents' points.
     pub opponent_points: i64,
+    /// Learner seat-games as declarer (the rest defended or were thrown in).
+    #[serde(default)]
+    pub declarer_seats: usize,
+    /// Sum of the learner's points as declarer.
+    #[serde(default)]
+    pub declarer_points: i64,
 }
 
 impl KindLog {
@@ -317,8 +367,12 @@ pub struct IterationLog {
     pub thrown_in: usize,
     /// Learner decisions trained on.
     pub decisions: usize,
-    /// Results per pool kind, in [`PoolKind::ALL`] order.
+    /// Results per pool kind (plain entries), in [`PoolKind::ALL`] order.
     pub pool: Vec<(PoolKind, KindLog)>,
+    /// Results per mixed table ([`table_name`]), in recipe order; omitted
+    /// when there are none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tables: Vec<(String, KindLog)>,
     /// Mean reward of the learner's decisions.
     pub mean_reward: f64,
     /// Mean clipped surrogate loss over the Adam steps.
@@ -454,17 +508,41 @@ fn pool_player(
     }
 }
 
-/// Draws the opponent kind of a game from the pool weights.
-fn draw(pool: &[(PoolKind, u32)], r: u64) -> PoolKind {
-    let total: u64 = pool.iter().map(|&(_, w)| u64::from(w)).sum();
+/// Every table of `hyper` with its weight: the plain pool entries (one
+/// kind twice), then the mixed tables.
+fn tables(hyper: &RlHyper) -> impl Iterator<Item = ([PoolKind; 2], u32)> + '_ {
+    hyper
+        .pool
+        .iter()
+        .map(|&(k, w)| ([k, k], w))
+        .chain(hyper.mixed.iter().copied())
+}
+
+/// Draws the table of a game from the pool and mixed weights.
+fn draw(hyper: &RlHyper, r: u64) -> [PoolKind; 2] {
+    let total: u64 = tables(hyper).map(|(_, w)| u64::from(w)).sum();
     let mut x = r % total;
-    for &(kind, w) in pool {
+    for (table, w) in tables(hyper) {
         if x < u64::from(w) {
-            return kind;
+            return table;
         }
         x -= u64::from(w);
     }
     unreachable!("x < total")
+}
+
+/// The opponent kind on each seat for `table` with the learner on
+/// `learner`: the opponent seats take the table's kinds in seat order,
+/// starting with kind `flip` (0 or 1).
+pub fn seat_kinds(table: [PoolKind; 2], learner: [bool; 3], flip: usize) -> [Option<PoolKind>; 3] {
+    let mut next = flip;
+    learner.map(|l| {
+        (!l).then(|| {
+            let kind = table[next % 2];
+            next += 1;
+            kind
+        })
+    })
 }
 
 /// One learner decision from `view` alone: samples an action from the
@@ -529,17 +607,15 @@ fn play_game(
 ) -> io::Result<Played> {
     let key = |k: u64| mix(mix(mix(hyper.seed ^ k, iteration as u64), game as u64), 0);
     let learner = learner_seats(game);
-    let kind = draw(&hyper.pool, key(POOL_KEY));
+    let table = draw(hyper, key(POOL_KEY));
+    let opponents = seat_kinds(table, learner, (key(MIXED_KEY) & 1) as usize);
     let snapshot = (key(POOL_KEY) >> 32) as usize;
     let seed_of = |seat: Seat| mix(key(OPPONENT_KEY), seat.index() as u64);
     let players: Vec<Box<dyn Player + Send + Sync>> = Seat::ALL
         .into_iter()
-        .map(|s| {
-            if learner[s.index()] {
-                Box::new(rules_of_thumb(seed_of(s))) as Box<dyn Player + Send + Sync>
-            } else {
-                pool_player(kind, models, snapshot, seed_of(s))
-            }
+        .map(|s| match opponents[s.index()] {
+            Some(kind) => pool_player(kind, models, snapshot, seed_of(s)),
+            None => Box::new(rules_of_thumb(seed_of(s))) as Box<dyn Player + Send + Sync>,
         })
         .collect();
     let mut rngs = Seat::ALL.map(|s| SplitMix(mix(key(SAMPLE_KEY), s.index() as u64)));
@@ -576,18 +652,20 @@ fn play_game(
             .map_err(|e| io::Error::other(format!("illegal action: {e:?}")))?;
         actions.push(action);
     }
-    let (points, thrown_in, winners) = match game.result() {
+    let (points, thrown_in, winners, declarer) = match game.result() {
         Some(r) => {
             let declarer = r.outcome.declarer;
             let won = Seat::ALL.map(|s| (s == declarer) == r.won);
-            (r.seeger_fabian(), false, won)
+            (r.seeger_fabian(), false, won, Some(declarer))
         }
-        None => ([0; 3], true, [false; 3]),
+        None => ([0; 3], true, [false; 3], None),
     };
     Ok(Played {
         deal_seed,
         actions,
-        kind,
+        table,
+        opponents,
+        declarer,
         learner,
         points,
         thrown_in,
@@ -995,20 +1073,38 @@ pub fn run(
             .iter()
             .map(|&k| (k, KindLog::default()))
             .collect();
+        let mut mixed: Vec<(String, KindLog)> = hyper
+            .mixed
+            .iter()
+            .map(|&(t, _)| (table_name(t), KindLog::default()))
+            .collect();
         let mut steps = Vec::new();
         let mut thrown_in = 0;
         for g in games {
             thrown_in += usize::from(g.thrown_in);
-            let log = &mut kinds
-                .iter_mut()
-                .find(|(k, _)| *k == g.kind)
-                .expect("every kind")
-                .1;
+            let log = if g.table[0] == g.table[1] {
+                &mut kinds
+                    .iter_mut()
+                    .find(|(k, _)| *k == g.table[0])
+                    .expect("every kind")
+                    .1
+            } else {
+                let name = table_name(g.table);
+                &mut mixed
+                    .iter_mut()
+                    .find(|(n, _)| *n == name)
+                    .expect("every mixed table")
+                    .1
+            };
             log.games += 1;
             for seat in 0..3 {
                 if g.learner[seat] {
                     log.learner_seats += 1;
                     log.learner_points += i64::from(g.points[seat]);
+                    if g.declarer.is_some_and(|d| d.index() == seat) {
+                        log.declarer_seats += 1;
+                        log.declarer_points += i64::from(g.points[seat]);
+                    }
                 } else {
                     log.opponent_seats += 1;
                     log.opponent_points += i64::from(g.points[seat]);
@@ -1034,6 +1130,7 @@ pub fn run(
             thrown_in,
             decisions: steps.len(),
             pool: kinds.into_iter().filter(|(_, l)| l.games > 0).collect(),
+            tables: mixed.into_iter().filter(|(_, l)| l.games > 0).collect(),
             mean_reward,
             policy_loss: stats.policy / per,
             value_rmse,
