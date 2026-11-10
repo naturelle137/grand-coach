@@ -18,9 +18,8 @@
 //! match DECLARER DEF DEF
 //! ```
 //!
-//! A SPEC ending in `+rk` says Kontra and Re by the rules of thumb (Kontra
-//! with five trumps, `skat_analysis::policy`); the player still chooses its
-//! card when it does not say Kontra.
+//! A SPEC ending in `+ak` lets the analysis (Classic) or the model (learned)
+//! decide Kontra instead of the rules of thumb (`Profile::search_kontra`).
 //!
 //! Every Classic level and the fallback of a learned model bid and declare
 //! by the same rules of thumb, so the declarer seat and the contract of a
@@ -46,11 +45,8 @@ use std::time::Instant;
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
 use skat_ai::arena::play_with;
-use skat_ai::{
-    BaselineOpponent, Cancel, Decision, Level, NeuralOpponent, Opponent, Player, Profile,
-};
-use skat_analysis::policy;
-use skat_core::{Action, GameType, PlayerView, RuleConfig, Seat};
+use skat_ai::{Cancel, Decision, Level, NeuralOpponent, Opponent, Player, Profile};
+use skat_core::{PlayerView, RuleConfig, Seat};
 use skat_nn::{Choice, NeuralModel};
 
 /// Keys as in `calibrate`, so suites and seeds mean the same deals.
@@ -77,15 +73,9 @@ fn level(spec: &str) -> Profile {
 }
 
 /// A Classic profile, or a learned model with a Classic fallback.
-enum Engine {
+enum Side {
     Classic(Profile),
     Neural(Arc<NeuralModel>, Profile, Choice),
-}
-
-/// An engine, optionally with Kontra and Re by the rules of thumb.
-struct Side {
-    engine: Engine,
-    rule_kontra: bool,
 }
 
 enum Seated {
@@ -93,7 +83,7 @@ enum Seated {
     Neural(NeuralOpponent),
 }
 
-impl Seated {
+impl Player for Seated {
     fn decide(&self, view: &PlayerView, cancel: Option<&Cancel>) -> Option<Decision> {
         match self {
             Seated::Classic(o) => Player::decide(o, view, cancel),
@@ -102,86 +92,34 @@ impl Seated {
     }
 }
 
-/// A seated engine; with `rule_kontra` the rules of thumb say Kontra and
-/// Re, and the engine chooses among the other legal actions.
-struct Contestant {
-    seated: Seated,
-    rule_kontra: bool,
-}
-
-impl Player for Contestant {
-    fn decide(&self, view: &PlayerView, cancel: Option<&Cancel>) -> Option<Decision> {
-        let legal = &view.legal_actions;
-        let kontra_choice = |a: &Action| {
-            matches!(
-                a,
-                Action::Kontra | Action::KeinKontra | Action::Re | Action::KeinRe
-            )
-        };
-        if !self.rule_kontra || !legal.iter().any(kontra_choice) {
-            return self.seated.decide(view, cancel);
-        }
-        let rules = |action| {
-            Some(Decision {
-                action,
-                status: None,
-                fallback: false,
-            })
-        };
-        // Re answer and the Ouvert Kontra round offer only Kontra/Re actions.
-        if legal.iter().all(kontra_choice) {
-            return rules(BaselineOpponent.decide(view)?);
-        }
-        let game = view.contract.map_or(GameType::Grand, |c| c.game);
-        if policy::wants_kontra(game, view.hand) {
-            return rules(Action::Kontra);
-        }
-        let mut cards = view.clone();
-        cards.legal_actions.retain(|a| !kontra_choice(a));
-        self.seated.decide(&cards, cancel)
-    }
-}
-
 impl Side {
     fn parse(spec: &str) -> Side {
-        let (spec, rule_kontra) = match spec.strip_suffix("+rk") {
+        let (spec, search_kontra) = match spec.strip_suffix("+ak") {
             Some(rest) => (rest, true),
             None => (spec, false),
         };
-        Side {
-            engine: Engine::parse(spec),
-            rule_kontra,
-        }
-    }
-
-    fn seat(&self, seed: u64) -> Contestant {
-        Contestant {
-            seated: self.engine.seat(seed),
-            rule_kontra: self.rule_kontra,
-        }
-    }
-}
-
-impl Engine {
-    fn parse(spec: &str) -> Engine {
+        let profile = |level_spec: &str| Profile {
+            search_kontra,
+            ..level(level_spec)
+        };
         let (rest, choice) = if let Some(rest) = spec.strip_prefix("nnq:") {
             (rest, Choice::Score)
         } else if let Some(rest) = spec.strip_prefix("nn:") {
             (rest, Choice::Policy)
         } else {
-            return Engine::Classic(level(spec));
+            return Side::Classic(profile(spec));
         };
         let (path, fallback) = rest.rsplit_once('@').unwrap_or((rest, "easy"));
         let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
         let hash = skat_nn::sha256(&bytes);
         let model = NeuralModel::load(&bytes, &hash).unwrap_or_else(|e| panic!("{path}: {e:?}"));
-        Engine::Neural(Arc::new(model), level(fallback), choice)
+        Side::Neural(Arc::new(model), profile(fallback), choice)
     }
 
     fn seat(&self, seed: u64) -> Seated {
         match self {
-            Engine::Classic(p) => Seated::Classic(Opponent { profile: *p, seed }),
-            Engine::Neural(model, p, choice) => Seated::Neural(
+            Side::Classic(p) => Seated::Classic(Opponent { profile: *p, seed }),
+            Side::Neural(model, p, choice) => Seated::Neural(
                 NeuralOpponent::new(Ok(model.clone()), Opponent { profile: *p, seed })
                     .with_choice(*choice),
             ),
@@ -245,10 +183,7 @@ fn main() {
     let ai = |d: usize, s: Seat| mix(mix(AI_KEY ^ key, (first + d) as u64), s.index() as u64);
 
     // Declarer seat and contract of every deal under the rules of thumb.
-    let easy = Side {
-        engine: Engine::Classic(Level::Easy.profile()),
-        rule_kontra: false,
-    };
+    let easy = Side::Classic(Level::Easy.profile());
     let reference: Vec<Option<(Seat, String)>> = (0..deals)
         .map(|d| {
             let players = Seat::ALL.map(|s| easy.seat(ai(d, s)));

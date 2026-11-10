@@ -13,12 +13,13 @@
 //! first deal in the suite (default 0). A profile is
 //! a level (`rookie`, `easy`, `medium`, `strong`, or `goldfish`) or a custom profile `s<samples>t<temperature>`
 //! for tuning, e.g. `s6t4` (suffix `p`: analysis in card
-//! play and Kontra/Re only; `d`: also Hand, Drücken and announcement), or a
+//! play and Re only; `d`: also Hand, Drücken and announcement), or a
 //! learned model `nn:<path>[@<level>]` (D-07): the model file at `<path>`
 //! decides and the Classic `<level>` (default `easy`) takes every fallback;
 //! `nnq:` instead of `nn:` picks the action with the highest expected
-//! points of the model's option heads instead of the policy.
-//! Kontra/Re is on.
+//! points of the model's option heads instead of the policy. A trailing
+//! `+ak` lets the analysis or the model decide Kontra instead of the rules
+//! of thumb (`Profile::search_kontra`). Kontra/Re is on.
 //!
 //! Prints a Markdown summary: the mean per-deal difference of Seeger-Fabian
 //! points per seat-game (A minus B) with its standard error and 95 %
@@ -107,6 +108,14 @@ impl Side {
         if spec == "experimental" {
             return Side::Experimental;
         }
+        let (spec, search_kontra) = match spec.strip_suffix("+ak") {
+            Some(rest) => (rest, true),
+            None => (spec, false),
+        };
+        let profile = |spec: &str| Profile {
+            search_kontra,
+            ..profile(spec)
+        };
         let (rest, choice) = if let Some(rest) = spec.strip_prefix("nnq:") {
             (rest, Choice::Score)
         } else if let Some(rest) = spec.strip_prefix("nn:") {
@@ -169,18 +178,24 @@ fn describe(p: &Profile) -> String {
     match p.budget {
         None if !p.mistakes.is_none() => format!("rules of thumb with mistakes {:?}", p.mistakes),
         None => "rules of thumb".to_string(),
-        Some(b) => format!(
-            "{} samples, {} nodes/task, temperature {}, forget {}, {}",
-            b.samples,
-            b.nodes_per_task,
-            p.temperature,
-            p.forget,
-            match (p.search_bidding, p.search_declaring) {
-                (true, _) => "analysis in every phase",
-                (false, true) => "analysis in every phase but bidding",
-                (false, false) => "analysis in card play and Kontra/Re only",
+        Some(b) => {
+            format!(
+                "{} samples, {} nodes/task, temperature {}, forget {}, {}",
+                b.samples,
+                b.nodes_per_task,
+                p.temperature,
+                p.forget,
+                match (p.search_bidding, p.search_declaring) {
+                    (true, _) => "analysis in every phase",
+                    (false, true) => "analysis in every phase but bidding",
+                    (false, false) => "analysis in card play and Re only",
+                },
+            ) + if p.search_kontra {
+                ", analysed Kontra"
+            } else {
+                ""
             }
-        ),
+        }
     }
 }
 

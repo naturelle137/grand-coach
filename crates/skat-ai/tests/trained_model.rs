@@ -56,8 +56,11 @@ fn shipped_model_decides_card_play_only() {
             assert!(view.legal_actions.contains(&d.decision.action));
             if view.phase == Phase::Spiel {
                 assert_eq!(d.fallback, None, "deal {deal}: the model plays the cards");
-                assert!(d.value.is_some_and(f32::is_finite));
-                by_model += 1;
+                // Kontra choices of the rules of thumb (#108) have no model value.
+                if !matches!(d.decision.action, Action::Kontra | Action::KeinKontra) {
+                    assert!(d.value.is_some_and(f32::is_finite));
+                    by_model += 1;
+                }
             } else {
                 assert_eq!(d.fallback, Some(Fallback::UnsupportedPhase(view.phase)));
             }
