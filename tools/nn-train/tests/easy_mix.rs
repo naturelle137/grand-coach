@@ -16,7 +16,7 @@ use nn_train::selfplay::{
 use nn_train::shards::{Limits, Manifest, Stop, generate, read_shard, verify};
 use nn_train::train::{Hyper, load};
 use skat_ai::{Budget, Level, Profile};
-use skat_core::{Phase, Seat};
+use skat_core::{Action, Phase, Seat};
 
 const TEST_TEACHER: TeacherProfile = TeacherProfile {
     name: "test",
@@ -182,7 +182,9 @@ fn easy_mix_runs_keep_teacher_labels_and_replay() {
                 assert!(r.view.legal_actions.contains(&played));
                 // The label stays the teacher's, with its analysis.
                 assert!(r.view.legal_actions.contains(&r.action));
-                assert!(r.teacher.status.is_some(), "card play is analysed");
+                // Card play is analysed; Kontra by the rules of thumb is not (#108).
+                let rules_kontra = matches!(r.action, Action::Kontra | Action::KeinKontra);
+                assert!(r.teacher.status.is_some() || rules_kontra, "{r:?}");
                 // Without its lineup the record is inconsistent.
                 let mut broken = r.clone();
                 broken.lineup = None;

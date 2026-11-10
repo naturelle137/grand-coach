@@ -4,8 +4,10 @@
 //! and the legal fallback when the analysis cannot finish (M4).
 
 use skat_ai::arena::play;
-use skat_ai::{BaselineOpponent, Budget, Cancel, Level, Opponent, Profile, Status};
-use skat_core::{Game, Phase, PlayerView, RuleConfig, Seat};
+use skat_ai::{
+    BaselineOpponent, Budget, Cancel, Level, Opponent, Profile, Status, kontra_by_rules,
+};
+use skat_core::{Action, Game, Phase, PlayerView, RuleConfig, Seat};
 
 const RULES: RuleConfig = RuleConfig { kontra_re: true };
 
@@ -24,9 +26,9 @@ fn profiles_are_ordered_as_documented() {
     assert_eq!(easy.budget, None);
     let medium_budget = medium.budget.expect("Medium searches");
     assert_eq!(medium_budget.samples, 6);
-    assert!(!medium.search_bidding && !medium.search_declaring);
+    assert!(!medium.search_bidding && !medium.search_declaring && !medium.search_kontra);
     assert_eq!(strong.budget, Some(Budget::INTERACTIVE));
-    assert!(!strong.search_bidding && !strong.search_declaring);
+    assert!(!strong.search_bidding && !strong.search_declaring && !strong.search_kontra);
     for p in [rookie, easy, medium, strong] {
         assert!(p.temperature >= 0.0);
         assert_eq!(p.forget, 0.0);
@@ -194,4 +196,84 @@ fn no_decision_without_turn() {
         assert_eq!(Opponent::new(level, 0).decide(&view, None), None);
         assert_eq!(Opponent::new(level, 0).analysis_input(&view), None);
     }
+}
+
+/// Card-play positions of a defender who may say Kontra (rules of thumb
+/// before): `with` positions where the rules say Kontra and `without` where
+/// they do not.
+fn kontra_offers(with: usize, without: usize) -> Vec<PlayerView> {
+    let (mut yes, mut no) = (Vec::new(), Vec::new());
+    for seed in 0..500 {
+        let mut game = Game::new(seed, RULES);
+        while let Some(seat) = game.current_seat() {
+            let view = game.view(seat);
+            let rules = BaselineOpponent.decide(&view).unwrap();
+            let cards = view
+                .legal_actions
+                .iter()
+                .any(|a| matches!(a, Action::Play(_)));
+            if cards && view.legal_actions.contains(&Action::Kontra) {
+                let list = if rules == Action::Kontra {
+                    &mut yes
+                } else {
+                    &mut no
+                };
+                list.push(view.clone());
+            }
+            if yes.len() >= with && no.len() >= without {
+                yes.truncate(with);
+                no.truncate(without);
+                return [yes, no].concat();
+            }
+            game.apply(rules).unwrap();
+        }
+    }
+    panic!("too few Kontra positions");
+}
+
+#[test]
+fn kontra_follows_the_rules_of_thumb_unless_analysed() {
+    let small = Profile {
+        budget: Some(Budget {
+            samples: 2,
+            nodes_per_task: Budget::INTERACTIVE.nodes_per_task,
+        }),
+        ..Profile::RULES
+    };
+    let analysed = Profile {
+        search_kontra: true,
+        ..small
+    };
+    let mut analysed_kontras = 0;
+    for (i, view) in kontra_offers(2, 4).iter().enumerate() {
+        let rules = BaselineOpponent.decide(view).unwrap();
+        let opponent = Opponent {
+            profile: small,
+            seed: i as u64,
+        };
+        let (decision, analysis) = opponent.decide_analysed(view, None).unwrap();
+        if rules == Action::Kontra {
+            assert_eq!(decision.action, Action::Kontra);
+            assert_eq!((decision.status, analysis), (None, None));
+            assert_eq!(kontra_by_rules(view, &[]), Some(Action::Kontra));
+        } else {
+            assert!(matches!(decision.action, Action::Play(_)), "{decision:?}");
+            let analysis = analysis.expect("the card is analysed");
+            // The records keep the value of every legal action, Kontra too.
+            let actions: Vec<_> = analysis.options.iter().map(|o| o.action).collect();
+            assert_eq!(actions, view.legal_actions);
+            assert_eq!(
+                kontra_by_rules(view, &analysis.options),
+                Some(decision.action)
+            );
+        }
+        let searched = Opponent {
+            profile: analysed,
+            seed: i as u64,
+        };
+        let action = searched.decide(view, None).unwrap().action;
+        analysed_kontras += usize::from(rules != Action::Kontra && action == Action::Kontra);
+    }
+    // The double-dummy analysis says Kontra where the rules do not (#108).
+    assert!(analysed_kontras > 0);
 }

@@ -24,6 +24,9 @@ mod rookie;
 pub use baseline::BaselineOpponent;
 pub use mephisto::Mephisto;
 pub use neural::{NeuralDecision, NeuralOpponent, Player};
-pub use opponent::{Decision, ExperimentalOpponent, Level, Opponent, Profile};
+pub use opponent::{
+    Decision, ExperimentalOpponent, KontraRule, Level, Opponent, Profile, kontra_by_rules,
+    kontra_rule,
+};
 pub use rookie::Mistakes;
 pub use skat_analysis::{Analysis, Budget, Cancel, OptionValue, Status, utility};

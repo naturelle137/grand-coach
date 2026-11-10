@@ -55,18 +55,18 @@ pairs swap seats between even and odd deals. A game whose declarer or
 contract differs is flagged. Seeds depend on suite, deal and seat only, so
 all matches of a deal share random numbers and differences are paired.
 Results are one tab-separated row per game, appended; a restart skips the
-games already written. A player spec ending in `+rk` says Kontra and Re by
-the rules of thumb and lets the player choose only among the other actions,
-to separate Kontra/Re from card play.
+games already written. A player spec ending in `+ak` lets the analysis or
+the model decide Kontra (`Profile::search_kontra`) instead of the rules of
+thumb.
 
 ## Levels
 
-| Level | Before card play | Card play, Kontra/Re | Budget |
-|-------|------------------|----------------------|--------|
-| Rookie | rules of thumb with mistakes | rules of thumb with mistakes | no search |
-| Easy | rules of thumb | rules of thumb | no search |
-| Medium | rules of thumb | `analyze` | 6 samples, 10⁸ nodes per task |
-| Strong | rules of thumb | `analyze` | `Budget::INTERACTIVE` (24 samples) |
+| Level | Before card play | Kontra | Card play, Re | Budget |
+|-------|------------------|--------|---------------|--------|
+| Rookie | rules of thumb with mistakes | rules of thumb with mistakes | rules of thumb with mistakes | no search |
+| Easy | rules of thumb | rules of thumb | rules of thumb | no search |
+| Medium | rules of thumb | rules of thumb | `analyze` | 6 samples, 10⁸ nodes per task |
+| Strong | rules of thumb | rules of thumb | `analyze` | `Budget::INTERACTIVE` (24 samples) |
 
 - The rules of thumb are `BaselineOpponent`: the shared continuation
   policy of `skat-analysis` (`policy`) plus simple card rules.
@@ -76,6 +76,20 @@ to separate Kontra/Re from card play.
   Only options evaluated on the most distributions compete. Exact ties go
   to the rules-of-thumb action (a 0.5-point bonus), since double-dummy
   values only resolve scoring classes.
+- **Kontra** follows the rules of thumb (five trumps; never in the Ouvert
+  round) unless `Profile::search_kontra` is set (#108). Where they say no
+  Kontra, the analysis chooses among the cards; it still evaluates the
+  Kontra option, so recorded option values cover every legal action.
+  Analysed Kontra said Kontra in 69 % of defended games against Easy,
+  Medium and Strong declarers alike (Easy rules: 7 %), but the declarer
+  still won 65–79 % of them, so most Kontras doubled the declarer's win.
+  The double-dummy defenders are perfect, so the analysis is pessimistic
+  for the declarer, as with analysed bidding. In the role tournament on
+  the tuning suite (paired deals), Kontra by the rules gained a defending
+  Medium pair 23.5 ± 4.6 and a Strong pair 29.4 ± 5.4 Seeger-Fabian
+  points per game; card play and win rates did not change. Analysed Re
+  stays: replacing it by the rules cost the declarer about 15 points per
+  game against frequent Kontras.
 - `Profile` also supports selection noise (`temperature`) and analysed
   bidding and declaring. The shipped levels use neither: on the tuning
   suite, analysed bidding passed too often (the double-dummy defenders are
@@ -242,6 +256,33 @@ Both levels bid by the same rules, so seatings with equal bidding produce
 equal declarers; the steps come from card play and Kontra/Re. Wall time:
 4 min (Easy–Medium), 23 min (Medium–Strong), 9 min (Easy–Strong).
 
+Validation attempt 2 on 2026-11-10, deals 200–399 (Easy vs. Strong:
+200–299), after Kontra by the rules of thumb (#108), same hardware, 20
+deals in parallel:
+
+| Pair | Deals | Difference | Std. error | 95 % interval | Verdict |
+|------|-------|------------|------------|---------------|---------|
+| Medium − Easy | 200 | +9.29 | 1.87 | [+5.62, +12.95] | pass |
+| Strong − Medium | 200 | +4.01 | 1.36 | [+1.35, +6.66] | pass |
+| Strong − Easy | 100 | +14.32 | 2.55 | [+9.32, +19.31] | (supporting) |
+
+| Pair: profile | Points/seat-game | Declarer won | Points/declarer game | Defender won | Points/defender game |
+|---------------|------------------|--------------|----------------------|--------------|----------------------|
+| Easy (vs. Medium) | 10.31 | 63.1 % | 7.4 | 29.6 % | 11.9 |
+| Medium (vs. Easy) | 19.59 | 74.0 % | 32.5 | 33.2 % | 13.3 |
+| Medium (vs. Strong) | 14.84 | 71.7 % | 24.1 | 25.8 % | 10.3 |
+| Strong (vs. Medium) | 18.84 | 75.2 % | 35.0 | 27.3 % | 10.9 |
+
+The steps are smaller than in attempt 1, on other deals. Wall time:
+53 s, 5 min, 100 s. This metric counts only a seat's own points, and
+Kontra changes only the declarer's, so it barely sees Kontra; in four of
+the six seatings the defenders are mixed and a Kontra hits both profiles'
+declarers. Rules against analysed Kontra (`+ak`) on the tuning suite,
+deals 0–199: Medium − Medium+ak +0.88 (95 % interval [−2.70, +4.46]),
+Strong − Strong+ak +2.25 ([−1.19, +5.70]), both inconclusive. The role
+tournament scores the declarer's lead over the defenders instead and
+shows the effect (23–29 points per game, [Levels](#levels)).
+
 Rookie and Goldfish, same protocol and suite (deals 0–199, Goldfish
 0–99), run after D-41:
 
@@ -263,9 +304,9 @@ not part of the evidence above.
 Reproduce:
 
 ```sh
-cargo run --locked --release -p skat-ai --example calibrate -- validation easy medium 200 10 0
-cargo run --locked --release -p skat-ai --example calibrate -- validation medium strong 200 10 0
-cargo run --locked --release -p skat-ai --example calibrate -- validation easy strong 100 10 0
+cargo run --locked --release -p skat-ai --example calibrate -- validation easy medium 200 20 200
+cargo run --locked --release -p skat-ai --example calibrate -- validation medium strong 200 20 200
+cargo run --locked --release -p skat-ai --example calibrate -- validation easy strong 100 20 200
 ```
 
 ### Experimental versus Strong
@@ -468,8 +509,10 @@ cargo run --locked --release -p nn-train -- verify OUT_DIR
   (`skat_analysis::with_max_threads`), so the analysis, which
   parallelises each decision, does not oversubscribe the CPU.
 - **Fixture**: `tools/nn-train/fixtures/selfplay` holds two Strong deals
-  (seed 0, one shard each, 101 records, 184 KB); the tests verify it and
-  regenerate it identically. No larger dataset is committed.
+  (seed 0, one shard each, 101 records, 184 KB) from before #108, so its
+  teacher analyses Kontra (`search_kontra`); the tests verify it and
+  regenerate it identically with that profile. No larger dataset is
+  committed.
 
 ### Easy-mix tables
 
@@ -542,10 +585,10 @@ release build, seed 0, 100 deals in 10 shards; Rust 1.99.1):
 Decisions per game: Reizen 7.34, Hand/pickup 1.00, Drücken 0.98,
 announcement 1.00, Kontra/Re 1.20, card play 30.00. No deal was thrown
 in; all 3,120 analysed decisions completed (1,032 decided by the rules of
-thumb). Strong said Kontra in all 60 decisions that offered it and Re in
-20 of 60: Kontra does not change a defender's Seeger-Fabian points, so
-its option values tie and the teacher's Kontra choices carry little
-signal for training.
+thumb). Strong, then with analysed Kontra, said Kontra in all 60
+decisions that offered it and Re in 20 of 60. The networks learned that
+habit; Kontra now follows the rules of thumb (see [Levels](#levels)), and
+training relabels such records (see [Card-play network](#card-play-network)).
 
 ### Experimental teacher throughput
 
@@ -614,8 +657,10 @@ minus Strong was +0.40 Seeger-Fabian points per seat-game (95% interval
 
 The first trained model (#73): `assets/models/card-play.gcnn` with its
 training manifest `card-play.json` and model card `card-play.md`
-(storage: D-63). It covers card play including Kontra/Re
-(`Phases::SPIEL`); pre-play stays Classic.
+(storage: D-63). It covers card play including Re (`Phases::SPIEL`);
+pre-play stays Classic, and `NeuralOpponent` says Kontra by the rules of
+thumb like the Classic levels: where they say no Kontra, the model
+chooses among the cards (#108).
 
 - **Training** (`nn-train train`, `tools/nn-train/src/train.rs`): the
   card-play decisions of one or more self-play runs, split by deal as
@@ -624,6 +669,10 @@ training manifest `card-play.json` and model card `card-play.md`
   mean of the final Seeger-Fabian points and the chosen option's expected
   points for the value, and Strong's expected points and win chance per
   legal card for the option heads (when the analysis was complete).
+  Kontra follows the rules of thumb (#108): a decision where they say
+  Kontra is left out; otherwise the Kontra actions are removed and a
+  teacher's Kontra label becomes the card it rates best without Kontra
+  (`skat_ai::kontra_by_rules`), so older data trains the same way as new.
   Mini-batch Adam on the CPU or with `--device vulkan` (the default
   adapter); `vulkan:discrete[:N]` and `vulkan:integrated[:N]` pick the
   N-th adapter of that kind, so parallel runs can use different GPUs.
@@ -857,7 +906,8 @@ network), which also serves as the frozen reference.
   critic: every head sees only the encoded `PlayerView` of the acting
   seat; no defender shares memory with the other.
 - **Iteration**: play `--games` games (default 600) with the current
-  learner sampling its card-play and Kontra/Re decisions from its policy,
+  learner sampling its card-play and Re decisions from its policy (Kontra
+  by the rules of thumb, #108),
   then `--passes` passes of mini-batch Adam over its decisions. The
   learner decides pre-play by the rules of thumb (the fallback of a
   card-play model); pre-play is not learned until #74.

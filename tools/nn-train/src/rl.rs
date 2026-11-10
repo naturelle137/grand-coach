@@ -3,7 +3,8 @@
 //! Self-play refinement of the card-play network from game outcomes (#75).
 //!
 //! The learner starts from a trained model file (the #73 network) and
-//! improves its card play (phase Spiel, Kontra/Re included) by proximal
+//! improves its card play (phase Spiel, Re included; Kontra follows the
+//! rules of thumb as in [`skat_ai::NeuralOpponent`], #108) by proximal
 //! policy optimisation (PPO, clipped surrogate) with a Monte-Carlo
 //! baseline: the reward of a decision is the acting seat's final
 //! Seeger-Fabian points (0 if the deal is thrown in), the advantage is that
@@ -46,7 +47,7 @@ use burn::optim::{AdamConfig, GradientsParams, ModuleOptimizer};
 use burn::tensor::activation::log_softmax;
 use burn::tensor::{Bytes, Device, Tensor};
 use serde::{Deserialize, Serialize};
-use skat_ai::{Level, NeuralOpponent, Opponent, Player, Profile};
+use skat_ai::{KontraRule, Level, NeuralOpponent, Opponent, Player, Profile, kontra_rule};
 use skat_core::{Action, Game, PlayerView, Seat};
 use skat_nn::{
     ACTIONS, HEADER_BYTES, ModelHeader, NeuralModel, PolicyValueNet, action_index, masked_softmax,
@@ -548,9 +549,20 @@ fn play_game(
     let mut actions = Vec::new();
     while let Some(seat) = game.current_seat() {
         let view = game.view(seat);
-        let action = if learner[seat.index()] && PHASES.contains(view.phase) {
+        let rule = if learner[seat.index()] && PHASES.contains(view.phase) {
+            Some(kontra_rule(&view))
+        } else {
+            None
+        };
+        let action = if let Some(KontraRule::Rules(action)) = rule {
+            action
+        } else if let Some(rule) = rule {
+            let choice = match &rule {
+                KontraRule::Without(v) => v,
+                _ => &view,
+            };
             let u = rngs[seat.index()].unit();
-            let step = learner_step(&view, &models.learner, &models.reference, u)?;
+            let step = learner_step(choice, &models.learner, &models.reference, u)?;
             let action = step.action;
             steps.push(step);
             action

@@ -14,6 +14,7 @@ use skat_analysis::Cancel;
 use skat_core::PlayerView;
 use skat_nn::{Choice, Fallback, ModelError, NeuralModel};
 
+use crate::opponent::{KontraRule, kontra_rule};
 use crate::{Decision, Opponent};
 
 /// Anything that decides for one seat from that seat's view. The arena
@@ -32,7 +33,10 @@ impl Player for Opponent {
 
 /// A learned opponent: the model decides; the Classic opponent decides
 /// whenever the model is missing or broken, does not cover the phase, or
-/// produces an unusable output.
+/// produces an unusable output. Unless the Classic profile analyses Kontra
+/// ([`crate::Profile::search_kontra`]), Kontra follows the rules of thumb
+/// and the model only chooses among the other actions: the networks learned
+/// the teacher's analysed Kontra, which is said almost always (#108).
 #[derive(Clone, Debug)]
 pub struct NeuralOpponent {
     model: Result<Arc<NeuralModel>, ModelError>,
@@ -49,7 +53,8 @@ pub struct NeuralDecision {
     /// status).
     pub decision: Decision,
     /// The model's value estimate for the acting seat when the model
-    /// decided.
+    /// decided; `None` for a fallback or a Kontra choice of the rules of
+    /// thumb.
     pub value: Option<f32>,
     /// Why the Classic opponent decided instead of the model.
     pub fallback: Option<Fallback>,
@@ -86,6 +91,29 @@ impl NeuralOpponent {
         if view.legal_actions.is_empty() {
             return None;
         }
+        let restricted;
+        let view = if self.classic.profile.search_kontra {
+            view
+        } else {
+            match kontra_rule(view) {
+                KontraRule::Free => view,
+                KontraRule::Rules(action) => {
+                    return Some(NeuralDecision {
+                        decision: Decision {
+                            action,
+                            status: None,
+                            fallback: false,
+                        },
+                        value: None,
+                        fallback: None,
+                    });
+                }
+                KontraRule::Without(v) => {
+                    restricted = v;
+                    &restricted
+                }
+            }
+        };
         let evaluation = match &self.model {
             Ok(model) => model.evaluate_with(view, self.choice),
             Err(e) => Err(Fallback::Model(e.clone())),

@@ -2,13 +2,22 @@
 
 //! The checked-in fixture dataset (`fixtures/selfplay`, #70): two Strong
 //! self-play deals generated with
-//! `nn-train generate tools/nn-train/fixtures/selfplay --deals 2 --shard-deals 1 --seed 0`.
+//! `nn-train generate tools/nn-train/fixtures/selfplay --deals 2 --shard-deals 1 --seed 0`
+//! before Strong said Kontra by the rules of thumb (#108): its teacher is
+//! Strong with analysed Kontra ([`FIXTURE_TEACHER`]).
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use nn_train::selfplay::{RECORD_FORMAT, RunSeed, Split, Table, TeacherProfile, play_deal};
 use nn_train::shards::{DATASET_FORMAT, read_manifest, read_shard, verify};
+use skat_ai::Profile;
+
+/// The fixture's teacher: Strong as it was then, with analysed Kontra.
+const FIXTURE_TEACHER: Profile = Profile {
+    search_kontra: true,
+    ..TeacherProfile::STRONG.profile
+};
 
 fn fixture() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/selfplay")
@@ -25,9 +34,10 @@ fn fixture_is_complete_small_and_strong() {
     assert!(m.record_format <= RECORD_FORMAT);
     assert_eq!(m.table().unwrap(), Table::Teacher);
     assert_eq!(m.profile, TeacherProfile::STRONG.name);
+    // Written before `Profile` had `search_kontra`; otherwise the same.
     assert_eq!(
         m.profile_detail,
-        format!("{:?}", TeacherProfile::STRONG.profile)
+        format!("{FIXTURE_TEACHER:?}").replace("search_kontra: true, ", "")
     );
     assert_eq!((m.seed, m.deals, m.shard_deals), (0, 2, 1));
     let v = verify(&dir).unwrap();
@@ -54,12 +64,7 @@ fn fixture_regenerates_identically() {
     let dir = fixture();
     for deal in 0..2 {
         let expected = read_shard(&dir, deal).unwrap();
-        let records = play_deal(
-            RunSeed(0),
-            TeacherProfile::STRONG.profile,
-            Table::Teacher,
-            deal,
-        );
+        let records = play_deal(RunSeed(0), FIXTURE_TEACHER, Table::Teacher, deal);
         assert_eq!(records, expected, "deal {deal}");
     }
 }

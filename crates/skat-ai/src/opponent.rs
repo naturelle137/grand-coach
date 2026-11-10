@@ -16,7 +16,7 @@
 
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
-use skat_analysis::{Analysis, Budget, Cancel, Status, analyze_forgetful, utility};
+use skat_analysis::{Analysis, Budget, Cancel, OptionValue, Status, analyze_forgetful, utility};
 use skat_core::{Action, CardSet, KontraLevel, Phase, PlayerView};
 
 use crate::BaselineOpponent;
@@ -31,10 +31,12 @@ pub enum Level {
     Rookie,
     /// Rules of thumb without search.
     Easy,
-    /// Analysed card play and Kontra/Re with a small budget.
+    /// Analysed card play and Re with a small budget; Kontra by the rules
+    /// of thumb.
     #[default]
     Medium,
-    /// Analysed card play and Kontra/Re with the interactive budget.
+    /// Analysed card play and Re with the interactive budget; Kontra by
+    /// the rules of thumb.
     Strong,
 }
 
@@ -80,9 +82,14 @@ pub struct Profile {
     /// thumb do.
     pub search_bidding: bool,
     /// Whether the analysis decides Hand or pickup, Drücken and the
-    /// announcement; otherwise the rules of thumb do. Card play and
-    /// Kontra/Re are always analysed when there is a budget.
+    /// announcement; otherwise the rules of thumb do. Card play and Re are
+    /// always analysed when there is a budget.
     pub search_declaring: bool,
+    /// Whether the analysis decides Kontra; otherwise the rules of thumb
+    /// do and the analysis only chooses the card when they say no Kontra.
+    /// The double-dummy analysis is pessimistic for the declarer and says
+    /// Kontra almost always (`docs/ai.md`).
+    pub search_kontra: bool,
     /// Probability that a card of a completed trick other than the last
     /// one is forgotten in an analysed card-play decision (it is then
     /// believed to be still out, `skat_analysis::analyze_forgetful`).
@@ -99,6 +106,7 @@ impl Profile {
         temperature: 0.0,
         search_bidding: false,
         search_declaring: false,
+        search_kontra: false,
         forget: 0.0,
         mistakes: Mistakes::NONE,
     };
@@ -176,6 +184,15 @@ impl Opponent {
             let seed = mix(decision_seed(self.seed, view), 3);
             rules = rookie::decide(view, rules, &self.profile.mistakes, game_seed, seed);
         }
+        let kontra_by_rules = !self.profile.search_kontra && offers_kontra(view);
+        if kontra_by_rules && is_kontra_choice(rules) {
+            let decision = Decision {
+                action: rules,
+                status: None,
+                fallback: false,
+            };
+            return Some((decision, None));
+        }
         let Some((budget, seed)) = self.analysis_input(view) else {
             let decision = Decision {
                 action: rules,
@@ -194,8 +211,13 @@ impl Opponent {
             return Some((decision, None));
         };
         let mut rng = ChaCha8Rng::seed_from_u64(mix(seed, 2));
+        let options = if kontra_by_rules {
+            without_kontra(&analysis.options)
+        } else {
+            analysis.options.clone()
+        };
         let decision = decision(
-            select(view, &analysis, rules, self.profile.temperature, &mut rng),
+            select(view, &options, rules, self.profile.temperature, &mut rng),
             rules,
             analysis.status,
         );
@@ -261,6 +283,13 @@ impl ExperimentalOpponent {
         };
         budget.samples = self.samples;
         let rules = BaselineOpponent.decide(view)?;
+        if is_kontra_choice(rules) {
+            return Some(Decision {
+                action: rules,
+                status: None,
+                fallback: false,
+            });
+        }
         let Ok(a) = skat_analysis::analyze_experimental(view, budget, seed, cancel, None) else {
             return Some(Decision {
                 action: rules,
@@ -270,7 +299,7 @@ impl ExperimentalOpponent {
         };
         let mut rng = ChaCha8Rng::seed_from_u64(0);
         Some(decision(
-            select(view, &a, rules, 0.0, &mut rng),
+            select(view, &without_kontra(&a.options), rules, 0.0, &mut rng),
             rules,
             a.status,
         ))
@@ -303,24 +332,89 @@ fn unit(rng: &mut ChaCha8Rng) -> f64 {
 /// such ties towards the sensible card instead of the first listed one.
 const RULES_BONUS: f64 = 0.5;
 
-/// Picks an option of `analysis`. Only options evaluated on the most
-/// distributions compete (after Drücken screening, the kept ones), so a
-/// lucky estimate from few distributions cannot win. `None` if no option
-/// has an estimate.
+/// Whether `action` is a defender's Kontra choice (Kontra, or KeinKontra in
+/// the Ouvert round).
+pub(crate) fn is_kontra_choice(action: Action) -> bool {
+    matches!(action, Action::Kontra | Action::KeinKontra)
+}
+
+/// Whether the seat may say Kontra in this decision.
+pub(crate) fn offers_kontra(view: &PlayerView) -> bool {
+    view.legal_actions.iter().any(|&a| is_kontra_choice(a))
+}
+
+/// `options` without the Kontra choices.
+pub(crate) fn without_kontra(options: &[OptionValue]) -> Vec<OptionValue> {
+    options
+        .iter()
+        .filter(|o| !is_kontra_choice(o.action))
+        .cloned()
+        .collect()
+}
+
+/// How a seat decides when the rules of thumb say Kontra (#108).
+#[derive(Clone, Debug, PartialEq)]
+pub enum KontraRule {
+    /// The decision offers no Kontra: decide the view as it is.
+    Free,
+    /// The rules of thumb take this Kontra choice (Kontra, or KeinKontra
+    /// in the Ouvert round).
+    Rules(Action),
+    /// The rules say no Kontra: choose among the other actions of this
+    /// view (the original with the Kontra choices removed).
+    Without(PlayerView),
+}
+
+/// [`KontraRule`] for `view`.
+pub fn kontra_rule(view: &PlayerView) -> KontraRule {
+    if !offers_kontra(view) {
+        return KontraRule::Free;
+    }
+    match BaselineOpponent.decide(view) {
+        Some(rules) if is_kontra_choice(rules) => KontraRule::Rules(rules),
+        _ => KontraRule::Without(PlayerView {
+            legal_actions: view
+                .legal_actions
+                .iter()
+                .copied()
+                .filter(|&a| !is_kontra_choice(a))
+                .collect(),
+            ..view.clone()
+        }),
+    }
+}
+
+/// The action an analysed opponent (temperature 0, Kontra by the rules of
+/// thumb) takes in `view` given the option values `options` of an analysis
+/// of `view`: the rules' Kontra choice if they say Kontra (or KeinKontra
+/// in the Ouvert round), otherwise the best other option. Training relabels
+/// recorded teacher decisions with it (#108). `None` if no option to choose
+/// has an estimate or it is not this seat's turn.
+pub fn kontra_by_rules(view: &PlayerView, options: &[OptionValue]) -> Option<Action> {
+    let rules = BaselineOpponent.decide(view)?;
+    if is_kontra_choice(rules) {
+        return Some(rules);
+    }
+    let mut rng = ChaCha8Rng::seed_from_u64(0);
+    select(view, &without_kontra(options), rules, 0.0, &mut rng)
+}
+
+/// Picks one of `options` (option values of an analysis). Only options
+/// evaluated on the most distributions compete (after Drücken screening,
+/// the kept ones), so a lucky estimate from few distributions cannot win.
+/// `None` if no option has an estimate.
 pub(crate) fn select(
     view: &PlayerView,
-    analysis: &Analysis,
+    options: &[OptionValue],
     rules: Action,
     temperature: f64,
     rng: &mut ChaCha8Rng,
 ) -> Option<Action> {
-    let most = analysis
-        .options
+    let most = options
         .iter()
         .filter_map(|o| o.estimate.map(|e| e.samples))
         .max()?;
-    let candidates: Vec<(Action, f64)> = analysis
-        .options
+    let candidates: Vec<(Action, f64)> = options
         .iter()
         .filter_map(|o| match o.estimate {
             Some(e) if e.samples == most => {

@@ -17,6 +17,7 @@ use nn_train::rl::{
     play_one, recipe, run, update_model,
 };
 use nn_train::selfplay::RULES;
+use skat_ai::{KontraRule, kontra_rule};
 use skat_core::{Action, Card, CardSet, Deal, Game, Phase, Seat};
 use skat_nn::{NeuralModel, Phases, action_index, encode, fixture_model, masked_softmax, sha256};
 
@@ -87,7 +88,19 @@ fn learner_steps_are_its_own_card_play_decisions_with_their_rewards() {
         for &action in &played.actions {
             let seat = game.current_seat().expect("seat to move");
             let view = game.view(seat);
-            if played.learner[seat.index()] && view.phase == Phase::Spiel {
+            let learner_turn = played.learner[seat.index()] && view.phase == Phase::Spiel;
+            // Kontra follows the rules of thumb: no step; otherwise the
+            // learner chooses among the other actions (#108).
+            let view = match kontra_rule(&view) {
+                KontraRule::Rules(rules) if learner_turn => {
+                    assert_eq!(action, rules);
+                    game.apply(action).expect("recorded actions are legal");
+                    continue;
+                }
+                KontraRule::Without(v) if learner_turn => v,
+                _ => view,
+            };
+            if learner_turn {
                 let step = steps.next().expect("a step per learner card-play decision");
                 assert_eq!(step.seat, seat);
                 assert_eq!(step.action, action);

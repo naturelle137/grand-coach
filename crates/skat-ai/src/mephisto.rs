@@ -61,7 +61,7 @@ impl Mephisto {
         };
         let mut rng = ChaCha8Rng::seed_from_u64(0);
         Some(decision(
-            select(&view, &analysis, rules, 0.0, &mut rng),
+            select(&view, &analysis.options, rules, 0.0, &mut rng),
             rules,
             analysis.status,
         ))

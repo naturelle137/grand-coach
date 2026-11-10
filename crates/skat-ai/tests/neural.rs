@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use burn::tensor::Device;
 use skat_ai::arena::{compare_with, play_with};
-use skat_ai::{Level, NeuralOpponent, Opponent, Player};
-use skat_core::{Game, Phase, PlayerView, RuleConfig, Seat};
+use skat_ai::{BaselineOpponent, Level, NeuralOpponent, Opponent, Player, Profile};
+use skat_core::{Action, Game, Phase, PlayerView, RuleConfig, Seat};
 use skat_nn::{
     ENCODER_VERSION, FIXTURE_HIDDEN, Fallback, ModelError, ModelHeader, NetShape, NeuralModel,
     Phases, PolicyValueNet, fixture_model, sha256, write_model,
@@ -57,7 +57,9 @@ fn fixture_model_plays_complete_games_without_illegal_actions() {
         played += usize::from(game.result().is_some());
         for (view, d) in decisions(deal, &players) {
             assert_eq!(d.fallback, None, "the fixture covers every phase");
-            assert!(d.value.is_some_and(f32::is_finite));
+            // Only a Kontra choice of the rules of thumb has no model value.
+            let rules_kontra = matches!(d.decision.action, Action::Kontra | Action::KeinKontra);
+            assert!(d.value.is_some_and(f32::is_finite) || rules_kontra);
             phases.insert(format!("{:?}", view.phase));
         }
     }
@@ -165,4 +167,40 @@ fn no_decision_for_a_seat_not_to_move() {
         .unwrap();
     assert_eq!(opponent.decide_explained(&game.view(idle), None), None);
     assert_eq!(Player::decide(&opponent, &game.view(idle), None), None);
+}
+
+#[test]
+fn kontra_follows_the_rules_of_thumb_unless_the_profile_analyses_it() {
+    let kontra_choice = |a: &Action| matches!(a, Action::Kontra | Action::KeinKontra);
+    let (mut by_rules, mut by_model) = (0, 0);
+    for search_kontra in [false, true] {
+        let players = Seat::ALL.map(|s| {
+            let mut p = neural(Phases::ALL, s.index() as u64);
+            p.classic.profile = Profile {
+                search_kontra,
+                ..p.classic.profile
+            };
+            p
+        });
+        for deal in 0..40 {
+            for (view, d) in decisions(deal, &players) {
+                if !view.legal_actions.iter().any(kontra_choice) {
+                    continue;
+                }
+                let rules = BaselineOpponent.decide(&view).unwrap();
+                if search_kontra {
+                    assert!(d.value.is_some(), "the model decides");
+                    by_model += 1;
+                } else if kontra_choice(&rules) {
+                    assert_eq!(d.decision.action, rules);
+                    assert_eq!((d.value, d.fallback), (None, None));
+                    by_rules += 1;
+                } else {
+                    assert!(!kontra_choice(&d.decision.action), "{d:?}");
+                    assert!(d.value.is_some(), "the model chooses the card");
+                }
+            }
+        }
+    }
+    assert!(by_rules > 0 && by_model > 0, "{by_rules} {by_model}");
 }
