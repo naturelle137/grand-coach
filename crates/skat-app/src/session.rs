@@ -9,9 +9,10 @@ use skat_ai::{Budget, Cancel, Level, Mephisto, NeuralOpponent, Opponent, Player,
 use skat_core::{Action, Event, Game, OmniscientView, Phase, RuleConfig, RuleError, Seat};
 
 use crate::coach::{
-    CoachEvent, CoachJob, CoachResult, CoachSettings, CoachState, DecisionKey, Pending,
+    CoachEvent, CoachJob, CoachResult, CoachSettings, CoachState, CoachView, DecisionKey, Pending,
 };
 use crate::context::DecisionContext;
+use crate::quiz::{AssistSettings, QuizFeedback, QuizState};
 use crate::series::{GameRecord, ScoreSheet, SeriesResult};
 use crate::view::{TableView, build_view, open_cards};
 
@@ -152,6 +153,15 @@ pub enum Command {
     /// Change the coach settings; the game and the opponents are not
     /// affected. Allowed at any time.
     SetCoach(CoachSettings),
+    /// Change the assistance settings (counting aid, quiz); the game is not
+    /// affected. Allowed at any time. Switching the quiz off drops a
+    /// pending question.
+    SetAssist(AssistSettings),
+    /// Answer the pending quiz question with a number. Not a game action:
+    /// the game and the human's turn are unchanged.
+    AnswerQuiz(u8),
+    /// Skip the pending quiz question; the answer is shown.
+    SkipQuiz,
     /// Ask the coach about the current decision of the human.
     RequestAdvice,
     /// Put the coach's advice for the current decision away until the next
@@ -194,6 +204,8 @@ pub enum AppEvent {
     },
     /// The coach held back or released a human action.
     Coach(CoachEvent),
+    /// A quiz question was settled.
+    Quiz(QuizFeedback),
 }
 
 /// Why a command was rejected. The session is unchanged after an error.
@@ -223,6 +235,11 @@ pub enum AppError {
     ActionPending,
     /// The coach result was computed for an earlier position or budget.
     StaleCoachResult,
+    /// A quiz question is pending: answer or skip it first (or switch the
+    /// quiz off). Neither a game action nor coach help is possible.
+    QuestionPending,
+    /// There is no pending quiz question.
+    NoQuestion,
 }
 
 /// An opponent decision to compute, possibly on another thread so the
@@ -321,6 +338,8 @@ pub struct Session {
     finished: bool,
     /// The live coach; it never influences deals or opponents.
     pub(crate) coach: CoachState,
+    /// The counting aid and quiz; they never influence deals or opponents.
+    pub(crate) quiz: QuizState,
 }
 
 impl Session {
@@ -337,6 +356,9 @@ impl Session {
         // and leaves the opponents' seeds untouched.
         let mut coach_rng = ChaCha8Rng::seed_from_u64(config.seed);
         coach_rng.set_stream(2);
+        // Another stream for the quiz.
+        let mut quiz_rng = ChaCha8Rng::seed_from_u64(config.seed);
+        quiz_rng.set_stream(3);
         Session {
             config,
             rng,
@@ -354,6 +376,7 @@ impl Session {
                 coach_rng.next_u64(),
                 config.opponents == Opponents::Experimental,
             ),
+            quiz: QuizState::new(quiz_rng.next_u64()),
         }
     }
 
@@ -384,8 +407,14 @@ impl Session {
             self.opponent_to_move(),
             &view,
             open_cards,
-            self.coach
-                .view(self.human_decision(), self.game.current_seat().is_none()),
+            if self.quiz.is_pending() {
+                // The answer must not leak through a hint or a note.
+                CoachView::withheld(self.coach.settings)
+            } else {
+                self.coach
+                    .view(self.human_decision(), self.game.current_seat().is_none())
+            },
+            self.quiz.view(&view, self.dealer),
         )
     }
 
@@ -464,6 +493,10 @@ impl Session {
             return Err(AppError::StaleCoachResult);
         }
         match self.coach.pending.clone() {
+            Some(Pending::Checking { .. }) if self.quiz.is_pending() => {
+                self.coach.pending = None;
+                Ok(Vec::new())
+            }
             Some(Pending::Checking { action }) => self.check(key, action),
             _ => Ok(Vec::new()),
         }
@@ -605,10 +638,37 @@ impl Session {
             }
             return Ok(Vec::new());
         }
+        if let Command::SetAssist(settings) = command {
+            self.quiz.set(settings);
+            self.refresh_quiz();
+            if self.quiz.is_pending()
+                && matches!(self.coach.pending, Some(Pending::Checking { .. }))
+            {
+                // A question now holds the decision: the action waiting
+                // for the coach check is withdrawn, never played later.
+                self.coach.pending = None;
+            }
+            return Ok(Vec::new());
+        }
         if self.finished {
             return Err(AppError::SeriesFinished);
         }
+        if self.quiz.is_pending()
+            && matches!(
+                command,
+                Command::Act(_)
+                    | Command::RequestAdvice
+                    | Command::SkipAdvice
+                    | Command::ProceedAnyway
+                    | Command::Reconsider
+            )
+        {
+            return Err(AppError::QuestionPending);
+        }
         match command {
+            Command::SetAssist(_) => unreachable!("handled above"),
+            Command::AnswerQuiz(answer) => self.settle_quiz(Some(answer)),
+            Command::SkipQuiz => self.settle_quiz(None),
             Command::Act(action) => {
                 let seat = self.game.current_seat();
                 if seat.is_some_and(|s| !PlayerId::on_seat(s, self.dealer).is_human()) {
@@ -687,6 +747,20 @@ impl Session {
         }
     }
 
+    fn settle_quiz(&mut self, answer: Option<u8>) -> Result<Vec<AppEvent>, AppError> {
+        let feedback = self.quiz.settle(answer).ok_or(AppError::NoQuestion)?;
+        Ok(vec![AppEvent::Quiz(feedback)])
+    }
+
+    /// Asks the question due at the human's current decision, if any.
+    fn refresh_quiz(&mut self) {
+        if self.finished {
+            return;
+        }
+        let view = self.game.view(PlayerId::HUMAN.seat(self.dealer));
+        self.quiz.refresh(self.human_decision(), &view);
+    }
+
     fn ensure_game_over(&self) -> Result<(), AppError> {
         if self.game.current_seat().is_some() {
             Err(AppError::GameInProgress)
@@ -699,6 +773,7 @@ impl Session {
         let core_events = self.game.apply(action).map_err(AppError::Rule)?;
         self.actions += 1;
         self.coach.decision_changed();
+        self.quiz.decision_changed();
         let mut events: Vec<AppEvent> = core_events
             .into_iter()
             .map(|event| AppEvent::Game {
@@ -709,6 +784,7 @@ impl Session {
         if matches!(self.game.phase(), Phase::Beendet | Phase::Eingepasst) {
             events.extend(self.record_game());
         }
+        self.refresh_quiz();
         Ok(events)
     }
 
@@ -751,6 +827,7 @@ impl Session {
         self.ai_seeds = [self.ai_rng.next_u64(), self.ai_rng.next_u64()];
         self.actions = 0;
         self.coach.game_changed();
+        self.quiz.game_changed();
         self.game = Game::new(self.game_seed, rule_config(self.config));
         vec![AppEvent::GameStarted {
             number: self.number,

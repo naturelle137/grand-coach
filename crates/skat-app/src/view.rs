@@ -9,6 +9,7 @@ use skat_core::{
 };
 
 use crate::coach::CoachView;
+use crate::quiz::AssistView;
 use crate::series::{ScoreSheet, SeriesResult};
 use crate::session::{PlayerId, SessionConfig};
 use crate::sort::sort_hand;
@@ -75,6 +76,8 @@ pub struct TableView {
     pub can_end_series: bool,
     /// The live coach.
     pub coach: CoachView,
+    /// The optional counting aid and quiz.
+    pub assist: AssistView,
 }
 
 /// One player at the table.
@@ -193,6 +196,7 @@ pub(crate) fn build_view(
     view: &PlayerView,
     open_cards: Option<OpenCards>,
     coach: CoachView,
+    assist: AssistView,
 ) -> TableView {
     let player = |seat: Seat| PlayerId::on_seat(seat, dealer);
     let game = view.contract.map(|c| c.game);
@@ -261,5 +265,6 @@ pub(crate) fn build_view(
             && !series_finished
             && config.series == crate::session::SeriesLength::Free,
         coach,
+        assist,
     }
 }

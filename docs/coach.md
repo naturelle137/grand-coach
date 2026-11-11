@@ -29,6 +29,49 @@ legal values at later calls, pickup and announcement. Unknown Skat cards
 can change Spitzen even in Hand games. Game value and the chance of
 winning are separate quantities.
 
+## Counting aid and quiz (D-64)
+
+Two independent settings, both off by default and separate from the coach
+level (menu "Assistance"). Changing them or the language never changes the
+game. Everything is derived from the human's permitted view
+(`skat-analysis::counting`); hidden cards, an unseen Skat and the opponents'
+hands cannot enter. God Mode's open table does not change this: the aid
+still counts only what the permitted view proves.
+
+**Counting aid.** Exact facts, no estimates. Counts include the trick on
+the table.
+
+- *Played*: cards laid in tricks.
+- *Trumpf outside*: Trumpf neither in your hand, nor played, nor in your own
+  discard. Revealed Ouvert Trumpf count as outside (they are still to be
+  played); an unknown Skat can hold some, which the aid says. Null shows no
+  Trumpf, Grand counts the four Buben.
+- *Augen*: won in completed tricks by the declarer and by the two defenders
+  (Skat not included); outstanding in cards neither in your hand, nor played,
+  nor in your own discard; the discard's Augen when known.
+- *Voids*: a Trumpf or side-suit class in which an opponent failed to follow.
+
+**Quiz.** After the third and the sixth completed trick, at the human's next
+card-play decision, one question is asked. Kinds: Trumpf outside, Augen won
+by the declarer or by the defenders, or cards of one class played (Trumpf or
+a suit; no Trumpf and no Augen question in Null). The kind is chosen from the
+applicable ones with a seed of the series (own stream), game number and trick
+count, so the same series asks the same question regardless of aid or coach
+settings. The question stores the knowledge it was asked from; the expected
+answer and the derivation shown afterwards come from that snapshot only, so
+unknowable hidden cards are never graded.
+
+While a question is pending the decision is held: game actions and coach
+requests are rejected (`QuestionPending`), the aid and the whole coach view
+are withheld (no hint, note or debriefing can reveal the answer). The player
+answers (a number), skips (the exact count and derivation are shown) or
+switches the quiz off; none of these is a game action or costs the turn.
+Switching it off drops the question and does not ask again in that trick
+count. The result stays visible until the next action. Outside pending
+questions, the aid and the coach work independently of each other. No claim
+is made about learning efficacy; practice sessions and history are later
+work (M8).
+
 ## Policies (D-48)
 
 - **Equivalent**: within 1 point (`TIE_POINTS`) or within the noise margin,

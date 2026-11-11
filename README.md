@@ -25,11 +25,12 @@ Seeger-Fabian. Wähle die Gegnerstärke je Sitz oder einen Sondertisch:
 Goldfisch, Mephisto, God Mode, Experimentell oder KI-Netz (Test). Im God Mode
 siehst du auch die verdeckten Karten. Der Coach bietet gestufte Hinweise,
 sechs Lektionen, einen Lernfokus und einen Rückblick auf bis zu drei
-Entscheidungen. Oberfläche und Kartenbilder sind umschaltbar.
+Entscheidungen. Eine optionale Zählhilfe und Zählfragen im Spiel zeigen
+exakte Fakten aus deiner Sicht. Oberfläche und Kartenbilder sind umschaltbar.
 
 Der KI-Netz-Tisch verwendet das mitgelieferte überwacht trainierte v1-Modell.
-v2 befindet sich im Reinforcement Learning. Kartenzählhilfe, Quiz,
-gespeicherte Replays und Trainingsmodus sind geplant.
+v2 befindet sich im Reinforcement Learning. Abrufübungen mit abnehmender
+Hilfe, gespeicherte Replays und Trainingsmodus sind geplant.
 [Projektstand](docs/roadmap.md) · [Modelle und Training](docs/learned-models.md)
 
 ### Systemvoraussetzungen
@@ -104,11 +105,13 @@ Play a fixed series or free play with optional Kontra/Re and Seeger-Fabian
 scoring. Set the strength per opponent or select Goldfish, Mephisto, God
 Mode, Experimental or Neural net (test). God Mode reveals the concealed
 cards. The coach offers staged hints, six lessons, a learning focus and a
-review of up to three decisions. Language and card faces are switchable.
+review of up to three decisions. An optional counting aid and in-game
+counting questions show exact facts from your view. Language and card faces
+are switchable.
 
 The neural table uses the bundled supervised v1 model. v2 is undergoing
-reinforcement learning. The counting aid, quiz, saved replays and training
-mode are planned. [Project status](docs/roadmap.md) ·
+reinforcement learning. Retrieval practice with fading assistance, saved
+replays and training mode are planned. [Project status](docs/roadmap.md) ·
 [Models and training](docs/learned-models.md)
 
 ### Requirements

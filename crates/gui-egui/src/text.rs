@@ -211,6 +211,8 @@ pub fn error(i18n: &I18n, error: AppError) -> String {
         AppError::NothingPending => i18n.t("error-nothing-pending"),
         AppError::ActionPending => i18n.t("error-action-pending"),
         AppError::StaleCoachResult => i18n.t("error-stale-coach-result"),
+        AppError::QuestionPending => i18n.t("error-question-pending"),
+        AppError::NoQuestion => i18n.t("error-no-question"),
     }
 }
 

@@ -93,12 +93,72 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("coach-no-lesson", coach_no_lesson),
     ("coach-focus-debriefing", coach_focus_debriefing),
     ("coach-focus-debriefing-en", coach_focus_debriefing_en),
+    ("counting-aid", counting_aid),
+    ("counting-aid-en", counting_aid_en),
+    ("quiz-question", quiz_question),
+    ("quiz-question-en", quiz_question_en),
+    ("quiz-feedback", quiz_feedback),
+    ("quiz-feedback-en", quiz_feedback_en),
+    ("quiz-question-narrow", quiz_question),
     ("god-mode", god_mode),
     ("god-mode-german", god_mode_german),
     ("god-mode-hidden", god_mode_hidden),
     ("god-mode-trick", god_mode_trick),
     ("god-mode-coach", god_mode_coach),
 ];
+
+const AID: skat_app::AssistSettings = skat_app::AssistSettings {
+    counting_aid: true,
+    quiz: false,
+};
+
+const AID_AND_QUIZ: skat_app::AssistSettings = skat_app::AssistSettings {
+    counting_aid: true,
+    quiz: true,
+};
+
+/// The counting aid in card play, after the third trick (D-64).
+fn counting_aid(harness: &mut Harness<'_, GrandCoachApp>) {
+    harness.state_mut().set_assist(AID);
+    play_until(harness, |view, _| {
+        view.tricks_played >= 3 && view.acting == Some(skat_app::PlayerId::HUMAN)
+    });
+}
+
+/// The same in English.
+fn counting_aid_en(harness: &mut Harness<'_, GrandCoachApp>) {
+    counting_aid(harness);
+    harness.state_mut().set_language(Language::En);
+    harness.run_steps(4);
+}
+
+/// The first counting question; the aid is on but withheld meanwhile.
+fn quiz_question(harness: &mut Harness<'_, GrandCoachApp>) {
+    harness.state_mut().set_assist(AID_AND_QUIZ);
+    play_until(harness, |view, _| view.assist.quiz.question.is_some());
+    click(harness, Role::Button, "+ 10");
+    click(harness, Role::Button, "+ 1");
+}
+
+/// The same in English.
+fn quiz_question_en(harness: &mut Harness<'_, GrandCoachApp>) {
+    quiz_question(harness);
+    harness.state_mut().set_language(Language::En);
+    harness.run_steps(4);
+}
+
+/// After answering: the result with its derivation, the aid back.
+fn quiz_feedback(harness: &mut Harness<'_, GrandCoachApp>) {
+    quiz_question(harness);
+    click(harness, Role::Button, "Antworten");
+}
+
+/// The same in English.
+fn quiz_feedback_en(harness: &mut Harness<'_, GrandCoachApp>) {
+    quiz_feedback(harness);
+    harness.state_mut().set_language(Language::En);
+    harness.run_steps(4);
+}
 
 /// The window at launch: the "new series" dialog shows the series settings
 /// and the opponents wait (`harness` opens it like `main`).

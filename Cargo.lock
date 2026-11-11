@@ -7076,6 +7076,7 @@ dependencies = [
  "serde",
  "serde_json",
  "skat-ai",
+ "skat-analysis",
  "skat-coach",
  "skat-core",
  "skat-nn",
