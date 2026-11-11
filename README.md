@@ -6,10 +6,17 @@
 
 ### Über das Projekt
 
-Skat-Trainer für PC (Linux und Windows 11): vollständiges Skat nach
-Internationaler Skatordnung gegen zwei Computergegner. Dazu kommt ein
-abschaltbarer Live-Coach, der den **Denkweg** erklärt, nicht nur den besten
-Zug. Schwerpunkte sind Kartenzählen und das Hineinversetzen in die Gegner.
+Grand-Coach soll dir helfen, am Skattisch selbst wie ein Könner zu denken.
+Im Spiel gegen zwei Computergegner begleitet dich ein interaktiver Live-Coach.
+Er lenkt deinen Blick auf das, was für deinen nächsten Zug zählt. Wer konnte
+Kreuz nicht bedienen? Welche Trümpfe sind noch draußen? Im Rückblick kannst
+du nachvollziehen, wann dein Kreuz-Ass in Gefahr war und woran du das schon
+vor dem Ausspiel erkennen konntest.
+
+Geplant sind gezielte Trainingseinheiten, etwa zur Trumpfführung oder zum
+Zusammenspiel im Gegenspiel. Du übst ein Thema an wechselnden Blättern,
+bis du die entscheidende Situation auch am echten Tisch selbst erkennst.
+[Produktvision und Lernkonzept](docs/vision.md)
 
 ### Spielumfang
 
@@ -80,10 +87,16 @@ Siehe [CONTRIBUTING.md](CONTRIBUTING.md) und den
 
 ### About
 
-A Skat trainer for PC (Linux and Windows 11): full Skat according to the
-International Skat Rules against two computer opponents, plus an optional live
-coach that explains the **line of thought** rather than just the best move.
-Focus: card counting and putting yourself in the opponents' shoes.
+Grand-Coach aims to help you think like an expert at the Skat table. An
+interactive live coach guides your attention as you play against two computer
+opponents. Who failed to follow Kreuz? Which trumps are still out? In the
+review you can see when your Kreuz-Ass was at risk and what you could have
+known before leading it.
+
+Planned training sessions let you choose a theme such as managing trumps
+or working with your partner in defence. You practise on different deals so
+you can recognise the moment for yourself at a real table.
+[Product vision and teaching approach](docs/vision.md)
 
 ### Playable features
 

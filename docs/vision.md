@@ -1,10 +1,48 @@
-# Product scope
+# Product vision
 
-Grand-Coach is an offline desktop Skat trainer for Linux and Windows 11.
-The player plays against two computer opponents. The optional coach helps the
-player count cards and reason from another seat's perspective. Before a move,
-the player can ask what is known, what can be inferred and which options are
-legal. After the move, the coach can discuss a concrete alternative.
+Grand-Coach aims to help a player become an expert at the Skat table. Knowing
+the rules gets a learner into a game. Expertise means noticing which cards and previous tricks matter for the next
+decision, reading a position
+from a partner's or opponent's seat, and changing a plan when a trick brings
+new information. An interactive live coach and focused training sessions are
+the two ways the player should be able to develop that judgement.
+
+## Learning in a live game
+
+From Reizen and Drücken through the last trick, the coach should help the
+player find the question an experienced player would ask here. The question
+changes with the contract, the role, who still has to play and what the player
+has seen. A hint draws attention to one relevant detail and leaves the choice
+to the player. After the move, the coach can revisit the position, compare
+alternatives and explain when a familiar Skat tactic works or fails.
+A defender might give up the lead so their partner can lead through the
+declarer on the next trick. Seeing that opportunity takes an understanding
+of seat order as well as card ranks.
+
+For example, imagine playing Hinterhand as declarer in a Herzspiel. You win
+a trick and now have the lead. You hold the Kreuz-Ass. A defender failed to
+follow Kreuz earlier. Before you lead again, which cards in the previous
+tricks matter? The void tells you that defender can no longer follow Kreuz.
+If they still hold Trumpf, they can take the Ass. If all opposing Trumpf
+are accounted for, that danger has passed. The skill is recognising when
+counting Trumpf changes the decision to cash a side Ass.
+
+## Practising a theme until it transfers
+
+The planned training mode lets the player choose a theme such as protecting
+a side Ass, managing Trumpf or supporting a partner in defence. A session
+can start from a moment encountered in live play. In a session on the
+Kreuz-Ass, the player would first identify the void with help, then compare
+two legal positions that differ in the outstanding Trumpf. In a fresh deal
+with another trump suit, the player would decide unaided and explain which
+observation mattered. Recognising the same opportunity at a real table is
+the long-term measure of success.
+
+The current [live coach](coach.md) provides staged hints, six supported
+lessons, a learning focus and a review of selected decisions. The [roadmap](roadmap.md)
+covers the next steps from guided play to independent practice.
+
+## Playing environment
 
 The game uses ISkO rules with optional Kontra/Re and Seeger-Fabian scoring.
 It supports fixed-length series and free play. The two UI languages are German

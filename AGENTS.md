@@ -3,10 +3,10 @@
 Canonical guide for coding agents (Codex, Claude Code and others).
 `CLAUDE.md` only imports this file; edit agent instructions here.
 
-Skat trainer for PC (Linux, Windows 11): Skat per ISkO against two AI
-opponents, plus an optional coach that explains the line of thought (What to
-think about? Which options? How do they compare?). Focus: card counting and
-putting yourself in the opponents' shoes.
+Grand-Coach is an interactive Skat coach for Linux and Windows 11. The goal
+is independent, expert play at a real table. Live lessons help the player
+notice what matters in a deal and reason from other seats. Planned training
+sessions let the player practise individual tactics across different deals.
 
 ## Reading paths
 
