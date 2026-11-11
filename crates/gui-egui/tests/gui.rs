@@ -1478,6 +1478,11 @@ fn counting_aid_and_quiz_work_by_clicks_in_both_languages() {
         };
         let mut harness = harness(config);
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        // Finish opening opponent moves before comparing settings at a
+        // stable human decision; background bidding may span GUI frames.
+        settle(&mut harness);
+        let before_settings = game_part(&view(&harness));
+        assert_eq!(before_settings.acting, Some(PlayerId::HUMAN));
         // Off by default: nothing of it on screen.
         assert!(harness.query_by_label("Zählhilfe").is_none());
 
@@ -1488,6 +1493,7 @@ fn counting_aid_and_quiz_work_by_clicks_in_both_languages() {
         harness.get_by_label("Jede Angabe ist exakt und folgt aus dem, was du gesehen hast.");
         harness.get_by_label_contains("Bisher gespielt");
         let with_aid = game_part(&view(&harness));
+        assert_eq!(with_aid, before_settings);
         toggle(&mut harness, "Einstellungen", "Zählhilfe");
         assert!(!view(&harness).assist.settings.counting_aid);
         assert!(harness.query_by_label("Zählhilfe").is_none());
