@@ -367,6 +367,56 @@ mod tests {
         assert_eq!(CountingAid::from_knowledge(&k).augen.outstanding, 120);
     }
 
+    /// Farbspiel Karo seen by the declarer after Drücken, and the same
+    /// game by a defender: the roles differ in what is known about the
+    /// Skat and in the Augen question of the own side.
+    #[test]
+    fn farbspiel_declarer_and_grand_defender_roles() {
+        use Rank::*;
+        use Suit::*;
+        let discard = cards(&[(Karo, Sieben), (Pik, Ass)]);
+        let mut k = base(Some(GameType::Farbe(Karo)));
+        k.seat = Seat::Hinterhand;
+        k.declarer = Some(Seat::Hinterhand);
+        // Hand: Herz-Bube, Karo-Ass (2 Trumpf).
+        k.own = cards(&[(Herz, Bube), (Karo, Ass)]);
+        k.skat = Some(discard);
+        k.known_elsewhere = discard;
+        k.played = cards(&[(Kreuz, Bube), (Karo, Zehn), (Karo, Neun)]);
+        k.augen_won = [0, 0, 23];
+        let aid = CountingAid::from_knowledge(&k);
+        let t = aid.trumpf.unwrap();
+        // 11 Trumpf - 2 own - 3 played - 1 discarded (Karo-Sieben) = 5.
+        assert_eq!((t.own, t.played, t.discarded, t.outside), (2, 3, 1, 5));
+        assert!(!t.skat_unknown);
+        assert_eq!(aid.augen.declarer, Some(23));
+        assert_eq!(aid.augen.defenders, Some(0));
+        // Own 2 + 11, played 2 + 10 + 0, discard 0 + 11 -> 120 - 13 - 12 - 11.
+        assert_eq!(aid.augen.outstanding, 84);
+        assert_eq!(aid.augen.skat, Some(11));
+        // The same position for a defender: the declarer's discard is not
+        // known, so every unseen Trumpf may be in the Skat.
+        let mut d = base(Some(GameType::Grand));
+        d.seat = Seat::Mittelhand;
+        d.declarer = Some(Seat::Hinterhand);
+        d.own = cards(&[(Kreuz, Bube)]);
+        d.played = cards(&[(Pik, Bube)]);
+        d.augen_won = [0, 0, 4];
+        let aid = CountingAid::from_knowledge(&d);
+        let t = aid.trumpf.unwrap();
+        assert_eq!(
+            (t.total, t.own, t.played, t.discarded, t.outside),
+            (4, 1, 1, 0, 2)
+        );
+        assert!(t.skat_unknown);
+        assert_eq!(
+            (aid.augen.declarer, aid.augen.defenders),
+            (Some(4), Some(0))
+        );
+        assert_eq!(aid.augen.skat, None);
+        assert_eq!(aid.augen.outstanding, 120 - 2 - 2);
+    }
+
     /// Null has no Trumpf and no Augen questions; the Buben are ordinary
     /// cards of their suit.
     #[test]
