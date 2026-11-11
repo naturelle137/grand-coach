@@ -1,12 +1,8 @@
 # SPDX-License-Identifier: EUPL-1.2
 name: CI
 
-# Verification gate (D-30, docs/testing.md). `ci-ok` is the single required
-# status check on `main`. The jobs only call `scripts/check.sh`, so hooks,
-# agents and CI run the same checks. `lint` always runs; compiling and
-# testing only when code files changed (no `paths:` filter, so `ci-ok` is
-# always reported). Caches are saved on `main` only and restored
-# everywhere, so PR caches cannot evict them from the 10 GB budget.
+# Shared verification tiers (D-30). ci-ok remains the required check.
+# Only main saves caches; PRs restore without evicting the shared cache.
 
 on:
   pull_request:
@@ -21,7 +17,8 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: '23 3 * * 1' # weekly deep run, Monday 03:23 UTC
+    - cron: '23 3 * * 1' # complete platforms + weekly deep
+    - cron: '23 3 * * 0,2-6' # complete platforms every other night
 
 concurrency:
   group: ci-${{ github.ref }}-${{ github.event_name }}
@@ -40,31 +37,23 @@ jobs:
     outputs:
       code: ${{ steps.detect.outputs.code }}
       gui: ${{ steps.detect.outputs.gui }}
+      full: ${{ steps.detect.outputs.full }}
+      regression: ${{ steps.detect.outputs.regression }}
+      deep: ${{ steps.detect.outputs.deep }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - id: detect
         env:
-          # PR: its base; push: the previous tip; otherwise nothing (test all).
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          DEEP: ${{ inputs.deep }}
         run: |
-          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ]; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-            echo "gui=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if scripts/check.sh code-changed "$BASE"; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "code=false" >> "$GITHUB_OUTPUT"
-          fi
-          # Frontend changes get screenshots (D-45).
-          if git diff --quiet "$BASE" HEAD -- crates/gui-egui assets; then
-            echo "gui=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "gui=true" >> "$GITHUB_OUTPUT"
-          fi
+          args=(--base "$BASE" --event "$EVENT" --schedule "$SCHEDULE")
+          if [ "$DEEP" = true ]; then args+=(--deep); fi
+          scripts/check.sh route "${args[@]}" >> "$GITHUB_OUTPUT"
 
   lint:
     runs-on: ubuntu-latest
@@ -80,17 +69,63 @@ jobs:
       # Node (for npx markdownlint-cli2) and shellcheck are preinstalled.
       - run: scripts/check.sh lint
 
-  test:
+  portable:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    name: test (${{ matrix.os }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: scripts/check.sh pr
+
+  native:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: windows-latest
+    env:
+      NATIVE_RENDER_DIR: native-render
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: scripts/check.sh native
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-render-Windows
+          path: native-render/launch.png
+          if-no-files-found: error
+
+  regression:
+    needs: changes
+    if: needs.changes.outputs.regression == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: scripts/check.sh regression
+
+  complete:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    name: complete (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      # Check out exactly the committed bytes (LF) on Windows, too.
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -99,7 +134,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: scripts/check.sh test
+      - run: scripts/check.sh complete
         shell: bash
 
   # The declared `rust-version` must stay true.
@@ -147,7 +182,8 @@ jobs:
           path: screenshots/
 
   deep:
-    if: github.event_name == 'schedule' || inputs.deep
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -161,19 +197,11 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, lint, test, msrv]
+    needs: [changes, lint, portable, native, msrv, regression, complete, deep]
     runs-on: ubuntu-latest
     steps:
-      - name: All required jobs passed
+      - uses: actions/checkout@v5
+      - name: All mandatory results match classification
         env:
-          CODE: ${{ needs.changes.outputs.code }}
-          CHANGES: ${{ needs.changes.result }}
-          LINT: ${{ needs.lint.result }}
-          TEST: ${{ needs.test.result }}
-          MSRV: ${{ needs.msrv.result }}
-        run: |
-          echo "changes=$CHANGES (code=$CODE) lint=$LINT test=$TEST msrv=$MSRV"
-          [ "$CHANGES" = success ] && [ "$LINT" = success ] || exit 1
-          if [ "$CODE" = true ]; then
-            [ "$TEST" = success ] && [ "$MSRV" = success ]
-          fi
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: scripts/check.sh ci-ok

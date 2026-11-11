@@ -12,7 +12,7 @@ and agents only call it, so they cannot drift apart.
 | `pre-commit` (`.githooks/`) | every commit | `quick` | local feedback; can be skipped by humans |
 | `pre-push` (`.githooks/`) | every push | `push --base` | local feedback; can be skipped by humans |
 | `implement-issue.yml` | after the agent, before the PR | `full --base` | red gate → draft PR with a warning |
-| CI `ci.yml`, job `ci-ok` | every PR and push to `main` | `lint`, `test` (including slow tests) on Linux and Windows, MSRV | **required status check on `main`; the only hard gate** |
+| CI `ci.yml`, job `ci-ok` | every PR and push to `main` | `lint`; code: Ubuntu `pr`, Windows `native`, MSRV; main adds `regression`; nightly/manual adds `complete` on both platforms | **required status check on `main`; the only hard gate** |
 | CI `ci.yml`, job `deep` | weekly and on demand | `deep` | scheduled-run failure mails the maintainer |
 
 Hooks are fast feedback, not security: anyone can skip them. Merge
@@ -36,18 +36,15 @@ snapshot; CI checks the real commit.
 - `lint` (seconds, no compilation): whitespace, SPDX headers, rustfmt,
   markdownlint (`.markdownlint-cli2.yaml`), offline Markdown links and their
   positive/negative fixtures, shellcheck, actionlint.
-- `test` (CI): clippy of the workspace with `--all-features`, clippy of
+- `complete` (alias `test`): clippy of the workspace with `--all-features`, clippy of
   each package with features without them, and every test including the
   slow ones (`--include-ignored`) with all features except GPU backends,
   all `--locked`.
 - `quick` (pre-commit): `lint`, plus clippy when code files are staged.
 - `push` (pre-push): `lint`; when code files changed since REV, clippy and
-  the fast tests of the affected packages. Affected are the packages whose
-  directory changed and every package depending on them (`cargo tree -i`);
-  a change to any other code file (manifests, lock file, toolchain,
-  `assets/`, the gate) affects all.
+  the complete FAST workspace (conservative dependency closure).
 - `full` (default; agents and `implement-issue.yml`): `lint` and `test`,
-  as in CI. With `--base REV`, `push` and `full` skip compiling and testing
+  for one complete platform. With `--base REV`, `push` and `full` skip compiling and testing
   when no code file changed since REV.
 - `deep`: in release mode, `SKAT_RANDOM_GAMES` seeded random games
   (default 1,000,000) and `SKAT_MEPHISTO_GAMES` games with Mephisto on
@@ -55,8 +52,14 @@ snapshot; CI checks the real commit.
 
 **Slow tests.** A test that takes 2 s or more (measured alone,
 `--test-threads=1`) gets `#[ignore = "slow: CI only (docs/testing.md)"]`.
-Hooks skip it, CI runs it on every code change. Anything that takes
-minutes belongs in `deep`, with a small default run in `test`.
+Hooks and the FAST workspace skip it. Main Ubuntu regression and nightly,
+manual and RC complete suites on both platforms run every ignored case.
+No test or assertion is removed or reclassified by this change. Randomized
+core tests (10,000 games) still run in FAST; ignored analysis/AI strength,
+GUI full-series/variant/coach-soak cases move to those complete owners.
+The ignored AI fairness and app-series async/stale-move/privileged tests remain
+mandatory in Ubuntu PRs. Anything that takes minutes belongs in `deep`, with
+a small default run in `complete`.
 
 **Features.** One `cargo test --workspace` with every feature except GPU
 backends covers everything: `skat-app` enables `serde` in every crate
@@ -70,11 +73,87 @@ Burn's default device a GPU in every crate (unification), and they double
 the compile time. Clippy still checks them with `--all-features`; GPU
 training is verified by hand (`nn-train smoke vulkan`).
 
-**Code files** (changes trigger `test`): `*.rs`, `Cargo.toml`,
-`Cargo.lock`, `rust-toolchain*`, `assets/`, `scripts/check.sh` and
-`.github/workflows/ci.yml`. Docs-only changes run only `lint`. CI decides
-this in the job `changes` instead of a `paths:` filter, so `ci-ok` is
-always reported and never blocks a docs PR.
+## PR and platform routing
+
+- `pr`: clippy all-target/all-feature, feature-off clippy, complete FAST
+  workspace with the existing CPU test feature set, plus ignored
+  `skat-ai --test fairness` privacy and `skat-app --test series` integration. No package filtering. Fixed rules,
+  scoring, permitted-view and coach/app regressions run before merge.
+- `native`: `cargo check --workspace --all-targets --all-features` and
+  per-feature-package `cargo check --all-targets` without features, then
+  selected CPU tests and a required headless `launch` render. No Windows
+  clippy or duplicate full portable suite in a default PR.
+- `regression`: complete workspace tests including ignored tests, without
+  repeating clippy. Every main code push owns this broader Ubuntu regression
+  alongside prompt FAST integration and Windows native validation. A failure
+  needs immediate agent triage, not deferral to release.
+- `route --base REV --event EVENT`: conservative classifier; `ci-ok` consumes
+  `CI_NEEDS` JSON and strictly checks every mandatory job result. Python 3
+  and Git are required. `lint` runs real temporary-repository routing and
+  aggregation fixtures (`python3 scripts/ci/test_route.py`).
+
+Only `.md` under `docs/` and root README/CONTRIBUTING/AGENTS/CLAUDE are
+allowlisted as docs-only. Every other path (including build.rs, .cargo,
+all manifests/lockfiles, toolchain, assets, scripts, hooks, workflows and
+unknown files) runs complete FAST plus native. Deleted and renamed paths
+are checked on both sides without rename detection; local tracked changes
+count too. Empty diffs and unknown bases conservatively run code checks.
+Diff/decoding/classifier errors fail the workflow, never produce docs-only.
+Hooks use the same classifier; on classification errors they compile/test.
+
+`changes` emits exactly five boolean strings. `ci-ok` rejects missing/invalid
+or inconsistent routing, classification failure, and any mandatory failure,
+cancellation or unexpected skip. Only documented inactive jobs may skip.
+Windows render runs for every code change inside mandatory `native`; a
+missing/empty PNG fails it. The informational full gallery is limited to
+frontend/assets changes or unknown-base/full runs.
+Protection and the required name `ci-ok` are unchanged.
+
+Nightly schedules and every manual dispatch ignore diffs and run complete
+suites on **both** platforms, plus PR/native/MSRV checks. Dispatch CI on the
+RC ref before release (`deep=true` additionally runs the deep soak). Monday's
+nightly also owns weekly deep; the other six nights run complete platforms.
+The deep command keeps its million-game/100-Mephisto defaults and GPU
+exclusion policy. `ci-ok` also requires complete/deep results when selected.
+
+### Exact critical and native inventory
+
+FAST includes all non-ignored tests, including `skat-core` targets bidding,
+kontra, play, scoring, variants and views; `skat-nn` encoder/model;
+`skat-ai` fairness/trained_model; all `skat-coach` targets and `skat-app`
+assist/coach/series (M6 count privacy included). Additionally the PR tier
+runs `series::opponent_jobs_match_advance_and_reject_stale_moves` and
+`series::mephisto_mode_sees_all_cards_where_configured` despite their
+existing slow markers. The PR also runs ignored `skat-ai --test fairness`
+cases `goldfish_is_fair_and_covers_every_phase`,
+`medium_is_fair_and_covers_every_phase` and
+`strong_is_fair_and_covers_every_phase`. Whole-workspace execution covers
+transitive dependents.
+
+Native Windows executes all non-ignored `skat-nn --test model` and
+`skat-ai --test trained_model` cases (disk manifest/hash, legal decisions,
+permitted views and fallback); `nn-train --test data` exact cases
+`the_cache_returns_exactly_the_loaded_data` and
+`cache_files_keep_wide_features` (temp-file roundtrips); `gui-egui --test gui`
+exact cases `launch_shows_the_new_series_settings`, `every_card_face_renders`,
+`language_and_faces_switch_without_touching_the_game` and
+`free_play_ends_on_request`. The screenshots example renders `launch` using
+WARP on Windows and validates a nonempty PNG; `native-render-Windows` retains
+it. These GUI harness and backend checks do not certify a real native window.
+App JSON roundtrips cover wire serialization, not game persistence: M7
+save/load remains planned. Full platform suites retain all remaining tests.
+
+### Timing evidence
+
+Each shared-script command prints elapsed seconds and exit status. For PR
+comparisons record run/head/event, runner/toolchain, queue-start proxy,
+checkout/setup, cache restore, clippy/feature passes, cargo-reported build,
+test-binary durations, render and run-created-to-ci-ok separately. Restored
+caches may still require rebuilding. Different scope/head/cache states are
+not controlled A/B measurements; claim only observed changes, no promised
+percentage. HQ223 baseline: PR 43109220476 reached ci-ok in 25:08 (Windows
+critical); main 43041261025 in 10:42. Full-platform dispatch has broader
+scope than a default PR and must be reported separately.
 
 Linters missing locally are skipped with a warning; CI sets
 `CHECK_STRICT=1`, where a missing linter fails. Local install (Fedora):

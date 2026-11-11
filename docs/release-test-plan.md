@@ -4,6 +4,16 @@ After the release scope is implemented, agents test the release
 candidate on Linux and Windows 11. Finalise reproducible seeds and steps
 against that build before starting. Use only features included in the release.
 
+Before an RC can ship, dispatch CI on its exact ref and record green
+`complete` suites (including ignored tests) on both Ubuntu and Windows,
+plus required native render/backend smoke. Record run URLs and commit SHA.
+A fast PR gate does not replace these complete suites or the Linux and
+Windows 11 package/platform cases below. Headless Windows Server CI does
+not establish interactive Windows 11 behaviour or teaching effectiveness.
+Missing platform or actual learner/UAT evidence stays pending; agents never
+simulate learner observations. M7 save/load cases apply once implemented;
+current wire serialization tests are not persistence evidence.
+
 ## Test cases
 
 | Area | Steps | Expected result |

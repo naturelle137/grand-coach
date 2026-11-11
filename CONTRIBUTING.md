@@ -49,18 +49,25 @@ the result (a test compares them). After every `Cargo.lock` change, run
 
 All checks are bundled in
 one script; activate the git hooks once per clone so it runs automatically
-(`quick` before each commit, `push` with the fast tests of the affected
-crates before each push):
+(`quick` before each commit, `push` with the complete FAST workspace
+on code changes before each push):
 
 ```sh
 git config core.hooksPath .githooks
-scripts/check.sh          # full gate, as in CI
+scripts/check.sh          # full platform gate
+scripts/check.sh pr       # Ubuntu PR regression and clippy/features
+scripts/check.sh native   # native compile/IO/model/GUI/render smoke
+scripts/check.sh complete # complete platform suite, including ignored tests
 ```
 
 With a comparison base, docs-only changes are linted
 (including markdownlint and offline Markdown links/fixtures). Tests taking 2 s or more are marked
-`#[ignore = "slow: CI only (docs/testing.md)"]`; the hooks skip them, CI
-and `scripts/check.sh` run them. For the linters locally:
+`#[ignore = "slow: CI only (docs/testing.md)"]`; the hooks skip them, main Ubuntu regression, nightly/manual complete suites
+on both platforms and `scripts/check.sh` run them. Ubuntu PRs run the whole
+FAST workspace plus deterministic app integration; Windows PRs compile all
+targets/features and run selected native tests with a required render smoke.
+Docs-only routing uses an explicit allowlist; shared and unknown files select
+all FAST/native coverage. `scripts/check.sh test` remains an alias for `complete`. For the linters locally:
 `sudo dnf install nodejs ShellCheck python3`; missing ones are skipped with a
 warning. CI runs the same gate on every pull request; its check `ci-ok`
 must pass before a PR can be merged. Details: [docs/testing.md](docs/testing.md).

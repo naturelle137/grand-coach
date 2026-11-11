@@ -90,20 +90,26 @@ Translations live in `assets/i18n/`.
 All checks run through one script (D-30, `docs/testing.md`):
 
 ```sh
-scripts/check.sh          # full gate as in CI: lint + test
+scripts/check.sh          # complete platform gate: lint + test
 scripts/check.sh lint     # whitespace, SPDX, rustfmt, Markdown links/fixtures, markdownlint, shellcheck, actionlint
-scripts/check.sh test     # clippy (also without features) and all tests incl. slow ones
-scripts/check.sh push --base origin/main  # pre-push: lint, clippy, fast tests of affected crates
+scripts/check.sh pr       # Ubuntu PR: clippy/features, FAST workspace + app integration
+scripts/check.sh native   # Windows compile/features, IO/model/GUI and render smoke
+scripts/check.sh complete # full platform clippy/features and tests incl. slow ones
+scripts/check.sh push --base origin/main  # pre-push: lint, clippy, complete FAST workspace
 scripts/check.sh deep     # 1,000,000 random games, 100 Mephisto games (weekly in CI)
 ```
 
 The git hooks in `.githooks/` run `quick` before each commit and `push`
-before each push (fast tests of the affected crates only); Claude Code
-activates them via `.claude/settings.json`. CI always runs `lint`, and
-`test` on Linux and Windows plus an MSRV check when code changed; its job
-`ci-ok` is required to merge into `main`. Tests taking 2 s or more carry
-`#[ignore = "slow: CI only (docs/testing.md)"]`: hooks skip them, CI and
-`full` run them. Locally missing linters are
+before each push (complete FAST workspace on code changes); Claude Code
+activates them via `.claude/settings.json`. CI always runs `lint`; code
+PRs run Ubuntu `pr`, Windows `native` (including required render smoke) and
+MSRV. Main adds broader Ubuntu regression. Both platform suites run nightly,
+on manual dispatch and for RCs. `ci-ok` remains the required check and rejects
+failed, cancelled or unexpectedly skipped mandatory jobs and invalid routing.
+Tests taking 2 s or more carry `#[ignore = "slow: CI only (docs/testing.md)"]`:
+hooks skip them; main regression and complete platform suites run them.
+The PR tier additionally retains ignored AI privacy and deterministic app integration.
+Locally missing linters are
 skipped with a warning; CI runs them all. `cargo test` includes 10,000 seeded random
 games (`crates/skat-core/tests/random_games.rs`). The lint tier checks tracked
 Markdown file/heading links offline and runs positive/negative fixtures.
