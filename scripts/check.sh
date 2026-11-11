@@ -31,7 +31,7 @@ cd "$(git rev-parse --show-toplevel)"
 
 tier=${1:-full}
 base=
-if [ "${2:-}" = --base ]; then
+if [ "$tier" != route ] && [ "${2:-}" = --base ]; then
     base=${3:?--base needs a revision}
 fi
 

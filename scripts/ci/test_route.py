@@ -103,6 +103,11 @@ class Routing(unittest.TestCase):
                    env={"PATH": str(self.repo / "fake-bin") + ":" + os.environ["PATH"]}, ok=False)
 
     def test_event_ownership(self):
+        # Exact workflow argument order: dispatch/schedule have no base SHA.
+        for event in ("workflow_dispatch", "schedule"):
+            output = self.check("route", "--base", "", "--event", event, "--schedule", "")
+            self.assertIn("full=true", output)
+            self.assertIn("code=true", output)
         self.write("README.md")
         for event in ("schedule", "workflow_dispatch"):
             route = self.route(event=event)
