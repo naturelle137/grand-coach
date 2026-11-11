@@ -107,7 +107,7 @@ wgpu adapter and prefers software ones: lavapipe on Linux (Fedora/Ubuntu
   frontend change: the agent's own (skill step "Screenshots"), otherwise
   all built-in scenarios. They live on the orphan branch `screenshots`
   under `issue-<n>/`.
-- They support the human validation of a frontend change; they do not
+- They support the independent agent review of a frontend change; they do not
   replace looking at the change in a real window.
 
 ## Platform verification (M2)
@@ -119,9 +119,10 @@ play a series through to the score sheet and switch language and card faces.
 
 ## Release 1.0 validation
 
-Once the release features and packages are ready, the maintainer follows
+Once the release features and packages are ready, agents execute
 the [release test plan](release-test-plan.md) on Linux and Windows 11,
 fixes findings and repeats affected checks before publication. For coach
-changes, automated fixtures establish the tested facts. The maintainer's
+changes, automated fixtures establish the tested facts. Missing target-platform
+evidence remains pending. The maintainer's
 [learner sessions](coach-validation.md) assess comprehension and unaided
 transfer. Manual validation takes place at release time (D-61).
