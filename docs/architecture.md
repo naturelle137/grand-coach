@@ -1,6 +1,6 @@
 # Architecture: `skat-core`
 
-Crate layout and dependency direction are in [vision.md](vision.md#architecture-guideline).
+The [workspace guide](../AGENTS.md#architecture-crates) maps crate dependencies.
 This page fixes the decisions inside `skat-core` that analysis, AI, coach,
 replay and frontends build on (D-20 to D-26, rule interpretations in D-28).
 Keep it short; details belong in the code (`crates/skat-core`).
@@ -61,12 +61,12 @@ Keep it short; details belong in the code (`crates/skat-core`).
 
 ## Information sets
 
-- `Game` holds the full state and is not handed to AI or coach.
+- `Game` holds the full state and is available to Mephisto through its explicit privileged API.
 - `Game::view(seat) -> PlayerView` contains only what that seat may know:
   own hand, bidding history, tricks played, the own discarded Skat (declarer
   only), and the declarer's cards in Ouvert games once revealed.
-- Full knowledge only via an explicitly named type (`OmniscientView`) for open
-  mode and post-game analysis, so its use is visible in signatures.
+- God Mode uses `OmniscientView` for its table and known-deal coach. Ordinary
+  opponents and the closed-play coach receive a permitted view.
 
 ## Rules and scoring
 

@@ -3,10 +3,10 @@
 Canonical guide for coding agents (Codex, Claude Code and others).
 `CLAUDE.md` only imports this file; edit agent instructions here.
 
-Skat trainer for PC (Linux, Windows 11): Skat per ISkO against two AI
-opponents, plus an optional coach that explains the line of thought (What to
-think about? Which options? How do they compare?). Focus: card counting and
-putting yourself in the opponents' shoes.
+Grand-Coach is an interactive Skat coach for Linux and Windows 11. The goal
+is independent, expert play at a real table. Live lessons help the player
+notice what matters in a deal and reason from other seats. Planned training
+sessions let the player practise individual tactics across different deals.
 
 ## Reading paths
 
@@ -17,14 +17,12 @@ that the task touches:
 - Core/rules: `docs/architecture.md`, relevant D entries in `docs/decisions.md`.
 - Analysis/AI: `docs/analysis.md`, `docs/ai.md`.
 - Coach: `docs/coach.md`; lessons additionally use the evidence checklist in
-  `docs/coach-validation.md`. Read `docs/coach-didactics.md` for product
-  direction, not as a description of current implementation.
+  `docs/coach-validation.md`.
 - App/GUI: the relevant analysis/coach contracts and `docs/testing.md`.
 - Verification and release: `docs/testing.md`.
-- Learned engines (#67), starting with #69/#70: D-07 and D-11 in
-  `docs/decisions.md`, `docs/analysis.md`, `docs/ai.md`, the lifecycle/latency
-  in `docs/coach.md`, `docs/testing.md`, and the issue's prerequisites. The
-  full didactic history is not required.
+- Learned engines: `docs/learned-models.md` for the shipped model, current
+  training phase and commands, `docs/ai.md` for calibration and D-07,
+  D-11 and D-63 in `docs/decisions.md` for runtime and packaging.
 - Dependencies/assets: `docs/third-party.md` and CONTRIBUTING's licence policy.
 - German Skat terminology: `docs/glossary.md` as needed.
 
@@ -72,8 +70,8 @@ Translations live in `assets/i18n/`.
   `skat-nn` below it for learned models); the coach only verbalises what was
   computed there.
 - **Separate information sets.** AI and coach get one player's view, never the
-  full state. Exceptions (open mode, post-game analysis) are visible in the
-  type system.
+  full state. Mephisto takes the full game explicitly. God Mode's table and coach use
+  privileged views.
 - **Frontends use `skat-app` only.** No egui or Godot types below `gui-*`.
   API types are plain data (serde-capable) so Godot can attach later without
   core changes.
@@ -111,42 +109,11 @@ games (`crates/skat-core/tests/random_games.rs`). For documentation
 changes, also check relative links (not automated).
 Document new commands here and in `CONTRIBUTING.md` only once verified.
 
-Local Fedora 44 Distrobox setup is documented in `CONTRIBUTING.md` and was
-verified with Rust 1.99.1. `cargo fetch --locked` prepares the dependency
-cache; `cargo build --locked --offline`, `cargo test --locked --offline`
-and `cargo test --locked --offline --all-features` also pass locally.
-
-The desktop app is the binary `grand-coach` of `crates/gui-egui`
-(verified on Linux/Wayland; Windows 11 not yet, see `docs/testing.md`):
-
-```sh
-cargo run --locked --release -p gui-egui      # start the game
-GRAND_COACH_SEED=42 cargo run -p gui-egui     # replay a series seed
-cargo run --locked -p cardgen                 # regenerate assets/cards/
-cargo run --locked -p notices                 # regenerate THIRD-PARTY-NOTICES
-cargo run --locked --release -p skat-analysis --example bench  # analysis latency
-cargo run --locked --release -p skat-ai --example latency       # AI latency per level
-cargo run --locked --release -p skat-ai --example calibrate -- validation medium strong 200 10 0
-cargo run --locked --release -p skat-ai --example tournament -- CONFIG OUT.tsv tuning 2000 20 0  # role tournament
-cargo run --locked --release -p skat-app --example coach_latency # coach latency
-cargo run --locked -p gui-egui --example screenshots -- DIR  # headless PNGs (D-45)
-cargo run --locked --release -p nn-train -- smoke cpu  # Burn stack smoke test (#69)
-cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan  # on the GPU
-cargo run --locked --release -p nn-train -- generate DIR --deals 100  # Strong self-play data (#70)
-cargo run --locked --release -p nn-train -- generate DIR --deals 100 --table easy-mix  # Easy in card play, Strong labels
-cargo run --locked --release -p nn-train -- verify DIR  # replay and check a training-data run
-cargo run --locked --release -p skat-ai --example latency -- 30 strong  # early Strong decisions
-cargo run --locked --release -p nn-train -- train OUT DIR... --hidden 512  # card-play network (#73); --belief-weight X, --patience N, --cache DIR, --data-on-device GB
-cargo run --locked --release -p nn-train -- evaluate MODEL DIR...  # metrics per split
-cargo run --locked --release -p nn-train -- probe MODEL DIR... --belief FILE  # intra-game dependencies
-cargo run --locked --release -p nn-train -- rl OUT --minutes 720  # self-play refinement (#75)
-```
-
-On Linux the window needs EGL/GL and Wayland or X11 client libraries
-(Fedora: `mesa-libEGL mesa-libGL libwayland-egl libxkbcommon`). After
-changing `tools/cardgen`, regenerate and commit `assets/cards/`; a test
-fails otherwise. After every `Cargo.lock` change, run `cargo fetch --locked`
-and `notices`, and commit `THIRD-PARTY-NOTICES`; a test fails otherwise.
+For local setup, running the app, generated assets and licence notices, see
+[CONTRIBUTING.md](CONTRIBUTING.md#development-setup). For training and
+assessment commands, see the [model guide](docs/learned-models.md).
+Run the docs-only gate with `scripts/check.sh full --base origin/main` and
+check relative links when editing documentation.
 
 ## Testing
 

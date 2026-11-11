@@ -6,39 +6,36 @@
 
 ### Über das Projekt
 
-Skat-Trainer für PC (Linux und Windows 11): vollständiges Skat nach
-Internationaler Skatordnung gegen zwei Computergegner. Dazu kommt ein
-abschaltbarer Live-Coach, der den **Denkweg** erklärt, nicht nur den besten
-Zug. Schwerpunkte sind Kartenzählen und das Hineinversetzen in die Gegner.
+Grand-Coach soll dir helfen, am Skattisch selbst wie ein Könner zu denken.
+Im Spiel gegen zwei Computergegner begleitet dich ein interaktiver Live-Coach.
+Er lenkt deinen Blick auf das, was für deinen nächsten Zug zählt. Wer konnte
+Kreuz nicht bedienen? Welche Trümpfe sind noch draußen? Im Rückblick kannst
+du nachvollziehen, wann dein Kreuz-Ass in Gefahr war und woran du das schon
+vor dem Ausspiel erkennen konntest.
 
-### Funktionen (vorhanden und geplant)
+Geplant sind gezielte Trainingseinheiten, etwa zur Trumpfführung oder zum
+Zusammenspiel im Gegenspiel. Du übst ein Thema an wechselnden Blättern,
+bis du die entscheidende Situation auch am echten Tisch selbst erkennst.
+[Produktvision und Lernkonzept](docs/vision.md)
 
-- Skat nach ISkO, optional mit Kontra/Re, Wertung nach Seeger-Fabian
-- Gegnerstärke in Stufen (Grünschnabel, Leicht, Mittel, Stark) sowie die
-  Modi Goldfisch, Mephisto und God Mode (du und der Coach seht alle Karten)
-- Live-Coach in Stufen: aus / auf Anfrage / wichtige Entscheidungen / jeder Zug
-- Kartenzählhilfe und Quiz
-- Offener Modus, Replay, Analyse nach dem Spiel
-- Umschaltbare Kartenbilder (französisch vier- und zweifarbig, deutsches
-  Blatt); Oberfläche auf Deutsch und Englisch
+### Spielumfang
 
-Details: [docs/vision.md](docs/vision.md).
+Spiele eine feste Serie oder frei, mit optionalem Kontra/Re und Wertung nach
+Seeger-Fabian. Wähle die Gegnerstärke je Sitz oder einen Sondertisch:
+Goldfisch, Mephisto, God Mode, Experimentell oder KI-Netz (Test). Im God Mode
+siehst du auch die verdeckten Karten. Der Coach bietet gestufte Hinweise,
+sechs Lektionen, einen Lernfokus und einen Rückblick auf bis zu drei
+Entscheidungen. Oberfläche und Kartenbilder sind umschaltbar.
 
-### Status
-
-Spielbare Version: eine Serie gegen zwei Computergegner, deren Stärke
-(Grünschnabel, Leicht, Mittel, Stark) einzeln wählbar ist, oder gegen
-Goldfisch, Mephisto oder im God Mode, mit Kontra/Re, drei
-Kartenbildern und deutscher oder englischer Oberfläche.
-Der Live-Coach mit gestuften Hinweisen, sechs belegten Lektionen, Lernfokus
-und Rückblick auf frühere Entscheidungen ist implementiert. Kartenzählhilfe,
-Quiz, gespeicherte Replays und Trainingsmodus folgen noch.
-Fortschritt: [docs/roadmap.md](docs/roadmap.md).
+Der KI-Netz-Tisch verwendet das mitgelieferte überwacht trainierte v1-Modell.
+v2 befindet sich im Reinforcement Learning. Kartenzählhilfe, Quiz,
+gespeicherte Replays und Trainingsmodus sind geplant.
+[Projektstand](docs/roadmap.md) · [Modelle und Training](docs/learned-models.md)
 
 ### Systemvoraussetzungen
 
 Linux (Wayland oder X11) mit OpenGL bzw. EGL; Windows 11 ist das zweite
-Zielsystem, aber noch nicht getestet.
+Zielsystem, mit Build und Headless-Tests in CI. Der interaktive Test auf Windows 11 steht aus.
 
 ### Installation
 
@@ -64,7 +61,7 @@ cargo run --release -p gui-egui
 Du spielst unten, die Gegner sitzen links und rechts. Beim Start öffnet sich
 „Neue Serie“ mit den Einstellungen der ersten Serie; die Gegner warten, bis
 du startest oder abbrichst. Über „Spiel → Neue Serie …“ wählst du feste Spielzahl (z. B. 36) oder freies Spiel, Kontra/Re
-und die Gegner (Stärke je Gegner, Goldfisch, Mephisto oder God Mode); unter
+und den Gegnermodus; unter
 „Einstellungen“ Sprache und Kartenbild. Die Entwickleroption „Seed anzeigen“
 zeigt den Startwert der Serie und macht ihn in „Neue Serie …“ einstellbar
 (ganze Zahl von 0 bis 18446744073709551615; gleicher Seed, gleiche Karten).
@@ -90,39 +87,34 @@ Siehe [CONTRIBUTING.md](CONTRIBUTING.md) und den
 
 ### About
 
-A Skat trainer for PC (Linux and Windows 11): full Skat according to the
-International Skat Rules against two computer opponents, plus an optional live
-coach that explains the **line of thought** rather than just the best move.
-Focus: card counting and putting yourself in the opponents' shoes.
+Grand-Coach aims to help you think like an expert at the Skat table. An
+interactive live coach guides your attention as you play against two computer
+opponents. Who failed to follow Kreuz? Which trumps are still out? In the
+review you can see when your Kreuz-Ass was at risk and what you could have
+known before leading it.
 
-### Features (available and planned)
+Planned training sessions let you choose a theme such as managing trumps
+or working with your partner in defence. You practise on different deals so
+you can recognise the moment for yourself at a real table.
+[Product vision and teaching approach](docs/vision.md)
 
-- Skat per ISkO, optional Kontra/Re, Seeger-Fabian scoring
-- Opponent levels (Rookie, Easy, Medium, Strong) and the modes Goldfish,
-  Mephisto and God Mode (you and the coach see every card)
-- Live coach with levels: off / on request / important decisions / every move
-- Card-counting aid and quiz
-- Open mode, replay, post-game analysis
-- Switchable card faces (French four- and two-colour, German deck); UI in
-  German and English
+### Playable features
 
-Details: [docs/vision.md](docs/vision.md).
+Play a fixed series or free play with optional Kontra/Re and Seeger-Fabian
+scoring. Set the strength per opponent or select Goldfish, Mephisto, God
+Mode, Experimental or Neural net (test). God Mode reveals the concealed
+cards. The coach offers staged hints, six lessons, a learning focus and a
+review of up to three decisions. Language and card faces are switchable.
 
-### Status
-
-Playable version: a series against two computer opponents whose strength
-(Rookie, Easy, Medium, Strong) is chosen separately, or against Goldfish,
-Mephisto or in God Mode, with Kontra/Re, three card
-faces and a German or English UI.
-The live coach with staged hints, six evidence-backed lessons, learning
-focus and historical decision reviews is implemented. Counting aid, quiz,
-saved replays and training mode remain planned.
-Progress: [docs/roadmap.md](docs/roadmap.md).
+The neural table uses the bundled supervised v1 model. v2 is undergoing
+reinforcement learning. The counting aid, quiz, saved replays and training
+mode are planned. [Project status](docs/roadmap.md) ·
+[Models and training](docs/learned-models.md)
 
 ### Requirements
 
 Linux (Wayland or X11) with OpenGL or EGL; Windows 11 is the second target
-platform but has not been tested yet.
+platform. CI covers Windows builds and headless tests. Interactive Windows 11 testing is pending.
 
 ### Installation
 
@@ -148,7 +140,7 @@ cargo run --release -p gui-egui
 You play at the bottom; the opponents sit left and right. At launch, "New
 series" opens with the settings of the first series; the opponents wait
 until you start or cancel. "Game → New series …" chooses a fixed number of games (e.g. 36) or free play,
-Kontra/Re and the opponents (a level for each, Goldfish, Mephisto or God Mode);
+Kontra/Re and the opponents;
 "Settings" switches language and card faces. The developer option "Show
 seed" shows the series seed and lets "New series …" set it (a whole number
 from 0 to 18446744073709551615; same seed, same cards). The right-hand side

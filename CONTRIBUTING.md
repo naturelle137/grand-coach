@@ -57,7 +57,7 @@ git config core.hooksPath .githooks
 scripts/check.sh          # full gate, as in CI
 ```
 
-Tests only run when code files changed; docs-only changes are linted
+With a comparison base, docs-only changes are linted
 (including markdownlint). Tests taking 2 s or more are marked
 `#[ignore = "slow: CI only (docs/testing.md)"]`; the hooks skip them, CI
 and `scripts/check.sh` run them. For the linters locally:
@@ -92,122 +92,10 @@ Many players are ranked by role (declarer, defender, mixed pairs) with the
 cargo run --locked --release -p skat-ai --example tournament -- CONFIG OUT.tsv tuning 2000 20 0
 ```
 
-Learned models are trained outside the app with `tools/nn-train` (see
-[docs/ai.md](docs/ai.md#learned-engine-runtime)). The smoke test trains a
-small network on the CPU or, with `vulkan` (feature `vulkan`), on the GPU and checks the
-checkpoint round trips; `calibrate` plays a model file against a Classic
-level with the profile `nn:<file>`:
-
-```sh
-cargo run --locked --release -p nn-train --features vulkan -- smoke vulkan 200 300 OUT_DIR
-cargo run --locked --release -p skat-ai --example calibrate -- tuning nn:OUT_DIR/model.gcnn easy 20 4
-```
-
-Early Strong latency and the optional Vulkan training-data benchmark are
-documented with the [CPU/GPU comparison procedure](crates/skat-analysis/experiments/strong-gpu/README.md#early-search-endgames).
-Use `cargo run --locked --release -p skat-ai --example latency -- 30 strong`
-to measure Kontra/Re and the first three tricks on the same views.
-
-Training data come from Strong self-play (see
-[docs/ai.md](docs/ai.md#training-data)). Every run has a wall-time and a
-disk cap and a CPU budget (`--cpus`, split into `--workers` game workers);
-rerunning the same command resumes an interrupted run:
-
-```sh
-cargo run --locked --release -p nn-train -- generate DATA_DIR --deals 100 --minutes 30 --max-mb 1024
-cargo run --locked --release -p nn-train -- verify DATA_DIR
-```
-
-`--table easy-mix` seats Easy players in card play while Strong still
-labels every decision ([docs/ai.md](docs/ai.md#easy-mix-tables)).
-
-The card-play network is trained on one or more such runs (see
-[docs/ai.md](docs/ai.md#card-play-network) and the model card in
-`assets/models/`). Training resumes from `OUT_DIR/checkpoint` and stops
-at its wall-time cap; `--layers N` (default 2) trains a deeper network,
-which `rl` keeps when it starts from it. `evaluate` measures a model
-file on every split, and `calibrate` and `latency` measure its play.
-`train --belief-weight X` adds the training-only belief head and writes
-`OUT_DIR/belief.bpk`. `train --patience N` lowers the learning rate
-after N epochs without a lower validation loss and continues from the best
-weights (`--lr-decay X`, default 0.1; `--lr-decays N`, default 1); the
-next plateau stops the run early. `probe` measures how the decisions of one game
-depend on each other on validation deals: value-residual correlation,
-the effect of each encoder block, and hidden-card bits (Classic's
-constraints, its bidding evidence, the belief head with `--belief`).
-`--cache CACHE_DIR` stores the loaded examples in one file per data set
-and target settings and reads them back in seconds on the next run
-(delete the directory to free the space). `--data-on-device GB` keeps the
-training rows in GPU memory if they fit in GB (leave room for the
-desktop, the network and a second process), otherwise batches come from
-RAM. `--device vulkan:discrete` or `vulkan:integrated` picks the GPU
-(`vulkan` alone takes the default adapter), so two runs can train in
-parallel on a discrete and an integrated GPU. `--queue 2x512,4x512`
-trains several networks (layers x width, in this order) on data loaded
-once: one thread per `--workers` device (default `cpu`, e.g.
-`cpu,cpu,cpu,cpu,vulkan:discrete`; CPU training uses about one core per
-worker) takes the next network when it is free and trains it into
-`OUT_DIR/<L>x<H>` (`-2`, `-3`... for a repeated shape) with its log in
-`train.log`; a worker written `last:vulkan:discrete` takes from the end
-of the queue, so with the list sorted by cost the GPU trains the largest
-networks while CPU workers start with the smallest; `once:cpu` trains one
-network and stops, so a slow worker does not pick up a large network
-late in the queue. A restarted queue
-skips finished networks and resumes interrupted ones.
-Start supervised training in a fresh output directory to train encoder v2
-from existing raw shards. For v2 self-play refinement, pass the resulting
-`OUT_DIR/model.gcnn` to `rl --start`. Starting from the bundled model
-continues with its v1 inputs.
-
-```sh
-cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR... --hidden 512 --epochs 30 --minutes 120
-cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR... --hidden 512 --epochs 60 --minutes 600 --patience 3 --lr-decay 0.1 --lr-decays 1
-cargo run --locked --release -p nn-train --features vulkan -- train OUT_DIR DATA_DIR... --hidden 512 --device vulkan --cache CACHE_DIR --data-on-device 12
-cargo run --locked --release -p nn-train --features vulkan -- train OUT_DIR DATA_DIR... --queue 2x512,4x512 --workers cpu,vulkan:discrete --cache CACHE_DIR --data-on-device 12
-cargo run --locked --release -p nn-train -- evaluate OUT_DIR/model.gcnn DATA_DIR...
-cargo run --locked --release -p nn-train -- probe OUT_DIR/model.gcnn DATA_DIR... --belief OUT_DIR/belief.bpk --json probe.json
-cargo run --locked --release -p skat-ai --example calibrate -- validation nn:assets/models/card-play.gcnn easy 200 6 0
-cargo run --locked --release -p skat-ai --example latency -- 20 nn:assets/models/card-play.gcnn
-```
-
-Self-play refinement improves a model from game outcomes against a frozen
-opponent pool (see [docs/ai.md](docs/ai.md#self-play-refinement)). One
-process uses all CPUs; it writes a checkpoint after every iteration, so
-rerunning the same command continues exactly where it stopped. `touch
-OUT_DIR/STOP` ends it after the running iteration; `--minutes 0` only
-writes `model.gcnn` and `rl.json` of the current state. Snapshots in
-`OUT_DIR/snapshots` are measured with `calibrate`:
-
-```sh
-cargo run --locked --release -p nn-train -- rl OUT_DIR --start assets/models/card-play.gcnn --minutes 720
-cargo run --locked --release -p skat-ai --example calibrate -- tuning nn:OUT_DIR/snapshots/iter-00010.gcnn medium 100 10 0
-```
-
-To run it unattended for hours, start one instance (it uses every CPU;
-a second one only halves the throughput) from a copy of the binary
-outside the repository, so branch switches and rebuilds do not touch the
-running program. `RUNS` is any directory outside the repository:
-
-```sh
-cargo build --locked --release -p nn-train
-mkdir -p RUNS && cp target/release/nn-train RUNS/
-cd RUNS
-nohup ./nn-train rl run --start /path/to/repo/assets/models/card-play.gcnn --minutes 720 >> run.log 2>&1 &
-tail -f run.log            # one line per iteration: points per pool kind, KL, entropy
-touch run/STOP             # stop after the running iteration (or kill the process)
-```
-
-- **Resume**: run the same `nohup` command again; it continues
-  bit-identically from `run/checkpoint` (the recipe flags must stay the
-  same, `--minutes` counts per start). `--cpus N` leaves CPUs for other
-  work and changes only the speed, not the result.
-- **Progress**: a snapshot is written every 10 iterations
-  (`run/snapshots/iter-NNNNN.gcnn`); measure the newest against the
-  shipped model with
-  `calibrate -- tuning nn:RUNS/run/snapshots/iter-NNNNN.gcnn
-  nn:assets/models/card-play.gcnn 400 20 0` while the run continues
-  (slower, same result). Selection and the final measurement on fresh
-  validation deals follow [docs/ai.md](docs/ai.md#self-play-refinement).
+For the shipped model, v2 status and commands to generate data, verify
+shards, train, probe and refine models, see [offline learned models](docs/learned-models.md).
+For docs-only changes run `scripts/check.sh full --base origin/main` and
+check relative links and heading anchors.
 
 The coach latency per human decision is measured by hand through
 `skat-app` (see [docs/coach.md](docs/coach.md#latency)):
