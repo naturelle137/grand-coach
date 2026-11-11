@@ -1,16 +1,7 @@
 # Coach validation: evidence checklist and learner UAT
 
-Status: protocol prepared for M5 (issue
-[#51](https://github.com/naturelle137/grand-coach/issues/51), D-54),
-2026-10-31. Shipped lessons: `proven-void` and `remaining-trumpf` (#43,
-D-55), `trumpf-vulnerability` and `partner-overtake` (#44, D-56),
-`hand-structure` and `game-value` (#45, D-57); focus and
-moment selection without new lessons (#46, D-58); historical decision
-snapshots in the debriefing (#47, D-59); opt-in figures exception to live
-non-disclosure (#65, D-60). M8 execution: issue
-[#54](https://github.com/naturelle137/grand-coach/issues/54). Concept:
-[coach-didactics.md](coach-didactics.md); contract:
-[analysis.md](analysis.md#evidence-for-lessons).
+Use the [analysis evidence contract](analysis.md#evidence-for-lessons) for lesson changes
+and the [release test plan](release-test-plan.md) for learner sessions.
 
 ## Scope and limits
 
@@ -40,7 +31,7 @@ Three different questions, answered by different means:
 
 ## A. Evidence checklist per lesson
 
-Each lesson PR (#43–#47 and later) copies this list into its PR body,
+Each lesson PR copies this list into its PR body,
 answers every line with the evidence (test name, file, rule source) or
 “n/a: reason”, and records the lesson ID and version.
 
@@ -181,8 +172,7 @@ affected items. Use the same template across all shipped lessons.
 
 ## C. Initial and delayed unaided-task protocol
 
-Defined now, before any learning outcome is collected. M8 issue #54
-concretises the task set for the delivered #48–#50 flows and executes it.
+Use this protocol when practice and progress tracking are available.
 
 ### C1. Fixed before collecting results
 

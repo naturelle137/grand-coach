@@ -1,151 +1,22 @@
-# Vision: Grand-Coach
+# Product scope
 
-## Goal
+Grand-Coach is an offline desktop Skat trainer for Linux and Windows 11.
+The player plays against two computer opponents. The optional coach helps the
+player count cards and reason from another seat's perspective. Before a move,
+the player can ask what is known, what can be inferred and which options are
+legal. After the move, the coach can discuss a concrete alternative.
 
-A Skat trainer for PC (Linux, Windows 11). You play full Skat against two
-computer opponents, accompanied by an optional live coach. The coach
-**explains the line of thought**, not just the best move:
-
-1. **What do you need to think about now?** (e.g. trump distribution, singleton
-   cards, card points so far, what the bidding revealed)
-2. **What are your options?**
-3. **How do they compare, and why should you pick one?**
-
-This applies to bidding, picking up the Skat and discarding, choosing the game
-type, and to leading and following.
-
-The user mainly wants to improve **card counting** and **putting themselves in
-the opponents' shoes**.
-
-## Features
-
-This is the product direction, not a shipped-feature checklist. Rules,
-opponents and the live coach (including six lessons/focus/historical moments)
-are implemented; counting aid/quiz, saved replay/open mode, persistent progress
-and training remain planned. See [roadmap.md](roadmap.md) for status.
-Optional offline learned backends are planned; Classic remains the default.
-
-### Game
-
-- Full Skat according to the **International Skat Rules (ISkO)**: bidding,
-  Hand, Skat, discarding, suit games, Grand, Null (Hand/Ouvert),
-  announced Schneider/Schwarz, Ouvert.
-- **Kontra/Re** as an option (can be switched off). Detailed rules follow the
-  common German pub Skat variant, see D-03.
-- If all players pass, the hand is **thrown in** (redealt). No Ramsch, no Bock.
-- Scoring per **Seeger-Fabian**.
-- **Series** with a fixed number of games (e.g. 36) and **free play**.
-- **Opponent strength in levels**: Rookie, Easy, Medium and Strong, plus
-  the table modes Goldfish, Mephisto and God Mode (D-40, D-41, D-62,
-  [ai.md](ai.md)). Opponents only see what a human in their seat would
-  see, except Mephisto, which sees every card.
-- **God Mode** (D-62): against Mephisto, the player and the coach see
-  every card, the Skat included. The coach evaluates in the real deal but
-  still never tells the move ahead; the player can turn the open cards off.
-- **Replay**: step through finished games trick by trick, with coach comments.
-  **Replay the same deal** to try out alternatives.
-- Normal play without the coach.
-
-### Coach
-
-- **Intervention levels**: off / on request (help button) / at important
-  decisions / at every move.
-- **No telling ahead** (D-49): before the move the coach never names the
-  best option. Hints come in stages: what to think about (goal, facts,
-  likely cards), then the situation (options unjudged, a qualitative hint),
-  then figures per option (winning probability, expected points), still
-  unjudged. The figures are hidden unless switched on; then stage 3 is an
-  explicit opt-in exception: from the model's estimates a player can read
-  its preference, but no option is labelled (D-60). With figures off,
-  repeated requests stop at the situation.
-- **After the move**: a short note on how good it was.
-- **Warning before a weak move**: optional setting, off by default; it
-  names no alternative.
-- **Post-game analysis**: up to three particularly good and bad moments,
-  each with the model's judgement and the better alternative in a short
-  summary; comparison, figures and assumptions on request (D-52).
-- **Statistics over time**: error types are collected (e.g. "misjudged the
-  remaining trumps") so that weaknesses become visible.
-
-The didactic direction and remaining follow-up prioritise relevant questions, conditional
-explanations and independent transfer. See [coach-didactics.md](coach-didactics.md)
-and [coach-work-packages.md](coach-work-packages.md). It extends the shared
-analysis and existing coach rather than introducing a second strategy engine.
-
-### Card counting
-
-- **Counting aid** (optional): cards played, trumps still out, card points of
-  both parties, opponents' known voids.
-- **In-game quiz**: the game asks now and then, e.g. "How many trumps are
-  still out?", and compares the answer with the truth.
-- **Training mode** (later stage): targeted practice situations outside a
-  full game.
-
-### Open mode
-
-- The player sees all cards. The coach still explains only the player's
-  **own** game and shows **how the opponents' hands could have been deduced in
-  a closed game**: what did bidding, discards and following suit reveal?
-
-### Presentation
-
-- Plain graphics in the style of the 90s/2000s. Card legibility comes before
-  effects.
-- **Switchable card faces**: French tournament deck with four colours
-  (default; clubs black, spades green, hearts red, diamonds yellow), classic
-  two-colour French deck, German deck (Altenburger Bild). Mephisto and God
-  Mode show their own variants, back and table colour (D-41, D-62). Texts
-  name the suits after the shown symbols (German deck: Eichel, Laub, Herz,
-  Schellen); a replaced symbol keeps the usual name in brackets, e.g.
-  "Mond (Pik)".
-- Cards are **self-made** (SVGs generated by a script).
-- UI and coach texts in **German and English**.
+The game uses ISkO rules with optional Kontra/Re and Seeger-Fabian scoring.
+It supports fixed-length series and free play. The two UI languages are German
+and English. Card legibility takes priority over animation. Multiplayer,
+mobile, Ramsch and Bock are outside the project scope.
 
 ## Architecture (guideline)
 
-```text
-skat-core      rule engine: pure, deterministic (seed), no GUI/IO
-   ↓
-skat-nn        learned models: permitted-view encoder, CPU inference (Burn)
-   ↓
-skat-analysis  card counter / knowledge state, opponent model (distributions
-               from bidding/discards), option evaluation (Monte Carlo +
-               double-dummy solver)
-   ↓
-skat-ai        opponent AI (strength levels)  │  skat-coach  structured
-                                              │  explanations (considerations,
-                                              │  options, evaluation)
-   ↓
-skat-app       application interface (facade): session, commands, events,
-               view models. The only API frontends use.
-   ↓
-gui-egui       first frontend (Rust + egui)
-gui-godot      later frontend (Godot via godot-rust/gdext)
-```
+The rule engine owns legal actions and scoring. Analysis works from the
+acting seat's view. Opponents choose actions and the coach explains shared
+analysis results. Only explicitly privileged modes receive concealed cards.
+Frontends access sessions through the plain-data `skat-app` interface.
 
-Principles:
-
-- **The coach only verbalises what the analysis has computed.** It produces
-  structured data (text keys + parameters); translation happens in the
-  presentation layer.
-- **Information sets are strictly separated**: AI and coach work on one
-  player's view, never on the full game state. Only open mode, God Mode and
-  post-game analysis may see everything, and that is marked explicitly.
-- **Frontend-independent**: `skat-app` knows neither egui nor Godot. Commands,
-  events and view models are plain, serialisable data types, so Godot can be
-  attached later without touching engine or coach.
-
-## Out of scope
-
-- No online or multiplayer mode, no human fellow players.
-- No Ramsch, no Bock, no further pub rules (maybe later as an option).
-  Exception: Kontra/Re per D-03.
-- No mobile or web version (Godot might enable that later, but it is not a
-  goal).
-- No real-money or tournament features.
-- No elaborate graphics or animation.
-
-## Decisions taken
-
-See [decisions.md](decisions.md). Design inside `skat-core`:
-[architecture.md](architecture.md).
+See the [core architecture](architecture.md), [implementation status and next
+work](roadmap.md) and [binding decisions](decisions.md).

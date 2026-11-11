@@ -1,8 +1,6 @@
 # Analysis: `skat-analysis`
 
-How the shared analysis of M3 evaluates decisions (D-37, D-38). AI (M4)
-and coach (M5) use it; neither computes strategy of its own. Details are
-in the code (`crates/skat-analysis`).
+The AI and coach use the same option evaluations from `skat-analysis` (D-37, D-38).
 
 ## Information boundary
 
@@ -12,11 +10,11 @@ in the code (`crates/skat-analysis`).
   (`double_dummy::Position`) are hypothetical simulation inputs.
 - The only bridges from a real game to full knowledge are
   `Position::from_omniscient(&OmniscientView)` and
-  `World::from_omniscient(&OmniscientView)`, for open mode, post-game
-  analysis (M7), the Mephisto opponent (D-41) and God Mode (D-62). Their
+  `World::from_omniscient(&OmniscientView)`, for privileged analysis,
+  including Mephisto (D-41) and God Mode (D-62). Their
   names and argument type make every use visible.
 - `analyze_known(view, world, budget, cancel)` evaluates every option in
-  one given distribution, exactly. Its estimates are marked
+  one given distribution with the specified budget and continuation policy. Its estimates are marked
   `Effort::known` and its assumptions name `KnownDeal` instead of uniform
   hidden cards and bidding evidence; its inferences stay those of the
   seat's own information set (`budget.samples` distributions, seed 0), so
@@ -75,10 +73,7 @@ It reuses one `Analysis`; it runs no search of its own.
   kind. Then come the pre-play lessons of D-57, `game-value` and
   `hand-structure` ([coach.md](coach.md#pre-play-lessons-d-57)); the
   condition `OpeningCall` holds at a bidding decision before the seat's
-  own first call (`Snapshot::own_calls`). Contract version 4: the
-  observations `Structure`, `GameValues` and `Commitment` and
-  `Snapshot::own_calls` (version 3: `Comparison::mechanisms`; version 2:
-  `Source::Trick` names the led card and the card played).
+  own first call (`Snapshot::own_calls`).
 - `mechanism::mechanisms(view, action)` (D-56) decides two exact
   questions about the trick after the chosen card, from the view only:
   can an opponent playing later trump the seat's winning side Ass or Zehn
@@ -240,25 +235,7 @@ benchmark games never say Kontra, so no Re decision), card play at tricks
 cargo run --locked --release -p skat-analysis --example bench
 ```
 
-Achieved on 2026-10-29 (10 positions each; `se`: median standard error of
-the best option's expected score; `regret`: mean Seeger-Fabian points lost,
-as valued by one run, when choosing the best option of a second run with
-another seed):
-
-| Decision | Median | p90 | Max | Incomplete | se | regret |
-|----------|--------|-----|-----|------------|----|--------|
-| Reizen | 0.9 s | 4 s | 4 s | 0 | 4.1 | 6.3 |
-| Hand/pickup | 0.9 s | 1 s | 4 s | 0 | 19.4 | 0.0 |
-| Drücken | 6 s | 8 s | 10 s | 0 | 17.0 | 15.0 |
-| Announcement | 3 s | 3 s | 5 s | 0 | 19.5 | 2.2 |
-| Kontra | 0.3 s | 1 s | 3 s | 0 | 2.7 | 0.0 |
-| Card play, trick 1 | 0.7 s | 1 s | 3 s | 0 | 3.7 | 1.5 |
-| Card play, trick 4 | 5 ms | 17 ms | 37 ms | 0 | 3.9 | 0.2 |
-| Card play, trick 8 | 1 ms | 2 ms | 2 ms | 0 | 0.0 | 0.3 |
-
-All rows meet the target. Quality: card play and Kontra/Re estimates are tight;
-before card play the standard errors (17–20 points) and the Drücken
-regret show that 24 samples separate only clearly different options.
-More samples or a faster solver improve this; see the open points in
-`decisions.md`. Monte Carlo against exact enumeration is tested in
-`tests/analysis.rs` (tolerance: 4 standard errors plus 1 point).
+At the interactive budget, pre-play estimates can have large standard
+errors. Inspect sample counts, screening and uncertainty before comparing
+close options. The analysis tests compare Monte Carlo with exact
+enumeration on known positions.
