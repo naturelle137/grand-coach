@@ -37,6 +37,10 @@ fn void_classes(i18n: &I18n, voids: &Voids) -> String {
 /// The lines of the counting aid.
 pub fn aid_lines(i18n: &I18n, aid: &CountingView) -> Vec<String> {
     let mut lines = vec![i18n.tf("aid-played", &[("count", aid.played.len().into())])];
+    if !aid.played.is_empty() {
+        let cards: Vec<String> = aid.played.iter().map(|&c| text::card(i18n, c)).collect();
+        lines.push(i18n.tf("aid-played-cards", &[("cards", cards.join(", ").into())]));
+    }
     match (aid.trumpf, aid.game) {
         (Some(t), _) => {
             lines.push(i18n.tf(
@@ -154,4 +158,78 @@ pub fn feedback_lines(i18n: &I18n, f: &QuizFeedback) -> Vec<String> {
         )),
     }
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use skat_app::{AugenCount, Card, GameType, Rank, TrumpfCount};
+
+    use super::*;
+    use crate::i18n::Language;
+
+    fn aid(played: Vec<Card>) -> CountingView {
+        CountingView {
+            game: Some(GameType::Grand),
+            played,
+            trumpf: Some(TrumpfCount {
+                total: 4,
+                own: 1,
+                played: 1,
+                discarded: 0,
+                outside: 2,
+                skat_unknown: false,
+            }),
+            // Own 2 + played 2 + own discard 12: 120 - 16 = 104.
+            augen: AugenCount {
+                declarer: Some(2),
+                defenders: Some(0),
+                outstanding: 104,
+                skat: Some(12),
+            },
+            voids: Default::default(),
+        }
+    }
+
+    #[test]
+    fn the_aid_names_each_played_card_in_both_languages() {
+        let played = vec![
+            Card::new(Suit::Kreuz, Rank::Bube),
+            Card::new(Suit::Herz, Rank::Ass),
+        ];
+        let other = vec![
+            Card::new(Suit::Kreuz, Rank::Bube),
+            Card::new(Suit::Pik, Rank::Ass),
+        ];
+        for language in [Language::De, Language::En] {
+            let i18n = I18n::new(language);
+            let lines = aid_lines(&i18n, &aid(played.clone()));
+            let names: Vec<String> = played.iter().map(|&c| text::card(&i18n, c)).collect();
+            assert!(
+                lines
+                    .iter()
+                    .any(|l| l.contains(&names[0]) && l.contains(&names[1])),
+                "{lines:?}"
+            );
+            // A different card is a different line.
+            assert_ne!(lines, aid_lines(&i18n, &aid(other.clone())));
+            // No card, no list.
+            assert_eq!(aid_lines(&i18n, &aid(Vec::new())).len(), lines.len() - 1);
+        }
+    }
+
+    #[test]
+    fn the_outstanding_wording_excludes_the_own_discard() {
+        let de = aid_lines(&I18n::new(Language::De), &aid(Vec::new()));
+        let en = aid_lines(&I18n::new(Language::En), &aid(Vec::new()));
+        assert!(
+            de.iter()
+                .any(|l| l.contains("Drücken") && l.ends_with("104")),
+            "{de:?}"
+        );
+        assert!(
+            en.iter()
+                .any(|l| l.contains("own discard") && l.ends_with("104")),
+            "{en:?}"
+        );
+    }
 }

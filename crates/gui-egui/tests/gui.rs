@@ -1531,6 +1531,8 @@ fn counting_aid_and_quiz_work_by_clicks_in_both_languages() {
         harness.get_by_label("Last counting question");
         harness.get_by_label("Counting aid");
         harness.get_by_label_contains("Played so far");
+        harness.get_by_label_contains("Played cards:");
+        harness.get_by_label_contains("neither in your hand, nor played, nor in your own discard");
         harness.get_by_label_contains(match feedback.outcome {
             skat_app::QuizOutcome::Correct => "Correct:",
             _ => "Not quite:",
