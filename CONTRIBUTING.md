@@ -147,6 +147,12 @@ Example: `docs: add roadmap with milestones`
 - If a change affects a decision, the vision or the roadmap, update the
   matching file in `docs/` in the same PR.
 
+Each PR receives an independent review from a provider other than the
+implementation author. Record the provider, reviewed commit, evidence and
+verdict in the PR. The CTO agent merges after blocking findings are resolved
+and required CI is green; the CEO is not a technical reviewer. See D-27 and
+[AGENTS.md](AGENTS.md#review-and-delivery-ownership).
+
 ## Automated implementation (Claude)
 
 Maintainers can let Claude implement a single issue (D-27): Actions →

@@ -122,6 +122,21 @@ check relative links when editing documentation.
 - The rule-engine milestone also requires thousands of seeded random games
   without rule violations (see `docs/roadmap.md`).
 
+## Review and delivery ownership
+
+Agents own implementation, technical validation, review and integration.
+Every PR needs an independent review by a provider other than its author
+(Claude reviews Codex changes; Codex reviews Claude changes). Record the
+reviewed commit, provider, evidence and `VERDICT: APPROVE` or blocking
+findings in the PR. Re-review relevant changes after fixes; merge only with
+no unresolved blockers and green required CI. The CTO agent integrates.
+The CEO does not review PRs or resolve technical findings. Changes to
+repository protection settings require a separate CEO decision.
+
+Learner participation is separate from technical review (D-51, D-61).
+Agents prepare and run technical checks; actual learner observations remain
+pending until collected and must never be simulated by an agent.
+
 ## Conventions
 
 - Branching, Conventional Commits and PRs: see `CONTRIBUTING.md` (D-17).

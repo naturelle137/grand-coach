@@ -1,6 +1,6 @@
 # Release 1.0 test plan
 
-After the release scope is implemented, the maintainer tests the release
+After the release scope is implemented, agents test the release
 candidate on Linux and Windows 11. Finalise reproducible seeds and steps
 against that build before starting. Use only features included in the release.
 

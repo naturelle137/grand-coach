@@ -15,6 +15,8 @@ Three different questions, answered by different means:
 
 - **No human Skat expert is available, and none is a prerequisite.** No PR,
   lesson or milestone waits for expert sign-off, and none claims it.
+- Technical PR review belongs to agents from different providers (D-27).
+  Learner sessions are separate release evidence, not a per-PR approval.
 - The maintainer takes part **as a learner**: they judge comprehensibility,
   context and flow, not advanced strategy. A missing answer or “unclear” is
   a valid result.
