@@ -3,14 +3,15 @@
 The playable desktop app includes the rule engine, series and score sheet,
 Classic strength levels and special tables, German and English card and coach
 views, six lessons, an optional learning focus and a debriefing of up to three
-decisions, an optional counting aid and counting questions. God Mode exposes the deal to the player and coach. The debriefing
-can show the table as it appeared when the player acted. Platform coverage and
-release checks are in [testing.md](testing.md).
+decisions, an optional counting aid and counting questions. God Mode exposes
+the deal to the player and coach. The debriefing can show the table as it
+appeared when the player acted. Platform coverage and release checks are in
+[testing.md](testing.md).
 
 | Area | Implemented | Remaining work |
 |------|-------------|----------------|
 | Offline engines | Neural test table with supervised v1 and Strong fallback. Training, role tournaments and PPO for v2. | Finish [Phase 2](learned-models.md#phase-2), evaluate the refined candidates and retain one or two. Further engine selection, learned pre-play, hybrid search and learned coach integration belong to [the neural epic](https://github.com/naturelle137/grand-coach/issues/67). |
-| Card counting (M6) | Analysis tracks played cards, Trumpf, Augen and proven voids. Coach lessons use these facts. An optional [counting aid and in-game quiz](coach.md#counting-aid-and-quiz-d-64) show exact facts from the player's view. | Practice sessions with progressively less assistance and attempt history (M8). |
+| Card counting (M6) | Analysis tracks played cards, Trumpf, Augen and proven voids. Coach lessons use these facts. An optional [counting aid and in-game quiz](coach.md#counting-aid-and-quiz-d-64) show exact facts from the player's view. | Add optional [retrieval questions](https://github.com/naturelle137/grand-coach/issues/48) with progressively less assistance. Practice sessions and attempt history belong to M8. |
 | Open play and replay (M7) | Seeded deals, game reconstruction and immediate decision snapshots. | Save and load games, step through tricks, retry a deal and explain what closed-play evidence would reveal in open mode. |
 | Training and release (M8) | A [release test plan](release-test-plan.md) and [learner protocol](coach-validation.md). | Let the player choose a theme and practise it across varied positions, with gradually less help and a fresh unaided task. Record which attempts needed assistance. Package the game and notices for Linux and Windows 11, perform learner and platform checks, fix findings and retest. |
 | Second frontend (M9) | Frontend-independent session API. | Add Godot via gdext after the desktop training and release work. |
