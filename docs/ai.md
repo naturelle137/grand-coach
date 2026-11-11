@@ -917,7 +917,14 @@ network), which also serves as the frozen reference.
   (`--snapshot-every` 10 iterations, `--pool-snapshots` 8; greedy by
   their policy). Seats rotate with the game index like the arena's
   seatings: the learner alone on each seat against two copies of the
-  opponent, or as a pair against one.
+  opponent, or as a pair against one. Mixed tables (`--mixed`, e.g.
+  `easy+strong=3`) are drawn together with the pool: against a lone
+  learner each kind takes one opponent seat (the order alternates by a
+  seeded bit), so the learner defends with a weak partner against a
+  strong declarer, with a strong partner against a weak one, and
+  declares against an uneven pair; against a learner pair one of the
+  two kinds takes the opponent seat. Logs count mixed tables apart from
+  the plain kinds and record the learner's declarer games.
 - **Seeds and resume**: deals, pool draws, opponent seeds and the
   learner's sampling come from separate keys mixed with the run seed, the
   iteration and the game; results do not depend on the worker count.

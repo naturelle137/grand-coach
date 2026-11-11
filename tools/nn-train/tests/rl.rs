@@ -13,8 +13,8 @@ use std::time::Duration;
 
 use burn::tensor::Device;
 use nn_train::rl::{
-    IterationLog, PoolKind, RlHyper, RlLimits, RlStop, learner_seats, learner_step, parse_pool,
-    play_one, recipe, run, update_model,
+    IterationLog, PoolKind, RlHyper, RlLimits, RlStop, learner_seats, learner_step, parse_mixed,
+    parse_pool, play_one, recipe, run, seat_kinds, update_model,
 };
 use nn_train::selfplay::RULES;
 use skat_ai::{KontraRule, kontra_rule};
@@ -264,6 +264,101 @@ fn pools_parse_and_reject_bad_specs() {
     assert!(parse_pool("easy=0").is_err());
     assert!(parse_pool("hard=1").is_err());
     assert!(parse_pool("easy").is_err());
+}
+
+#[test]
+fn mixed_tables_parse_and_reject_bad_specs() {
+    use PoolKind::{Easy, Medium, Snapshot, Strong};
+    assert_eq!(parse_mixed("").expect("none"), vec![]);
+    assert_eq!(
+        parse_mixed("easy+strong=2,snap+medium=1").expect("valid"),
+        vec![([Easy, Strong], 2), ([Snapshot, Medium], 1)]
+    );
+    assert!(parse_mixed("easy=1").is_err());
+    assert!(parse_mixed("easy+hard=1").is_err());
+    assert!(parse_mixed("easy+strong").is_err());
+}
+
+#[test]
+fn a_mixed_table_seats_both_kinds_against_a_lone_learner() {
+    use PoolKind::{Easy, Strong};
+    let t = [Easy, Strong];
+    assert_eq!(
+        seat_kinds(t, [true, false, false], 0),
+        [None, Some(Easy), Some(Strong)]
+    );
+    assert_eq!(
+        seat_kinds(t, [true, false, false], 1),
+        [None, Some(Strong), Some(Easy)]
+    );
+    assert_eq!(
+        seat_kinds(t, [false, true, false], 0),
+        [Some(Easy), None, Some(Strong)]
+    );
+    assert_eq!(
+        seat_kinds(t, [true, false, true], 1),
+        [None, Some(Strong), None]
+    );
+    // A plain entry is the same kind twice: every opponent seat holds it.
+    assert_eq!(
+        seat_kinds([Easy, Easy], [false, true, false], 1),
+        [Some(Easy), None, Some(Easy)]
+    );
+}
+
+#[test]
+fn mixed_tables_play_and_are_logged_apart_from_plain_kinds() {
+    let h = RlHyper {
+        pool: parse_pool("easy=1").expect("pool"),
+        mixed: parse_mixed("easy+ref=3").expect("mixed"),
+        ..hyper()
+    };
+    let games: Vec<_> = (0..12)
+        .map(|g| play_one(&h, &learner(), &reference(), 0, g).expect("game"))
+        .collect();
+    let mixed: Vec<_> = games
+        .iter()
+        .filter(|g| g.table == [PoolKind::Easy, PoolKind::Reference])
+        .collect();
+    assert!(!mixed.is_empty(), "a mixed table is drawn");
+    for g in &games {
+        for seat in 0..3 {
+            assert_eq!(g.learner[seat], g.opponents[seat].is_none());
+        }
+    }
+    // Against a lone learner both kinds sit, in either order.
+    let lone: Vec<_> = mixed
+        .iter()
+        .filter(|g| g.learner.iter().filter(|&&l| l).count() == 1)
+        .map(|g| g.opponents.iter().flatten().copied().collect::<Vec<_>>())
+        .collect();
+    assert!(!lone.is_empty());
+    assert!(
+        lone.iter()
+            .all(|o| o.contains(&PoolKind::Easy) && o.contains(&PoolKind::Reference))
+    );
+
+    let out = scratch("mixed");
+    let r = recipe(&learner(), h).expect("recipe");
+    let result = run(
+        &out,
+        &r,
+        &learner(),
+        &Device::flex().autodiff(),
+        limits(1, 2),
+        |_| true,
+    )
+    .expect("run");
+    let log = &result.state.logs[0];
+    let plain: usize = log.pool.iter().map(|(_, l)| l.games).sum();
+    let tables: usize = log.tables.iter().map(|(_, l)| l.games).sum();
+    assert_eq!(plain + tables, log.games);
+    assert!(log.tables.iter().all(|(n, _)| n == "easy+ref"));
+    let logs = log.pool.iter().map(|(_, l)| l);
+    assert!(
+        logs.chain(log.tables.iter().map(|(_, l)| l))
+            .all(|l| l.declarer_seats <= l.learner_seats)
+    );
 }
 
 #[test]
