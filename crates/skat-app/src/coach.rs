@@ -356,6 +356,24 @@ pub struct CoachView {
     pub debriefing: Option<Debriefing>,
 }
 
+impl CoachView {
+    /// The view while a quiz question is pending: the settings only. No
+    /// hint, note or debriefing can reveal the answer (D-64).
+    pub(crate) fn withheld(settings: CoachSettings) -> CoachView {
+        CoachView {
+            settings,
+            help_available: false,
+            skippable: false,
+            next_stage: None,
+            analysing: false,
+            advice: Advice::None,
+            pending: None,
+            last_move: None,
+            debriefing: None,
+        }
+    }
+}
+
 /// An own decision played before its analysis finished.
 #[derive(Clone, Debug)]
 pub(crate) struct Queued {

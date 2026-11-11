@@ -136,6 +136,7 @@ mod tests {
         let mut found = BTreeSet::new();
         for source in [
             include_str!("app.rs"),
+            include_str!("assist.rs"),
             include_str!("text.rs"),
             include_str!("cards.rs"),
             include_str!("coach.rs"),
@@ -290,6 +291,14 @@ mod tests {
                     "winner",
                     "name",
                     "alias",
+                    "outside",
+                    "own",
+                    "played",
+                    "classes",
+                    "discarded",
+                    "given",
+                    "size",
+                    "unplayed",
                 ] {
                     args.set(name, "x");
                 }

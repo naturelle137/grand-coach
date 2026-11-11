@@ -4,6 +4,7 @@
 //! functionality (D-12); all texts come from `assets/i18n/` (D-32).
 
 mod app;
+pub mod assist;
 pub mod cards;
 pub mod coach;
 pub mod i18n;

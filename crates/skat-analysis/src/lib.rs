@@ -12,6 +12,7 @@
 //!   those distributions, double-dummy card play ([`double_dummy`]) and a
 //!   shared continuation policy ([`policy`]), within a deterministic
 //!   [`Budget`],
+//! - the exact counting aid and counting questions ([`counting`]),
 //! - simple hand measures ([`hand`]),
 //! - the evidence contract for coach lessons ([`lesson`]) and the exact
 //!   card-play mechanisms they may cite ([`mechanism`]), and the exact
@@ -21,6 +22,7 @@
 
 mod analysis;
 mod budget;
+pub mod counting;
 pub mod double_dummy;
 pub mod evidence;
 pub mod hand;
