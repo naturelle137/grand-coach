@@ -248,7 +248,7 @@ case $tier in
         ;;
     quick)
         lint
-        if ! git diff --cached --name-only | python3 -c 'import sys; sys.path.insert(0, "scripts/ci"); from route import docs; sys.exit(0 if all(docs(p.rstrip("\n")) for p in sys.stdin) else 1)'; then
+        if ! git diff --cached --name-only | python3 -B -c 'import sys; sys.path.insert(0, "scripts/ci"); from route import docs; sys.exit(0 if all(docs(p.rstrip("\n")) for p in sys.stdin) else 1)'; then
             clippy
         fi
         ;;
