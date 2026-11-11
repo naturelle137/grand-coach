@@ -886,7 +886,9 @@ fn launch_shows_the_new_series_settings() {
 /// Game part of the view (everything but the coach).
 fn game_part(view: &TableView) -> TableView {
     let mut view = view.clone();
-    view.coach = Session::new(SessionConfig::default()).view().coach;
+    let blank = Session::new(SessionConfig::default()).view();
+    view.coach = blank.coach;
+    view.assist = blank.assist;
     view
 }
 
@@ -1439,4 +1441,152 @@ fn window_stays_responsive_while_the_coach_analyses() {
     let action = before.legal_actions[0];
     perform(&mut harness, &before, action);
     assert_ne!(game_part(&view(&harness)), game_part(&before));
+}
+
+/// Plays by clicks until a counting question is open; `None` if the
+/// series ends first.
+fn until_question(harness: &mut Harness<'_, GrandCoachApp>, rng: &mut ChaCha8Rng) -> Option<()> {
+    for _ in 0..3000 {
+        settle(harness);
+        let view = view(harness);
+        if view.assist.quiz.question.is_some() {
+            return Some(());
+        }
+        if view.series_finished {
+            return None;
+        }
+        human_turn(harness, rng);
+    }
+    None
+}
+
+fn toggle(harness: &mut Harness<'_, GrandCoachApp>, menu: &str, item: &str) {
+    button(harness, menu);
+    click(harness, Role::CheckBox, item);
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(3);
+}
+
+#[test]
+fn counting_aid_and_quiz_work_by_clicks_in_both_languages() {
+    for seed in 1..12 {
+        let config = SessionConfig {
+            seed,
+            series: SeriesLength::Fixed(12),
+            kontra_re: false,
+            opponents: Opponents::Levels([Level::Easy; 2]),
+        };
+        let mut harness = harness(config);
+        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        // Off by default: nothing of it on screen.
+        assert!(harness.query_by_label("Zählhilfe").is_none());
+
+        // Aid on and off by menu; the game is untouched either way.
+        toggle(&mut harness, "Einstellungen", "Zählhilfe");
+        assert!(view(&harness).assist.settings.counting_aid);
+        harness.get_by_label("Zählhilfe");
+        harness.get_by_label("Jede Angabe ist exakt und folgt aus dem, was du gesehen hast.");
+        harness.get_by_label_contains("Bisher gespielt");
+        let with_aid = game_part(&view(&harness));
+        toggle(&mut harness, "Einstellungen", "Zählhilfe");
+        assert!(!view(&harness).assist.settings.counting_aid);
+        assert!(harness.query_by_label("Zählhilfe").is_none());
+        assert_eq!(game_part(&view(&harness)), with_aid);
+
+        // Quiz on; the aid is on too, to see it withheld.
+        toggle(&mut harness, "Einstellungen", "Zählhilfe");
+        toggle(&mut harness, "Einstellungen", "Zählfragen");
+        if until_question(&mut harness, &mut rng).is_none() {
+            continue;
+        }
+        let asked = view(&harness);
+        harness.run_steps(3);
+        assert!(harness.query_all_by_label("Zählfrage").next().is_some());
+        harness.get_by_label("Dein Zug wartet. Zählhilfe und Coach bleiben verborgen, bis du antwortest oder überspringst.");
+        harness.get_by_label("Verborgen, solange die Zählfrage offen ist.");
+        assert!(harness.query_by_label_contains("Bisher gespielt").is_none());
+        harness.get_by_label("Deine Antwort: 0");
+        button(&mut harness, "+ 1");
+        button(&mut harness, "+ 10");
+        harness.get_by_label("Deine Antwort: 11");
+        // Nothing changed in the game while the question was open.
+        assert_eq!(game_part(&view(&harness)), game_part(&asked));
+
+        // English: the same question stays open with the same state.
+        harness.state_mut().set_language(Language::En);
+        harness.run_steps(3);
+        assert!(
+            harness
+                .query_all_by_label("Counting question")
+                .next()
+                .is_some()
+        );
+        harness.get_by_label("Your answer: 11");
+        assert_eq!(game_part(&view(&harness)), game_part(&asked));
+        button(&mut harness, "Answer");
+        let after = view(&harness);
+        assert!(after.assist.quiz.question.is_none());
+        let feedback = after.assist.quiz.feedback.expect("feedback after answer");
+        assert_eq!(game_part(&after), game_part(&asked));
+        harness.get_by_label("Last counting question");
+        harness.get_by_label("Counting aid");
+        harness.get_by_label_contains("Played so far");
+        harness.get_by_label_contains(match feedback.outcome {
+            skat_app::QuizOutcome::Correct => "Correct:",
+            _ => "Not quite:",
+        });
+
+        // German feedback for the same result.
+        harness.state_mut().set_language(Language::De);
+        harness.run_steps(3);
+        harness.get_by_label("Letzte Zählfrage");
+
+        // The next question: skip, then switch the quiz off. Play goes on.
+        if until_question(&mut harness, &mut rng).is_some() {
+            button(&mut harness, "Überspringen");
+            let skipped = view(&harness).assist.quiz.feedback.unwrap();
+            assert_eq!(skipped.outcome, skat_app::QuizOutcome::Skipped);
+            harness.get_by_label_contains("Übersprungen.");
+        }
+        if until_question(&mut harness, &mut rng).is_some() {
+            button(&mut harness, "Quiz ausschalten");
+            let v = view(&harness);
+            assert!(!v.assist.settings.quiz && v.assist.quiz.question.is_none());
+            assert!(v.assist.settings.counting_aid);
+        }
+        assert!(until_question(&mut harness, &mut rng).is_none());
+        return;
+    }
+    panic!("no series reached a counting question");
+}
+
+#[test]
+fn coach_help_waits_while_a_counting_question_is_open() {
+    for seed in 1..12 {
+        let config = SessionConfig {
+            seed,
+            series: SeriesLength::Fixed(12),
+            kontra_re: false,
+            opponents: Opponents::Levels([Level::Easy; 2]),
+        };
+        let mut harness = harness(config);
+        harness.state_mut().set_coach_budget(COACH_BUDGET);
+        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        toggle(&mut harness, "Einstellungen", "Zählfragen");
+        if until_question(&mut harness, &mut rng).is_none() {
+            continue;
+        }
+        // The coach panel is there (on request) but offers no help now.
+        let open = view(&harness);
+        assert!(!open.coach.help_available);
+        button(&mut harness, "Überspringen");
+        // After the question the coach is available again, independent of
+        // the aid, which is still off.
+        let after = view(&harness);
+        assert!(after.coach.help_available);
+        assert!(!after.assist.settings.counting_aid);
+        assert!(harness.query_by_label("Zählhilfe").is_none());
+        return;
+    }
+    panic!("no series reached a counting question");
 }

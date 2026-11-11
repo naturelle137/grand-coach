@@ -12,6 +12,7 @@ publish.workspace = true
 [dependencies]
 skat-core = { workspace = true, features = ["serde"] }
 skat-ai = { workspace = true, features = ["serde"] }
+skat-analysis = { workspace = true, features = ["serde"] }
 skat-coach = { workspace = true, features = ["serde"] }
 skat-nn.workspace = true
 rand_chacha.workspace = true

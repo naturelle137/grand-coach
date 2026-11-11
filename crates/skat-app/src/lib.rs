@@ -34,6 +34,7 @@
 mod coach;
 mod context;
 mod neural;
+mod quiz;
 mod series;
 mod session;
 mod sort;
@@ -47,12 +48,18 @@ pub use coach::{
 };
 pub use context::DecisionContext;
 pub use neural::{neural_model, neural_model_available};
+pub use quiz::{
+    AssistSettings, AssistView, CountingState, CountingView, QUESTION_AFTER_TRICKS, QuizFeedback,
+    QuizOutcome, QuizView,
+};
 pub use series::{GameRecord, ScoreSheet, SeriesResult};
 pub use session::{
     AppError, AppEvent, Command, OpponentJob, OpponentMove, Opponents, PlayerId, SeriesLength,
     Session, SessionConfig,
 };
 pub use skat_ai::{Budget, Cancel, Level};
+/// Exact counting facts and question kinds (D-64); frontends translate them.
+pub use skat_analysis::counting::{AugenCount, Derivation, QuestionKind, TrumpfCount, Voids};
 /// Structured coach explanations (D-13); frontends translate them.
 pub use skat_coach as coach_model;
 pub use sort::sort_hand;
@@ -60,6 +67,6 @@ pub use view::{OpenCards, PlayedCard, ResultView, SeatInfo, TableView, TrickView
 
 /// Core data types shown by frontends.
 pub use skat_core::{
-    Action, Announcement, BidRecord, Call, Card, CardSet, Contract, Event, GameResult, GameType,
-    KontraLevel, Phase, Rank, RuleError, Seat, Spitzen, Suit, reizwerte,
+    Action, Announcement, BidRecord, Call, Card, CardSet, Contract, Event, Follow, GameResult,
+    GameType, KontraLevel, Phase, Rank, RuleError, Seat, Spitzen, Suit, reizwerte,
 };

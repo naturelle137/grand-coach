@@ -46,6 +46,7 @@ PRs and the focused references (architecture, analysis, AI, coach, testing).
 | D-41 | 2026-11-01 | Goldfish forgets older cards. Mephisto sees the full deal, with privileged access explicit in its API. Use the special deck and table only in that mode. [Table behaviour](ai.md#mephisto). |
 | D-62 | 2026-11-01 | God Mode plays against Mephisto, reveals the deal to the human and coach, and allows hiding the open cards. Use the dedicated blue table, faces and back. Localise suit names to match visible symbols and keep the usual suit name in brackets for replacements. |
 | D-63 | 2026-11-11 | Keep offline model weights in git under assets/models/ with a training manifest, SHA-256 and model card (CC BY-SA 4.0). Keep training data outside git. Phase 2 ends after reinforcement learning and selection of one or two models. Each model file must stay below 10 MB. [Runtime and selection](learned-models.md). |
+| D-64 | 2026-11-11 | Offer the counting aid and in-game counting questions as two independent, default-off settings, derived only from the human's permitted view in `skat-analysis`. While a question is pending, the decision, the aid and the coach are held back. [Counting aid and quiz](coach.md#counting-aid-and-quiz-d-64). |
 
 ## Coach
 

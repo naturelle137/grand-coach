@@ -7,14 +7,15 @@ use eframe::egui::{self, Color32, RichText, Vec2};
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use skat_app::{
-    Action, Advice, Announcement, AppError, AppEvent, Cancel, Card, CardSet, CoachJob, CoachLevel,
-    CoachResult, CoachSettings, Command, Event, GameType, Level, OpenCards, OpponentMove,
-    Opponents, Pending, Phase, PlayedCard, PlayerId, SeriesLength, Session, SessionConfig, Suit,
-    TableView, reizwerte,
+    Action, Advice, Announcement, AppError, AppEvent, AssistSettings, Cancel, Card, CardSet,
+    CoachJob, CoachLevel, CoachResult, CoachSettings, Command, CountingState, Event, GameType,
+    Level, OpenCards, OpponentMove, Opponents, Pending, Phase, PlayedCard, PlayerId, SeriesLength,
+    Session, SessionConfig, Suit, TableView, reizwerte,
 };
 
 use skat_app::coach_model::{Concept, Stage};
 
+use crate::assist;
 use crate::cards::{self, Deck, Theme};
 use crate::coach::{self, Style};
 use crate::i18n::{Faces, I18n, Language};
@@ -128,6 +129,8 @@ pub struct GrandCoachApp {
     show_seed: bool,
     /// Coach analysis being computed.
     coach_thinking: Option<CoachThinking>,
+    /// Number chosen for the open counting question.
+    quiz_value: u8,
     /// God Mode: show every card face up (on by default); off, the
     /// opponents' cards and the Skat show their backs.
     see_all: bool,
@@ -153,6 +156,7 @@ impl GrandCoachApp {
             new_series: None,
             show_seed: false,
             coach_thinking: None,
+            quiz_value: 0,
             see_all: true,
         }
     }
@@ -165,6 +169,12 @@ impl GrandCoachApp {
     /// Changes the coach settings; the game keeps running.
     pub fn set_coach(&mut self, settings: CoachSettings) {
         self.send(Command::SetCoach(settings), 0.0);
+    }
+
+    /// Changes the assistance settings (counting aid, quiz); the game
+    /// keeps running.
+    pub fn set_assist(&mut self, settings: AssistSettings) {
+        self.send(Command::SetAssist(settings), 0.0);
     }
 
     /// The running session (read-only, for tests and diagnostics).
@@ -403,6 +413,8 @@ impl GrandCoachApp {
                 ui.separator();
                 self.coach_settings(ui);
                 ui.separator();
+                self.assist_settings(ui);
+                ui.separator();
                 ui.label(RichText::new(self.t("setting-developer")).strong());
                 let label = self.t("setting-show-seed");
                 ui.checkbox(&mut self.show_seed, label)
@@ -440,6 +452,116 @@ impl GrandCoachApp {
         }
         if settings != self.session.coach_settings() {
             self.set_coach(settings);
+        }
+    }
+
+    fn assist_settings(&mut self, ui: &mut egui::Ui) {
+        let mut settings = self.session.view().assist.settings;
+        ui.label(RichText::new(self.t("menu-assist")).strong());
+        let label = self.t("setting-aid");
+        ui.checkbox(&mut settings.counting_aid, label)
+            .on_hover_text(self.t("setting-aid-description"));
+        let label = self.t("setting-quiz");
+        ui.checkbox(&mut settings.quiz, label)
+            .on_hover_text(self.t("setting-quiz-description"));
+        if settings != self.session.view().assist.settings {
+            self.set_assist(settings);
+        }
+    }
+
+    /// The counting aid and the result of the last counting question.
+    fn aid_section(&self, ui: &mut egui::Ui, view: &TableView) {
+        let i = &self.i18n;
+        let assist = &view.assist;
+        if assist.counting == CountingState::Off && assist.quiz.feedback.is_none() {
+            return;
+        }
+        ui.separator();
+        match &assist.counting {
+            CountingState::Off => {}
+            CountingState::Withheld => {
+                ui.heading(self.t("aid-title"));
+                ui.label(RichText::new(self.t("aid-withheld")).weak());
+            }
+            CountingState::Shown(aid) => {
+                ui.heading(self.t("aid-title"));
+                ui.label(RichText::new(self.t("aid-exact")).weak());
+                for line in assist::aid_lines(i, aid) {
+                    ui.label(line);
+                }
+                let voids = assist::void_lines(i, aid);
+                ui.label(RichText::new(self.t("aid-voids")).strong());
+                if voids.is_empty() {
+                    ui.label(self.t("aid-void-none"));
+                }
+                for line in voids {
+                    ui.label(line);
+                }
+            }
+        }
+        if let Some(feedback) = &assist.quiz.feedback {
+            ui.label(RichText::new(self.t("quiz-feedback-title")).strong());
+            for line in assist::feedback_lines(i, feedback) {
+                ui.label(line);
+            }
+        }
+    }
+
+    /// The open counting question: answer, skip or switch the quiz off.
+    /// The move waits meanwhile.
+    fn quiz_window(&mut self, ctx: &egui::Context, view: &TableView, now: f64) {
+        let Some(kind) = view.assist.quiz.question else {
+            self.quiz_value = 0;
+            return;
+        };
+        let text = assist::question(&self.i18n, kind);
+        let (mut command, mut delta) = (None, 0i16);
+        egui::Window::new(self.t("quiz-title"))
+            .pivot(egui::Align2::CENTER_CENTER)
+            .default_pos(ctx.content_rect().center())
+            .default_width(420.0)
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label(text);
+                ui.label(RichText::new(self.t("quiz-hint")).weak());
+                ui.label(
+                    RichText::new(
+                        self.i18n
+                            .tf("quiz-value", &[("value", self.quiz_value.into())]),
+                    )
+                    .strong(),
+                );
+                ui.horizontal(|ui| {
+                    for (id, step) in [
+                        ("quiz-minus-ten", -10),
+                        ("quiz-minus-one", -1),
+                        ("quiz-plus-one", 1),
+                        ("quiz-plus-ten", 10),
+                    ] {
+                        if ui.button(self.t(id)).clicked() {
+                            delta = step;
+                        }
+                    }
+                });
+                ui.horizontal(|ui| {
+                    if ui.button(self.t("quiz-submit")).clicked() {
+                        command = Some(Command::AnswerQuiz(self.quiz_value));
+                    }
+                    if ui.button(self.t("quiz-skip")).clicked() {
+                        command = Some(Command::SkipQuiz);
+                    }
+                    if ui.button(self.t("quiz-off")).clicked() {
+                        let mut settings = view.assist.settings;
+                        settings.quiz = false;
+                        command = Some(Command::SetAssist(settings));
+                    }
+                });
+            });
+        self.quiz_value = (i16::from(self.quiz_value) + delta).clamp(0, 120) as u8;
+        if let Some(command) = command {
+            self.quiz_value = 0;
+            self.send(command, now);
         }
     }
 
@@ -765,6 +887,7 @@ impl GrandCoachApp {
                 ui.label("–");
             }
         }
+        self.aid_section(ui, view);
         ui.separator();
         ui.heading(self.t("sheet-title"));
         egui::ScrollArea::vertical()
@@ -1508,6 +1631,7 @@ impl eframe::App for GrandCoachApp {
             .show(ui, |ui| self.table(ui, &view, now));
         let ctx = ui.ctx().clone();
         self.warning_window(&ctx, &view, now);
+        self.quiz_window(&ctx, &view, now);
         self.new_series_window(&ctx, now);
         if now < self.show_trick_until {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64(
