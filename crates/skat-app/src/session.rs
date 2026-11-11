@@ -493,6 +493,10 @@ impl Session {
             return Err(AppError::StaleCoachResult);
         }
         match self.coach.pending.clone() {
+            Some(Pending::Checking { .. }) if self.quiz.is_pending() => {
+                self.coach.pending = None;
+                Ok(Vec::new())
+            }
             Some(Pending::Checking { action }) => self.check(key, action),
             _ => Ok(Vec::new()),
         }
@@ -637,6 +641,13 @@ impl Session {
         if let Command::SetAssist(settings) = command {
             self.quiz.set(settings);
             self.refresh_quiz();
+            if self.quiz.is_pending()
+                && matches!(self.coach.pending, Some(Pending::Checking { .. }))
+            {
+                // A question now holds the decision: the action waiting
+                // for the coach check is withdrawn, never played later.
+                self.coach.pending = None;
+            }
             return Ok(Vec::new());
         }
         if self.finished {

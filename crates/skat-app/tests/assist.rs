@@ -429,3 +429,71 @@ fn derivation_is_a_snapshot_of_what_the_player_could_know() {
     }
     assert_eq!(f.kind, kind);
 }
+
+/// Enabling the quiz while a warning check is still computing withdraws the
+/// held card: a late coach result must not play it behind the question.
+#[test]
+fn a_late_coach_result_never_plays_behind_a_pending_question() {
+    for settle in 0..3 {
+        let mut s = session(1);
+        for _ in 0..2000 {
+            s.run_opponents();
+            let v = s.view();
+            if v.phase == Phase::Spiel && v.tricks_played == 3 && v.acting == Some(PlayerId::HUMAN)
+            {
+                break;
+            }
+            assert!(!v.series_finished);
+            let command = match v.legal_actions.first() {
+                Some(&a) => Command::Act(a),
+                None => Command::NextGame,
+            };
+            s.execute(command).unwrap();
+        }
+        s.set_coach_budget(skat_app::Budget {
+            samples: 1,
+            nodes_per_task: 1,
+        });
+        s.execute(Command::SetCoach(CoachSettings {
+            warnings: true,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        let action = s.view().legal_actions[0];
+        s.execute(Command::Act(action)).unwrap();
+        assert!(matches!(
+            s.view().coach.pending,
+            Some(skat_app::Pending::Checking { .. })
+        ));
+        let job = s.coach_job().expect("check is computing");
+        s.execute(Command::SetAssist(ON)).unwrap();
+        let before = s.view();
+        assert!(before.assist.quiz.question.is_some());
+        assert!(before.coach.pending.is_none(), "held card is withdrawn");
+        // The late result is accepted but plays nothing.
+        let events = s.finish_coach(job.run(None)).unwrap();
+        assert!(events.is_empty());
+        let after = s.view();
+        assert_eq!(after.hand, before.hand);
+        assert_eq!(after.acting, before.acting);
+        assert_eq!(after.assist.quiz.question, before.assist.quiz.question);
+        // Recovery: every way out of the question leaves the human to act.
+        match settle {
+            0 => drop(s.execute(Command::AnswerQuiz(0)).unwrap()),
+            1 => drop(s.execute(Command::SkipQuiz).unwrap()),
+            _ => drop(
+                s.execute(Command::SetAssist(AssistSettings {
+                    counting_aid: true,
+                    quiz: false,
+                }))
+                .unwrap(),
+            ),
+        }
+        let done = s.view();
+        assert!(done.assist.quiz.question.is_none());
+        assert_eq!(done.hand, before.hand);
+        assert_eq!(done.acting, Some(PlayerId::HUMAN));
+        assert!(done.coach.pending.is_none());
+        s.execute(Command::Act(done.legal_actions[0])).unwrap();
+    }
+}
