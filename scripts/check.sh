@@ -4,7 +4,7 @@
 #
 # Usage: scripts/check.sh [TIER] [--base REV]
 #   lint   whitespace, SPDX headers, rustfmt, markdownlint, shellcheck,
-#          actionlint (seconds, no compilation)
+#          actionlint, offline Markdown links and fixtures (seconds, no compilation)
 #   test   CI: clippy with all features, clippy of each crate without its
 #          features, and all tests including the slow ones (#[ignore])
 #          with all features except GPU backends
@@ -160,6 +160,10 @@ lint() {
     step spdx
     step cargo fmt --check
     step markdown
+    if have python3; then
+        step python3 scripts/markdown-links/test_check.py
+        step python3 scripts/markdown-links/check.py
+    fi
     step shell_scripts
     step workflows
 }

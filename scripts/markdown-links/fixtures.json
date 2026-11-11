@@ -1,0 +1,67 @@
+{
+  "files": {
+    "README.md": "# Start\n\n[encoded](docs/A%20file.md#same-1)\n[fragment](#start)\n[reference][Guide]\n[collapsed][] and [Shortcut]\n![image](image.svg)\n[root](/docs/A%20file.md#setext)\n[angle](<docs/A file.md#same> \"title\")\n[nested](docs/a(b).md#code--bold)\n\n[Guide]: docs/A%20file.md#same\n[collapsed]: docs/A%20file.md#same-1-1\n[Shortcut]: docs/A%20file.md#same-2\n\n[web](https://invalid.example/missing#no) [mail](mailto:test@example.invalid)\n[protocol relative](//invalid.example/no)\n`[code](missing.md)` and ``[code ` tick](missing.md)``\n\n```md\n# Fake\n[bad](missing.md)\n```\n\n~~~~\n[bad](missing.md)\n~~~\n[still fenced](missing.md)\n~~~~\n\n    [indented](missing.md)\n\n<!-- [comment](missing.md) -->\n\\[escaped](missing.md)\n\n[escaped parens](docs/a\\(b\\).md#code--bold)\n[query](docs/A%20file.md?raw=1#same)\n[punctuation](docs/hash%23name.md#under-score)\n[directory](/)\n",
+    "docs/A file.md": "# Same\n\n## Same\n\n## Same-1\n\n## Same\n\nSetext\n------\n\n# Grüße & Spaß!\n\n[unicode](#gr%C3%BC%C3%9Fe--spa%C3%9F)\n[back](../README.md#start)\n",
+    "docs/a(b).md": "# `Code` & **bold**\n",
+    "image.svg": "<svg/>\n",
+    ".claude/skills/example/SKILL.md": "# Skill\n\n[entry](../../../README.md#start)\n",
+    ".github/pull_request_template.md": "# Template\n\n[entry](../README.md#start)\n",
+    "docs/hash#name.md": "# _Under_ score\n"
+  },
+  "failures": [
+    {
+      "source": "README.md",
+      "link": "[missing](docs/gone.md)",
+      "target": "docs/gone.md",
+      "reason": "missing tracked target"
+    },
+    {
+      "source": "README.md",
+      "link": "[missing](docs/A%20file.md#absent)",
+      "target": "docs/A%20file.md#absent",
+      "reason": "missing heading anchor #absent"
+    },
+    {
+      "source": "README.md",
+      "link": "[duplicate](docs/A%20file.md#same-3)",
+      "target": "docs/A%20file.md#same-3",
+      "reason": "missing heading anchor #same-3"
+    },
+    {
+      "source": "README.md",
+      "link": "[code heading](#fake)",
+      "target": "#fake",
+      "reason": "missing heading anchor #fake"
+    },
+    {
+      "source": "README.md",
+      "link": "[bad][ref]\n\n[ref]: nowhere.md",
+      "target": "nowhere.md",
+      "reason": "missing tracked target"
+    },
+    {
+      "source": ".claude/skills/example/SKILL.md",
+      "link": "[bad](../../../gone.md)",
+      "target": "../../../gone.md",
+      "reason": "missing tracked target"
+    },
+    {
+      "source": ".github/pull_request_template.md",
+      "link": "[bad](../README.md#gone)",
+      "target": "../README.md#gone",
+      "reason": "missing heading anchor #gone"
+    },
+    {
+      "source": "README.md",
+      "link": "[untracked](scratch.md)",
+      "target": "scratch.md",
+      "reason": "missing tracked target"
+    },
+    {
+      "source": "README.md",
+      "link": "[escape](../outside.md)",
+      "target": "../outside.md",
+      "reason": "target escapes repository"
+    }
+  ]
+}

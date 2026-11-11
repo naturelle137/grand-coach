@@ -34,7 +34,8 @@ snapshot; CI checks the real commit.
 ## Tiers of `scripts/check.sh`
 
 - `lint` (seconds, no compilation): whitespace, SPDX headers, rustfmt,
-  markdownlint (`.markdownlint-cli2.yaml`), shellcheck, actionlint.
+  markdownlint (`.markdownlint-cli2.yaml`), offline Markdown links and their
+  positive/negative fixtures, shellcheck, actionlint.
 - `test` (CI): clippy of the workspace with `--all-features`, clippy of
   each package with features without them, and every test including the
   slow ones (`--include-ignored`) with all features except GPU backends,
@@ -77,8 +78,49 @@ always reported and never blocks a docs PR.
 
 Linters missing locally are skipped with a warning; CI sets
 `CHECK_STRICT=1`, where a missing linter fails. Local install (Fedora):
-`sudo dnf install nodejs ShellCheck` (markdownlint runs via `npx`),
+`sudo dnf install nodejs ShellCheck python3` (markdownlint runs via `npx`),
 actionlint from its [releases](https://github.com/rhysd/actionlint/releases).
+
+## Offline Markdown links
+
+The lint tier runs `python3 scripts/markdown-links/test_check.py` and
+`python3 scripts/markdown-links/check.py`. Both need only Python 3 (3.9 or
+newer) and Git; Python 3 is available in `skat-dev` and the Ubuntu CI lint
+runner. The fixtures create temporary Git repositories and assert success,
+exit status 1 for broken targets, and source/line/target diagnostics. They
+also cover maintained hidden skills/templates and untracked scratch files.
+The existing missing-linter policy applies to Python too.
+
+The checker reads working-tree contents of **all tracked `.md` files** from
+`git ls-files -z`, including templates, skills and historical documentation.
+Untracked files are neither scanned nor accepted as link targets. Stage new
+documentation before checking it. Targets may be tracked files or directories
+containing tracked files; root-relative paths start at the repository root.
+No HTTP requests are made, even for external reference definitions.
+
+Supported syntax:
+
+- Inline links/images, angle-bracket destinations, balanced parentheses,
+  optional titles, full/collapsed/shortcut references and reference definitions.
+  Reference labels are case-insensitive and whitespace-normalised; undefined
+  references are plain text, as in Markdown.
+- Relative paths, `..`, fragment-only links, URL-encoded paths/fragments and
+  query strings (ignored for local file lookup). Paths cannot escape the repo.
+- ATX (`#`) and Setext headings; lowercase GitHub-style anchors with punctuation
+  removed, spaces replaced by hyphens, and duplicate suffixes `-1`, `-2`, etc.,
+  including collisions with explicitly numbered headings. Inline code and
+  common emphasis/link formatting are stripped when computing anchors.
+- Top-level backtick/tilde fences, indented code, inline code and HTML comments
+  are ignored. URI schemes and protocol-relative external links are skipped.
+
+Boundaries: this is a repository Markdown subset, not a complete CommonMark
+or GitHub renderer. Nested list/blockquote code and headings, raw HTML links
+or explicit HTML anchor IDs, extension-generated anchors and complex inline
+HTML/formatting are not supported. Keep maintained links/headings in the
+supported syntax or extend the checker with fixtures before introducing such
+constructs. Fragments in non-Markdown targets (e.g. PDF pages) are not checked.
+The checker proves local target existence, not network availability or semantic
+correctness. No maintained Markdown file is excluded to suppress a failure.
 
 ## Test coverage
 
