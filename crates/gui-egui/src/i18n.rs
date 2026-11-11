@@ -291,6 +291,14 @@ mod tests {
                     "winner",
                     "name",
                     "alias",
+                    "outside",
+                    "own",
+                    "played",
+                    "classes",
+                    "discarded",
+                    "given",
+                    "size",
+                    "unplayed",
                 ] {
                     args.set(name, "x");
                 }
