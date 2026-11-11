@@ -58,10 +58,10 @@ scripts/check.sh          # full gate, as in CI
 ```
 
 With a comparison base, docs-only changes are linted
-(including markdownlint). Tests taking 2 s or more are marked
+(including markdownlint and offline Markdown links/fixtures). Tests taking 2 s or more are marked
 `#[ignore = "slow: CI only (docs/testing.md)"]`; the hooks skip them, CI
 and `scripts/check.sh` run them. For the linters locally:
-`sudo dnf install nodejs ShellCheck`; missing ones are skipped with a
+`sudo dnf install nodejs ShellCheck python3`; missing ones are skipped with a
 warning. CI runs the same gate on every pull request; its check `ci-ok`
 must pass before a PR can be merged. Details: [docs/testing.md](docs/testing.md).
 
@@ -94,8 +94,11 @@ cargo run --locked --release -p skat-ai --example tournament -- CONFIG OUT.tsv t
 
 For the shipped model, v2 status and commands to generate data, verify
 shards, train, probe and refine models, see [offline learned models](docs/learned-models.md).
-For docs-only changes run `scripts/check.sh full --base origin/main` and
-check relative links and heading anchors.
+For docs-only changes run `scripts/check.sh full --base origin/main`.
+The lint tier checks tracked Markdown file/heading links offline. Run it alone
+with `python3 scripts/markdown-links/check.py`, or its regression fixtures with
+`python3 scripts/markdown-links/test_check.py` (Python 3 standard library and Git).
+See [supported syntax and boundaries](docs/testing.md#offline-markdown-links).
 
 The coach latency per human decision is measured by hand through
 `skat-app` (see [docs/coach.md](docs/coach.md#latency)):

@@ -91,7 +91,7 @@ All checks run through one script (D-30, `docs/testing.md`):
 
 ```sh
 scripts/check.sh          # full gate as in CI: lint + test
-scripts/check.sh lint     # whitespace, SPDX, rustfmt, markdownlint, shellcheck, actionlint
+scripts/check.sh lint     # whitespace, SPDX, rustfmt, Markdown links/fixtures, markdownlint, shellcheck, actionlint
 scripts/check.sh test     # clippy (also without features) and all tests incl. slow ones
 scripts/check.sh push --base origin/main  # pre-push: lint, clippy, fast tests of affected crates
 scripts/check.sh deep     # 1,000,000 random games, 100 Mephisto games (weekly in CI)
@@ -105,15 +105,16 @@ activates them via `.claude/settings.json`. CI always runs `lint`, and
 `#[ignore = "slow: CI only (docs/testing.md)"]`: hooks skip them, CI and
 `full` run them. Locally missing linters are
 skipped with a warning; CI runs them all. `cargo test` includes 10,000 seeded random
-games (`crates/skat-core/tests/random_games.rs`). For documentation
-changes, also check relative links (not automated).
+games (`crates/skat-core/tests/random_games.rs`). The lint tier checks tracked
+Markdown file/heading links offline and runs positive/negative fixtures.
 Document new commands here and in `CONTRIBUTING.md` only once verified.
 
 For local setup, running the app, generated assets and licence notices, see
 [CONTRIBUTING.md](CONTRIBUTING.md#development-setup). For training and
 assessment commands, see the [model guide](docs/learned-models.md).
-Run the docs-only gate with `scripts/check.sh full --base origin/main` and
-check relative links when editing documentation.
+Run the docs-only gate with `scripts/check.sh full --base origin/main`.
+For focused link checks use `python3 scripts/markdown-links/check.py`; supported
+syntax and fixture commands are in [testing](docs/testing.md#offline-markdown-links).
 
 ## Testing
 
