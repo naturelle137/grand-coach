@@ -93,6 +93,15 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("coach-no-lesson", coach_no_lesson),
     ("coach-focus-debriefing", coach_focus_debriefing),
     ("coach-focus-debriefing-en", coach_focus_debriefing_en),
+    ("retrieval-question", retrieval_question),
+    ("retrieval-question-en", retrieval_question_en),
+    ("retrieval-question-narrow", retrieval_question),
+    ("retrieval-request", retrieval_request),
+    ("retrieval-help", retrieval_help),
+    ("retrieval-help-en", retrieval_help_en),
+    ("retrieval-visible", retrieval_visible),
+    ("retrieval-void", retrieval_void),
+    ("retrieval-void-en", retrieval_void_en),
     ("counting-aid", counting_aid),
     ("counting-aid-en", counting_aid_en),
     ("quiz-question", quiz_question),
@@ -110,12 +119,83 @@ const SCENARIOS: &[(&str, Scenario)] = &[
 const AID: skat_app::AssistSettings = skat_app::AssistSettings {
     counting_aid: true,
     quiz: false,
+    retrieval: false,
+    assistance: skat_app::AssistanceLevel::AnswerBeforeReveal,
 };
 
 const AID_AND_QUIZ: skat_app::AssistSettings = skat_app::AssistSettings {
     counting_aid: true,
     quiz: true,
+    retrieval: false,
+    assistance: skat_app::AssistanceLevel::AnswerBeforeReveal,
 };
+
+/// Focused question with all auxiliary answer sources withheld.
+fn retrieval_question(h: &mut Harness<'_, GrandCoachApp>) {
+    h.state_mut().set_assist(skat_app::AssistSettings {
+        retrieval: true,
+        ..AID_AND_QUIZ
+    });
+    play_until(h, |v, _| v.assist.quiz.question.is_some());
+}
+
+fn retrieval_question_en(h: &mut Harness<'_, GrandCoachApp>) {
+    retrieval_question(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+fn retrieval_request(h: &mut Harness<'_, GrandCoachApp>) {
+    h.state_mut().set_assist(skat_app::AssistSettings {
+        retrieval: true,
+        assistance: skat_app::AssistanceLevel::RevealOnRequest,
+        ..AID_AND_QUIZ
+    });
+    play_until(h, |v, _| v.assist.quiz.question.is_some());
+}
+
+fn retrieval_help(h: &mut Harness<'_, GrandCoachApp>) {
+    retrieval_question(h);
+    click(h, Role::Button, "Hilfe einblenden");
+}
+
+fn retrieval_help_en(h: &mut Harness<'_, GrandCoachApp>) {
+    retrieval_help(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+fn retrieval_visible(h: &mut Harness<'_, GrandCoachApp>) {
+    h.state_mut().set_assist(skat_app::AssistSettings {
+        retrieval: true,
+        assistance: skat_app::AssistanceLevel::VisibleAid,
+        ..AID_AND_QUIZ
+    });
+    play_until(h, |v, _| v.assist.quiz.question.is_some());
+}
+
+/// Show the new public-void question through the real seeded selection.
+fn retrieval_void(h: &mut Harness<'_, GrandCoachApp>) {
+    retrieval_question(h);
+    for _ in 0..20 {
+        if matches!(
+            view(h).assist.quiz.question,
+            Some(skat_app::QuestionKind::ProvenVoids { .. })
+        ) {
+            click(h, Role::Button, "Hilfe einblenden");
+            return;
+        }
+        click(h, Role::Button, "Überspringen");
+        play_until(h, |v, _| v.assist.quiz.question.is_some());
+    }
+    panic!("no public-void retrieval opportunity");
+}
+
+fn retrieval_void_en(h: &mut Harness<'_, GrandCoachApp>) {
+    retrieval_void(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
 
 /// The counting aid in card play, after the third trick (D-64).
 fn counting_aid(harness: &mut Harness<'_, GrandCoachApp>) {

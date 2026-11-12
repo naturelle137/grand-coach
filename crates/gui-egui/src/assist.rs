@@ -102,6 +102,9 @@ pub fn void_lines(i18n: &I18n, aid: &CountingView) -> Vec<String> {
 /// The wording of a question.
 pub fn question(i18n: &I18n, kind: QuestionKind) -> String {
     match kind {
+        QuestionKind::ProvenVoids { class: c } => {
+            i18n.tf("quiz-q-voids", &[("class", class(i18n, c).into())])
+        }
         QuestionKind::TrumpfOutside => i18n.t("quiz-q-trumpf"),
         QuestionKind::AugenWon { declarer: true } => i18n.t("quiz-q-augen-declarer"),
         QuestionKind::AugenWon { declarer: false } => i18n.t("quiz-q-augen-defenders"),
@@ -122,7 +125,24 @@ pub fn feedback_lines(i18n: &I18n, f: &QuizFeedback) -> Vec<String> {
         ),
         QuizOutcome::Skipped => i18n.tf("quiz-skipped", &[("expected", expected.into())]),
     }];
-    match f.derivation {
+    lines.extend(derivation_lines(i18n, f.derivation));
+    lines
+}
+
+/// Exact feedback or restored help from the same frozen snapshot.
+pub fn derivation_lines(i18n: &I18n, derivation: Derivation) -> Vec<String> {
+    let mut lines = Vec::new();
+    match derivation {
+        Derivation::ProvenVoids { class: c, seats } => lines.push(i18n.tf(
+            "quiz-why-voids",
+            &[
+                ("class", class(i18n, c).into()),
+                (
+                    "count",
+                    (seats.into_iter().filter(|v| *v).count() as u8).into(),
+                ),
+            ],
+        )),
         Derivation::TrumpfOutside(t) => {
             lines.push(i18n.tf(
                 "quiz-why-trumpf",

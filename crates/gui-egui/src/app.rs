@@ -464,6 +464,21 @@ impl GrandCoachApp {
         let label = self.t("setting-quiz");
         ui.checkbox(&mut settings.quiz, label)
             .on_hover_text(self.t("setting-quiz-description"));
+        ui.checkbox(&mut settings.retrieval, self.t("setting-retrieval"));
+        ui.label(self.t("setting-retrieval-level"));
+        for (level, key) in [
+            (skat_app::AssistanceLevel::VisibleAid, "retrieval-visible"),
+            (
+                skat_app::AssistanceLevel::RevealOnRequest,
+                "retrieval-request",
+            ),
+            (
+                skat_app::AssistanceLevel::AnswerBeforeReveal,
+                "retrieval-answer",
+            ),
+        ] {
+            ui.radio_value(&mut settings.assistance, level, self.t(key));
+        }
         if settings != self.session.view().assist.settings {
             self.set_assist(settings);
         }
@@ -481,7 +496,14 @@ impl GrandCoachApp {
             CountingState::Off => {}
             CountingState::Withheld => {
                 ui.heading(self.t("aid-title"));
-                ui.label(RichText::new(self.t("aid-withheld")).weak());
+                ui.label(
+                    RichText::new(self.t(if assist.settings.retrieval {
+                        "retrieval-withheld"
+                    } else {
+                        "aid-withheld"
+                    }))
+                    .weak(),
+                );
             }
             CountingState::Shown(aid) => {
                 ui.heading(self.t("aid-title"));
@@ -524,30 +546,68 @@ impl GrandCoachApp {
             .resizable(false)
             .show(ctx, |ui| {
                 ui.label(text);
-                ui.label(RichText::new(self.t("quiz-hint")).weak());
                 ui.label(
-                    RichText::new(
-                        self.i18n
-                            .tf("quiz-value", &[("value", self.quiz_value.into())]),
-                    )
-                    .strong(),
+                    RichText::new(self.t(if view.assist.settings.retrieval {
+                        "retrieval-hint"
+                    } else {
+                        "quiz-hint"
+                    }))
+                    .weak(),
                 );
-                ui.horizontal(|ui| {
-                    for (id, step) in [
-                        ("quiz-minus-ten", -10),
-                        ("quiz-minus-one", -1),
-                        ("quiz-plus-one", 1),
-                        ("quiz-plus-ten", 10),
-                    ] {
-                        if ui.button(self.t(id)).clicked() {
-                            delta = step;
-                        }
+                if view.assist.settings.retrieval {
+                    let key = match view.assist.settings.assistance {
+                        skat_app::AssistanceLevel::VisibleAid => "retrieval-visible",
+                        skat_app::AssistanceLevel::RevealOnRequest => "retrieval-request",
+                        skat_app::AssistanceLevel::AnswerBeforeReveal => "retrieval-answer",
+                    };
+                    ui.label(self.t(key));
+                }
+                if let Some(derivation) = view.assist.quiz.help {
+                    for line in assist::derivation_lines(&self.i18n, derivation) {
+                        ui.label(line);
                     }
-                });
-                ui.horizontal(|ui| {
+                    ui.label(self.t("retrieval-assisted"));
+                } else if view.assist.settings.retrieval
+                    && ui.button(self.t("retrieval-help")).clicked()
+                {
+                    command = Some(Command::RestoreQuizHelp);
+                }
+                let request = view.assist.settings.retrieval
+                    && view.assist.settings.assistance
+                        == skat_app::AssistanceLevel::RevealOnRequest;
+                let enter_label = self.t("retrieval-enter");
+                let mut numeric = |ui: &mut egui::Ui| {
+                    ui.label(
+                        RichText::new(
+                            self.i18n
+                                .tf("quiz-value", &[("value", self.quiz_value.into())]),
+                        )
+                        .strong(),
+                    );
+                    ui.horizontal(|ui| {
+                        for (id, step) in [
+                            ("quiz-minus-ten", -10),
+                            ("quiz-minus-one", -1),
+                            ("quiz-plus-one", 1),
+                            ("quiz-plus-ten", 10),
+                        ] {
+                            if ui.button(self.t(id)).clicked() {
+                                delta = step;
+                            }
+                        }
+                    });
                     if ui.button(self.t("quiz-submit")).clicked() {
                         command = Some(Command::AnswerQuiz(self.quiz_value));
                     }
+                };
+                if request {
+                    egui::CollapsingHeader::new(enter_label)
+                        .id_salt(("retrieval_input", view.assist.quiz.id))
+                        .show(ui, numeric);
+                } else {
+                    numeric(ui);
+                }
+                ui.horizontal(|ui| {
                     if ui.button(self.t("quiz-skip")).clicked() {
                         command = Some(Command::SkipQuiz);
                     }
@@ -560,7 +620,9 @@ impl GrandCoachApp {
             });
         self.quiz_value = (i16::from(self.quiz_value) + delta).clamp(0, 120) as u8;
         if let Some(command) = command {
-            self.quiz_value = 0;
+            if !matches!(command, Command::RestoreQuizHelp) {
+                self.quiz_value = 0;
+            }
             self.send(command, now);
         }
     }

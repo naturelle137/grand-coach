@@ -157,6 +157,11 @@ fn voids_of(game: GameType, set: CardSet) -> Voids {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum QuestionKind {
+    /// How many other seats are publicly proven void in this follow class?
+    ProvenVoids {
+        /// The follow class.
+        class: Follow,
+    },
     /// How many Trumpf are outside (see [`TrumpfCount::outside`])?
     TrumpfOutside,
     /// How many Augen did the declarer (`true`) or the two defenders
@@ -177,6 +182,13 @@ pub enum QuestionKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Derivation {
+    /// Publicly proven voids, excluding the viewing seat.
+    ProvenVoids {
+        /// The follow class.
+        class: Follow,
+        /// Seats with public proof (seat order, not player IDs).
+        seats: [bool; 3],
+    },
     /// `total - own - played - discarded`.
     TrumpfOutside(TrumpfCount),
     /// Augen won by one side.
@@ -205,6 +217,7 @@ impl Derivation {
     /// The expected answer.
     pub fn expected(&self) -> u8 {
         match *self {
+            Derivation::ProvenVoids { seats, .. } => seats.into_iter().filter(|v| *v).count() as u8,
             Derivation::TrumpfOutside(t) => t.outside,
             Derivation::AugenWon { augen, .. } => augen,
             Derivation::ClassPlayed { played, .. } => played,
@@ -240,11 +253,40 @@ pub fn applicable_questions(k: &Knowledge) -> Vec<QuestionKind> {
     kinds
 }
 
+/// Focused retrieval for the two exact-information lesson families. A void
+/// question needs public evidence for at least one other seat; absence of
+/// evidence never claims that a seat holds a card. Null has no Trumpf.
+pub fn retrieval_questions(k: &Knowledge) -> Vec<QuestionKind> {
+    let Some(game) = k.game else {
+        return Vec::new();
+    };
+    let mut kinds = Vec::new();
+    if game != GameType::Null {
+        kinds.push(QuestionKind::TrumpfOutside);
+    }
+    for class in std::iter::once(Follow::Trumpf).chain(Suit::ALL.map(Follow::Farbe)) {
+        let kind = QuestionKind::ProvenVoids { class };
+        if derive(k, kind).is_some_and(|d| d.expected() > 0) {
+            kinds.push(kind);
+        }
+    }
+    kinds
+}
+
 /// The exact answer to `kind` from `k`; `None` if `k` cannot answer it.
 pub fn derive(k: &Knowledge, kind: QuestionKind) -> Option<Derivation> {
     let game = k.game?;
     let aid = CountingAid::from_knowledge(k);
     match kind {
+        QuestionKind::ProvenVoids { class } => {
+            let cards = game.cards_of(class);
+            if cards.is_empty() {
+                return None;
+            }
+            let seats =
+                Seat::ALL.map(|seat| seat != k.seat && (cards - k.voids[seat.index()]).is_empty());
+            Some(Derivation::ProvenVoids { class, seats })
+        }
         QuestionKind::TrumpfOutside => aid.trumpf.map(Derivation::TrumpfOutside),
         QuestionKind::AugenWon { declarer } => {
             if game == GameType::Null {
@@ -620,8 +662,11 @@ mod tests {
                     CountingAid::from_knowledge(&k),
                     CountingAid::from_knowledge(&reference)
                 );
-                let kinds = applicable_questions(&k);
+                let mut kinds = applicable_questions(&k);
                 assert_eq!(kinds, applicable_questions(&reference));
+                let retrieval = retrieval_questions(&k);
+                assert_eq!(retrieval, retrieval_questions(&reference));
+                kinds.extend(retrieval);
                 for kind in kinds {
                     assert_eq!(derive(&k, kind), derive(&reference, kind));
                 }

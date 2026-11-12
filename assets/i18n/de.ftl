@@ -543,3 +543,17 @@ quiz-why-trumpf = { $total } Trümpfe − { $own } in deiner Hand − { $played 
 quiz-why-trumpf-skat = Ein unbekannter Skat kann einen Teil davon enthalten.
 quiz-why-augen = Diese Seite hat { $augen } Augen gewonnen, die andere { $other }.
 quiz-why-played = { $played } der { $size } Karten der Gruppe { $class } sind gespielt, { $unplayed } noch nicht.
+
+# Focused retrieval (#48)
+setting-retrieval = Gezieltes Abrufen: Resttrümpfe und Fehlfarben
+setting-retrieval-level = Hilfe beim gezielten Abrufen
+retrieval-visible = Zählhilfe sichtbar
+retrieval-request = Erst selbst zählen, auf Wunsch aufdecken
+retrieval-answer = Erst antworten, dann aufdecken
+retrieval-hint = Dein Zug wartet auf Antwort, Überspringen oder Ausschalten. Hilfe kannst du jederzeit zurückholen; der Versuch zählt dann als unterstützt.
+retrieval-help = Hilfe einblenden
+retrieval-assisted = Hilfe sichtbar – dieser Versuch ist unterstützt.
+retrieval-withheld = Zählhilfe beim gezielten Abrufen verborgen. Über die Einstellungen kannst du sie wieder dauerhaft einblenden.
+quiz-q-voids = Bei wie vielen anderen Spielern ist öffentlich nachgewiesen, dass sie keine Karte der Gruppe { $class } mehr haben?
+quiz-why-voids = Andere Spieler, die die Gruppe { $class } nachweislich nicht bedienen konnten: { $count }. Unbekannte Hände werden nicht geraten.
+retrieval-enter = Eine Zahl eingeben
