@@ -261,9 +261,9 @@ impl GrandCoachApp {
         drop(current);
     }
 
-    /// Starts a practice attempt of `recording` before bidding. The live
-    /// session is validated against nothing and changed in no way; a
-    /// rejected recording leaves everything as it was.
+    /// Starts a practice attempt of `recording` before bidding. The whole
+    /// recording is validated first; the live session is only parked, never
+    /// changed, and a rejected recording leaves everything as it was.
     fn start_practice(&mut self, recording: GameRecording) -> Result<(), skat_app::RecordingError> {
         if self.practice.is_some() {
             return Ok(());
