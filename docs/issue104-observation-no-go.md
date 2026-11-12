@@ -127,6 +127,8 @@ CLI, generator and bench baselines. Their original local jobs remain
 rework, not accepted execution evidence. No baseline inventory was repeated.
 HQ531 found free local capacity and delegated only the new teacher-label
 predicate source question as HQ539, with separate acceptance owner HQ540.
-Its output is pending independent acceptance and is not used as evidence
-for this decision. HQ534 owns the product closure; HQ540 owns checking that
-local artifact and the next useful bounded assignment.
+HQ540 marked the original output rework (wrong source block and scope
+violations) and supplied a bounded cloud correction. The local output is
+not accepted evidence for this decision. HQ534 owns product closure and
+scoping the next useful assignment from the new PR; no duplicate baseline
+inventory or further numerical digest is useful here.
