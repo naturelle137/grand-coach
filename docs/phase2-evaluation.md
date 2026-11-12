@@ -4,6 +4,10 @@ This protocol was fixed on 2026-11-12 before held-out results. It does not
 change the shipped weights or Classic default, and cannot establish learning
 efficacy. HQ #15 owns logistics for #75 and #93; their other criteria remain open.
 
+Outcome recorded on 2026-11-12: **no-go; retain v1 and Classic** because the
+18-comparison matrix is incomplete. See the [evaluation card](phase2-outcome.md)
+for audited coverage and evidence. The predeclared rules below are preserved.
+
 ## Frozen inputs
 
 Campaign `2026-11-10-rl-4x` ended through HQ #176 and read-only barrier #14.
