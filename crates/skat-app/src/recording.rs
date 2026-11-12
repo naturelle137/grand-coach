@@ -192,6 +192,27 @@ impl GameRecording {
         })
     }
 
+    /// Initial, completed-trick and final action boundaries. Each boundary
+    /// reconstructs historical permitted views, never final-seat knowledge.
+    pub fn trick_boundaries(&self) -> Result<Vec<usize>, RecordingError> {
+        self.reconstruct_privileged(self.actions.len())?;
+        let mut game = Game::from_deal(self.deal, self.rules);
+        let mut boundaries = vec![0];
+        for (index, &action) in self.actions.iter().enumerate() {
+            let events = game.apply(action).expect("entire history validated");
+            if events
+                .iter()
+                .any(|event| matches!(event, Event::TrickWon { .. }))
+            {
+                boundaries.push(index + 1);
+            }
+        }
+        if boundaries.last() != Some(&self.actions.len()) {
+            boundaries.push(self.actions.len());
+        }
+        Ok(boundaries)
+    }
+
     fn validate_header(&self) -> Result<(), RecordingError> {
         if self.format != RECORDING_FORMAT {
             return Err(RecordingError::UnsupportedFormat { found: self.format });

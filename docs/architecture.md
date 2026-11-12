@@ -122,6 +122,33 @@ and reconstruction are bounded to 512 actions (above the full bidding ladder,
 Skat/announcement, thirty card plays and Kontra/Re). A truncated finished
 record cannot pass its completion/result check, even for prefix zero.
 In-progress prefixes are deliberately supported; this is validation, not
-authentication against deliberate metadata rewriting. Future file IO must
-also bound input bytes before parsing. No disk IO, replay UI, editable history,
-same-deal attempts or training history is implemented here.
+authentication against deliberate metadata rewriting.
+
+`GameRecording::read_local` caps readers (including ones that grow) at 1 MiB
+plus one sentinel byte, rejects oversized input before JSON parsing and bounds
+actions before typed decoding. `open_local` accepts regular local files;
+`save_local_new` validates the full recording and serialized byte size before
+exclusive creation (`create_new`). Existing files and symlinks are never
+truncated. A write/sync failure may leave a partial **new** file; recovery uses
+a new name or user removal, never silent replacement. `RecordingFileError`
+separates JSON/shape, unsupported schema/engine, semantic history, size,
+missing path, existing target and other IO failures. No filesystem code enters
+core or the frontend. Producer version remains descriptive; there is no
+migration or session resume.
+
+The Game menu saves the current or a selected completed game and opens a
+local JSON file through a simple full-path dialog. Export requires explicit
+concealed-information consent. A separate egui recording window starts at
+the final recorded position, labels incomplete/all-pass/finished records and
+shows bidding, contract/result, completed and partial tricks. Concealed hands,
+Skat and original deal require deliberate reveal and carry a full-information
+label. First/previous/next/last navigate initial, completed-trick and final
+boundaries derived from core `TrickWon` events. Historical seat views are
+reconstructed at each boundary, without analysis or coach comments.
+
+Live controls and background-result delivery pause while a file dialog or
+recording is open. Pending opponent/coach jobs are retained, not cancelled or
+replaced. Closing resumes the original series; invalid input leaves the last
+valid recording and live session untouched. Recording data never enters live
+analysis. Editable history, same-deal attempts, hindsight coaching and training
+history remain unimplemented.

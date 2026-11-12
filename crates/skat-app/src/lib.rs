@@ -36,6 +36,7 @@ mod context;
 mod neural;
 mod quiz;
 mod recording;
+mod recording_io;
 mod series;
 mod session;
 mod sort;
@@ -58,6 +59,7 @@ pub use recording::{
     GameRecording, MAX_RECORDING_ACTIONS, PrivilegedRecordingPosition, RECORDING_ENGINE,
     RECORDING_FORMAT, RecordingContext, RecordingEnd, RecordingError,
 };
+pub use recording_io::{MAX_RECORDING_BYTES, RecordingFileError};
 pub use series::{GameRecord, ScoreSheet, SeriesResult};
 pub use session::{
     AppError, AppEvent, Command, OpponentJob, OpponentMove, Opponents, PlayerId, SeriesLength,

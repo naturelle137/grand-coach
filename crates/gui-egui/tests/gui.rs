@@ -1686,3 +1686,72 @@ fn focused_retrieval_help_and_levels_work_in_both_languages() {
         assert_eq!(game_part(&view(&h)), before);
     }
 }
+
+#[test]
+fn a_completed_game_can_be_selected_saved_and_reopened_after_next_game() {
+    let mut h = harness(SessionConfig {
+        seed: 21,
+        series: SeriesLength::Fixed(3),
+        kontra_re: false,
+        opponents: Opponents::Levels([Level::Easy; 2]),
+    });
+    let mut rng = ChaCha8Rng::seed_from_u64(21);
+    for _ in 0..200 {
+        settle(&mut h);
+        if view(&h).acting.is_none() {
+            break;
+        }
+        human_turn(&mut h, &mut rng);
+    }
+    assert!(
+        !h.state()
+            .session()
+            .completed_recordings_privileged()
+            .is_empty()
+    );
+    let completed = h.state().session().completed_recordings_privileged()[0].clone();
+    button(&mut h, "Nächstes Spiel");
+    settle(&mut h);
+    let before = view(&h);
+    button(&mut h, "Spiel");
+    button(&mut h, "Spiel speichern …");
+    // Choose the archive, not the newly dealt current game.
+    h.get_by_role_and_label(Role::ComboBox, "Spielauswahl")
+        .click();
+    h.run_steps(4);
+    h.get_by_label("Abgeschlossenes Spiel 1").click();
+    h.run_steps(4);
+    let directory = std::env::temp_dir().join(format!("skat-gui-completed-{}", std::process::id()));
+    std::fs::create_dir(&directory).unwrap();
+    let path = directory.join("completed.json");
+    h.get_by_role_and_label(Role::TextInput, "Dateipfad:")
+        .focus();
+    h.run_steps(1);
+    h.get_by_role_and_label(Role::TextInput, "Dateipfad:")
+        .type_text(path.to_str().unwrap());
+    h.run_steps(4);
+    click(
+        &mut h,
+        Role::CheckBox,
+        "Verdeckte Informationen bewusst in die Datei schreiben",
+    );
+    button(&mut h, "Datei speichern");
+    assert_eq!(
+        skat_app::GameRecording::open_local(&path).unwrap(),
+        completed
+    );
+    button(&mut h, "Spiel");
+    button(&mut h, "Aufnahme öffnen …");
+    h.get_by_role_and_label(Role::TextInput, "Dateipfad:")
+        .focus();
+    h.run_steps(1);
+    h.get_by_role_and_label(Role::TextInput, "Dateipfad:")
+        .type_text(path.to_str().unwrap());
+    h.run_steps(4);
+    button(&mut h, "Datei öffnen");
+    h.get_by_label_contains("Spiel 1 · Seed");
+    assert_eq!(view(&h), before);
+    button(&mut h, "Aufnahme schließen");
+    assert_eq!(view(&h), before);
+    std::fs::remove_dir_all(directory).unwrap();
+}

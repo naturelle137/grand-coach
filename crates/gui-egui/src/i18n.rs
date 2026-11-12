@@ -140,6 +140,7 @@ mod tests {
             include_str!("text.rs"),
             include_str!("cards.rs"),
             include_str!("coach.rs"),
+            include_str!("recording.rs"),
         ] {
             for literal in source.split('"').skip(1).step_by(2) {
                 let looks_like_id = literal.contains('-')
@@ -299,6 +300,8 @@ mod tests {
                     "given",
                     "size",
                     "unplayed",
+                    "version",
+                    "leader",
                 ] {
                     args.set(name, "x");
                 }
