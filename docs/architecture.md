@@ -150,5 +150,40 @@ Live controls and background-result delivery pause while a file dialog or
 recording is open. Pending opponent/coach jobs are retained, not cancelled or
 replaced. Closing resumes the original series; invalid input leaves the last
 valid recording and live session untouched. Recording data never enters live
-analysis. Editable history, same-deal attempts, hindsight coaching and training
-history remain unimplemented.
+analysis. Editable history, hindsight coaching and training history remain
+unimplemented.
+
+### Same-deal practice (D-66)
+
+`Session::start_practice(&live, &recording)` first validates the whole
+untrusted recording (header, seed/deal, legal history and end) and builds
+nothing on failure. The new session starts **before bidding** with the
+recorded cards and rules, game number, dealer and stable player coordinates
+(late-series games keep their seats), the recorded series configuration
+(opponent mode and levels, Kontra/Re, Goldfish identity, God Mode
+visibility) and opponent seeds. It does not use the recording's game seed as
+a series seed and never reruns the recorded actions. Opponents and the coach
+use the same shared code paths and permitted views as in a live game. From
+the live session it copies only coach/assistance settings and coach budget.
+
+RNG policy: the coach seed is stream 2 of the recorded series seed, as in the
+original series, so the same position is analysed with the same samples. The
+quiz uses practice stream 4, keeping opportunity IDs apart from the live
+series. Deal and opponent-seed streams are never advanced.
+
+An attempt is exactly one game: `NextGame`/`EndSeries` return
+`AppError::PracticeAttempt`, the result enters no score sheet, no recording is
+retained and `export_current_recording_privileged` returns `None`.
+`TableView::practice` labels it. Each attempt has a unique nonzero lineage in
+opponent positions and coach decision keys, so moves and analyses from the
+live series or another attempt are rejected as stale even at equal positions.
+
+The recording window offers "Practise this deal". The app then parks the live
+table state (session, drafts, error, pacing, outstanding opponent and coach
+jobs and channels, new-series draft) without polling or cancelling it, closes
+the recording windows and installs the practice table under a practice banner.
+Saving, opening and new-series commands are disabled. "New attempt" (at most
+50 per entry) and "Return to series" drop the practice state, cancelling its
+background work and disconnecting its channels; return restores the parked
+live state, whose retained results are then delivered normally. Language and
+deck are shared display settings.

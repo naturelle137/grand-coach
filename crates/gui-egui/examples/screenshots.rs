@@ -56,6 +56,12 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("recording-error", recording_error),
     ("recording-error-en", recording_error_en),
     ("recording-narrow", recording),
+    ("practice", practice),
+    ("practice-play", practice_play),
+    ("practice-play-en", practice_play_en),
+    ("practice-finished", practice_finished),
+    ("practice-return", practice_return),
+    ("practice-return-en", practice_return_en),
     ("bidding", bidding),
     ("trick", trick),
     ("neural-trick", neural_trick),
@@ -1071,4 +1077,71 @@ fn recording_error_en(h: &mut Harness<'_, GrandCoachApp>) {
 fn recording_final(h: &mut Harness<'_, GrandCoachApp>) {
     recording(h);
     click(h, Role::Button, "Ende");
+}
+
+/// From the reopened recording: a fresh practice attempt before bidding.
+fn practice(h: &mut Harness<'_, GrandCoachApp>) {
+    recording(h);
+    click(h, Role::Button, "Dieses Blatt üben");
+    assert!(h.state().practicing());
+    settle(h);
+}
+
+/// Practice with other legal cards than the original game (the original
+/// played the first legal card): the last legal card at each card decision.
+fn practice_alternative(h: &mut Harness<'_, GrandCoachApp>, stop: impl Fn(&TableView) -> bool) {
+    for _ in 0..200 {
+        settle(h);
+        let before = view(h);
+        if stop(&before) {
+            return;
+        }
+        let legal = &before.legal_actions;
+        let label = if legal.contains(&Action::Pass) {
+            "Passe".to_owned()
+        } else if legal.contains(&Action::KeinKontra) {
+            "Kein Kontra".to_owned()
+        } else if let Some(&Action::Play(card)) = legal.last() {
+            shown_card_label(h, card)
+        } else {
+            panic!("no scripted click for {legal:?}");
+        };
+        click(h, Role::Button, &label);
+    }
+    panic!("practice did not reach its state");
+}
+
+/// Mid-game in practice after alternative cards.
+fn practice_play(h: &mut Harness<'_, GrandCoachApp>) {
+    practice(h);
+    practice_alternative(h, |v| {
+        v.tricks_played >= 3 && v.acting == Some(skat_app::PlayerId::HUMAN)
+    });
+}
+
+fn practice_play_en(h: &mut Harness<'_, GrandCoachApp>) {
+    practice_play(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+/// The practice game is over: not scored, no next game.
+fn practice_finished(h: &mut Harness<'_, GrandCoachApp>) {
+    practice(h);
+    practice_alternative(h, |v| v.acting.is_none());
+    h.get_by_label_contains("Übungsspiel beendet.");
+}
+
+/// Early exit: back at the untouched live series (game 1 over, its score).
+fn practice_return(h: &mut Harness<'_, GrandCoachApp>) {
+    practice_play(h);
+    click(h, Role::Button, "Zurück zur Serie");
+    assert!(!h.state().practicing());
+    assert_eq!(view(h).sheet.records.len(), 1);
+}
+
+fn practice_return_en(h: &mut Harness<'_, GrandCoachApp>) {
+    practice_return(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
 }
