@@ -101,6 +101,9 @@ pub enum CoachEvent {
 /// Identifies one human decision: game number and actions applied so far.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct DecisionKey {
+    /// Session lineage: 0 for a live series, unique per practice attempt,
+    /// so results never cross between sessions at equal positions.
+    pub(crate) lineage: u64,
     pub(crate) number: u32,
     pub(crate) actions: usize,
 }

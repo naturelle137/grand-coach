@@ -2,6 +2,8 @@
 
 //! The session: one series of games between the human and two opponents.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
@@ -13,7 +15,7 @@ use crate::coach::{
 };
 use crate::context::DecisionContext;
 use crate::quiz::{AssistSettings, QuizFeedback, QuizState};
-use crate::recording::{GameRecording, RecordingContext, RecordingEnd};
+use crate::recording::{GameRecording, RecordingContext, RecordingEnd, RecordingError};
 use crate::series::{GameRecord, ScoreSheet, SeriesResult};
 use crate::view::{TableView, build_view, open_cards};
 
@@ -245,6 +247,9 @@ pub enum AppError {
     QuestionPending,
     /// There is no pending quiz question.
     NoQuestion,
+    /// A practice attempt is exactly one game: it never deals another game
+    /// or ends a series. Return to the live series instead.
+    PracticeAttempt,
 }
 
 /// An opponent decision to compute, possibly on another thread so the
@@ -272,6 +277,7 @@ enum Brain {
 /// Identifies the position an opponent move was computed for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Position {
+    lineage: u64,
     number: u32,
     actions: usize,
     player: u8,
@@ -343,6 +349,8 @@ pub struct Session {
     recording: GameRecording,
     recordings: Vec<GameRecording>,
     finished: bool,
+    /// 0 for a live series; unique per practice attempt ([`Session::start_practice`]).
+    lineage: u64,
     /// The live coach; it never influences deals or opponents.
     pub(crate) coach: CoachState,
     /// The counting aid and quiz; they never influence deals or opponents.
@@ -392,6 +400,7 @@ impl Session {
             ),
             recordings: Vec::new(),
             finished: matches!(config.series, SeriesLength::Fixed(0)),
+            lineage: 0,
             coach: CoachState::new(
                 coach_rng.next_u64(),
                 config.opponents == Opponents::Experimental,
@@ -427,6 +436,7 @@ impl Session {
             self.opponent_to_move(),
             &view,
             open_cards,
+            self.is_practice(),
             if self.quiz.withhold_coach() {
                 // The answer must not leak through a hint or a note.
                 CoachView::withheld(self.coach.settings)
@@ -463,6 +473,7 @@ impl Session {
     fn human_decision(&self) -> Option<DecisionKey> {
         let seat = self.game.current_seat()?;
         (!self.finished && PlayerId::on_seat(seat, self.dealer).is_human()).then_some(DecisionKey {
+            lineage: self.lineage,
             number: self.number,
             actions: self.actions,
         })
@@ -615,6 +626,7 @@ impl Session {
             level: self.config.level(player),
             brain,
             position: Position {
+                lineage: self.lineage,
                 number: self.number,
                 actions: self.actions,
                 player: player.0,
@@ -677,6 +689,9 @@ impl Session {
         }
         if self.finished {
             return Err(AppError::SeriesFinished);
+        }
+        if self.is_practice() && matches!(command, Command::NextGame | Command::EndSeries) {
+            return Err(AppError::PracticeAttempt);
         }
         if self.quiz.is_pending()
             && matches!(
@@ -830,6 +845,10 @@ impl Session {
     }
 
     fn record_game(&mut self) -> Vec<AppEvent> {
+        if self.is_practice() {
+            // A practice attempt never scores, records or ends a series.
+            return Vec::new();
+        }
         self.recordings.push(self.recording.clone());
         let dealer = self.dealer;
         let result = self.game.result().copied();
@@ -894,11 +913,88 @@ impl Session {
         (self.config.opponents == Opponents::Goldfish).then_some(self.goldfish)
     }
 
+    /// `true` for an isolated practice attempt ([`Session::start_practice`]).
+    pub fn is_practice(&self) -> bool {
+        self.lineage != 0
+    }
+
+    /// Starts a fresh, isolated practice attempt of a recorded deal, before
+    /// bidding. `self` (normally the live series) is only read for its coach
+    /// and assistance settings and coach budget; it is never changed.
+    ///
+    /// The whole untrusted recording is validated first, including its legal
+    /// history and end. The attempt then has the recording's exact cards,
+    /// rules, game number, dealer and seats, series configuration (opponent
+    /// mode and levels, Kontra/Re, God Mode visibility), the recorded opponent
+    /// seeds and Goldfish identity. The recorded actions are never replayed:
+    /// every decision is taken anew. Ordinary opponents and the closed-view
+    /// coach get only their own seat's view as in the live game (D-23).
+    ///
+    /// RNG policy: the coach seed is derived exactly as in the original
+    /// series (stream 2 of the recorded series seed), so the same position
+    /// is analysed with the same samples; the quiz uses a separate practice
+    /// stream (4) so its opportunity IDs never collide with the live series.
+    /// No deal or series RNG is ever advanced.
+    ///
+    /// The attempt is one game: [`Command::NextGame`] and
+    /// [`Command::EndSeries`] fail with [`AppError::PracticeAttempt`]; the
+    /// result enters neither a score sheet nor a recording, and
+    /// [`Session::export_current_recording_privileged`] returns `None`. Each
+    /// attempt has a unique lineage, so opponent moves and coach results of
+    /// another session or attempt are rejected as stale.
+    pub fn start_practice(&self, recording: &GameRecording) -> Result<Session, RecordingError> {
+        // Entire validation before anything is built (header, deal, history, end).
+        recording.reconstruct_privileged(recording.actions.len())?;
+        static LINEAGE: AtomicU64 = AtomicU64::new(1);
+        let lineage = LINEAGE.fetch_add(1, Ordering::Relaxed);
+        let context = &recording.context;
+        let config = context.session;
+        let stream = |n: u64| {
+            let mut rng = ChaCha8Rng::seed_from_u64(config.seed);
+            rng.set_stream(n);
+            rng
+        };
+        let mut coach = CoachState::new(
+            stream(2).next_u64(),
+            config.opponents == Opponents::Experimental,
+        );
+        coach.settings = self.coach.settings;
+        coach.budget = self.coach.budget;
+        let mut quiz = QuizState::new(stream(PRACTICE_QUIZ_STREAM).next_u64());
+        quiz.set(self.quiz.settings);
+        quiz.take_events();
+        let mut practice = Session {
+            config,
+            // Never advanced: a practice attempt deals no further game.
+            rng: stream(0),
+            ai_rng: stream(1),
+            ai_seeds: context.opponent_seeds,
+            goldfish: context.goldfish.unwrap_or(PlayerId(1)),
+            actions: 0,
+            game: Game::from_deal(recording.deal, recording.rules),
+            game_seed: recording.seed,
+            number: context.number,
+            dealer: context.dealer,
+            sheet: ScoreSheet::default(),
+            recording: GameRecording::start(context.clone(), recording.seed, recording.rules),
+            recordings: Vec::new(),
+            finished: false,
+            lineage,
+            coach,
+            quiz,
+        };
+        practice.refresh_quiz();
+        practice.quiz.take_events();
+        Ok(practice)
+    }
+
     /// Explicit privileged local export: reveals the deal and action history.
     /// Not for ordinary table views, opponents or live coach analysis.
     /// A zero-length series has no recording.
+    /// A practice attempt has none: it can never overwrite or add a recording.
     pub fn export_current_recording_privileged(&self) -> Option<GameRecording> {
-        (!matches!(self.config.series, SeriesLength::Fixed(0))).then(|| self.recording.clone())
+        (!self.is_practice() && !matches!(self.config.series, SeriesLength::Fixed(0)))
+            .then(|| self.recording.clone())
     }
 
     /// Completed privileged recordings in game order, retained across NextGame.
@@ -917,6 +1013,9 @@ impl Session {
         self.finished.then(|| self.sheet.result())
     }
 }
+
+/// Quiz stream of a practice attempt; 0-3 are the live series streams.
+const PRACTICE_QUIZ_STREAM: u64 = 4;
 
 fn rule_config(config: SessionConfig) -> RuleConfig {
     RuleConfig {

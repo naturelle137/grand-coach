@@ -213,6 +213,7 @@ pub fn error(i18n: &I18n, error: AppError) -> String {
         AppError::StaleCoachResult => i18n.t("error-stale-coach-result"),
         AppError::QuestionPending => i18n.t("error-question-pending"),
         AppError::NoQuestion => i18n.t("error-no-question"),
+        AppError::PracticeAttempt => i18n.t("error-practice-attempt"),
     }
 }
 

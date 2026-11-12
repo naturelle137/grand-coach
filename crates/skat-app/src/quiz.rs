@@ -443,6 +443,7 @@ mod tests {
         let seat = g.current_seat().unwrap();
         q.refresh(
             Some(DecisionKey {
+                lineage: 0,
                 number: 1,
                 actions: 20,
             }),
@@ -457,6 +458,7 @@ mod tests {
         }
         q.refresh(
             Some(DecisionKey {
+                lineage: 0,
                 number: 1,
                 actions: 26,
             }),
