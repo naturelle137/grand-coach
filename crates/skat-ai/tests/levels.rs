@@ -339,3 +339,84 @@ fn two_stage_card_play_is_opt_in() {
     assert_eq!((analysis, report), (None, None));
     assert_eq!(Some(decision), strong.decide(view, None));
 }
+
+/// Review regression (#104, PR #120): a single survivor skips stage 2, so
+/// every option keeps the stage-1 sample count. The decision must still be
+/// the survivor, not the rules-of-thumb action the screening discarded.
+#[test]
+fn two_stage_decision_is_a_survivor() {
+    let budget = Some(Budget {
+        samples: 12,
+        nodes_per_task: 50_000_000,
+    });
+    let one = TwoStage {
+        min_keep: 1,
+        max_keep: 1,
+        ..TwoStage::PROPOSAL
+    };
+    let survivor_of = |view: &PlayerView, opponent: &Opponent, screening: TwoStage| {
+        let (decision, analysis, report) =
+            opponent.decide_two_stage(view, None, screening).unwrap();
+        let (analysis, report) = (analysis.unwrap(), report.unwrap());
+        let chosen = view
+            .legal_actions
+            .iter()
+            .position(|&a| a == decision.action)
+            .unwrap();
+        (decision, analysis, report, chosen)
+    };
+
+    // Fixture from the review: deal 0, survivor Karo-Neun (index 3); the
+    // rules of thumb prefer the discarded Karo-Bube (index 5).
+    let view = first_card(0).unwrap();
+    let strong = Opponent {
+        profile: Profile {
+            budget,
+            ..Level::Strong.profile()
+        },
+        seed: 3,
+    };
+    let (decision, analysis, report, chosen) = survivor_of(&view, &strong, one);
+    assert_eq!(report.outcome, StageOutcome::OneSurvivor);
+    assert_eq!(report.survivors, [3]);
+    assert_eq!(chosen, 3, "{report:?}");
+    assert!(!decision.fallback);
+    assert_eq!(decision.status, Some(analysis.status));
+    // Estimates stay honest: no option was given extra samples.
+    let samples: Vec<_> = analysis
+        .options
+        .iter()
+        .map(|o| o.estimate.map(|e| e.samples))
+        .collect();
+    assert!(samples.windows(2).all(|w| w[0] == w[1]), "{samples:?}");
+
+    // With a nonzero temperature the sampled choice stays among the
+    // survivors, for one and for several survivors.
+    let mut checked = 0;
+    for seed in 0..4 {
+        let hot = Opponent {
+            profile: Profile {
+                budget,
+                temperature: 1_000.0,
+                ..Level::Strong.profile()
+            },
+            seed,
+        };
+        let two = TwoStage {
+            min_keep: 2,
+            max_keep: 2,
+            ..TwoStage::PROPOSAL
+        };
+        for screening in [one, two] {
+            let (_, _, report, chosen) = survivor_of(&view, &hot, screening);
+            if matches!(
+                report.outcome,
+                StageOutcome::OneSurvivor | StageOutcome::Screened
+            ) {
+                checked += 1;
+                assert!(report.survivors.contains(&chosen), "{report:?}");
+            }
+        }
+    }
+    assert!(checked > 0, "no position exercised the screening");
+}

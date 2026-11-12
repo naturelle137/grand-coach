@@ -219,8 +219,8 @@ in `skat-ai` exposes it for paired measurements only.
 Survivors get bitwise the single-stage estimates. Screened-out options keep
 their stage-1 estimate with fewer `samples`. `StageReport` gives the
 outcome, survivors, stage-1 nodes, and per option `kept` and the effective
-sample size. Analysed opponents choose only among options with the most
-samples. Same view, seed, budget, kernel and parameters give the same
+sample size. `Opponent::decide_two_stage` chooses only among the survivors
+(with a single survivor, that option). Same view, seed, budget, kernel and parameters give the same
 result for any thread count.
 
 No screening, result identical to the reference, with `SkipReason`: not

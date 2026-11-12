@@ -187,7 +187,8 @@ impl Opponent {
     /// Experimental, opt-in (#104): [`Opponent::decide_analysed`] with the
     /// two-stage card-play analysis of `skat-analysis`
     /// ([`analyze_two_stage`], classic kernel) and its stage report. No
-    /// shipped level uses it. Decisions the screening excludes are analysed
+    /// shipped level uses it. The decision is always one of the report's
+    /// survivors. Decisions the screening excludes are analysed
     /// exactly like the single-stage path (reason in the report); a
     /// forgetful profile with forgotten cards uses the single-stage
     /// forgetful analysis and reports `None`. For paired measurements
@@ -247,10 +248,14 @@ impl Opponent {
             return Some((decision, None, None));
         };
         let mut rng = ChaCha8Rng::seed_from_u64(mix(seed, 2));
+        // Screened-out options are never candidates (#104): with a single
+        // survivor every option keeps the stage-1 sample count, so the
+        // sample filter in `select` alone could pick a discarded action.
+        let screened = screened_options(&analysis.options, report.as_ref());
         let options = if kontra_by_rules {
-            without_kontra(&analysis.options)
+            without_kontra(&screened)
         } else {
-            analysis.options.clone()
+            screened
         };
         let decision = decision(
             select(view, &options, rules, self.profile.temperature, &mut rng),
@@ -380,6 +385,19 @@ pub(crate) fn offers_kontra(view: &PlayerView) -> bool {
 }
 
 /// `options` without the Kontra choices.
+/// The options a stage report kept, or all of them if nothing was
+/// screened out (or no two-stage analysis ran).
+fn screened_options(options: &[OptionValue], report: Option<&StageReport>) -> Vec<OptionValue> {
+    match report {
+        Some(r) if r.survivors.len() < options.len() => r
+            .survivors
+            .iter()
+            .filter_map(|&i| options.get(i).cloned())
+            .collect(),
+        _ => options.to_vec(),
+    }
+}
+
 pub(crate) fn without_kontra(options: &[OptionValue]) -> Vec<OptionValue> {
     options
         .iter()
