@@ -162,6 +162,8 @@ pub enum Command {
     AnswerQuiz(u8),
     /// Skip the pending quiz question; the answer is shown.
     SkipQuiz,
+    /// Restore exact frozen help without releasing the question hold.
+    RestoreQuizHelp,
     /// Ask the coach about the current decision of the human.
     RequestAdvice,
     /// Put the coach's advice for the current decision away until the next
@@ -206,6 +208,8 @@ pub enum AppEvent {
     Coach(CoachEvent),
     /// A quiz question was settled.
     Quiz(QuizFeedback),
+    /// Assistance-aware retrieval transition; stable ID for deduplication.
+    Retrieval(crate::quiz::RetrievalEvent),
 }
 
 /// Why a command was rejected. The session is unchanged after an error.
@@ -407,7 +411,7 @@ impl Session {
             self.opponent_to_move(),
             &view,
             open_cards,
-            if self.quiz.is_pending() {
+            if self.quiz.withhold_coach() {
                 // The answer must not leak through a hint or a note.
                 CoachView::withheld(self.coach.settings)
             } else {
@@ -648,7 +652,12 @@ impl Session {
                 // for the coach check is withdrawn, never played later.
                 self.coach.pending = None;
             }
-            return Ok(Vec::new());
+            return Ok(self
+                .quiz
+                .take_events()
+                .into_iter()
+                .map(AppEvent::Retrieval)
+                .collect());
         }
         if self.finished {
             return Err(AppError::SeriesFinished);
@@ -669,6 +678,17 @@ impl Session {
             Command::SetAssist(_) => unreachable!("handled above"),
             Command::AnswerQuiz(answer) => self.settle_quiz(Some(answer)),
             Command::SkipQuiz => self.settle_quiz(None),
+            Command::RestoreQuizHelp => {
+                if !self.quiz.restore_help() {
+                    return Err(AppError::NoQuestion);
+                }
+                Ok(self
+                    .quiz
+                    .take_events()
+                    .into_iter()
+                    .map(AppEvent::Retrieval)
+                    .collect())
+            }
             Command::Act(action) => {
                 let seat = self.game.current_seat();
                 if seat.is_some_and(|s| !PlayerId::on_seat(s, self.dealer).is_human()) {
@@ -749,7 +769,9 @@ impl Session {
 
     fn settle_quiz(&mut self, answer: Option<u8>) -> Result<Vec<AppEvent>, AppError> {
         let feedback = self.quiz.settle(answer).ok_or(AppError::NoQuestion)?;
-        Ok(vec![AppEvent::Quiz(feedback)])
+        let mut events = vec![AppEvent::Quiz(feedback)];
+        events.extend(self.quiz.take_events().into_iter().map(AppEvent::Retrieval));
+        Ok(events)
     }
 
     /// Asks the question due at the human's current decision, if any.
@@ -785,6 +807,7 @@ impl Session {
             events.extend(self.record_game());
         }
         self.refresh_quiz();
+        events.extend(self.quiz.take_events().into_iter().map(AppEvent::Retrieval));
         Ok(events)
     }
 

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use skat_analysis::Knowledge;
 use skat_analysis::counting::{
     AugenCount, CountingAid, Derivation, QuestionKind, TrumpfCount, Voids, applicable_questions,
-    derive,
+    derive, retrieval_questions,
 };
 use skat_core::{Card, GameType, PlayerView, Seat};
 
@@ -30,6 +30,72 @@ pub struct AssistSettings {
     pub counting_aid: bool,
     /// Ask counting questions at the human's card-play decisions.
     pub quiz: bool,
+    /// Restrict questions to remaining Trumpf and publicly proven voids (#48).
+    #[serde(default)]
+    pub retrieval: bool,
+    /// Explicit support for focused retrieval; never inferred from answers.
+    #[serde(default)]
+    pub assistance: AssistanceLevel,
+}
+
+/// Support chosen by the player for focused retrieval.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AssistanceLevel {
+    /// Show the exact aid alongside the question.
+    VisibleAid,
+    /// Recall mentally, then request the exact aid or submit an answer.
+    RevealOnRequest,
+    /// Enter an answer before feedback; help can always be restored explicitly.
+    #[default]
+    AnswerBeforeReveal,
+}
+
+/// Stable opportunity identity within a seeded series. Not a mastery ID.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct QuestionId {
+    /// Independent quiz stream seed, not the deal seed.
+    pub series: u64,
+    /// Game number (one-based).
+    pub game: u32,
+    /// Completed tricks at the opportunity.
+    pub trick: u8,
+}
+
+/// Once-only transition. Deduplication key: question ID and variant tag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RetrievalAction {
+    /// The frozen question was offered.
+    Opportunity,
+    /// Exact help was explicitly restored (including a settings change).
+    Help,
+    /// A numeric response, scored against the frozen snapshot.
+    Answer {
+        /// Submitted count.
+        given: u8,
+        /// Exact match.
+        correct: bool,
+    },
+    /// No answer; disabling the quiz is also an explicit skip.
+    Skip {
+        /// Quiz was disabled rather than the skip button used.
+        disabled: bool,
+    },
+}
+
+/// Plain in-memory event shared with future progress consumers. No storage
+/// dependency; no inference about prior exposure, retention or mastery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RetrievalEvent {
+    /// Stable opportunity identifier.
+    pub id: QuestionId,
+    /// Frozen question (never contains its answer before reveal).
+    pub question: QuestionKind,
+    /// Once-only action within this opportunity.
+    pub action: RetrievalAction,
+    /// Explicitly selected support at this transition.
+    pub assistance: AssistanceLevel,
+    /// Exact help was available during this opportunity; sticky even if hidden again.
+    pub assisted: bool,
 }
 
 /// How a question ended.
@@ -94,6 +160,10 @@ pub struct QuizView {
     /// The pending question. The decision is held until it is answered,
     /// skipped or the quiz is switched off.
     pub question: Option<QuestionKind>,
+    /// ID of the pending opportunity.
+    pub id: Option<QuestionId>,
+    /// Exact frozen help, only after an explicit reveal or at VisibleAid.
+    pub help: Option<Derivation>,
     /// The result of the last question of this decision.
     pub feedback: Option<QuizFeedback>,
 }
@@ -115,6 +185,9 @@ pub struct AssistView {
 pub(crate) struct Pending {
     kind: QuestionKind,
     snapshot: Knowledge,
+    id: QuestionId,
+    assisted: bool,
+    revealed: bool,
 }
 
 /// Quiz state of a session.
@@ -127,6 +200,7 @@ pub(crate) struct QuizState {
     /// Trick counts at which a question was already asked in this game.
     asked: Vec<u8>,
     feedback: Option<QuizFeedback>,
+    events: Vec<RetrievalEvent>,
 }
 
 impl QuizState {
@@ -137,6 +211,7 @@ impl QuizState {
             pending: None,
             asked: Vec::new(),
             feedback: None,
+            events: Vec::new(),
         }
     }
 
@@ -157,10 +232,59 @@ impl QuizState {
     }
 
     pub(crate) fn set(&mut self, settings: AssistSettings) {
+        let changed_level = self.settings.assistance != settings.assistance;
         self.settings = settings;
-        if !settings.quiz {
-            self.pending = None;
+        if changed_level
+            && settings.assistance != AssistanceLevel::VisibleAid
+            && let Some(p) = self.pending.as_mut()
+        {
+            p.revealed = false;
         }
+        if !settings.quiz {
+            if let Some(p) = self.pending.take() {
+                self.record(p, RetrievalAction::Skip { disabled: true });
+            }
+        } else if settings.retrieval && settings.assistance == AssistanceLevel::VisibleAid {
+            self.restore_help();
+        }
+    }
+
+    fn record(&mut self, p: Pending, action: RetrievalAction) {
+        self.events.push(RetrievalEvent {
+            id: p.id,
+            question: p.kind,
+            action,
+            assistance: self.settings.assistance,
+            assisted: p.assisted,
+        });
+    }
+
+    pub(crate) fn take_events(&mut self) -> Vec<RetrievalEvent> {
+        std::mem::take(&mut self.events)
+    }
+
+    /// Restoring help does not release the decision hold. Repeated requests
+    /// are idempotent and never create duplicate help events.
+    pub(crate) fn restore_help(&mut self) -> bool {
+        let Some(mut p) = self.pending else {
+            return false;
+        };
+        if !p.revealed {
+            p.revealed = true;
+            let first_help = !p.assisted;
+            p.assisted = true;
+            self.pending = Some(p);
+            if first_help {
+                self.record(p, RetrievalAction::Help);
+            }
+        }
+        true
+    }
+
+    /// Suppress all auxiliary answer sources, including late coach results
+    /// and historical review panels. Explicit restoration only exposes facts.
+    pub(crate) fn withhold_coach(&self) -> bool {
+        self.is_pending()
     }
 
     /// Asks the question due at the human's decision `key`, if any: with
@@ -182,7 +306,11 @@ impl QuizState {
             return;
         }
         let snapshot = Knowledge::from_view(view);
-        let kinds = applicable_questions(&snapshot);
+        let kinds = if self.settings.retrieval {
+            retrieval_questions(&snapshot)
+        } else {
+            applicable_questions(&snapshot)
+        };
         if kinds.is_empty() {
             return;
         }
@@ -193,7 +321,21 @@ impl QuizState {
         );
         let kind = kinds[rng.next_u32() as usize % kinds.len()];
         self.asked.push(tricks);
-        self.pending = Some(Pending { kind, snapshot });
+        let assisted =
+            self.settings.retrieval && self.settings.assistance == AssistanceLevel::VisibleAid;
+        let p = Pending {
+            kind,
+            snapshot,
+            id: QuestionId {
+                series: self.seed,
+                game: key.number,
+                trick: tricks,
+            },
+            assisted,
+            revealed: assisted,
+        };
+        self.pending = Some(p);
+        self.record(p, RetrievalAction::Opportunity);
     }
 
     /// Settles the pending question with `answer` (`None`: skipped).
@@ -210,14 +352,31 @@ impl QuizState {
             outcome,
             derivation,
         };
+        self.record(
+            pending,
+            match answer {
+                Some(given) => RetrievalAction::Answer {
+                    given,
+                    correct: given == derivation.expected(),
+                },
+                None => RetrievalAction::Skip { disabled: false },
+            },
+        );
         self.feedback = Some(feedback);
         Some(feedback)
     }
 
     pub(crate) fn view(&self, view: &PlayerView, dealer: PlayerId) -> AssistView {
-        let counting = if !self.settings.counting_aid {
+        let revealed = self.pending.is_some_and(|p| p.revealed);
+        let counting = if revealed {
+            let p = self.pending.expect("revealed pending question");
+            CountingState::Shown(Box::new(counting_view(
+                &CountingAid::from_knowledge(&p.snapshot),
+                dealer,
+            )))
+        } else if !self.settings.counting_aid {
             CountingState::Off
-        } else if self.pending.is_some() {
+        } else if self.withhold_coach() {
             CountingState::Withheld
         } else {
             let aid = CountingAid::from_knowledge(&Knowledge::from_view(view));
@@ -228,6 +387,11 @@ impl QuizState {
             counting,
             quiz: QuizView {
                 question: self.pending.map(|p| p.kind),
+                id: self.pending.map(|p| p.id),
+                help: self
+                    .pending
+                    .filter(|p| p.revealed)
+                    .and_then(|p| derive(&p.snapshot, p.kind)),
                 feedback: self.feedback,
             },
         }
@@ -245,5 +409,66 @@ fn counting_view(aid: &CountingAid, dealer: PlayerId) -> CountingView {
         trumpf: aid.trumpf,
         augen: aid.augen,
         voids,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use skat_core::{Action, Announcement, Game, Phase, RuleConfig};
+
+    #[test]
+    fn help_and_delayed_grading_keep_the_original_snapshot_even_with_new_input() {
+        let mut g = Game::new(1, RuleConfig::default());
+        while g.phase() != Phase::Spiel {
+            let a = match g.phase() {
+                Phase::Reizen if g.bid() == 0 => Action::Bid(18),
+                Phase::Reizen => Action::Pass,
+                Phase::SkatAufnahme => Action::Hand,
+                Phase::Ansage => Action::Announce(Announcement::plain(GameType::Grand)),
+                _ => g.legal_actions()[0],
+            };
+            g.apply(a).unwrap();
+        }
+        while g.view(Seat::Vorhand).tricks.len() < 3 {
+            g.apply(g.legal_actions()[0]).unwrap();
+        }
+        let mut q = QuizState::new(4);
+        q.set(AssistSettings {
+            quiz: true,
+            retrieval: true,
+            counting_aid: true,
+            ..AssistSettings::default()
+        });
+        let seat = g.current_seat().unwrap();
+        q.refresh(
+            Some(DecisionKey {
+                number: 1,
+                actions: 20,
+            }),
+            &g.view(seat),
+        );
+        assert!(q.restore_help());
+        let frozen = q.view(&g.view(seat), PlayerId::HUMAN);
+        // Production Session holds this action. Injecting later *legal* core
+        // input isolates the quiz's snapshot contract from that separate guard.
+        for _ in 0..6 {
+            g.apply(g.legal_actions()[0]).unwrap();
+        }
+        q.refresh(
+            Some(DecisionKey {
+                number: 1,
+                actions: 26,
+            }),
+            &g.view(seat),
+        );
+        let after = q.view(&g.view(seat), PlayerId::HUMAN);
+        assert_eq!(after, frozen);
+        let expected = frozen.quiz.help.unwrap().expected();
+        assert_eq!(
+            q.settle(Some(expected)).unwrap().outcome,
+            QuizOutcome::Correct
+        );
+        assert_eq!(q.feedback.unwrap().derivation, frozen.quiz.help.unwrap());
     }
 }

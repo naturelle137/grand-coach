@@ -367,3 +367,57 @@ fn grand_ouvert_shows_the_declarer_cards_to_the_defender() {
     assert_eq!(a.augen.outstanding, 64);
     assert_eq!((a.augen.declarer, a.augen.defenders), (Some(24), Some(0)));
 }
+
+/// Retrieval uses the same exact Trumpf definition as the existing M6
+/// fixtures above: known discard, unknown Hand-Skat and revealed Ouvert
+/// cards. These expected counts were stated independently in those fixtures.
+#[test]
+fn retrieval_respects_discard_hand_ouvert_and_null_boundaries() {
+    use skat_analysis::counting::{QuestionKind, derive, retrieval_questions};
+    let cases = [
+        (
+            Announcement::plain(GameType::Farbe(Herz)),
+            false,
+            1,
+            14,
+            Some(5),
+            Some(6),
+        ),
+        (
+            Announcement::plain(GameType::Grand),
+            true,
+            1,
+            14,
+            Some(1),
+            Some(1),
+        ),
+        (
+            Announcement {
+                game: GameType::Grand,
+                schneider: true,
+                schwarz: true,
+                ouvert: true,
+            },
+            true,
+            10,
+            8,
+            Some(2),
+            Some(2),
+        ),
+        (Announcement::plain(GameType::Null), false, 1, 5, None, None),
+    ];
+    for (a, hand, seed, plays, declarer, defender) in cases {
+        let s = scenario(seed, a, hand, plays);
+        for (seat, expected) in [(s.declarer, declarer), (s.defender, defender)] {
+            let k = Knowledge::from_view(&s.game.view(seat));
+            assert_eq!(
+                derive(&k, QuestionKind::TrumpfOutside).map(|d| d.expected()),
+                expected
+            );
+            assert_eq!(
+                retrieval_questions(&k).contains(&QuestionKind::TrumpfOutside),
+                expected.is_some()
+            );
+        }
+    }
+}

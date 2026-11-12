@@ -543,3 +543,17 @@ quiz-why-trumpf = { $total } Trumpf − { $own } in your hand − { $played } pl
 quiz-why-trumpf-skat = An unknown Skat may hold some of them.
 quiz-why-augen = This side won { $augen } Augen, the other side { $other }.
 quiz-why-played = { $played } of the { $size } { $class } cards are played, { $unplayed } are not yet.
+
+# Focused retrieval (#48)
+setting-retrieval = Focused retrieval: remaining Trumpf and proven voids
+setting-retrieval-level = Support for focused retrieval
+retrieval-visible = Counting aid visible
+retrieval-request = Count mentally, reveal on request
+retrieval-answer = Answer before reveal
+retrieval-hint = Your move waits for an answer, skip or switch-off. You can always restore help; the attempt is then recorded as assisted.
+retrieval-help = Show help
+retrieval-assisted = Help visible – this attempt is assisted.
+retrieval-withheld = Counting aid hidden for focused retrieval. Restore it permanently in settings at any time.
+quiz-q-voids = How many other players are publicly proven to hold no more cards of the { $class } class?
+quiz-why-voids = Other players publicly proven unable to follow the { $class } class: { $count }. Concealed hands are never guessed.
+retrieval-enter = Enter a count

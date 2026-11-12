@@ -49,8 +49,9 @@ pub use coach::{
 pub use context::DecisionContext;
 pub use neural::{neural_model, neural_model_available};
 pub use quiz::{
-    AssistSettings, AssistView, CountingState, CountingView, QUESTION_AFTER_TRICKS, QuizFeedback,
-    QuizOutcome, QuizView,
+    AssistSettings, AssistView, AssistanceLevel, CountingState, CountingView,
+    QUESTION_AFTER_TRICKS, QuestionId, QuizFeedback, QuizOutcome, QuizView, RetrievalAction,
+    RetrievalEvent,
 };
 pub use series::{GameRecord, ScoreSheet, SeriesResult};
 pub use session::{

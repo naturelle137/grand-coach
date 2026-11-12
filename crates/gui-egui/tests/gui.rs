@@ -1598,3 +1598,91 @@ fn coach_help_waits_while_a_counting_question_is_open() {
     }
     panic!("no series reached a counting question");
 }
+
+#[test]
+fn focused_retrieval_help_and_levels_work_in_both_languages() {
+    use skat_app::{AssistSettings, AssistanceLevel};
+    for language in [Language::De, Language::En] {
+        let mut h = harness(SessionConfig {
+            seed: 1,
+            series: SeriesLength::Fixed(12),
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            kontra_re: false,
+        });
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
+        // Exercise the German menu and each explicit level through actual clicks.
+        settle(&mut h);
+        h.key_press(egui::Key::Escape);
+        h.run_steps(3);
+        button(&mut h, "Einstellungen");
+        click(
+            &mut h,
+            Role::CheckBox,
+            "Gezieltes Abrufen: Resttrümpfe und Fehlfarben",
+        );
+        h.key_press(egui::Key::Escape);
+        h.run_steps(3);
+        button(&mut h, "Einstellungen");
+        click(&mut h, Role::RadioButton, "Zählhilfe sichtbar");
+        assert_eq!(
+            view(&h).assist.settings.assistance,
+            AssistanceLevel::VisibleAid
+        );
+        h.key_press(egui::Key::Escape);
+        h.run_steps(3);
+        button(&mut h, "Einstellungen");
+        click(
+            &mut h,
+            Role::RadioButton,
+            "Erst selbst zählen, auf Wunsch aufdecken",
+        );
+        assert_eq!(
+            view(&h).assist.settings.assistance,
+            AssistanceLevel::RevealOnRequest
+        );
+        h.key_press(egui::Key::Escape);
+        h.run_steps(3);
+        button(&mut h, "Einstellungen");
+        click(&mut h, Role::RadioButton, "Erst antworten, dann aufdecken");
+        h.key_press(egui::Key::Escape);
+        h.run_steps(3);
+        h.state_mut().set_assist(AssistSettings {
+            quiz: true,
+            counting_aid: true,
+            retrieval: true,
+            assistance: AssistanceLevel::AnswerBeforeReveal,
+        });
+        until_question(&mut h, &mut rng).expect("focused question");
+        h.state_mut().set_language(language);
+        h.run_steps(4);
+        let before = game_part(&view(&h));
+        assert!(view(&h).assist.quiz.help.is_none());
+        assert!(view(&h).coach.last_move.is_none());
+        let (help, assisted, submit, feedback) = match language {
+            Language::De => (
+                "Hilfe einblenden",
+                "Hilfe sichtbar – dieser Versuch ist unterstützt.",
+                "Antworten",
+                "Letzte Zählfrage",
+            ),
+            Language::En => (
+                "Show help",
+                "Help visible – this attempt is assisted.",
+                "Answer",
+                "Last counting question",
+            ),
+        };
+        button(&mut h, help);
+        h.get_by_label(assisted);
+        assert!(view(&h).assist.quiz.help.is_some());
+        assert!(
+            view(&h).assist.quiz.question.is_some(),
+            "help keeps the hold"
+        );
+        assert_eq!(game_part(&view(&h)), before);
+        button(&mut h, submit);
+        h.get_by_label(feedback);
+        assert!(view(&h).assist.quiz.question.is_none());
+        assert_eq!(game_part(&view(&h)), before);
+    }
+}
