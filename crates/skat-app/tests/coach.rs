@@ -270,6 +270,7 @@ fn weak_position() -> (Session, Action, Action) {
 fn warning_holds_a_weak_action_until_proceed_or_reconsider() {
     let (mut s, weak, fine) = weak_position();
     let before = game_part(&s.view());
+    let recording_before = s.export_current_recording_privileged().unwrap();
 
     // Warned: nothing happens to the game.
     let events = s.execute(Command::Act(weak)).unwrap();
@@ -302,6 +303,11 @@ fn warning_holds_a_weak_action_until_proceed_or_reconsider() {
         Err(AppError::NothingPending)
     );
 
+    assert_eq!(
+        s.export_current_recording_privileged().unwrap(),
+        recording_before
+    );
+
     // Choosing it again at the same position is not warned twice.
     let mut again = s.clone();
     let events = again.execute(Command::Act(weak)).unwrap();
@@ -316,7 +322,12 @@ fn warning_holds_a_weak_action_until_proceed_or_reconsider() {
     // Proceed: the held action is played exactly once.
     let (mut s, weak, _) = weak_position();
     let hand = s.view().hand.len();
+    let recording_before = s.export_current_recording_privileged().unwrap();
     s.execute(Command::Act(weak)).unwrap();
+    assert_eq!(
+        s.export_current_recording_privileged().unwrap(),
+        recording_before
+    );
     let events = s.execute(Command::ProceedAnyway).unwrap();
     let played = events
         .iter()
@@ -326,11 +337,15 @@ fn warning_holds_a_weak_action_until_proceed_or_reconsider() {
         })
         .count();
     assert_eq!(played, 1);
+    let recorded = s.export_current_recording_privileged().unwrap();
+    assert_eq!(recorded.actions.len(), recording_before.actions.len() + 1);
+    assert_eq!(recorded.actions.last(), Some(&weak));
     assert_eq!(s.view().hand.len(), hand - 1);
     assert_eq!(
         s.execute(Command::ProceedAnyway),
         Err(AppError::NothingPending)
     );
+    assert_eq!(s.export_current_recording_privileged().unwrap(), recorded);
 }
 
 #[test]
@@ -384,6 +399,7 @@ fn checking_waits_for_the_analysis() {
     set(&mut s, CoachLevel::Off, true);
     assert!(to_human(&mut s));
     let before = game_part(&s.view());
+    let recorded = s.export_current_recording_privileged().unwrap();
     let action = simple_action(&s.view());
     let job = s.coach_job().expect("warnings need the analysis");
     let events = s.execute(Command::Act(action)).unwrap();
@@ -393,6 +409,7 @@ fn checking_waits_for_the_analysis() {
     );
     assert_eq!(game_part(&s.view()), before);
     assert_eq!(s.view().coach.pending, Some(Pending::Checking { action }));
+    assert_eq!(s.export_current_recording_privileged().unwrap(), recorded);
     // TINY runs out of budget: no finished analysis to judge it, so the
     // action is played as chosen, exactly once.
     let result = job.run(None);
@@ -404,6 +421,10 @@ fn checking_waits_for_the_analysis() {
     assert!(events.iter().any(|e| matches!(e, AppEvent::Game { .. })));
     assert_ne!(game_part(&s.view()), before);
     assert_eq!(s.view().coach.pending, None);
+
+    let after = s.export_current_recording_privileged().unwrap();
+    assert_eq!(after.actions.len(), recorded.actions.len() + 1);
+    assert_eq!(after.actions.last(), Some(&action));
 
     // An illegal action is rejected, not held.
     let mut s = session(3, false);

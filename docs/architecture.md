@@ -54,7 +54,8 @@ Keep it short; details belong in the code (`crates/skat-core`).
 
 ## Determinism and replay
 
-- A game is fully described by `(seed, RuleConfig, actions)`. Dealing is the
+- A game is fully described by `(seed, RuleConfig, actions)` under matching
+  core/dealing semantics. Dealing is the
   only source of randomness in the core.
 - RNG: `rand_chacha::ChaCha8Rng`, seeded explicitly. Not `StdRng`, whose
   algorithm may change between `rand` versions and would break old replays.
@@ -82,3 +83,45 @@ Keep it short; details belong in the code (`crates/skat-core`).
 - Public data types derive `serde` traits behind the cargo feature `serde`,
   so `skat-app` and replays can store them without forcing `serde` on every
   user of the core.
+
+## Privileged recordings in `skat-app` (D-65)
+
+`Session::export_current_recording_privileged` returns a detached
+`GameRecording`; `completed_recordings_privileged` retains each completed
+game across `NextGame`, separately from score entries. Capture happens once,
+after a successful core transition in the common human/opponent apply path.
+Rejected, quiz/coach/settings and held commands are not game actions; a held
+choice is captured only when actually applied. A zero-length series has none.
+
+Format 1 stores the actual game seed, original deal, rules, ordered core
+actions and explicit in-progress/all-pass/finished result metadata. Context
+contains producer version, original session configuration, game number,
+dealer, actual opponent seeds and the selected Goldfish identity. This is
+provenance, not an AI reproducibility promise: replay uses recorded choices,
+never current opponents or models. Coach/retrieval events and running series
+totals are not game history and are not reconstructed.
+
+`GameRecording::reconstruct_privileged(prefix)` validates the entire record
+and returns plain `PrivilegedRecordingPosition` data at an action boundary,
+including public core events and the historical permitted views inside its
+explicit omniscient state. It uses only core legal transitions in isolation;
+active games, RNG streams and score sheets are inaccessible. Later Skat or
+Ouvert knowledge is never injected into earlier permitted views. Neither
+records nor replay states enter `TableView`, ordinary opponent jobs or live
+coach/background analysis. Export explicitly discloses concealed cards.
+
+Only format 1 and `RECORDING_ENGINE` = `grand-coach-recording-1` are supported.
+Bump the engine discriminator for incompatible rule/deal/replay semantics;
+producer package version is descriptive. No cross-version seed stability is
+promised. The stored deal must match the seed under the supported engine,
+so dealing drift is rejected rather than silently replayed. Invalid context,
+rules, actions, prefixes, completion or settlement yield `RecordingError`.
+Serde handles malformed wire syntax and rejects unknown recording/context
+fields; semantic validation occurs on reconstruction. Action deserialisation
+and reconstruction are bounded to 512 actions (above the full bidding ladder,
+Skat/announcement, thirty card plays and Kontra/Re). A truncated finished
+record cannot pass its completion/result check, even for prefix zero.
+In-progress prefixes are deliberately supported; this is validation, not
+authentication against deliberate metadata rewriting. Future file IO must
+also bound input bytes before parsing. No disk IO, replay UI, editable history,
+same-deal attempts or training history is implemented here.
