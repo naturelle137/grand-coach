@@ -16,7 +16,10 @@
 
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
-use skat_analysis::{Analysis, Budget, Cancel, OptionValue, Status, analyze_forgetful, utility};
+use skat_analysis::{
+    Analysis, Budget, Cancel, Kernel, OptionValue, StageReport, Status, TwoStage,
+    analyze_forgetful, analyze_two_stage, utility,
+};
 use skat_core::{Action, CardSet, KontraLevel, Phase, PlayerView};
 
 use crate::BaselineOpponent;
@@ -178,6 +181,32 @@ impl Opponent {
         view: &PlayerView,
         cancel: Option<&Cancel>,
     ) -> Option<(Decision, Option<Analysis>)> {
+        self.decide_with(view, cancel, None).map(|(d, a, _)| (d, a))
+    }
+
+    /// Experimental, opt-in (#104): [`Opponent::decide_analysed`] with the
+    /// two-stage card-play analysis of `skat-analysis`
+    /// ([`analyze_two_stage`], classic kernel) and its stage report. No
+    /// shipped level uses it. Decisions the screening excludes are analysed
+    /// exactly like the single-stage path (reason in the report); a
+    /// forgetful profile with forgotten cards uses the single-stage
+    /// forgetful analysis and reports `None`. For paired measurements
+    /// against [`Opponent::decide_analysed`] only.
+    pub fn decide_two_stage(
+        &self,
+        view: &PlayerView,
+        cancel: Option<&Cancel>,
+        screening: TwoStage,
+    ) -> Option<(Decision, Option<Analysis>, Option<StageReport>)> {
+        self.decide_with(view, cancel, Some(screening))
+    }
+
+    fn decide_with(
+        &self,
+        view: &PlayerView,
+        cancel: Option<&Cancel>,
+        screening: Option<TwoStage>,
+    ) -> Option<(Decision, Option<Analysis>, Option<StageReport>)> {
         let mut rules = BaselineOpponent.decide(view)?;
         if !self.profile.mistakes.is_none() {
             let game_seed = mix(mix(self.seed, u64::from(view.hand.bits())), 7);
@@ -191,7 +220,7 @@ impl Opponent {
                 status: None,
                 fallback: false,
             };
-            return Some((decision, None));
+            return Some((decision, None, None));
         }
         let Some((budget, seed)) = self.analysis_input(view) else {
             let decision = Decision {
@@ -199,16 +228,23 @@ impl Opponent {
                 status: None,
                 fallback: false,
             };
-            return Some((decision, None));
+            return Some((decision, None, None));
         };
         let forgotten = self.forgotten(view);
-        let Ok(analysis) = analyze_forgetful(view, forgotten, budget, seed, cancel) else {
+        let analysed = match screening {
+            Some(screening) if forgotten.is_empty() => {
+                analyze_two_stage(view, budget, seed, cancel, Kernel::Classic, screening)
+                    .map(|t| (t.analysis, Some(t.report)))
+            }
+            _ => analyze_forgetful(view, forgotten, budget, seed, cancel).map(|a| (a, None)),
+        };
+        let Ok((analysis, report)) = analysed else {
             let decision = Decision {
                 action: rules,
                 status: None,
                 fallback: true,
             };
-            return Some((decision, None));
+            return Some((decision, None, None));
         };
         let mut rng = ChaCha8Rng::seed_from_u64(mix(seed, 2));
         let options = if kontra_by_rules {
@@ -221,7 +257,7 @@ impl Opponent {
             rules,
             analysis.status,
         );
-        Some((decision, Some(analysis)))
+        Some((decision, Some(analysis), report))
     }
 
     /// Budget and sampling seed the opponent passes to the analysis

@@ -197,6 +197,52 @@ dropped for every option), or `NoDecision`.
 screened on 3 distributions, the best 6 are evaluated on all. `samples`
 shows which options had fewer.
 
+## Two-stage card play (experimental, #104)
+
+`analyze_two_stage` is an opt-in prototype. No shipped level, coach or
+generator calls it; `analyze` and `analyze_experimental` stay the
+reference (`Kernel` picks which one to match). `Opponent::decide_two_stage`
+in `skat-ai` exposes it for paired measurements only.
+
+1. **Stage 1:** every legal card on the first `screen_worlds` distributions
+   of the single-stage analysis, the same worlds in the same order.
+2. **Screening:** best = highest weighted mean `utility`; ties go to the
+   lowest option index. Another option survives if its gap to the best is
+   at most `se_multiple` × the standard error of the paired
+   per-distribution difference. That standard error uses the evidence
+   weights' effective sample size and is raised to `se_floor`. Survivors
+   are filled up to `min_keep` and cut to `max_keep` in rank order (mean
+   descending, index ascending).
+3. **Stage 2:** survivors on the remaining distributions. A single survivor
+   (only with `min_keep` 1) skips stage 2.
+
+Survivors get bitwise the single-stage estimates. Screened-out options keep
+their stage-1 estimate with fewer `samples`. `StageReport` gives the
+outcome, survivors, stage-1 nodes, and per option `kept` and the effective
+sample size. Analysed opponents choose only among options with the most
+samples. Same view, seed, budget, kernel and parameters give the same
+result for any thread count.
+
+No screening, result identical to the reference, with `SkipReason`: not
+this seat's turn, not card play, Kontra/Re offered, enumerated (exact),
+at most `max(2, min_keep)` options, at most `screen_worlds` distributions
+(so Medium's 6 samples always skip under the proposal), an interrupted
+stage-1 task (all options continue), or a stage-1 effective sample size
+below 2.
+
+`TwoStage::PROPOSAL` (8 worlds, 2.5 SE, floor 2, keep 2–4) is
+provisional and unmeasured. Stage 1 offers only `screen_worlds` parallel
+tasks, so fewer nodes need not mean less wall time on many cores. Measure
+both before changing a default:
+
+```sh
+cargo run --locked --release -p skat-ai --example two_stage -- tuning 25
+```
+
+Tuning deals start at seed 10,001 and holdout deals at 2,000,001. The
+example reports identical decisions, regret, outcomes, nodes and wall time
+per decision.
+
 ## Budgets and determinism
 
 - `Budget { samples, nodes_per_task }`: a task evaluates every option on
