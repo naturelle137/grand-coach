@@ -101,6 +101,10 @@ cargo run --locked --release -p skat-ai --example tournament -- CONFIG OUT.tsv t
 
 For the shipped model, v2 status and commands to generate data, verify
 shards, train, probe and refine models, see [offline learned models](docs/learned-models.md).
+For the Phase 2 seed audit, bounded pilot and HQ evaluation entrypoints,
+see [the evaluation protocol](docs/phase2-evaluation.md). Analysis regression
+fixtures run with `python3 -m unittest discover -s scripts/phase2 -p 'test_*.py'`.
+
 For docs-only changes run `scripts/check.sh full --base origin/main`.
 The lint tier checks tracked Markdown file/heading links offline. Run it alone
 with `python3 scripts/markdown-links/check.py`, or its regression fixtures with

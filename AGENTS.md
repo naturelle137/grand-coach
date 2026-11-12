@@ -118,6 +118,10 @@ Document new commands here and in `CONTRIBUTING.md` only once verified.
 For local setup, running the app, generated assets and licence notices, see
 [CONTRIBUTING.md](CONTRIBUTING.md#development-setup). For training and
 assessment commands, see the [model guide](docs/learned-models.md).
+For the Phase 2 seed audit, bounded pilot and HQ evaluation entrypoints,
+see [the evaluation protocol](docs/phase2-evaluation.md). Analysis regression
+fixtures run with `python3 -m unittest discover -s scripts/phase2 -p 'test_*.py'`.
+
 Run the docs-only gate with `scripts/check.sh full --base origin/main`.
 For focused link checks use `python3 scripts/markdown-links/check.py`; supported
 syntax and fixture commands are in [testing](docs/testing.md#offline-markdown-links).
