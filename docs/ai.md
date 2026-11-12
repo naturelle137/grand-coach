@@ -172,6 +172,12 @@ seeds before adopting a faster backend for the same teacher.
 
 ## Faster Strong search
 
+Two-stage card play (#104) is an opt-in prototype
+([analysis](analysis.md#two-stage-card-play-experimental-104)). Strong,
+Medium, the coach and the generator stay single-stage. A default changes
+only after decision equivalence, wall time, generator throughput and an
+equal-budget calibration are measured on the holdout suite.
+
 Time Kontra/Re and the first three tricks separately. Solver-only timings
 miss the cost of sampling, all legal options and output. Use the
 [reproduction procedure](../crates/skat-analysis/experiments/strong-gpu/README.md#early-search-endgames).
