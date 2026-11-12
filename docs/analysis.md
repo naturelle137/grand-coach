@@ -230,18 +230,64 @@ at most `max(2, min_keep)` options, at most `screen_worlds` distributions
 stage-1 task (all options continue), or a stage-1 effective sample size
 below 2.
 
-`TwoStage::PROPOSAL` (8 worlds, 2.5 SE, floor 2, keep 2–4) is
-provisional and unmeasured. Stage 1 offers only `screen_worlds` parallel
-tasks, so fewer nodes need not mean less wall time on many cores. Measure
-both before changing a default:
+The frozen proposal is 24 worlds with screening `(8, 2.5, 2, 2, 4)`.
+Medium's 6 worlds are not enabled. No parameter tuning or default change
+is authorised by the diagnostic below.
 
-```sh
-cargo run --locked --release -p skat-ai --example two_stage -- tuning 25
-```
+### Actual bounded tuning diagnostic (HQ520, audited by HQ521)
 
-Tuning deals start at seed 10,001 and holdout deals at 2,000,001. The
-example reports identical decisions, regret, outcomes, nodes and wall time
-per decision.
+The [source audit and actual result](https://github.com/naturelle137/grand-coach/issues/104#issuecomment-6826724749)
+cover three timing repeats of the same 40 role/trick positions from only
+five underlying tuning deals (10001–10005), five positions per bucket.
+Repeats are not independent observations. The measured source is
+`6246cb07f7a728e5f902697dd3a051221540255a`, before the single OneSurvivor
+fix `15f098c3a4733162b20e0bfffc1e69dc24f99dac`; these measurements do not
+validate that final head or merged PR #120.
+
+| Subset (each repeat) | Identical actions | Reference nodes | Candidate nodes |
+|---|---:|---:|---:|
+| All positions | 39/40 (97.5%) | 343242621 | 252010059 |
+| Plain card play (report present, excluding Kontra/Re) | 34/35 (97.14%) | 261865780 | 170633218 |
+| Actually screened | 24/25 (96%) | 246908764 | 155676202 |
+
+Per repeat: Screened 25, AllSurvived 5, Skipped(FewOptions) 5,
+Skipped(KontraRe) 3, absent report 2. No OneSurvivor, Exact, SmallBudget,
+Interrupted, LowEffectiveSamples, NoDecision or NotCardPlay reports were
+observed; absence is not test coverage. The one differing action is seed
+10004, trick 1, defender; mean and maximum reference-utility regret are
+9.544 points in every repeat. Equal actions do not establish equal estimates
+or teacher labels.
+
+| Run | Summed wall ms (reference → candidate) | Median ms | p90 ms | Maximum ms | Summed ratio |
+|---|---:|---:|---:|---:|---:|
+| 1 | 4214.5 → 3427.7 | 22.90 → 17.40 | 326.7 → 215.2 | 1120.1 → 1111.7 | 0.813311 |
+| 2 | 3711.9 → 3427.0 | 23.10 → 15.60 | 237.0 → 179.8 | 1035.0 → 1285.3 | 0.923247 |
+| 3 | 3637.2 → 3059.6 | 20.85 → 15.45 | 250.0 → 185.6 | 1032.7 → 999.3 | 0.841197 |
+
+Median per decision uses the middle pair; p90 uses round((n−1) × 0.9).
+Across summed ratios, median = 0.841197 and p90/max = 0.923247. The
+predeclared overall diagnostic threshold passed (identity ≥97%, median
+ratio ≤0.90, p90 ≤1.05, three deterministic runs). The screened subset
+remains below 97%. Reference always ran first and starting load was 6.09:
+this is not a certified speedup. Status, fallback, completion, individual
+actions and labels were absent from the TSV. No fresh holdout, paired-tool
+throughput, label agreement or strength interval was measured.
+
+Source archive SHA-256:
+`bfde1fae677d3730d36cf5a6b657a468ac311974b8736623adc885949a1dfe60`;
+binary SHA-256:
+`637bfe013b2d2bd688ca376127125299679582c7ec484cd1f4f4ae02545e47b3`.
+The audit checked 509 source files. Raw TSV SHA-256, runs 1–3:
+
+- `e9d624215c045420f281f3c842f3b2ab693ff55f0a0ccd5fe6338d8ba41481e9`
+- `b76ee65dbfaaf3e199c9aff85d2bfd3b89cdae18ae49bec7d803aeb0ae33d2d8`
+- `cf190eda966f27222dbd70d63190d73f912eeaca8011759ae48b46476b8b0801`
+
+The allowed observation/tool increment has an explicit
+[unsupported-mode no-go and frozen conditional budgets](issue104-observation-no-go.md).
+The existing `two_stage` example remains a diagnostic TSV tool, not an
+admitted holdout runner. Issue #104 stays open with all unsatisfied criteria
+unticked; no further compute campaign is authorised.
 
 ## Budgets and determinism
 
