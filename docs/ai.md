@@ -172,11 +172,24 @@ seeds before adopting a faster backend for the same teacher.
 
 ## Faster Strong search
 
-Two-stage card play (#104) is an opt-in prototype
-([analysis](analysis.md#two-stage-card-play-experimental-104)). Strong,
-Medium, the coach and the generator stay single-stage. A default changes
-only after decision equivalence, wall time, generator throughput and an
-equal-budget calibration are measured on the holdout suite.
+Two-stage card play (#104) remains an opt-in prototype. Strong, Medium,
+the coach and the generator stay single-stage. The
+[actual HQ520/HQ521 pilot table, source identity and hashes](analysis.md#actual-bounded-tuning-diagnostic-hq520-audited-by-hq521)
+record 39/40 identical actions overall, plain card play 34/35 and screened
+24/25; differing-choice regret 9.544. Per repeat, nodes were
+343242621 → 252010059 overall, 261865780 → 170633218 plain and
+246908764 → 155676202 screened. Stage outcomes were 25 screened,
+5 all-survived, 5 few-option skips, 3 Kontra/Re skips and 2 absent reports.
+Median summed wall ratio was 0.841197 (p90/max 0.923247).
+
+Those are three timing repeats of 40 positions from five tuning deals,
+with the reference always first, not fresh strength or label evidence.
+Measured source `6246cb0` predates fix `15f098c`; it is not final-head
+validation. No strength interval, certified speedup, label agreement or
+end-to-end generator throughput follows from the diagnostic. The
+[observation/tool no-go](issue104-observation-no-go.md) records the missing
+interfaces and freezes the conditional budgets. Fresh measurements remain
+pending and unauthorised; no default change or #104 closure is justified.
 
 Time Kontra/Re and the first three tricks separately. Solver-only timings
 miss the cost of sampling, all legal options and output. Use the
