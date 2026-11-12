@@ -35,6 +35,7 @@ mod coach;
 mod context;
 mod neural;
 mod quiz;
+mod recording;
 mod series;
 mod session;
 mod sort;
@@ -53,6 +54,10 @@ pub use quiz::{
     QUESTION_AFTER_TRICKS, QuestionId, QuizFeedback, QuizOutcome, QuizView, RetrievalAction,
     RetrievalEvent,
 };
+pub use recording::{
+    GameRecording, MAX_RECORDING_ACTIONS, PrivilegedRecordingPosition, RECORDING_ENGINE,
+    RECORDING_FORMAT, RecordingContext, RecordingEnd, RecordingError,
+};
 pub use series::{GameRecord, ScoreSheet, SeriesResult};
 pub use session::{
     AppError, AppEvent, Command, OpponentJob, OpponentMove, Opponents, PlayerId, SeriesLength,
@@ -68,6 +73,7 @@ pub use view::{OpenCards, PlayedCard, ResultView, SeatInfo, TableView, TrickView
 
 /// Core data types shown by frontends.
 pub use skat_core::{
-    Action, Announcement, BidRecord, Call, Card, CardSet, Contract, Event, Follow, GameResult,
-    GameType, KontraLevel, Phase, Rank, RuleError, Seat, Spitzen, Suit, reizwerte,
+    Action, Announcement, BidRecord, Call, Card, CardSet, Contract, Deal, Event, Follow,
+    GameResult, GameType, KontraLevel, OmniscientView, Phase, PlayerView, Rank, RuleConfig,
+    RuleError, Seat, Spitzen, Suit, reizwerte,
 };

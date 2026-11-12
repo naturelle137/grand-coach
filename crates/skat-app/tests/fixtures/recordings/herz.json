@@ -1,0 +1,182 @@
+{
+  "format": 1,
+  "engine": "grand-coach-recording-1",
+  "context": {
+    "application_version": "0.1.0",
+    "session": {
+      "seed": 0,
+      "series": {
+        "Fixed": 36
+      },
+      "kontra_re": false,
+      "opponents": {
+        "Levels": [
+          "Easy",
+          "Easy"
+        ]
+      }
+    },
+    "number": 1,
+    "dealer": 2,
+    "opponent_seeds": [
+      1,
+      2
+    ],
+    "goldfish": null
+  },
+  "seed": 7,
+  "rules": {
+    "kontra_re": false
+  },
+  "deal": {
+    "hands": [
+      1147928636,
+      318847680,
+      680706307
+    ],
+    "skat": 2147484672
+  },
+  "actions": [
+    "Pass",
+    "Pass",
+    {
+      "Bid": 18
+    },
+    "TakeSkat",
+    {
+      "Discard": 12
+    },
+    {
+      "Announce": {
+        "game": {
+          "Farbe": "Herz"
+        },
+        "schneider": false,
+        "schwarz": false,
+        "ouvert": false
+      }
+    },
+    {
+      "Play": 4
+    },
+    {
+      "Play": 12
+    },
+    {
+      "Play": 17
+    },
+    {
+      "Play": 5
+    },
+    {
+      "Play": 6
+    },
+    {
+      "Play": 0
+    },
+    {
+      "Play": 7
+    },
+    {
+      "Play": 1
+    },
+    {
+      "Play": 10
+    },
+    {
+      "Play": 9
+    },
+    {
+      "Play": 8
+    },
+    {
+      "Play": 18
+    },
+    {
+      "Play": 19
+    },
+    {
+      "Play": 16
+    },
+    {
+      "Play": 20
+    },
+    {
+      "Play": 14
+    },
+    {
+      "Play": 21
+    },
+    {
+      "Play": 11
+    },
+    {
+      "Play": 22
+    },
+    {
+      "Play": 28
+    },
+    {
+      "Play": 23
+    },
+    {
+      "Play": 13
+    },
+    {
+      "Play": 15
+    },
+    {
+      "Play": 26
+    },
+    {
+      "Play": 27
+    },
+    {
+      "Play": 30
+    },
+    {
+      "Play": 24
+    },
+    {
+      "Play": 29
+    },
+    {
+      "Play": 31
+    },
+    {
+      "Play": 25
+    }
+  ],
+  "end": {
+    "Finished": {
+      "outcome": {
+        "declarer": "Vorhand",
+        "contract": {
+          "game": {
+            "Farbe": "Herz"
+          },
+          "hand": false,
+          "schneider": false,
+          "schwarz": false,
+          "ouvert": false
+        },
+        "bid": 18,
+        "spitzen": {
+          "mit": true,
+          "count": 1
+        },
+        "declarer_augen": 45,
+        "declarer_tricks": 4,
+        "tricks_played": 10,
+        "kontra": "None"
+      },
+      "won": false,
+      "ueberreizt": false,
+      "schneider": false,
+      "schwarz": false,
+      "game_value": 20,
+      "scored_value": 20,
+      "score": -40
+    }
+  }
+}

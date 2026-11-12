@@ -1,0 +1,136 @@
+{
+  "format": 1,
+  "engine": "grand-coach-recording-1",
+  "context": {
+    "application_version": "0.1.0",
+    "session": {
+      "seed": 0,
+      "series": {
+        "Fixed": 36
+      },
+      "kontra_re": false,
+      "opponents": {
+        "Levels": [
+          "Easy",
+          "Easy"
+        ]
+      }
+    },
+    "number": 1,
+    "dealer": 2,
+    "opponent_seeds": [
+      1,
+      2
+    ],
+    "goldfish": null
+  },
+  "seed": 7,
+  "rules": {
+    "kontra_re": false
+  },
+  "deal": {
+    "hands": [
+      1147928636,
+      318847680,
+      680706307
+    ],
+    "skat": 2147484672
+  },
+  "actions": [
+    "Pass",
+    "Pass",
+    {
+      "Bid": 18
+    },
+    "Hand",
+    {
+      "Announce": {
+        "game": "Null",
+        "schneider": false,
+        "schwarz": false,
+        "ouvert": true
+      }
+    },
+    {
+      "Play": 2
+    },
+    {
+      "Play": 6
+    },
+    {
+      "Play": 0
+    },
+    {
+      "Play": 7
+    },
+    {
+      "Play": 1
+    },
+    {
+      "Play": 3
+    },
+    {
+      "Play": 9
+    },
+    {
+      "Play": 8
+    },
+    {
+      "Play": 4
+    },
+    {
+      "Play": 11
+    },
+    {
+      "Play": 14
+    },
+    {
+      "Play": 5
+    },
+    {
+      "Play": 15
+    },
+    {
+      "Play": 18
+    },
+    {
+      "Play": 12
+    },
+    {
+      "Play": 17
+    },
+    {
+      "Play": 19
+    },
+    {
+      "Play": 16
+    }
+  ],
+  "end": {
+    "Finished": {
+      "outcome": {
+        "declarer": "Vorhand",
+        "contract": {
+          "game": "Null",
+          "hand": true,
+          "schneider": false,
+          "schwarz": false,
+          "ouvert": true
+        },
+        "bid": 18,
+        "spitzen": null,
+        "declarer_augen": 21,
+        "declarer_tricks": 1,
+        "tricks_played": 6,
+        "kontra": "None"
+      },
+      "won": false,
+      "ueberreizt": false,
+      "schneider": false,
+      "schwarz": false,
+      "game_value": 59,
+      "scored_value": 59,
+      "score": -118
+    }
+  }
+}
