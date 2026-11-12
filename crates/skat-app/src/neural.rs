@@ -81,6 +81,18 @@ mod tests {
     use super::recorded_hash;
 
     #[test]
+    fn bundled_manifest_loads_the_selected_v2() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/models");
+        let manifest = std::fs::read_to_string(dir.join("card-play.json")).unwrap();
+        let bytes = std::fs::read(dir.join("card-play.gcnn")).unwrap();
+        let expected = recorded_hash(&manifest).unwrap();
+        let model = skat_nn::NeuralModel::load(&bytes, &expected).unwrap();
+        assert_eq!(model.header().encoder_version, 2);
+        assert_eq!(model.header().shape.layers, 4);
+        assert_eq!(model.header().shape.hidden, 384);
+    }
+
+    #[test]
     fn reads_the_manifest_hash() {
         let hex = "ab".repeat(32);
         let manifest = format!("{{\n  \"model_bytes\": 1,\n  \"model_sha256\": \"{hex}\"\n}}");
