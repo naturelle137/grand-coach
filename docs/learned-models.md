@@ -23,27 +23,24 @@ or unusable output triggers the configured Classic fallback.
 
 ## Phase 2
 
-As of 2026-11-12 the v2 PPO campaign has stopped and held-out evaluation
-is being scheduled under the [predeclared protocol](phase2-evaluation.md). Supervised training
-on the T-2 through T-8 datasets produced multiple network shapes. A role
-tournament compared supervised candidates on shared deals. The local
-`2026-11-10-rl-4x` campaign started from the supervised 4×384, 4×512 and
-4×896 models (hidden layers × width). It trained against Classic levels,
-the frozen reference, recent snapshots and mixed tables. Intermediate
-arenas screen snapshots within and across shapes against their starts
-and reference opponents. Data, run logs and checkpoints live outside git.
+Phase 2 concluded on 2026-11-12 with a **no-go due to incomplete evidence**.
+Retain supervised v1; Classic stays the default. Of 18 predeclared held-out
+comparisons, 17 timed out and only 4×896 versus Strong (HQ #401) completed.
+The [evaluation card](phase2-outcome.md) records 232 verified chunks,
+23,200/36,000 pair-deals and 12,800 missing pair-deals. These comparisons
+reuse common underlying deals, so the totals are not independent samples.
 
-Phase 2 ends after reinforcement learning and final selection. Measure
-the shortlisted models against v1 and Classic on fresh validation deals,
-rotate seats, report uncertainty and inspect declarer and defender results
-as well as latency. Retain one or two selected models in the repository
-with their manifests and model cards. The current runtime selects one
-filename. Additional weights require an explicit packaging and selection
-decision before they can be offered in the app. The 4×896 start file is
-about 18 MB, above the binding D-63 limit of 10 MB per file. It is included
-in evaluation but excluded from shipping unless a separately reviewed
-technical decision changes the limit with evidence. Inconclusive/no-go
-results retain v1; no shipping candidate has yet passed held-out evaluation.
+The stopped `2026-11-10-rl-4x` PPO campaign refined supervised 4×384,
+4×512 and 4×896 models against Classic levels, the frozen reference,
+snapshots and mixed tables. Its frozen tuning shortlist and
+[predeclared evaluation rules](phase2-evaluation.md) remain unchanged.
+No candidate passed shipping acceptance; 4×896 is additionally evaluation-only
+under D-63's per-file size limit. The current runtime selects one filename;
+additional weights need an explicit packaging and selection decision.
+
+No further training or arenas are authorised by this outcome. Original data,
+run logs and checkpoints remain outside git. Unresolved history, option-quality
+and learning-efficacy evidence remains open in #75/#93 and the neural epic.
 
 ## Training data
 
