@@ -50,6 +50,12 @@ const GOD_MODE: &[&str] = &[
 
 const SCENARIOS: &[(&str, Scenario)] = &[
     ("launch", launch),
+    ("recording", recording),
+    ("recording-final", recording_final),
+    ("recording-en", recording_en),
+    ("recording-error", recording_error),
+    ("recording-error-en", recording_error_en),
+    ("recording-narrow", recording),
     ("bidding", bidding),
     ("trick", trick),
     ("neural-trick", neural_trick),
@@ -989,4 +995,80 @@ fn card_label(card: Card) -> String {
         "Sieben", "Acht", "Neun", "Zehn", "Bube", "Dame", "König", "Ass",
     ][usize::from(card.rank().index())];
     format!("{suit}-{rank}")
+}
+
+/// Reopen a completed game through the real Game menu and local file dialog.
+fn recording(h: &mut Harness<'_, GrandCoachApp>) {
+    result(h);
+    let directory =
+        std::env::temp_dir().join(format!("skat-screenshot-recording-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("game.json");
+    // Each scenario owns its temporary file; never delete user recordings.
+    if path.exists() {
+        std::fs::remove_file(&path).unwrap();
+    }
+    click(h, Role::Button, "Spiel");
+    click(h, Role::Button, "Spiel speichern …");
+    set_recording_path(h, "Dateipfad:", path.to_str().unwrap());
+    click(
+        h,
+        Role::CheckBox,
+        "Verdeckte Informationen bewusst in die Datei schreiben",
+    );
+    click(h, Role::Button, "Datei speichern");
+    click(h, Role::Button, "Spiel");
+    click(h, Role::Button, "Aufnahme öffnen …");
+    set_recording_path(h, "Dateipfad:", path.to_str().unwrap());
+    click(h, Role::Button, "Datei öffnen");
+    click(
+        h,
+        Role::CheckBox,
+        "Alle verdeckten Karten und den Skat aufdecken",
+    );
+    h.get_by_label_contains("Vollständige Information");
+    // Show a useful historical position with remaining cards and a full trick.
+    click(h, Role::Button, "Anfang");
+    h.get_by_label("Nach 0 Aktionen");
+    click(h, Role::Button, "Weiter");
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+fn set_recording_path(h: &mut Harness<'_, GrandCoachApp>, label: &str, path: &str) {
+    h.get_by_role_and_label(Role::TextInput, label).focus();
+    h.run_steps(1);
+    h.get_by_role_and_label(Role::TextInput, label)
+        .type_text(path);
+    h.run_steps(4);
+}
+
+fn recording_en(h: &mut Harness<'_, GrandCoachApp>) {
+    recording(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+fn recording_error(h: &mut Harness<'_, GrandCoachApp>) {
+    recording(h);
+    click(h, Role::Button, "Spiel");
+    click(h, Role::Button, "Aufnahme öffnen …");
+    let path = std::env::temp_dir().join(format!(
+        "skat-screenshot-corrupt-{}.json",
+        std::process::id()
+    ));
+    std::fs::write(&path, "{").unwrap();
+    set_recording_path(h, "Dateipfad:", path.to_str().unwrap());
+    click(h, Role::Button, "Datei öffnen");
+    std::fs::remove_file(path).unwrap();
+}
+
+fn recording_error_en(h: &mut Harness<'_, GrandCoachApp>) {
+    recording_error(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+fn recording_final(h: &mut Harness<'_, GrandCoachApp>) {
+    recording(h);
+    click(h, Role::Button, "Ende");
 }

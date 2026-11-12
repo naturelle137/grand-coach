@@ -105,6 +105,7 @@ impl Drop for CoachThinking {
 /// The Grand-Coach window.
 pub struct GrandCoachApp {
     session: Session,
+    recording: crate::recording::RecordingUi,
     i18n: I18n,
     deck: Deck,
     /// Cards chosen for Drücken.
@@ -142,6 +143,7 @@ impl GrandCoachApp {
         egui_extras::install_image_loaders(ctx);
         GrandCoachApp {
             session: Session::new(config),
+            recording: Default::default(),
             i18n: I18n::new(Language::De),
             deck: Deck::French4,
             selected: CardSet::EMPTY,
@@ -379,53 +381,66 @@ impl GrandCoachApp {
     fn menu_bar(&mut self, ui: &mut egui::Ui, view: &TableView, now: f64) {
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button(self.t("menu-game"), |ui| {
-                if ui.button(self.t("menu-new-series")).clicked() {
-                    self.open_new_series();
+                if ui.button(self.t("record-save")).clicked() {
+                    self.recording.show_dialog(true, &self.session);
                     ui.close();
                 }
-                if ui
-                    .add_enabled(
-                        view.can_end_series,
-                        egui::Button::new(self.t("menu-end-series")),
-                    )
-                    .clicked()
-                {
-                    self.send(Command::EndSeries, now);
+                if ui.button(self.t("record-open")).clicked() {
+                    self.recording.show_dialog(false, &self.session);
                     ui.close();
                 }
+                ui.separator();
+                ui.add_enabled_ui(!self.recording.active(), |ui| {
+                    if ui.button(self.t("menu-new-series")).clicked() {
+                        self.open_new_series();
+                        ui.close();
+                    }
+                    if ui
+                        .add_enabled(
+                            view.can_end_series,
+                            egui::Button::new(self.t("menu-end-series")),
+                        )
+                        .clicked()
+                    {
+                        self.send(Command::EndSeries, now);
+                        ui.close();
+                    }
+                });
             });
-            ui.menu_button(self.t("menu-settings"), |ui| {
-                ui.label(RichText::new(self.t("setting-language")).strong());
-                for language in Language::ALL {
-                    let id = match language {
-                        Language::De => "language-de",
-                        Language::En => "language-en",
-                    };
-                    let label = self.t(id);
-                    ui.radio_value(&mut self.i18n.language, language, label);
+            ui.add_enabled_ui(!self.recording.active(), |ui| {
+                ui.menu_button(self.t("menu-settings"), |ui| {
+                    ui.label(RichText::new(self.t("setting-language")).strong());
+                    for language in Language::ALL {
+                        let id = match language {
+                            Language::De => "language-de",
+                            Language::En => "language-en",
+                        };
+                        let label = self.t(id);
+                        ui.radio_value(&mut self.i18n.language, language, label);
+                    }
+                    ui.separator();
+                    ui.label(RichText::new(self.t("setting-deck")).strong());
+                    for deck in Deck::ALL {
+                        let label = self.t(deck.message());
+                        ui.radio_value(&mut self.deck, deck, label);
+                    }
+                    ui.separator();
+                    self.coach_settings(ui);
+                    ui.separator();
+                    self.assist_settings(ui);
+                    ui.separator();
+                    ui.label(RichText::new(self.t("setting-developer")).strong());
+                    let label = self.t("setting-show-seed");
+                    ui.checkbox(&mut self.show_seed, label)
+                        .on_hover_text(self.t("seed-description"));
+                });
+                if view.open_cards.is_some() {
+                    ui.separator();
+                    let label = self.t("option-see-all");
+                    ui.checkbox(&mut self.see_all, label)
+                        .on_hover_text(self.t("option-see-all-description"));
                 }
-                ui.separator();
-                ui.label(RichText::new(self.t("setting-deck")).strong());
-                for deck in Deck::ALL {
-                    let label = self.t(deck.message());
-                    ui.radio_value(&mut self.deck, deck, label);
-                }
-                ui.separator();
-                self.coach_settings(ui);
-                ui.separator();
-                self.assist_settings(ui);
-                ui.separator();
-                ui.label(RichText::new(self.t("setting-developer")).strong());
-                let label = self.t("setting-show-seed");
-                ui.checkbox(&mut self.show_seed, label)
-                    .on_hover_text(self.t("seed-description"));
             });
-            if view.open_cards.is_some() {
-                ui.separator();
-                let label = self.t("option-see-all");
-                ui.checkbox(&mut self.see_all, label)
-                    .on_hover_text(self.t("option-see-all-description"));
-            }
         });
     }
 
@@ -1664,37 +1679,44 @@ impl eframe::App for GrandCoachApp {
             theme: self.theme(),
         };
         // The opponents wait while the "new series" dialog is open.
-        if self.new_series.is_none() {
+        if self.new_series.is_none() && !self.recording.active() {
             self.drive_opponents(ui.ctx(), now);
             self.drive_coach(ui.ctx(), now);
         }
         let view = self.session.view();
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui, &view, now));
-        egui::Panel::top("status").show(ui, |ui| self.status(ui, &view));
-        egui::Panel::right("side")
-            .default_size(320.0)
-            .show(ui, |ui| self.side_panel(ui, &view));
-        egui::Panel::bottom("hand").show(ui, |ui| {
-            ui.add_space(4.0);
-            self.actions(ui, &view, now);
-            ui.add_space(4.0);
-            self.hand(ui, &view, now);
-            ui.add_space(4.0);
+        let blocked = self.recording.active();
+        ui.add_enabled_ui(!blocked, |ui| {
+            egui::Panel::top("status").show(ui, |ui| self.status(ui, &view));
+            egui::Panel::right("side")
+                .default_size(320.0)
+                .show(ui, |ui| self.side_panel(ui, &view));
+            egui::Panel::bottom("hand").show(ui, |ui| {
+                ui.add_space(4.0);
+                self.actions(ui, &view, now);
+                ui.add_space(4.0);
+                self.hand(ui, &view, now);
+                ui.add_space(4.0);
+            });
+            // After the hand, so the hand keeps the full width (twelve cards
+            // when discarding).
+            if Self::coach_visible(&view) {
+                egui::Panel::left("coach")
+                    .default_size(360.0)
+                    .show(ui, |ui| self.coach_panel(ui, &view, now));
+            }
+            egui::CentralPanel::default()
+                .frame(egui::Frame::central_panel(ui.style()).fill(self.table_color()))
+                .show(ui, |ui| self.table(ui, &view, now));
+            let ctx = ui.ctx().clone();
+            if !blocked {
+                self.warning_window(&ctx, &view, now);
+                self.quiz_window(&ctx, &view, now);
+                self.new_series_window(&ctx, now);
+            }
         });
-        // After the hand, so the hand keeps the full width (twelve cards
-        // when discarding).
-        if Self::coach_visible(&view) {
-            egui::Panel::left("coach")
-                .default_size(360.0)
-                .show(ui, |ui| self.coach_panel(ui, &view, now));
-        }
-        egui::CentralPanel::default()
-            .frame(egui::Frame::central_panel(ui.style()).fill(self.table_color()))
-            .show(ui, |ui| self.table(ui, &view, now));
         let ctx = ui.ctx().clone();
-        self.warning_window(&ctx, &view, now);
-        self.quiz_window(&ctx, &view, now);
-        self.new_series_window(&ctx, now);
+        self.recording.windows(&ctx, &self.i18n, self.deck);
         if now < self.show_trick_until {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64(
                 self.show_trick_until - now,
@@ -1709,6 +1731,116 @@ mod tests {
 
     fn rect(player: PlayerId) -> egui::Rect {
         egui::Rect::from_min_size(egui::Pos2::ZERO + trick_slot(player), CARD)
+    }
+
+    #[test]
+    fn recording_keeps_outstanding_opponent_result_until_return_to_live_series() {
+        use egui_kittest::{Harness, kittest::Queryable};
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let cancel = Cancel::new();
+        let observed_cancel = cancel.clone();
+        let mut h = Harness::builder()
+            .with_size([1280.0, 820.0])
+            .build_eframe(move |cc| {
+                let mut app = GrandCoachApp::new(
+                    &cc.egui_ctx,
+                    SessionConfig {
+                        seed: 7,
+                        series: SeriesLength::Fixed(3),
+                        kontra_re: false,
+                        opponents: Opponents::Levels([Level::Easy; 2]),
+                    },
+                );
+                assert!(app.session.opponent_to_move());
+                app.thinking = Some(Thinking {
+                    result: receiver,
+                    cancel,
+                });
+                app.next_move_at = 1e9;
+                app.recording.show_dialog(false, &app.session);
+                app
+            });
+        let before = h.state().session.view();
+        let mut control = h.state().session.clone();
+        let mv = control.opponent_job().unwrap().run(None);
+        h.run_steps(4); // decision still outstanding
+        assert!(h.state().thinking.is_some());
+        sender.send(mv).unwrap(); // completed while inspecting a recording
+        h.run_steps(4);
+        assert!(h.state().thinking.is_some());
+        assert!(h.state().ready.is_none());
+        assert!(!observed_cancel.is_cancelled());
+        assert_eq!(h.state().session.view(), before);
+        h.get_by_role_and_label(egui::Role::Button, "Abbrechen")
+            .click();
+        h.run_steps(4);
+        assert!(h.state().ready.is_some());
+        assert_eq!(h.state().session.view(), before);
+        let ctx = h.ctx.clone();
+        h.state_mut().drive_opponents(&ctx, 1e9);
+        control.finish_opponent(mv).unwrap();
+        assert_eq!(h.state().session.view(), control.view());
+    }
+
+    #[test]
+    fn recording_retains_outstanding_coach_analysis_without_restarting_it() {
+        use egui_kittest::{Harness, kittest::Queryable};
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let cancel = Cancel::new();
+        let observed_cancel = cancel.clone();
+        let mut h = Harness::builder()
+            .with_size([1280.0, 820.0])
+            .build_eframe(move |cc| {
+                let mut app = GrandCoachApp::new(
+                    &cc.egui_ctx,
+                    SessionConfig {
+                        seed: 7,
+                        series: SeriesLength::Fixed(3),
+                        kontra_re: false,
+                        opponents: Opponents::Levels([Level::Easy; 2]),
+                    },
+                );
+                app.session.run_opponents();
+                app.session.set_coach_budget(skat_app::Budget {
+                    samples: 1,
+                    nodes_per_task: 10,
+                });
+                app.session.execute(Command::RequestAdvice).unwrap();
+                let job = app
+                    .session
+                    .coach_job()
+                    .expect("human decision requested analysis");
+                app.coach_thinking = Some(CoachThinking {
+                    job,
+                    result: receiver,
+                    cancel,
+                });
+                app.recording.show_dialog(false, &app.session);
+                app
+            });
+        let before = h.state().session.view();
+        let job = h.state().coach_thinking.as_ref().unwrap().job.clone();
+        h.run_steps(4);
+        assert!(!observed_cancel.is_cancelled());
+        assert!(
+            h.state()
+                .coach_thinking
+                .as_ref()
+                .unwrap()
+                .job
+                .same_decision(&job)
+        );
+        let result = job.run(None);
+        let mut control = h.state().session.clone();
+        control.finish_coach(result.clone()).unwrap();
+        sender.send(result).unwrap();
+        h.run_steps(4);
+        assert_eq!(h.state().session.view(), before);
+        assert!(!observed_cancel.is_cancelled());
+        h.get_by_role_and_label(egui::Role::Button, "Abbrechen")
+            .click();
+        h.run_steps(4);
+        assert_eq!(h.state().session.view(), control.view());
     }
 
     #[test]

@@ -140,8 +140,10 @@ exact cases `launch_shows_the_new_series_settings`, `every_card_face_renders`,
 `free_play_ends_on_request`. The screenshots example renders `launch` using
 WARP on Windows and validates a nonempty PNG; `native-render-Windows` retains
 it. These GUI harness and backend checks do not certify a real native window.
-App JSON roundtrips cover wire serialization, not game persistence: M7
-save/load remains planned. Full platform suites retain all remaining tests.
+App recording IO tests cover real temporary-directory save/reopen, capped growing
+readers, malformed/unsupported/illegal/oversized files, missing/unwritable paths
+and no-overwrite byte preservation. Bilingual egui recording tests exercise
+file dialogs, navigation, recovery and live-session isolation. Full platform suites retain all remaining tests.
 
 ### Timing evidence
 
@@ -212,6 +214,13 @@ Model tests cover legal inference, fallbacks, shard replay, training and
 checkpoint resume. The commands for [calibration](ai.md#calibration-protocol)
 and [training](learned-models.md) exercise the standalone tools.
 
+Recording tests supplement the fixed Farbspiel/Grand/Null legal-history
+fixtures with file round trips, incomplete and all-pass records. Navigation
+boundaries are checked against independently applied core events and seat
+views. GUI checks retain the original score sheet, recording and coach view;
+recording windows cannot apply moves or start analysis. These checks do not
+claim session resumption or same-deal practice.
+
 ## Screenshots of the frontend
 
 `cargo run --locked -p gui-egui --example screenshots -- OUT_DIR
@@ -228,6 +237,11 @@ wgpu adapter and prefers software ones: lavapipe on Linux (Fedora/Ubuntu
   frontend change: the agent's own (skill step "Screenshots"), otherwise
   all built-in scenarios. They live on the orphan branch `screenshots`
   under `issue-<n>/`.
+- `recording`, `recording-en`, `recording-narrow`, `recording-error` and
+  `recording-error-en` exercise actual menu save/reopen before rendering the
+  detached viewer or a recoverable corrupt-file error with the prior viewer
+  retained. The temporary files belong to each scenario. These headless runs
+  do not establish real-window Linux/Windows file-dialog usability.
 - They support the independent agent review of a frontend change; they do not
   replace looking at the change in a real window.
 
