@@ -38,6 +38,7 @@ use crate::knowledge::{Knowledge, TrumpfSets};
 use crate::policy;
 use crate::preplay::{self, GameValues, Structure};
 use crate::sampling::{Diagnostic, HiddenCards, Place, World};
+use crate::two_stage::{self, OptionStage, SkipReason, StageOutcome, StageReport, TwoStage};
 
 /// Result of analysing one decision of one seat.
 #[derive(Clone, Debug, PartialEq)]
@@ -322,7 +323,7 @@ pub fn analyze_experimental(
 }
 
 /// Where the distributions of an analysis come from.
-enum Worlds<'a> {
+pub(crate) enum Worlds<'a> {
     Experimental(Option<&'a mut dyn FnMut(&Analysis)>),
     /// Sampled (or enumerated) from the seat's information set.
     Sampled,
@@ -337,8 +338,21 @@ fn analyze_with(
     budget: Budget,
     seed: u64,
     cancel: Option<&Cancel>,
-    mut source: Worlds<'_>,
+    source: Worlds<'_>,
 ) -> Result<Analysis, Vec<Diagnostic>> {
+    analyze_inner(view, budget, seed, cancel, source, None).map(|(a, _)| a)
+}
+
+/// The analysis, optionally with two-stage card-play screening
+/// ([`crate::two_stage`]); the report is `Some` exactly if `screening` is.
+pub(crate) fn analyze_inner(
+    view: &PlayerView,
+    budget: Budget,
+    seed: u64,
+    cancel: Option<&Cancel>,
+    mut source: Worlds<'_>,
+    screening: Option<TwoStage>,
+) -> Result<(Analysis, Option<StageReport>), Vec<Diagnostic>> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_millis(200);
     let hidden = HiddenCards::from_view(view)?;
     let mut ctx = Context::new(view)?;
@@ -348,7 +362,14 @@ fn analyze_with(
     let assumptions = assumptions(view.phase, known);
     let distributions = hidden.count() as f64;
     if view.legal_actions.is_empty() {
-        return Ok(Analysis {
+        let report = screening.map(|_| StageReport {
+            outcome: StageOutcome::Skipped(SkipReason::NoDecision),
+            screen_worlds: 0,
+            survivors: Vec::new(),
+            options: Vec::new(),
+            screen_nodes: 0,
+        });
+        let analysis = Analysis {
             seat: view.seat,
             phase: view.phase,
             status: Status::NoDecision,
@@ -366,7 +387,8 @@ fn analyze_with(
                 seed,
                 known,
             },
-        });
+        };
+        return Ok((analysis, report));
     }
 
     let samples = budget.samples.max(1) as usize;
@@ -401,12 +423,15 @@ fn analyze_with(
     let staged = view.phase == Phase::Druecken && worlds.len() > SCREEN_WORLDS;
     let mut table = Table::new(worlds.len(), n_options);
     let all: Vec<usize> = (0..n_options).collect();
-    let finish = |table: &Table, observations, assumptions| {
-        let weights: Vec<f64> = worlds
+    let finished_weights = |table: &Table| -> Vec<f64> {
+        worlds
             .iter()
             .zip(&table.complete)
             .map(|(w, &ok)| if ok { evidence::weight(view, w) } else { 0.0 })
-            .collect();
+            .collect()
+    };
+    let finish = |table: &Table, observations, assumptions| {
+        let weights = finished_weights(table);
         let exact = enumerated && table.status == Status::Complete && !staged;
         let options = view
             .legal_actions
@@ -451,7 +476,17 @@ fn analyze_with(
             },
         }
     };
-    if staged {
+    let plan = screening.map(|s| {
+        let s = s.normalized();
+        two_stage::skip_reason(view, enumerated, worlds.len(), &s).map_or(Ok(s), Err)
+    });
+    // Stage outcome, stage-1 distributions, survivors, stage-1 nodes.
+    let mut staging: Option<(StageOutcome, u32, Vec<usize>, u64)> = None;
+    if let Some(Ok(s)) = plan {
+        staging = Some(run_two_stage(
+            &mut table, &ctx, view, &worlds, &s, nodes, cancel,
+        ));
+    } else if staged {
         // Screening: every option on the first distributions, one task per
         // option; then the best options on the remaining distributions.
         let tasks: Vec<Task> = (0..SCREEN_WORLDS)
@@ -489,7 +524,107 @@ fn analyze_with(
             table.run(&ctx, &worlds, &tasks, nodes, cancel);
         }
     }
-    Ok(finish(&table, observations, assumptions))
+    let report = plan.map(|plan| {
+        let (outcome, screen_worlds, survivors, screen_nodes) = match (plan, staging) {
+            (Err(reason), _) => (StageOutcome::Skipped(reason), 0, all.clone(), table.nodes),
+            (Ok(_), Some(staging)) => staging,
+            (Ok(_), None) => unreachable!("a planned screening ran"),
+        };
+        let weights = finished_weights(&table);
+        let options = (0..n_options)
+            .map(|o| OptionStage {
+                kept: survivors.contains(&o),
+                effective_samples: table.effective_samples(&weights, o),
+            })
+            .collect();
+        StageReport {
+            outcome,
+            screen_worlds,
+            survivors,
+            options,
+            screen_nodes,
+        }
+    });
+    Ok((finish(&table, observations, assumptions), report))
+}
+
+/// Two-stage card play ([`crate::two_stage`]): every option on the first
+/// `screen_worlds` distributions, then the survivors on the rest. Falls
+/// back to every option on the rest if stage 1 was interrupted or its
+/// weights cannot carry a standard error; then the table equals the
+/// single-stage one. Returns outcome, stage-1 distributions, survivors and
+/// stage-1 nodes.
+fn run_two_stage(
+    table: &mut Table,
+    ctx: &Context<'_>,
+    view: &PlayerView,
+    worlds: &[World],
+    screening: &TwoStage,
+    nodes: u64,
+    cancel: Option<&Cancel>,
+) -> (StageOutcome, u32, Vec<usize>, u64) {
+    let n = view.legal_actions.len();
+    let all: Vec<usize> = (0..n).collect();
+    let first = (screening.screen_worlds as usize).min(worlds.len());
+    let tasks: Vec<Task> = (0..first).map(|w| (w, all.clone())).collect();
+    table.run(ctx, worlds, &tasks, nodes, cancel);
+    let screen_nodes = table.nodes;
+    let rest = |table: &mut Table, options: &[usize]| {
+        let tasks: Vec<Task> = (first..worlds.len())
+            .map(|w| (w, options.to_vec()))
+            .collect();
+        table.run(ctx, worlds, &tasks, nodes, cancel);
+    };
+    let done = |outcome| (outcome, first as u32, all.clone(), screen_nodes);
+    if table.status != Status::Complete {
+        rest(table, &all);
+        return done(StageOutcome::Skipped(SkipReason::Interrupted));
+    }
+    let defender = view.declarer.is_some_and(|d| d != view.seat);
+    let mut weights = Vec::with_capacity(first);
+    let mut utilities = Vec::with_capacity(first);
+    for (world, outcomes) in worlds[..first].iter().zip(&table.outcomes) {
+        let w = evidence::weight(view, world);
+        if w > 0.0 {
+            weights.push(w);
+            utilities.push(
+                outcomes
+                    .iter()
+                    .map(|o| {
+                        let o = o.expect("a complete stage-1 world has every option");
+                        outcome_utility(defender, &o)
+                    })
+                    .collect(),
+            );
+        }
+    }
+    match two_stage::survivors(&weights, &utilities, n, screening) {
+        None => {
+            rest(table, &all);
+            done(StageOutcome::Skipped(SkipReason::LowEffectiveSamples))
+        }
+        Some(keep) if keep.len() == n => {
+            rest(table, &all);
+            done(StageOutcome::AllSurvived)
+        }
+        Some(keep) if keep.len() == 1 => {
+            (StageOutcome::OneSurvivor, first as u32, keep, screen_nodes)
+        }
+        Some(keep) => {
+            rest(table, &keep);
+            (StageOutcome::Screened, first as u32, keep, screen_nodes)
+        }
+    }
+}
+
+/// [`utility`] of one outcome (per distribution).
+fn outcome_utility(defender: bool, outcome: &Outcome) -> f64 {
+    let score = f64::from(outcome.score);
+    if defender {
+        score - f64::from(outcome.game_points) / 2.0
+    } else {
+        score
+    }
 }
 
 /// Distributions of the seat's information set: all of them if there are
@@ -690,6 +825,22 @@ impl Table {
                 }
             }
         });
+    }
+
+    /// Effective sample size of `weights` over the finished distributions
+    /// on which `option` was evaluated (0 if none).
+    fn effective_samples(&self, weights: &[f64], option: usize) -> f64 {
+        let (total, squares) = self
+            .outcomes
+            .iter()
+            .zip(weights)
+            .filter(|(o, w)| o[option].is_some() && **w > 0.0)
+            .fold((0.0, 0.0), |(t, s), (_, &w)| (t + w, s + w * w));
+        if squares > 0.0 {
+            total * total / squares
+        } else {
+            0.0
+        }
     }
 
     /// Weighted estimate of `option` over the finished distributions on

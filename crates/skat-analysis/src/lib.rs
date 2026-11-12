@@ -16,7 +16,9 @@
 //! - simple hand measures ([`hand`]),
 //! - the evidence contract for coach lessons ([`lesson`]) and the exact
 //!   card-play mechanisms they may cite ([`mechanism`]), and the exact
-//!   pre-play hand structure and game values ([`preplay`]).
+//!   pre-play hand structure and game values ([`preplay`]),
+//! - an opt-in experimental two-stage card-play analysis and a paired
+//!   comparison with the single-stage reference ([`two_stage`], #104).
 //!
 //! Semantics, budgets and measured latency: `docs/analysis.md`.
 
@@ -33,6 +35,7 @@ pub mod policy;
 pub mod preplay;
 pub mod sampling;
 mod trick;
+pub mod two_stage;
 
 pub use analysis::{
     Analysis, Assumption, CardClass, Effort, Estimate, Inference, Observation, OptionValue, Status,
@@ -41,3 +44,7 @@ pub use analysis::{
 pub use budget::{Budget, Cancel, Interrupted, Meter, max_threads, with_max_threads};
 pub use knowledge::{Knowledge, TrumpfSets};
 pub use trick::TrickState;
+pub use two_stage::{
+    Agreement, Kernel, OptionStage, SkipReason, StageOutcome, StageReport, TwoStage,
+    TwoStageAnalysis, agreement, analyze_two_stage, best_option,
+};
