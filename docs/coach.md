@@ -63,7 +63,9 @@ unknowable hidden cards are never graded.
 
 While a question is pending the decision is held: game actions and coach
 requests are rejected (`QuestionPending`), the aid and the whole coach view
-are withheld (no hint, note or debriefing can reveal the answer). The player
+are withheld (no hint, note or debriefing can reveal the answer). The exact
+aid can be restored explicitly as described below; this marks the opportunity
+as assisted and keeps the decision held. The player
 answers (a number), skips (the exact count and derivation are shown) or
 switches the quiz off; none of these is a game action or costs the turn.
 Switching it off drops the question and does not ask again in that trick
@@ -71,6 +73,61 @@ count. The result stays visible until the next action. Outside pending
 questions, the aid and the coach work independently of each other. No claim
 is made about learning efficacy; practice sessions and history are later
 work (M8).
+
+## Focused retrieval (#48, extension to #11)
+
+Enable counting questions, then optionally select **Focused retrieval** in
+Assistance. It reuses the M6 schedule (at most two opportunities per game),
+frozen permitted snapshot and answer/skip lifecycle. No extra quiz runs
+alongside M6. The two exact lesson families are `remaining-trumpf@1` and
+`proven-void@1`: ask for Trumpf outside, or the number of **other seats**
+publicly proven void in one follow class. The latter is offered only with
+at least one public proof. It does not ask where an unseen card is or what
+to play. Farbspiel and Grand support both families; Null supports suit
+voids only and asks nothing if none is proven. Hand, known discards and
+Ouvert follow the same exact-count definitions above. Model estimates
+never select an expected answer.
+
+Three explicit support levels apply to each opportunity:
+
+- **Counting aid visible** shows the frozen exact aid with the question.
+- **Count mentally, reveal on request** invites mental recall and lets the
+  player reveal the frozen aid or open **Enter a count** to submit a number.
+- **Answer before reveal** invites a numeric answer before feedback.
+  The same explicit **Show help** escape remains available.
+
+The two hidden levels withhold every coach panel and the counting aid
+until answer/skip or an explicit help request. Restoring help leaves the
+question pending and marks its support as assisted, even if settings are
+changed afterwards. Changing to visible aid is also an explicit help
+transition. Coach preferences are never changed; ordinary hints, warning
+checks and historical reviews resume outside the question hold. Earlier
+exposure is not tracked: an unassisted response here means no exact aid
+was exposed **during this opportunity**, not a new unseen task or proof
+of retention. Nothing fades automatically or infers mastery.
+
+`AppEvent::Retrieval` is the plain-data progress boundary: `Opportunity`,
+`Help`, `Answer { given, correct }` and `Skip { disabled }`. Each carries
+`QuestionId` (independent quiz-stream identity, game number, trick count),
+the frozen question, selected assistance level and a sticky `assisted`
+flag. Consumers deduplicate by `(QuestionId, action variant tag)`; repeat
+help and settings commands emit no duplicate transitions, and a settled
+question rejects another answer. Disabling a pending quiz emits one skip
+without exposing its expected answer. All events support serde; they need
+no storage, replay service or model. Existing `AppEvent::Quiz` feedback is
+retained for callers. No efficacy or mastery claim follows from these events.
+
+The legal replay fixtures in `skat-analysis/tests/retrieval.rs` cover both
+roles and Farbspiel/Grand/Null. `counting_fixtures.rs` additionally covers
+known discards, Hand and Ouvert. `skat-app/tests/assist.rs` checks frozen
+help, delayed responses, settings and late coach results, stable event IDs,
+serde, repeated commands and unchanged complete-series scores. The GUI's
+`focused_retrieval_help_and_levels_work_in_both_languages` test clicks
+settings, help and answer controls in de/en. Headless screenshot scenarios
+`retrieval-question`, `retrieval-request`, `retrieval-help`,
+`retrieval-visible` and `retrieval-void` show the actual flow, with question,
+help and void English variants and a narrow question view. These checks
+support technical behaviour; learner UAT and retention remain unmeasured.
 
 ## Policies (D-48)
 

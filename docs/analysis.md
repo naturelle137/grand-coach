@@ -239,3 +239,17 @@ At the interactive budget, pre-play estimates can have large standard
 errors. Inspect sample counts, screening and uncertainty before comparing
 close options. The analysis tests compare Monte Carlo with exact
 enumeration on known positions.
+
+## Exact retrieval counts (#48)
+
+`counting::retrieval_questions` restricts the existing M6 quiz to the exact
+`remaining-trumpf` and `proven-void` families. `derive` counts Trumpf outside
+or other seats with public failure-to-follow evidence for one class. Partial
+constraints, concealed distributions and model outputs never prove a void.
+An empty side class (the trump suit in Farbspiel) is inapplicable. Null has
+no Trumpf question; absent public void evidence it offers none. App grading
+and explicit help use one frozen `Knowledge`, not a later analysis result.
+Legal replay fixtures in `tests/retrieval.rs` cover both roles, positive,
+boundary and counterexample cases; `tests/counting_fixtures.rs` additionally
+covers known discards, Hand and Ouvert. Hidden-card substitution checks both
+baseline and focused questions and their derivations.
