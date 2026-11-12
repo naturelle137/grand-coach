@@ -15,6 +15,8 @@
 //! model `nn:<path>` (D-07) measured as the row "Neural": the model decides
 //! the phases it covers, the Classic level Strong every other one (its
 //! rows then measure that fallback).
+//! A third argument `neural-only` omits the other opponents when measuring
+//! several frozen files. Loading is timed separately on stderr.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -207,11 +209,17 @@ fn main() {
     players.push(("Mephisto".to_owned(), Measured::Mephisto));
     if let Some(path) = std::env::args().nth(2) {
         let path = path.strip_prefix("nn:").expect("model argument: nn:<path>");
+        let loading = Instant::now();
         let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
         let model = NeuralModel::load(&bytes, &skat_nn::sha256(&bytes))
             .unwrap_or_else(|e| panic!("{path}: {e:?}"));
+        eprintln!("model read, hash and load: {:?}", loading.elapsed());
         let neural = NeuralOpponent::new(Ok(Arc::new(model)), Opponent::new(Level::Strong, 1));
         players.push(("Neural".to_owned(), Measured::Neural(neural)));
+    }
+    if std::env::args().nth(3).as_deref() == Some("neural-only") {
+        players.retain(|(_, opponent)| matches!(opponent, Measured::Neural(_)));
+        assert_eq!(players.len(), 1, "neural-only needs nn:<path>");
     }
     for (name, opponent) in &players {
         for (k, games) in positions.iter().enumerate() {
@@ -227,6 +235,7 @@ fn main() {
                 }
                 .expect("a decision");
                 times.push(start.elapsed());
+                assert!(view.legal_actions.contains(&d.action), "illegal decision");
                 if d.fallback || d.status.is_some_and(|s| s != Status::Complete) {
                     incomplete += 1;
                 }

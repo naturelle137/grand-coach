@@ -23,11 +23,12 @@ or unusable output triggers the configured Classic fallback.
 
 ## Phase 2
 
-As of 2026-11-11 the v2 programme is in PPO refinement. Supervised training
+As of 2026-11-12 the v2 PPO campaign has stopped and held-out evaluation
+is being scheduled under the [predeclared protocol](phase2-evaluation.md). Supervised training
 on the T-2 through T-8 datasets produced multiple network shapes. A role
 tournament compared supervised candidates on shared deals. The local
-`2026-11-10-rl-4x` campaign starts from the supervised 4×384, 4×512 and
-4×896 models (hidden layers × width). It trains against Classic levels,
+`2026-11-10-rl-4x` campaign started from the supervised 4×384, 4×512 and
+4×896 models (hidden layers × width). It trained against Classic levels,
 the frozen reference, recent snapshots and mixed tables. Intermediate
 arenas screen snapshots within and across shapes against their starts
 and reference opponents. Data, run logs and checkpoints live outside git.
@@ -39,8 +40,10 @@ as well as latency. Retain one or two selected models in the repository
 with their manifests and model cards. The current runtime selects one
 filename. Additional weights require an explicit packaging and selection
 decision before they can be offered in the app. The 4×896 start file is
-about 18 MB, above the current D-63 limit of 10 MB per file. Revisit
-that constraint if selecting a candidate of this size.
+about 18 MB, above the binding D-63 limit of 10 MB per file. It is included
+in evaluation but excluded from shipping unless a separately reviewed
+technical decision changes the limit with evidence. Inconclusive/no-go
+results retain v1; no shipping candidate has yet passed held-out evaluation.
 
 ## Training data
 
