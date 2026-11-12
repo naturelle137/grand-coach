@@ -172,6 +172,7 @@ fn questions_come_after_three_and_six_tricks_and_hold_the_decision() {
 
         // The decision is held: no game action, no coach request.
         let action = view.legal_actions[0];
+        let recording = s.export_current_recording_privileged().unwrap();
         for command in [
             Command::Act(action),
             Command::RequestAdvice,
@@ -181,6 +182,7 @@ fn questions_come_after_three_and_six_tricks_and_hold_the_decision() {
         ] {
             assert_eq!(s.execute(command), Err(AppError::QuestionPending));
             assert_eq!(s.view(), view, "{command:?} changed something");
+            assert_eq!(s.export_current_recording_privileged().unwrap(), recording);
         }
         // Changing assistance or coach settings keeps the game and the
         // question as they are.
@@ -196,6 +198,7 @@ fn questions_come_after_three_and_six_tricks_and_hold_the_decision() {
             ..CoachSettings::default()
         }))
         .unwrap();
+        assert_eq!(s.export_current_recording_privileged().unwrap(), recording);
         let after = s.view();
         assert_eq!(after.assist.quiz.question, view.assist.quiz.question);
         assert_eq!(after.hand, view.hand);
@@ -491,6 +494,7 @@ fn a_late_coach_result_never_plays_behind_a_pending_question() {
         }))
         .unwrap();
         let action = s.view().legal_actions[0];
+        let recording = s.export_current_recording_privileged().unwrap();
         s.execute(Command::Act(action)).unwrap();
         assert!(matches!(
             s.view().coach.pending,
@@ -535,7 +539,11 @@ fn a_late_coach_result_never_plays_behind_a_pending_question() {
         assert_eq!(done.hand, before.hand);
         assert_eq!(done.acting, Some(PlayerId::HUMAN));
         assert!(done.coach.pending.is_none());
+        assert_eq!(s.export_current_recording_privileged().unwrap(), recording);
         s.execute(Command::Act(done.legal_actions[0])).unwrap();
+        let after_recording = s.export_current_recording_privileged().unwrap();
+        assert_eq!(after_recording.actions.len(), recording.actions.len() + 1);
+        assert_eq!(after_recording.actions.last(), Some(&done.legal_actions[0]));
     }
 }
 

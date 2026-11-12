@@ -13,6 +13,7 @@ use crate::coach::{
 };
 use crate::context::DecisionContext;
 use crate::quiz::{AssistSettings, QuizFeedback, QuizState};
+use crate::recording::{GameRecording, RecordingContext, RecordingEnd};
 use crate::series::{GameRecord, ScoreSheet, SeriesResult};
 use crate::view::{TableView, build_view, open_cards};
 
@@ -339,6 +340,8 @@ pub struct Session {
     number: u32,
     pub(crate) dealer: PlayerId,
     sheet: ScoreSheet,
+    recording: GameRecording,
+    recordings: Vec<GameRecording>,
     finished: bool,
     /// The live coach; it never influences deals or opponents.
     pub(crate) coach: CoachState,
@@ -375,6 +378,19 @@ impl Session {
             number: 1,
             dealer: PlayerId(2),
             sheet: ScoreSheet::default(),
+            recording: GameRecording::start(
+                RecordingContext {
+                    application_version: env!("CARGO_PKG_VERSION").into(),
+                    session: config,
+                    number: 1,
+                    dealer: PlayerId(2),
+                    opponent_seeds: ai_seeds,
+                    goldfish: (config.opponents == Opponents::Goldfish).then_some(goldfish),
+                },
+                game_seed,
+                rule_config(config),
+            ),
+            recordings: Vec::new(),
             finished: matches!(config.series, SeriesLength::Fixed(0)),
             coach: CoachState::new(
                 coach_rng.next_u64(),
@@ -793,6 +809,8 @@ impl Session {
 
     fn apply(&mut self, action: Action) -> Result<Vec<AppEvent>, AppError> {
         let core_events = self.game.apply(action).map_err(AppError::Rule)?;
+        self.recording.actions.push(action);
+        self.recording.end = RecordingEnd::of(&self.game);
         self.actions += 1;
         self.coach.decision_changed();
         self.quiz.decision_changed();
@@ -812,6 +830,7 @@ impl Session {
     }
 
     fn record_game(&mut self) -> Vec<AppEvent> {
+        self.recordings.push(self.recording.clone());
         let dealer = self.dealer;
         let result = self.game.result().copied();
         let mut points = [0; 3];
@@ -852,6 +871,18 @@ impl Session {
         self.coach.game_changed();
         self.quiz.game_changed();
         self.game = Game::new(self.game_seed, rule_config(self.config));
+        self.recording = GameRecording::start(
+            RecordingContext {
+                application_version: env!("CARGO_PKG_VERSION").into(),
+                session: self.config,
+                number: self.number,
+                dealer: self.dealer,
+                opponent_seeds: self.ai_seeds,
+                goldfish: self.goldfish(),
+            },
+            self.game_seed,
+            rule_config(self.config),
+        );
         vec![AppEvent::GameStarted {
             number: self.number,
             dealer: self.dealer,
@@ -861,6 +892,19 @@ impl Session {
     /// The forgetful opponent if the session plays the Goldfish mode.
     pub fn goldfish(&self) -> Option<PlayerId> {
         (self.config.opponents == Opponents::Goldfish).then_some(self.goldfish)
+    }
+
+    /// Explicit privileged local export: reveals the deal and action history.
+    /// Not for ordinary table views, opponents or live coach analysis.
+    /// A zero-length series has no recording.
+    pub fn export_current_recording_privileged(&self) -> Option<GameRecording> {
+        (!matches!(self.config.series, SeriesLength::Fixed(0))).then(|| self.recording.clone())
+    }
+
+    /// Completed privileged recordings in game order, retained across NextGame.
+    /// These are separate from score-sheet entries and never modified by replay.
+    pub fn completed_recordings_privileged(&self) -> &[GameRecording] {
+        &self.recordings
     }
 
     /// Score sheet so far.
