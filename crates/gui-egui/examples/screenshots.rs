@@ -52,6 +52,7 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("launch", launch),
     ("bidding", bidding),
     ("trick", trick),
+    ("neural-trick", neural_trick),
     ("trick-complete", trick_complete),
     ("result", result),
     ("settings", settings),
@@ -255,6 +256,17 @@ fn bidding(harness: &mut Harness<'_, GrandCoachApp>) {
 fn trick(harness: &mut Harness<'_, GrandCoachApp>) {
     play_until(harness, |view, played| {
         played && !view.current_trick.is_empty()
+    });
+}
+
+/// The optional Neural table with the real bundled model during card play.
+fn neural_trick(harness: &mut Harness<'_, GrandCoachApp>) {
+    assert!(
+        skat_app::neural_model_available(),
+        "bundled model must load"
+    );
+    play_until(harness, |view, _| {
+        view.tricks_played >= 1 && view.acting == Some(skat_app::PlayerId::HUMAN)
     });
 }
 
@@ -849,6 +861,8 @@ fn main() {
             .map_or(SEED, |&(_, seed)| seed);
         let opponents = if GOD_MODE.contains(name) {
             Opponents::GodMode
+        } else if *name == "neural-trick" {
+            Opponents::Neural
         } else {
             Opponents::Levels([Level::Easy; 2])
         };

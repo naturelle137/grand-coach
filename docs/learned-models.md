@@ -2,17 +2,12 @@
 
 ## Shipped model and runtime
 
-The Neural test table loads one supervised v1 model. Its 294 inputs come
-from the acting seat's `PlayerView`. Two hidden layers of width 512 feed a
-policy over 621 actions, a seat value and per-action score and win estimates.
-The table uses the policy with illegal actions masked. Policy shares describe
-action preferences. The win head estimates the outcome for each option.
-
-The original v1 evaluation placed it above Easy and below Medium on the
-tested deals and profiles. The [model card](../assets/models/card-play.md)
-records training provenance, hash, intervals and limited Null/Hand/Ouvert
-coverage. Its Kontra measurements use the original policy. Current neural
-opponents use the Classic Kontra rule by default. See [AI levels](ai.md#levels).
+The optional Neural test table loads PPO v2 4×384 iteration 175 (634
+permitted-view inputs, four hidden layers of width 384). Classic remains the
+default. The policy masks illegal actions; shares are action preferences,
+not win probabilities. The [model card](../assets/models/card-play.md) pins
+recipe, provenance and limits. The [operational selection](neural-operational-selection.md)
+records the revised narrow rule, all 18 comparisons and v1 rollback.
 
 `skat-app` looks for `card-play.gcnn` in `GRAND_COACH_MODELS`, then
 `assets/models` beside the executable, then the workspace assets. It caches
@@ -24,7 +19,9 @@ or unusable output triggers the configured Classic fallback.
 ## Phase 2
 
 Phase 2 concluded on 2026-11-12 with a **no-go due to incomplete evidence**.
-Retain supervised v1; Classic stays the default. Of 18 predeclared held-out
+The historical retain-v1 outcome is superseded for optional deployment only
+by the [separate operational selection](neural-operational-selection.md);
+Classic stays the default. Of 18 predeclared held-out
 comparisons, 17 timed out and only 4×896 versus Strong (HQ #401) completed.
 The [evaluation card](phase2-outcome.md) records 232 verified chunks,
 23,200/36,000 pair-deals and 12,800 missing pair-deals. These comparisons
@@ -34,7 +31,7 @@ The stopped `2026-11-10-rl-4x` PPO campaign refined supervised 4×384,
 4×512 and 4×896 models against Classic levels, the frozen reference,
 snapshots and mixed tables. Its frozen tuning shortlist and
 [predeclared evaluation rules](phase2-evaluation.md) remain unchanged.
-No candidate passed shipping acceptance; 4×896 is additionally evaluation-only
+No candidate passed the historical shipping acceptance; 4×896 is additionally evaluation-only
 under D-63's per-file size limit. The current runtime selects one filename;
 additional weights need an explicit packaging and selection decision.
 
@@ -67,7 +64,7 @@ New supervised runs encode raw decisions with v2 (634 features). It extends
 the v1 layout with trick order, public voids, remaining cards, Augen,
 play context and pass bids. The model header determines the layout during
 evaluation and PPO. To train v2, start supervised training in a fresh output
-directory. Starting PPO from the bundled file keeps v1.
+directory. Starting PPO from the bundled file now keeps v2.
 
 ```sh
 cargo run --locked --release -p nn-train -- train SL DATA --hidden 512 --layers 4
