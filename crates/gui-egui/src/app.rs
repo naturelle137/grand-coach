@@ -123,6 +123,7 @@ struct Parked {
     new_series: Option<NewSeries>,
     coach_thinking: Option<CoachThinking>,
     quiz_value: u8,
+    learning_attempt: Option<skat_app::AttemptId>,
 }
 
 /// A running practice attempt (M7): the live series waits, untouched and
@@ -177,6 +178,11 @@ pub struct GrandCoachApp {
     /// practice session and the live table waits inside.
     practice: Option<Practice>,
     practice_request: Option<PracticeRequest>,
+    /// The local learning history and its window (D-70).
+    learning: crate::learning::LearningUi,
+    /// Learning-history attempt of `session`; assigned on its first
+    /// retrieval event, so every series and practice attempt has its own.
+    learning_attempt: Option<skat_app::AttemptId>,
 }
 
 impl GrandCoachApp {
@@ -204,6 +210,8 @@ impl GrandCoachApp {
             see_all: true,
             practice: None,
             practice_request: None,
+            learning: Default::default(),
+            learning_attempt: None,
         }
     }
 
@@ -242,6 +250,7 @@ impl GrandCoachApp {
             new_series: self.new_series.take(),
             coach_thinking: self.coach_thinking.take(),
             quiz_value: replace(&mut self.quiz_value, 0),
+            learning_attempt: self.learning_attempt.take(),
         }
     }
 
@@ -260,6 +269,7 @@ impl GrandCoachApp {
         self.new_series = parked.new_series;
         self.coach_thinking = parked.coach_thinking;
         self.quiz_value = parked.quiz_value;
+        self.learning_attempt = parked.learning_attempt;
         drop(current);
     }
 
@@ -435,6 +445,7 @@ impl GrandCoachApp {
         match result {
             Ok(events) => {
                 self.error = None;
+                self.record_learning(&events);
                 if events
                     .iter()
                     .any(|e| matches!(e, AppEvent::GameStarted { .. }))
@@ -471,6 +482,51 @@ impl GrandCoachApp {
             }
             Err(error) => self.error = Some(error),
         }
+    }
+
+    /// Records the retrieval events of the running session or practice
+    /// attempt in the learning history (D-70).
+    fn record_learning(&mut self, events: &[AppEvent]) {
+        let retrieval: Vec<_> = events
+            .iter()
+            .filter_map(|e| match e {
+                AppEvent::Retrieval(r) => Some(*r),
+                _ => None,
+            })
+            .collect();
+        let kind = match &self.practice {
+            Some(p) => skat_app::AttemptKind::Practice { attempt: p.attempt },
+            None => skat_app::AttemptKind::Series,
+        };
+        self.learning
+            .record(&mut self.learning_attempt, kind, &retrieval);
+    }
+
+    /// Keeps the learning history in the file at `path` (D-70): a valid
+    /// file is loaded, a missing one created on the first event, a damaged
+    /// or unsupported one left unchanged and reported in the window.
+    pub fn use_learning_file(&mut self, path: std::path::PathBuf) {
+        self.learning.use_file(path);
+    }
+
+    /// The learning history (read-only, for tests and diagnostics).
+    pub fn learning_history(&self) -> &skat_app::LearningHistory {
+        self.learning.history()
+    }
+
+    /// The learning history file, if one is used.
+    pub fn learning_file(&self) -> Option<&std::path::Path> {
+        self.learning.path()
+    }
+
+    /// Opens the learning history window.
+    pub fn show_learning(&mut self) {
+        self.learning.show();
+    }
+
+    /// Whether the learning history window is open.
+    pub fn learning_open(&self) -> bool {
+        self.learning.is_open()
     }
 
     fn act(&mut self, action: Action, now: f64) {
@@ -604,6 +660,10 @@ impl GrandCoachApp {
                     .clicked()
                 {
                     self.recording.show_dialog(false, &self.session);
+                    ui.close();
+                }
+                if ui.button(self.t("learning-open")).clicked() {
+                    self.learning.show();
                     ui.close();
                 }
                 ui.separator();
@@ -1877,6 +1937,8 @@ impl GrandCoachApp {
             self.coach_thinking = None;
             self.error = None;
             self.selected = CardSet::EMPTY;
+            // A new series is a new learning-history attempt.
+            self.learning_attempt = None;
             // Coach settings belong to the player, not to the series.
             let _ = self.session.execute(Command::SetCoach(coach));
             self.next_move_at = now + self.opponent_delay;
@@ -2008,6 +2070,7 @@ impl eframe::App for GrandCoachApp {
         {
             self.practice_request = Some(PracticeRequest::Start(recording));
         }
+        self.learning.window(&ctx, &self.i18n);
         if self.practice_request.is_some() {
             self.apply_practice_request();
             ctx.request_repaint();
@@ -2148,6 +2211,62 @@ mod tests {
             opponents: Opponents::Levels([Level::Easy; 2]),
             ..SessionConfig::default()
         }
+    }
+
+    #[test]
+    fn series_practice_and_retry_record_under_their_own_learning_attempts() {
+        use skat_app::{
+            AssistanceLevel, AttemptKind, QuestionId, QuestionKind, RetrievalAction, RetrievalEvent,
+        };
+        let ctx = egui::Context::default();
+        let mut app = GrandCoachApp::new(&ctx, easy_series());
+        let opportunity = |trick| {
+            [AppEvent::Retrieval(RetrievalEvent {
+                id: QuestionId {
+                    series: 1,
+                    game: 1,
+                    trick,
+                },
+                question: QuestionKind::TrumpfOutside,
+                action: RetrievalAction::Opportunity,
+                assistance: AssistanceLevel::AnswerBeforeReveal,
+                assisted: false,
+            })]
+        };
+        app.record_learning(&opportunity(3));
+        let recording = app.session.export_current_recording_privileged().unwrap();
+        app.start_practice(recording).unwrap();
+        // The same question ID in practice and in a retry: new attempts.
+        app.record_learning(&opportunity(3));
+        app.restart_practice();
+        app.record_learning(&opportunity(3));
+        app.record_learning(&opportunity(3));
+        app.return_to_series();
+        // Back in the series: its own attempt again, so this is a duplicate.
+        app.record_learning(&opportunity(3));
+        app.record_learning(&opportunity(6));
+        let h = app.learning_history();
+        let kinds: Vec<_> = h.attempts().iter().map(|a| a.kind).collect();
+        assert_eq!(
+            kinds,
+            [
+                AttemptKind::Series,
+                AttemptKind::Practice { attempt: 1 },
+                AttemptKind::Practice { attempt: 2 },
+            ]
+        );
+        let per_attempt: Vec<_> = h
+            .attempts()
+            .iter()
+            .map(|a| h.events().iter().filter(|e| e.attempt == a.id).count())
+            .collect();
+        assert_eq!(per_attempt, [2, 1, 1]);
+        // Without a file nothing is written anywhere.
+        assert!(app.learning_file().is_none());
+        // A new series clears the attempt, as the new-series dialog does.
+        app.learning_attempt = None;
+        app.record_learning(&opportunity(3));
+        assert_eq!(app.learning_history().attempts().len(), 4);
     }
 
     #[test]

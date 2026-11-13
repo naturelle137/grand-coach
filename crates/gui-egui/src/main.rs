@@ -7,6 +7,10 @@
 //! seed (otherwise off, see Settings). The window opens with the "new
 //! series" dialog showing the series settings.
 //!
+//! The learning history is kept in `learning-history.json` in the data
+//! directory ([`gui_egui::learning::data_dir`]; `GRAND_COACH_DATA`
+//! overrides it).
+//!
 //! Smoke test: with `GRAND_COACH_SCREENSHOT=<file.ppm>` the window saves a
 //! screenshot after `GRAND_COACH_SCREENSHOT_DELAY` seconds (default 3) and
 //! closes.
@@ -83,6 +87,9 @@ fn main() -> eframe::Result {
                 },
             );
             app.set_show_seed(fixed_seed.is_some());
+            if let Some(dir) = gui_egui::learning::data_dir() {
+                app.use_learning_file(dir.join(gui_egui::learning::HISTORY_FILE));
+            }
             app.show_new_series();
             Ok(match std::env::var_os("GRAND_COACH_SCREENSHOT") {
                 Some(path) => Box::new(Screenshot {
