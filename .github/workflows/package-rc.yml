@@ -39,7 +39,7 @@ jobs:
       - name: Native packaged launch and lifecycle smoke
         run: |
           if [ "$RUNNER_OS" = Linux ]; then
-            xvfb-run -a python3 -B scripts/package.py smoke dist/*.tar.gz --out evidence
+            env -u WAYLAND_DISPLAY -u WAYLAND_SOCKET xvfb-run -a -s '-screen 0 1600x1000x24' python3 -B scripts/package.py smoke dist/*.tar.gz --out evidence
           else
             python3 -B scripts/package.py smoke dist/*.zip --out evidence
           fi

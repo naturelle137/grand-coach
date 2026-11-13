@@ -45,7 +45,10 @@ python3 -B scripts/package.py smoke /absolute/path/to/package.tar.gz --out /abso
 ```
 
 Use the `.zip` filename on Windows (Python launcher `py -3` is an alternative
-to `python3`). On Linux without a display prefix the smoke with `xvfb-run -a`.
+to `python3`). For an isolated Linux smoke, prefix the command with
+`env -u WAYLAND_DISPLAY -u WAYLAND_SOCKET xvfb-run -a -s '-screen 0 1600x1000x24'`.
+Unsetting inherited Wayland variables ensures the app uses this X11 display;
+the native Wayland screenshot path is not established by the Xvfb evidence.
 Fedora's native Rust 1.99.1 can be used with `build --rust-version 1.99.1`;
 that is a distinct build identity, not a reproduction of the CI binary.
 `build` invokes `cargo build --locked --offline --release -p gui-egui --bin
