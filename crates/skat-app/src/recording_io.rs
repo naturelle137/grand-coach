@@ -44,6 +44,20 @@ fn io_error(error: std::io::Error) -> RecordingFileError {
     }
 }
 
+/// Creation failure. Unix reports `ENOTDIR` (`Io`) when a regular file is used
+/// as a parent; Windows reports `ERROR_PATH_NOT_FOUND` (`NotFound`). Only an
+/// absent parent is `Missing`; a parent that exists but is no directory is `Io`.
+fn create_error(path: &Path, error: std::io::Error) -> RecordingFileError {
+    if error.kind() == std::io::ErrorKind::NotFound
+        && path
+            .parent()
+            .is_some_and(|parent| parent.exists() && !parent.is_dir())
+    {
+        return RecordingFileError::Io;
+    }
+    io_error(error)
+}
+
 fn validation(error: RecordingError) -> RecordingFileError {
     match error {
         RecordingError::UnsupportedFormat { .. } => RecordingFileError::UnsupportedFormat,
@@ -117,11 +131,12 @@ impl GameRecording {
         if bytes.len() > MAX_RECORDING_BYTES {
             return Err(RecordingFileError::TooLarge);
         }
+        let path = path.as_ref();
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(path)
-            .map_err(io_error)?;
+            .map_err(|error| create_error(path, error))?;
         file.write_all(&bytes)
             .and_then(|()| file.sync_all())
             .map_err(io_error)
