@@ -15,3 +15,5 @@ mod text;
 pub use app::GrandCoachApp;
 pub use cards::{Deck, Theme};
 pub use i18n::Language;
+
+mod guided;

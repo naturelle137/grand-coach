@@ -927,6 +927,20 @@ impl GrandCoachApp {
     }
 
     fn coach_panel(&mut self, ui: &mut egui::Ui, view: &TableView, now: f64) {
+        if let Some(g) = self.session.guided() {
+            if let Some(action) = crate::guided::panel(ui, &self.i18n, view, &g) {
+                self.send(Command::Guided(g.id, action), now);
+            }
+            return;
+        }
+        if view.acting == Some(PlayerId::HUMAN)
+            && view.coach.settings.level != CoachLevel::Off
+            && view.assist.quiz.question.is_none()
+            && ui.button(self.t("guided-start")).clicked()
+        {
+            self.send(Command::StartGuided, now);
+            return;
+        }
         let coach = &view.coach;
         let human = view.acting == Some(PlayerId::HUMAN);
         ui.heading(self.t("coach-title"));
@@ -1316,6 +1330,17 @@ impl GrandCoachApp {
     // Centre: opponents, Skat and the trick.
 
     fn table(&mut self, ui: &mut egui::Ui, view: &TableView, now: f64) {
+        if self.session.guided().is_some() {
+            // Keep the fixed-size trick triangle clear of opponent headers,
+            // including at the smallest supported desktop window.
+            ui.columns(2, |columns| {
+                self.opponent(&mut columns[0], view, PlayerId(1));
+                self.opponent(&mut columns[1], view, PlayerId(2));
+            });
+            ui.add_space(12.0);
+            self.middle(ui, view, now);
+            return;
+        }
         ui.columns(3, |columns| {
             self.opponent(&mut columns[0], view, PlayerId(1));
             self.middle(&mut columns[1], view, now);
@@ -2022,6 +2047,11 @@ impl eframe::App for GrandCoachApp {
             self.drive_opponents(ui.ctx(), now);
             self.drive_coach(ui.ctx(), now);
         }
+        if self.recording.active()
+            && let Some(g) = self.session.guided()
+        {
+            self.send(Command::Guided(g.id, skat_app::GuidedAction::Return), now);
+        }
         let view = self.session.view();
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui, &view, now));
         let blocked = self.recording.active();
@@ -2034,9 +2064,12 @@ impl eframe::App for GrandCoachApp {
         }
         ui.add_enabled_ui(!blocked, |ui| {
             egui::Panel::top("status").show(ui, |ui| self.status(ui, &view));
-            egui::Panel::right("side")
-                .default_size(320.0)
-                .show(ui, |ui| self.side_panel(ui, &view));
+            let guided = self.session.guided().is_some();
+            if !guided {
+                egui::Panel::right("side")
+                    .default_size(320.0)
+                    .show(ui, |ui| self.side_panel(ui, &view));
+            }
             egui::Panel::bottom("hand").show(ui, |ui| {
                 ui.add_space(4.0);
                 self.actions(ui, &view, now);
@@ -2044,11 +2077,19 @@ impl eframe::App for GrandCoachApp {
                 self.hand(ui, &view, now);
                 ui.add_space(4.0);
             });
+            if guided {
+                // The complete playable hand keeps the window width, even
+                // at 960 px; history stays beside the table above it.
+                egui::Panel::right("side")
+                    .default_size(320.0)
+                    .show(ui, |ui| self.side_panel(ui, &view));
+            }
             // After the hand, so the hand keeps the full width (twelve cards
             // when discarding).
             if Self::coach_visible(&view) {
                 egui::Panel::left("coach")
-                    .default_size(360.0)
+                    .default_size(if guided { 300.0 } else { 360.0 })
+                    .min_size(if guided { 280.0 } else { 0.0 })
                     .show(ui, |ui| self.coach_panel(ui, &view, now));
             }
             egui::CentralPanel::default()
