@@ -21,6 +21,7 @@ use skat_core::{Action, Game, OmniscientView, Phase, PlayerView};
 use crate::coach::{DecisionKey, Unavailable};
 use crate::context::DecisionContext;
 use crate::recording::{GameRecording, RecordingError};
+use crate::replay_review::{ReviewState, ReviewStatus};
 use crate::session::PlayerId;
 
 /// Sampling base of every historical replay analysis. The seed of a job is
@@ -139,29 +140,16 @@ impl ReplayCoachJob {
     /// (with [`REPLAY_COACH_TIME_LIMIT`]) stops it; a cancelled analysis is
     /// never shown as a comment.
     pub fn run(&self, cancel: Option<&Cancel>) -> ReplayCoachResult {
-        let explanation = match &self.all {
-            Some(all) => advise_known(&self.view, all, self.key.budget, cancel),
-            None => advise(&self.view, self.key.budget, self.key.seed, cancel),
-        };
-        let outcome = match explanation {
-            Some(e) if e.status == Status::Cancelled => Err(Unavailable::Cancelled),
-            Some(e) => match review(&e, self.chosen) {
-                Some(review) => Ok(Box::new(ReplayComment {
-                    perspective: self.key.perspective,
-                    alternative: review
-                        .chosen
-                        .compared_with
-                        .and_then(|a| e.option(a))
-                        .cloned(),
-                    review,
-                })),
-                None => Err(Unavailable::Failed),
-            },
-            None => Err(Unavailable::Failed),
-        };
         ReplayCoachResult {
             key: self.key,
-            outcome,
+            outcome: comment(
+                &self.view,
+                self.all.as_deref(),
+                self.chosen,
+                self.key.budget,
+                self.key.seed,
+                cancel,
+            ),
         }
     }
 
@@ -188,6 +176,44 @@ impl ReplayCoachJob {
     /// The permitted view analysed (the human's, before the action).
     pub fn view(&self) -> &PlayerView {
         &self.view
+    }
+}
+
+/// The shared comment on `chosen` in `view`: `advise` with `seed` from the
+/// permitted view alone, or `advise_known` with the real position `all`
+/// (hindsight only); then `review`. Used by single comments and the
+/// recording review (D-69).
+pub(crate) fn comment(
+    view: &PlayerView,
+    all: Option<&OmniscientView>,
+    chosen: Action,
+    budget: Budget,
+    seed: u64,
+    cancel: Option<&Cancel>,
+) -> Result<Box<ReplayComment>, Unavailable> {
+    let explanation = match all {
+        Some(all) => advise_known(view, all, budget, cancel),
+        None => advise(view, budget, seed, cancel),
+    };
+    match explanation {
+        Some(e) if e.status == Status::Cancelled => Err(Unavailable::Cancelled),
+        Some(e) => match review(&e, chosen) {
+            Some(review) => Ok(Box::new(ReplayComment {
+                perspective: if all.is_some() {
+                    ReplayPerspective::Hindsight
+                } else {
+                    ReplayPerspective::Historical
+                },
+                alternative: review
+                    .chosen
+                    .compared_with
+                    .and_then(|a| e.option(a))
+                    .cloned(),
+                review,
+            })),
+            None => Err(Unavailable::Failed),
+        },
+        None => Err(Unavailable::Failed),
     }
 }
 
@@ -269,6 +295,8 @@ pub struct ReplayCoachView {
     pub context: Option<DecisionContext>,
     /// What to show.
     pub status: ReplayStatus,
+    /// The recording review (D-69).
+    pub review: ReviewStatus,
 }
 
 /// On-demand coaching of one opened recording. Holds the privileged
@@ -276,16 +304,18 @@ pub struct ReplayCoachView {
 /// result. Never touches a live session.
 #[derive(Clone, Debug)]
 pub struct ReplayCoach {
-    source: u64,
-    recording: GameRecording,
-    decisions: Vec<RecordedDecision>,
+    pub(crate) source: u64,
+    pub(crate) recording: GameRecording,
+    pub(crate) decisions: Vec<RecordedDecision>,
     selected: Option<usize>,
     context: Option<DecisionContext>,
     perspective: ReplayPerspective,
-    budget: Budget,
+    pub(crate) budget: Budget,
     generation: u64,
     outstanding: Option<ReplayKey>,
     status: ReplayStatus,
+    /// The bounded recording review (D-69); its own requests and cache.
+    pub(crate) review: ReviewState,
 }
 
 impl ReplayCoach {
@@ -330,6 +360,7 @@ impl ReplayCoach {
             generation: 0,
             outstanding: None,
             status,
+            review: ReviewState::default(),
         })
     }
 
@@ -356,16 +387,7 @@ impl ReplayCoach {
         self.invalidate();
         self.selected = index;
         self.perspective = ReplayPerspective::Historical;
-        self.context = index.map(|i| {
-            let d = self.decisions[i];
-            let view = self.human_view(d.prefix);
-            let key = DecisionKey {
-                lineage: 0,
-                number: self.recording.context.number,
-                actions: d.prefix,
-            };
-            DecisionContext::new(key, self.recording.context.dealer, &view, d.action)
-        });
+        self.context = index.map(|i| self.context_of(i));
         self.status = self.resting();
     }
 
@@ -377,17 +399,23 @@ impl ReplayCoach {
     }
 
     /// Sets the budget of later requests (tests, screenshots); drops any
-    /// outstanding or shown comment.
+    /// outstanding or shown comment and the recording review with its
+    /// cached results, which were computed with the old budget.
     pub fn set_budget(&mut self, budget: Budget) {
         self.invalidate();
+        self.review.reset();
         self.budget = budget;
         self.status = self.resting();
     }
 
     /// Requests the comment for the selected decision in the current
     /// perspective (also a retry). Any earlier request becomes stale.
-    /// `None` without a selected decision.
+    /// `None` without a selected decision, and while the recording review
+    /// runs: at most one replay analysis at a time.
     pub fn request(&mut self) -> Option<ReplayCoachJob> {
+        if self.review_running() {
+            return None;
+        }
         let d = self.decisions[self.selected?];
         self.invalidate();
         let job = match self.perspective {
@@ -440,6 +468,7 @@ impl ReplayCoach {
             perspective: self.perspective,
             context: self.context.clone(),
             status: self.status.clone(),
+            review: self.review_status(),
         }
     }
 
@@ -461,8 +490,20 @@ impl ReplayCoach {
         )
     }
 
+    /// The permitted table before decision `index` (D-59 snapshot).
+    pub(crate) fn context_of(&self, index: usize) -> DecisionContext {
+        let d = self.decisions[index];
+        let view = self.human_view(d.prefix);
+        let key = DecisionKey {
+            lineage: 0,
+            number: self.recording.context.number,
+            actions: d.prefix,
+        };
+        DecisionContext::new(key, self.recording.context.dealer, &view, d.action)
+    }
+
     /// The human's historical permitted view before action `prefix`.
-    fn human_view(&self, prefix: usize) -> PlayerView {
+    pub(crate) fn human_view(&self, prefix: usize) -> PlayerView {
         let position = self
             .recording
             .reconstruct_privileged(prefix)
@@ -480,11 +521,20 @@ impl ReplayCoach {
         self.outstanding = None;
     }
 
+    /// The status without a request: a historical comment the recording
+    /// review already computed for the selected decision is shown as is
+    /// (same recording, view, seed and budget, D-69); hindsight is never
+    /// cached.
     fn resting(&self) -> ReplayStatus {
         match (self.decisions.is_empty(), self.selected) {
             (true, _) => ReplayStatus::NoDecisions,
             (false, None) => ReplayStatus::NotSelected,
-            (false, Some(_)) => ReplayStatus::Idle,
+            (false, Some(i)) => match (self.perspective, self.review.cached(i)) {
+                (ReplayPerspective::Historical, Some(comment)) => {
+                    ReplayStatus::Ready(Box::new(comment.clone()))
+                }
+                _ => ReplayStatus::Idle,
+            },
         }
     }
 }

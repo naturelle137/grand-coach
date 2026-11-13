@@ -10,8 +10,9 @@ use std::time::Instant;
 use eframe::egui::{self, RichText, Vec2};
 use skat_app::{
     Budget, Cancel, Card, GameRecording, PlayerId, PrivilegedRecordingPosition,
-    REPLAY_COACH_TIME_LIMIT, RecordingEnd, RecordingFileError, ReplayCoach, ReplayCoachResult,
-    ReplayPerspective, ReplayStatus, Session, TableView,
+    REPLAY_COACH_TIME_LIMIT, REPLAY_REVIEW_DECISION_LIMIT, REPLAY_REVIEW_TIME_LIMIT, RecordingEnd,
+    RecordingFileError, ReplayCoach, ReplayCoachResult, ReplayPerspective, ReplayReviewResult,
+    ReplayStatus, ReviewStatus, ReviewUnavailable, Session, TableView,
 };
 
 use crate::{
@@ -42,6 +43,19 @@ impl Drop for ReplayThinking {
     }
 }
 
+/// The one running decision of the recording review (D-69). Dropping it
+/// cancels that analysis and disconnects its channel.
+struct ReviewThinking {
+    result: Receiver<ReplayReviewResult>,
+    cancel: Cancel,
+}
+
+impl Drop for ReviewThinking {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+    }
+}
+
 pub(crate) struct FileDialog {
     save: bool,
     path: String,
@@ -62,6 +76,9 @@ pub(crate) struct Replay {
     /// On-demand comments on recorded own decisions (D-67).
     coach: ReplayCoach,
     thinking: Option<ReplayThinking>,
+    /// The running review decision and when the review (re)started.
+    reviewing: Option<ReviewThinking>,
+    review_started: Option<Instant>,
 }
 
 /// A replay-coach control used in this frame.
@@ -70,6 +87,9 @@ enum CoachRequest {
     Request,
     Perspective(ReplayPerspective),
     Cancel,
+    /// Start, continue or repeat the recording review.
+    Review,
+    CancelReview,
 }
 
 impl RecordingUi {
@@ -181,6 +201,8 @@ impl RecordingUi {
                                     practice_error: false,
                                     coach,
                                     thinking: None,
+                                    reviewing: None,
+                                    review_started: None,
                                 });
                             })
                         };
@@ -218,6 +240,11 @@ impl RecordingUi {
         self.replay.as_ref().is_some_and(|r| r.thinking.is_some())
     }
 
+    /// `true` while the recording review runs (tests).
+    pub fn review_running(&self) -> bool {
+        self.replay.as_ref().is_some_and(|r| r.reviewing.is_some())
+    }
+
     /// The replay coach of the open recording (tests, screenshots).
     pub fn replay_coach_mut(&mut self) -> Option<&mut ReplayCoach> {
         self.replay.as_mut().map(|r| &mut r.coach)
@@ -232,7 +259,9 @@ impl RecordingUi {
         live: &TableView,
     ) -> Option<GameRecording> {
         let replay = self.replay.as_mut()?;
-        replay.poll();
+        // The focus selects moments only; it is no analysis input (D-69).
+        replay.coach.set_review_focus(live.coach.settings.focus);
+        replay.poll(ctx);
         let mut open = true;
         let mut close = false;
         let mut practice = None;
@@ -319,7 +348,11 @@ impl RecordingUi {
                     .id_salt("record_scroll")
                     .max_height((ctx.content_rect().height() - 340.0).max(120.0))
                     .show(ui, |ui| {
-                        request = coach_section(ui, i, deck, &replay.coach, live);
+                        request = review_section(ui, i, deck, &replay.coach, live);
+                        ui.separator();
+                        if let Some(r) = coach_section(ui, i, deck, &replay.coach, live) {
+                            request = Some(r);
+                        }
                         ui.separator();
                         let state = &replay.position.state;
                         let public = &state.seats[0];
@@ -406,8 +439,31 @@ impl RecordingUi {
 }
 
 impl Replay {
-    /// Delivers a finished comment; the coach rejects anything stale.
-    fn poll(&mut self) {
+    /// Delivers a finished comment or review decision; the coach rejects
+    /// anything stale. The review then starts its next decision, or ends at
+    /// [`REPLAY_REVIEW_TIME_LIMIT`].
+    fn poll(&mut self, ctx: &egui::Context) {
+        if let Some(reviewing) = &self.reviewing {
+            match reviewing.result.try_recv() {
+                Ok(result) => {
+                    self.reviewing = None;
+                    let _ = self.coach.finish_review(result);
+                    if self
+                        .review_started
+                        .is_some_and(|t| t.elapsed() >= REPLAY_REVIEW_TIME_LIMIT)
+                    {
+                        self.coach.review_time_limit();
+                    } else {
+                        self.start_review(ctx);
+                    }
+                }
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => {
+                    self.reviewing = None;
+                    self.coach.cancel_review();
+                }
+            }
+        }
         let Some(thinking) = &self.thinking else {
             return;
         };
@@ -424,8 +480,24 @@ impl Replay {
         }
     }
 
-    /// Applies a control. Every change drops the running comment first.
+    /// Applies a control. Every single-comment change drops the running
+    /// comment first; selecting a decision does not stop the review.
     fn apply(&mut self, request: CoachRequest, ctx: &egui::Context) {
+        match request {
+            CoachRequest::Review => {
+                if self.thinking.is_none() && self.coach.request_review() {
+                    self.review_started = Some(Instant::now());
+                    self.start_review(ctx);
+                }
+                return;
+            }
+            CoachRequest::CancelReview => {
+                self.reviewing = None;
+                self.coach.cancel_review();
+                return;
+            }
+            _ => {}
+        }
         self.thinking = None;
         match request {
             CoachRequest::Select(index) => self.coach.select(index),
@@ -435,7 +507,28 @@ impl Replay {
                 self.start(ctx);
             }
             CoachRequest::Request => self.start(ctx),
+            CoachRequest::Review | CoachRequest::CancelReview => {}
         }
+    }
+
+    /// Starts the next review decision on a background thread, bounded by
+    /// the budget, [`REPLAY_REVIEW_DECISION_LIMIT`] and what is left of
+    /// [`REPLAY_REVIEW_TIME_LIMIT`]. Ends quietly when none is left.
+    fn start_review(&mut self, ctx: &egui::Context) {
+        let Some(job) = self.coach.review_job() else {
+            return;
+        };
+        let started = self.review_started.unwrap_or_else(Instant::now);
+        let deadline =
+            (Instant::now() + REPLAY_REVIEW_DECISION_LIMIT).min(started + REPLAY_REVIEW_TIME_LIMIT);
+        let (sender, result) = std::sync::mpsc::channel();
+        let cancel = Cancel::with_deadline(deadline);
+        let (stop, repaint) = (cancel.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            let _ = sender.send(job.run(Some(&stop)));
+            repaint.request_repaint();
+        });
+        self.reviewing = Some(ReviewThinking { result, cancel });
     }
 
     /// Starts the one replay analysis on a background thread, bounded by
@@ -454,6 +547,98 @@ impl Replay {
         });
         self.thinking = Some(ReplayThinking { result, cancel });
     }
+}
+
+/// The recording review (D-69): request, progress and cancel, scope, and
+/// zero to three moments, each navigable to its decision.
+fn review_section(
+    ui: &mut egui::Ui,
+    i: &I18n,
+    deck: Deck,
+    coach: &ReplayCoach,
+    live: &TableView,
+) -> Option<CoachRequest> {
+    let mut request = None;
+    ui.heading(i.t("replay-review-title"));
+    let status = coach.review_status();
+    if let ReviewStatus::Unavailable(reason) = status {
+        ui.label(i.t(match reason {
+            ReviewUnavailable::Incomplete => "replay-review-incomplete",
+            ReviewUnavailable::NoDecisions => "replay-review-no-decisions",
+        }));
+        return None;
+    }
+    ui.label(RichText::new(i.t("replay-review-help")).small());
+    let single_busy = coach.computing();
+    let start = |ui: &mut egui::Ui, key: &str| {
+        ui.add_enabled(!single_busy, egui::Button::new(i.t(key)))
+            .on_disabled_hover_text(i.t("replay-review-single-busy"))
+            .clicked()
+    };
+    match status {
+        ReviewStatus::Unavailable(_) => {}
+        ReviewStatus::Idle { eligible } => {
+            ui.label(i.tf(
+                "replay-review-eligible",
+                &[
+                    ("count", eligible.into()),
+                    ("total", REPLAY_REVIEW_TIME_LIMIT.as_secs().into()),
+                    ("each", REPLAY_REVIEW_DECISION_LIMIT.as_secs().into()),
+                ],
+            ));
+            if start(ui, "replay-review-request") {
+                request = Some(CoachRequest::Review);
+            }
+        }
+        ReviewStatus::Running {
+            attempted,
+            eligible,
+        } => {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(i.tf(
+                    "replay-review-running",
+                    &[
+                        ("current", (attempted + 1).min(eligible).into()),
+                        ("eligible", eligible.into()),
+                    ],
+                ));
+                if ui.button(i.t("replay-review-cancel")).clicked() {
+                    request = Some(CoachRequest::CancelReview);
+                }
+            });
+        }
+        ReviewStatus::Done(summary) => {
+            show_lines(ui, &coach::review_summary(i, &summary));
+            let key = if summary.exhaustive() {
+                "replay-review-again"
+            } else {
+                "replay-review-continue"
+            };
+            if start(ui, key) {
+                request = Some(CoachRequest::Review);
+            }
+            let figures = live.coach.settings.show_figures;
+            for (n, m) in summary.moments.iter().enumerate() {
+                let text = coach::review_moment(i, live, m, figures);
+                egui::Frame::group(ui.style()).show(ui, |ui| {
+                    show_lines(ui, std::slice::from_ref(&text.title));
+                    situation(ui, i, deck, &text.situation, ("review", n));
+                    show_lines(ui, &text.summary);
+                    egui::CollapsingHeader::new(&text.lesson_title)
+                        .id_salt(("review_lesson", n))
+                        .show(ui, |ui| show_lines(ui, &text.lesson));
+                    egui::CollapsingHeader::new(i.t("coach-details"))
+                        .id_salt(("review_details", n))
+                        .show(ui, |ui| show_lines(ui, &text.details));
+                    if ui.button(i.t("replay-review-show")).clicked() {
+                        request = Some(CoachRequest::Select(Some(m.decision)));
+                    }
+                });
+            }
+        }
+    }
+    request
 }
 
 /// The replay-coach section: decision selector, persistent perspective
@@ -513,8 +698,10 @@ fn coach_section(
         } else {
             "replay-coach-request"
         };
+        let review = coach.review_running();
         if ui
-            .add_enabled(!computing, egui::Button::new(i.t(key)))
+            .add_enabled(!computing && !review, egui::Button::new(i.t(key)))
+            .on_disabled_hover_text(i.t("replay-review-busy"))
             .clicked()
         {
             request = Some(CoachRequest::Request);
@@ -527,7 +714,11 @@ fn coach_section(
                 ("replay-coach-historical", ReplayPerspective::Historical)
             }
         };
-        if ui.button(i.t(key)).clicked() {
+        if ui
+            .add_enabled(!review, egui::Button::new(i.t(key)))
+            .on_disabled_hover_text(i.t("replay-review-busy"))
+            .clicked()
+        {
             request = Some(CoachRequest::Perspective(other));
         }
         if computing && ui.button(i.t("replay-coach-cancel")).clicked() {
@@ -563,13 +754,19 @@ fn coach_section(
         ReplayStatus::NoDecisions | ReplayStatus::NotSelected => {}
     }
     ui.label(RichText::new(i.t("replay-coach-before")).strong());
-    situation(ui, i, deck, &coach::replay_situation(i, context));
+    situation(ui, i, deck, &coach::replay_situation(i, context), "single");
     request
 }
 
 /// The table before the recorded action: facts, the hand with the chosen
 /// cards marked and the trick in progress. Display only.
-fn situation(ui: &mut egui::Ui, i: &I18n, deck: Deck, s: &coach::SituationText) {
+fn situation(
+    ui: &mut egui::Ui,
+    i: &I18n,
+    deck: Deck,
+    s: &coach::SituationText,
+    salt: impl std::hash::Hash + std::fmt::Debug,
+) {
     show_lines(ui, &s.lines);
     ui.label(RichText::new(&s.hand_label).small());
     ui.horizontal_wrapped(|ui| {
@@ -598,7 +795,7 @@ fn situation(ui: &mut egui::Ui, i: &I18n, deck: Deck, s: &coach::SituationText) 
         });
     }
     egui::CollapsingHeader::new(&s.history_title)
-        .id_salt("replay_history")
+        .id_salt(("replay_history", salt))
         .show(ui, |ui| show_lines(ui, &s.history));
 }
 

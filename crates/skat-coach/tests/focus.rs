@@ -497,3 +497,41 @@ fn provisional_estimates_are_never_rated() {
     let cancelled = variant(&b, None, Judgement::Weak, 30.0, Status::Cancelled);
     assert!(moments(&[cancelled], None).is_empty());
 }
+
+#[test]
+fn uncertain_or_unrated_differences_never_become_bad_moments() {
+    let b = base();
+    let done = Status::Complete;
+    // A large gap the analysis could not separate from noise is rated
+    // equivalent: neutral, however large the raw difference (D-58).
+    let within_noise = variant(
+        &b,
+        Some(Concept::ProvenVoid),
+        Judgement::Equivalent,
+        30.0,
+        done,
+    );
+    // Screened and unevaluated options are never compared.
+    let screened = variant(
+        &b,
+        Some(Concept::RemainingTrumpf),
+        Judgement::Screened,
+        30.0,
+        done,
+    );
+    let unevaluated = variant(
+        &b,
+        Some(Concept::GameValue),
+        Judgement::NotEvaluated,
+        30.0,
+        done,
+    );
+    assert_eq!(
+        picked(&[within_noise, screened, unevaluated], None),
+        [
+            (0, MomentKind::Neutral, Concept::ProvenVoid),
+            (1, MomentKind::Neutral, Concept::RemainingTrumpf),
+            (2, MomentKind::Neutral, Concept::GameValue),
+        ]
+    );
+}

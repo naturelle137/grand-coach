@@ -247,6 +247,20 @@ historical and hindsight requests, reveal, rapid changes, cancel/retry,
 close/reopen and practice start in both languages. Latency:
 `cargo run --locked --release -p skat-app --example replay_coach_latency`.
 
+Recording review (D-69): `skat-app/tests/replay_review.rs` checks the moments
+against independent single historical comments and `skat_coach::moments`
+(game order, decision/prefix/context mapping with forced decisions skipped,
+legal alternative, navigation shows the cached historical comment), jobs
+holding only the core-reconstructed permitted view and its view seed,
+determinism and focus-only reselection, cancel/time limit/retry/budget/stale
+results, hindsight kept out, all-pass and in-progress scope, and the
+untouched live session and file. Its ignored production-budget case runs the
+fixtures with the real limits. `gui-egui/tests/replay_review.rs` drives
+request, cancel, continue, moments, navigation, hindsight, close/reopen,
+practice start and a saved in-progress file in both languages. Latency and
+cancellation:
+`cargo run --locked --release -p skat-app --example replay_review_latency`.
+
 ## Screenshots of the frontend
 
 `cargo run --locked -p gui-egui --example screenshots -- OUT_DIR
@@ -275,7 +289,11 @@ wgpu adapter and prefers software ones: lavapipe on Linux (Fedora/Ubuntu
 - `replay-before`, `replay-historical(-en)`, `replay-hindsight(-en)` and
   `replay-none(-en)` show a selected recorded decision before any request,
   its historical and labelled hindsight comments, and an early file without
-  a recorded own decision.
+  a recorded own decision (its review reported unavailable).
+- `review-running`, `review-cancelled(-en)`, `review-moments(-en)`,
+  `review-moments-narrow` and `review-navigate(-en)` request the recording
+  review of the reopened game, cancel it (partial scope), let it finish with
+  its moments and open a moment's decision with its historical comment.
 - `open-display-new-series(-en)`, `open-display(-en)`, `open-display-trick`
   and `open-display-coach` choose the open display in the new-series dialog
   and show every hand and the Skat on the ordinary table during bidding and

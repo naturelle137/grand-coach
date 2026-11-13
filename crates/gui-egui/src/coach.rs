@@ -19,8 +19,8 @@ use skat_app::coach_model::{
 };
 use skat_app::{
     Action, Card, CardSet, Contract, Debriefing, DebriefingMoment, DecisionContext, GameType,
-    LastMove, Phase, PlayerId, RecordedDecision, ReplayComment, ReplayPerspective, Seat, TableView,
-    Unavailable,
+    LastMove, Phase, PlayerId, RecordedDecision, ReplayComment, ReplayPerspective, ReviewEnd,
+    ReviewMoment, ReviewSummary, Seat, TableView, Unavailable,
 };
 
 use crate::i18n::I18n;
@@ -1664,6 +1664,86 @@ pub fn warning(i18n: &I18n, view: &TableView, w: &Warning, figures: bool) -> Vec
             ),
             Style::Weak,
         ));
+    }
+    out
+}
+
+/// One moment of the recording review (D-69): the debriefing moment over
+/// its historical snapshot, plus the compared legal alternative.
+pub fn review_moment(i18n: &I18n, view: &TableView, m: &ReviewMoment, figures: bool) -> MomentText {
+    let dm = DebriefingMoment {
+        moment: m.moment.clone(),
+        context: m.context.clone(),
+    };
+    let mut text = moment(i18n, view, &dm, figures);
+    let r = &m.moment.review;
+    if let Some(alt) = &m.alternative {
+        text.summary.insert(
+            1,
+            line(
+                i18n.tf(
+                    "replay-coach-alternative",
+                    &[
+                        (
+                            "action",
+                            action_at(i18n, r.bid, r.hand_game, alt.action).into(),
+                        ),
+                        ("judgement", judgement(i18n, alt.judgement).into()),
+                    ],
+                ),
+                Style::Normal,
+            ),
+        );
+    }
+    text
+}
+
+/// The scope of a finished, cancelled or time-limited recording review:
+/// what was evaluated, what is missing and why there are fewer moments.
+/// A partial review is never presented as covering the whole game.
+pub fn review_summary(i18n: &I18n, s: &ReviewSummary) -> Vec<Line> {
+    let args = [
+        ("analysed", s.analysed.into()),
+        ("eligible", s.eligible.into()),
+        ("forced", s.forced.into()),
+    ];
+    let scope = match (s.end, s.exhaustive()) {
+        (ReviewEnd::Cancelled, _) => "replay-review-cancelled",
+        (ReviewEnd::TimeLimit, _) => "replay-review-time-limit",
+        (ReviewEnd::Finished, true) => "replay-review-complete",
+        (ReviewEnd::Finished, false) => "replay-review-partial",
+    };
+    let mut out = vec![
+        line(i18n.t("replay-review-perspective"), Style::Weak),
+        line(i18n.tf(scope, &args), Style::Strong),
+    ];
+    if s.unavailable > 0 {
+        out.push(line(
+            i18n.tf(
+                "replay-review-unavailable",
+                &[("count", s.unavailable.into())],
+            ),
+            Style::Weak,
+        ));
+    }
+    if s.provisional > 0 {
+        out.push(line(
+            i18n.tf(
+                "replay-review-provisional",
+                &[("count", s.provisional.into())],
+            ),
+            Style::Weak,
+        ));
+    }
+    let n = s.moments.len();
+    match (n, s.exhaustive()) {
+        (0, true) => out.push(line(i18n.t("replay-review-none"), Style::Normal)),
+        (0, false) => out.push(line(i18n.t("replay-review-none-partial"), Style::Normal)),
+        (n, true) if n < skat_app::coach_model::PRIMARY_MOMENTS => out.push(line(
+            i18n.tf("replay-review-fewer", &[("count", n.into())]),
+            Style::Weak,
+        )),
+        _ => {}
     }
     out
 }

@@ -71,6 +71,14 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("replay-hindsight-en", replay_hindsight_en),
     ("replay-none", replay_none),
     ("replay-none-en", replay_none_en),
+    ("review-running", review_running),
+    ("review-cancelled", review_cancelled),
+    ("review-cancelled-en", review_cancelled_en),
+    ("review-moments", review_moments),
+    ("review-moments-en", review_moments_en),
+    ("review-moments-narrow", review_moments),
+    ("review-navigate", review_navigate),
+    ("review-navigate-en", review_navigate_en),
     ("practice", practice),
     ("practice-play", practice_play),
     ("practice-play-en", practice_play_en),
@@ -1322,6 +1330,102 @@ fn replay_none(h: &mut Harness<'_, GrandCoachApp>) {
             .is_some()
     );
     std::fs::remove_dir_all(directory).unwrap();
+}
+
+/// Clicks a button wherever its scroll area put it (AccessKit action).
+fn press(h: &mut Harness<'_, GrandCoachApp>, label: &str) {
+    h.get_by_role_and_label(Role::Button, label)
+        .click_accesskit();
+    h.run_steps(4);
+}
+
+fn await_review(h: &mut Harness<'_, GrandCoachApp>) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(900);
+    while h.state().review_running() || h.state().replay_computing() {
+        assert!(std::time::Instant::now() < deadline, "review hangs");
+        h.run_steps(1);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    h.run_steps(4);
+}
+
+/// The reopened completed game with the review just requested: progress
+/// and its cancel control (D-69).
+fn review_running(h: &mut Harness<'_, GrandCoachApp>) {
+    recording(h);
+    press(h, "Meine Entscheidungen auswerten");
+    assert!(h.state().review_running());
+}
+
+/// The review cancelled after it started: partial, labelled as such.
+fn review_cancelled(h: &mut Harness<'_, GrandCoachApp>) {
+    review_running(h);
+    // Let a few decisions finish first.
+    for _ in 0..200 {
+        let done = h
+            .query_all_by_label_contains("Werte Entscheidung 3 von")
+            .next()
+            .is_some();
+        if done || !h.state().review_running() {
+            break;
+        }
+        h.run_steps(1);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    press(h, "Auswertung abbrechen");
+    assert!(
+        h.query_all_by_label_contains("Abgebrochen:")
+            .next()
+            .is_some()
+    );
+}
+
+fn review_cancelled_en(h: &mut Harness<'_, GrandCoachApp>) {
+    review_cancelled(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+/// The finished review: scope and up to three moments in game order.
+fn review_moments(h: &mut Harness<'_, GrandCoachApp>) {
+    review_running(h);
+    await_review(h);
+    assert!(
+        h.query_all_by_label_contains("Entscheidungen mit Wahl ausgewertet")
+            .next()
+            .is_some()
+    );
+}
+
+fn review_moments_en(h: &mut Harness<'_, GrandCoachApp>) {
+    review_moments(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+/// A moment's decision selected from the review: the historical comment
+/// and the table before that move, without computing again.
+fn review_navigate(h: &mut Harness<'_, GrandCoachApp>) {
+    review_moments(h);
+    let show = "Am Tisch vor diesem Zug zeigen";
+    h.query_all_by_label(show)
+        .next()
+        .expect("at least one moment")
+        .click_accesskit();
+    h.run_steps(4);
+    assert!(!h.state().replay_computing());
+    let node = h.get_by_label("Der Tisch vor deinem aufgenommenen Zug");
+    node.scroll_to_me();
+    h.run_steps(4);
+}
+
+fn review_navigate_en(h: &mut Harness<'_, GrandCoachApp>) {
+    review_navigate(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+    let node = h.get_by_label("The table before your recorded move");
+    node.scroll_to_me();
+    h.run_steps(4);
 }
 
 fn replay_none_en(h: &mut Harness<'_, GrandCoachApp>) {
