@@ -221,7 +221,21 @@ comparison with cards unknown then, not proof of a mistake. Lesson evidence
 still comes from the permitted view; in hindsight only the option comparison
 uses the real deal, as in God Mode (D-62). No lesson or claim was added, so
 the [evidence checklist](coach-validation.md) is unchanged. Nothing is computed
-automatically; whole-recording ranking is not offered.
+automatically.
+
+## Recording review (D-69)
+
+For a completed recording the learner can ask for a review of all own
+decisions. Each decision with a choice gets the historical comment above;
+the debriefing's D-58 selection then shows zero to three moments in game
+order, each with the table before the move, the choice, the compared legal
+alternative and the lesson, and a link to that decision. Same lessons, same
+thresholds, no hindsight; the focus only reselects. Partial reviews
+(cancelled, time limit, unavailable decisions) say how many decisions were
+evaluated and that the moments do not cover the whole game. Fewer or no
+moments come with an explanation and no judgement of the game. No new lesson
+or claim, so the [evidence checklist](coach-validation.md) is unchanged.
+[Contract and budgets](architecture.md#bounded-recording-review-d-69).
 
 ## Latency
 

@@ -152,8 +152,8 @@ Live controls and background-result delivery pause while a file dialog or
 recording is open. Pending opponent/coach jobs are retained, not cancelled or
 replaced. Closing resumes the original series; invalid input leaves the last
 valid recording and live session untouched. Recording data never enters live
-analysis. Editable history, automatic decisive-moment ranking and training
-history remain unimplemented.
+analysis. Editable history and training history remain unimplemented;
+the whole-recording review runs only on request (D-69).
 
 ### Same-deal practice (D-66)
 
@@ -265,3 +265,57 @@ the unknown field (the session object does not deny unknown fields) and
 shows it closed. Same-deal practice keeps the recorded display and the
 closed-view coach. Open display adds no hindsight pipeline: full-information
 comparison stays the explicit replay hindsight request (D-67).
+
+### Bounded recording review (D-69)
+
+`ReplayCoach::request_review` starts the review of the opened recording;
+`review_status` reports `Unavailable(Incomplete)` for an in-progress file
+and `Unavailable(NoDecisions)` without a recorded human action. Covered are
+the recorded human decisions with more than one legal option ("eligible");
+forced decisions are counted and skipped, and every index stays the index
+into `ReplayCoach::decisions`. `review_job` hands out the next eligible
+decision without an outcome, in game order, at most one at a time:
+`ReplayReviewJob` holds only that decision's historical `PlayerView`, the
+recorded action, the coach budget and `decision_seed(REPLAY_COACH_SEED,
+view)`, and runs the same `advise`/`review` path as a historical single
+comment, so a substituted hidden deal with the same views gives the same
+review. `finish_review` accepts only the outstanding key (opened-recording
+source, review generation, decision, prefix, budget, seed).
+
+When every eligible decision has an outcome, the analysed reviews in game
+order go to the unchanged `skat_coach::moments` with the learner's focus.
+That is the live debriefing's D-58 policy: eligible is a decision with a
+choice and a supported lesson; rated `Good`/`Bad` only with a complete
+analysis (`Bad` needs a `Worse`/`Weak` judgement, i.e. beyond the noise
+margin of 2 combined standard errors and more than 1 Seeger-Fabian point,
+plus a loss of at least `MOMENT_POINTS` = 5 points in the seat's utility:
+Seeger-Fabian points, for a defender with half the declarer's lost game
+points, so Null, Schneider and Schwarz count through the score); provisional,
+screened or not evaluated choices are `Neutral` at most; at most one moment
+per concept, ranked focus, rated, mechanism, larger loss or avoided trap,
+game order, and shown in game order. No good/bad quota and no new threshold.
+`ReviewMoment` adds the decision index, the compared legal alternative and
+the decision's permitted `DecisionContext`; `ReviewSummary` counts recorded,
+forced, eligible, analysed, provisional and unavailable decisions, its
+`ReviewEnd` (`Finished`, `Cancelled`, `TimeLimit`) and `exhaustive()`
+(every eligible decision analysed).
+
+Outcomes are cached per decision for the opened recording and its current
+budget; a budget change resets review and cache, closing or reopening drops
+them. Selecting a decision in the historical perspective shows its cached
+comment (same identity as a single request); hindsight is never cached and
+never enters the review. The focus only reselects. Cancel and time limit
+keep analysed decisions; "continue" retries unavailable ones and analyses
+the rest. A single comment cannot start while the review runs, nor the
+review while a comment computes; selecting decisions stays possible.
+
+The recording window runs each decision on a background thread with
+`Cancel::with_deadline(min(now + REPLAY_REVIEW_DECISION_LIMIT (20 s),
+start + REPLAY_REVIEW_TIME_LIMIT (120 s)))`; a decision reaching its deadline
+counts as unavailable, reaching the total limit ends the review as
+`TimeLimit`. Close, practice start and cancel drop the running thread.
+Measured with `Budget::INTERACTIVE` on the four fixture games (release,
+20 hardware threads): 4.4 s, 2.1 s, 2.3 s and 0.6 s per whole review, slowest
+decision 1.5 s, all eligible decisions analysed, cancellation returns within
+2 ms (`replay_review_latency` example). Live session, scores, pending jobs and
+file bytes stay untouched.
