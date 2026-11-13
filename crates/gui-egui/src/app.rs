@@ -377,6 +377,12 @@ impl GrandCoachApp {
         self.recording.replay_computing()
     }
 
+    /// `true` while the recording window runs its review (tests and
+    /// diagnostics).
+    pub fn review_running(&self) -> bool {
+        self.recording.review_running()
+    }
+
     /// The replay coach of the open recording window (tests, screenshots).
     pub fn replay_coach_mut(&mut self) -> Option<&mut skat_app::ReplayCoach> {
         self.recording.replay_coach_mut()
