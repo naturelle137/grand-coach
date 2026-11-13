@@ -142,6 +142,7 @@ mod tests {
             include_str!("coach.rs"),
             include_str!("recording.rs"),
             include_str!("guided.rs"),
+            include_str!("learning.rs"),
         ] {
             for literal in source.split('"').skip(1).step_by(2) {
                 let looks_like_id = literal.contains('-')
@@ -172,10 +173,11 @@ mod tests {
     fn every_id_in_the_code_is_translated_and_every_message_used() {
         let code = ids_in_code();
         let ftl = ids(DE_FTL);
-        let widget_ids = ["jump-bid", "guided-model"]; // egui IDs, not messages
+        // Widget identifiers and the data folder name, not messages.
+        let not_messages = ["jump-bid", "guided-model", "grand-coach"];
         let missing: Vec<_> = code
             .iter()
-            .filter(|id| !ftl.contains(*id) && !widget_ids.contains(&id.as_str()))
+            .filter(|id| !ftl.contains(*id) && !not_messages.contains(&id.as_str()))
             .collect();
         assert!(missing.is_empty(), "missing translations: {missing:?}");
         let unused: Vec<_> = ftl.iter().filter(|id| !code.contains(*id)).collect();
@@ -315,6 +317,10 @@ mod tests {
                     "eligible",
                     "forced",
                     "current",
+                    "path",
+                    "reason",
+                    "exact",
+                    "attempts",
                 ] {
                     args.set(name, "x");
                 }

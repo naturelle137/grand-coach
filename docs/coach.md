@@ -117,6 +117,23 @@ without exposing its expected answer. All events support serde; they need
 no storage, replay service or model. Existing `AppEvent::Quiz` feedback is
 retained for callers. No efficacy or mastery claim follows from these events.
 
+### Learning history (D-70)
+
+**Game → Learning history …** shows what the local
+[learning history](architecture.md#learning-history-d-70) recorded from
+these events: per topic (remaining Trumpf, proven voids, Augen won, cards
+played) and context (series, practice, practice retry) the questions asked,
+answers (exact), answers without help (exact), help shown and skips. Every
+column counts its own event type; an answer counts as without help only if
+no exact aid was available during its opportunity, so visible-aid and
+restored-help answers never do. Practice attempts and intentional retries of
+the same deal are listed apart from series games, so a repeated deal is never
+presented as a new unaided task. Without observations the window says so;
+below 20 questions it states that the sample is too small for any
+conclusion. It always states that the counts are not a measure of skill or
+understanding. No mastery, trend, thought, game-loss diagnosis or strategic
+error classification is derived; those remain #13/#49 scope.
+
 The legal replay fixtures in `skat-analysis/tests/retrieval.rs` cover both
 roles and Farbspiel/Grand/Null. `counting_fixtures.rs` additionally covers
 known discards, Hand and Ouvert. `skat-app/tests/assist.rs` checks frozen

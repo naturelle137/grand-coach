@@ -297,6 +297,21 @@ transition depends on timing, so deterministic stale-result rejection is
 pinned by the application tests. Headless runs do not replace interactive
 Windows 11 or learner checks.
 
+### Learning history (D-70)
+
+`skat-app/tests/learning.rs` records the actual
+retrieval events of seeded sessions, saves and reopens them, and checks the
+summary, deduplication of repeated batches and reloads, distinct series,
+practice and retry attempts with coinciding question IDs, help and visible
+aid never counted as unaided, empty and reset histories with the kept
+attempt counter, and malformed, unsupported, inconsistent and oversized
+files reported, unchanged and set aside without replacing an earlier one.
+`gui-egui/tests/learning.rs` answers and skips questions through the real
+widgets, restarts on the same file, reads the window, cancels and confirms a
+reset, and keeps a damaged or newer file until it is set aside, in both
+languages. Screenshot scenarios `learning-*` show the empty, recorded,
+reset-confirmation and damaged states.
+
 ## Screenshots of the frontend
 
 `cargo run --locked -p gui-egui --example screenshots -- OUT_DIR

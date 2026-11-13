@@ -321,3 +321,48 @@ Measured with `Budget::INTERACTIVE` on the four fixture games (release,
 decision 1.5 s, all eligible decisions analysed, cancellation returns within
 2 ms (`replay_review_latency` example). Live session, scores, pending jobs and
 file bytes stay untouched.
+
+## Learning history (D-70)
+
+`skat_app::LearningHistory` is the single local store for learning
+observations; later decision and training provenance extends it rather than
+adding a second statistics system. Format 1 holds a persisted attempt
+counter, the attempts (`AttemptId`, `AttemptKind::Series` or
+`Practice { attempt }`, where attempt 2 and higher are intentional retries)
+and the `RetrievalEvent`s exactly as the session emitted them, each tagged
+with its attempt. It holds no cards, deals, seeds or recordings.
+
+Identity: the frontend asks `begin_attempt` for a fresh ID on the first
+retrieval event of each series and each practice attempt. IDs come from the
+persisted counter and are never reused, not even after a reset; session
+lineages and quiz seeds are not used because they repeat across restarts
+and practice attempts of one deal. An event's key is (attempt, `QuestionId`,
+action tag), with answer and skip sharing the one settlement tag; `record`
+skips stored keys, so re-sent batches, reloads and replays never count
+twice. Browsing recordings and replay comments emit no retrieval events.
+Original recordings, score sheets and live jobs are not touched.
+
+File: `learning-history.json` in the data directory: `GRAND_COACH_DATA` if
+set, on Windows `%APPDATA%\Grand-Coach`, otherwise
+`$XDG_DATA_HOME/grand-coach` or `~/.local/share/grand-coach`; without one
+the history stays in memory and the window says it is not saved. The GUI
+saves after every batch with new events and after a reset: written
+completely to `learning-history.json.tmp`, then renamed over the file.
+Retention: until the learner resets it in the window (confirmation
+required); uninstalling the app does not remove it. Bounds: 16 MiB,
+50,000 events, 20,000 attempts; a full history refuses new events, never
+drops old ones, and the window reports it.
+
+Reading checks the size, then the `format` field before decoding, then
+attempt IDs (non-zero, unique, below the counter), event attempts and
+duplicate keys. Failures are structured (`LearningFileError`: invalid,
+unsupported format, too large, I/O). A damaged or unsupported file is kept
+byte for byte and never saved over: the window reports it and new events
+of this run stay in memory until the learner chooses **Rename damaged file
+and start a new history**, which renames it to the first free
+`learning-history.damaged-<n>.json` and saves. Format 1 is the first
+format; there are no older formats to migrate, and a file with another
+version (for example from a newer build) is reported as unsupported.
+Migration rules for later versions belong to the issue that introduces
+them. Two app instances writing the same file are not coordinated; the
+last save wins.

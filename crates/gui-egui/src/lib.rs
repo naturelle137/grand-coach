@@ -8,6 +8,7 @@ pub mod assist;
 pub mod cards;
 pub mod coach;
 pub mod i18n;
+pub mod learning;
 mod recording;
 mod text;
 

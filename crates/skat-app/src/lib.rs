@@ -35,6 +35,8 @@
 mod coach;
 mod context;
 mod guided;
+mod learning;
+mod learning_io;
 mod neural;
 mod quiz;
 mod recording;
@@ -53,6 +55,13 @@ pub use coach::{
     DebriefingMoment, LastMove, Pending, Unavailable,
 };
 pub use context::DecisionContext;
+pub use learning::{
+    AttemptId, AttemptKind, LEARNING_FORMAT, LIMITED_OBSERVATIONS, LearningAttempt,
+    LearningContext, LearningEntry, LearningError, LearningHistory, LearningRow, LearningSummary,
+    LearningTopic, MAX_LEARNING_ATTEMPTS, MAX_LEARNING_EVENTS, Observations, Recorded,
+    RetrievalCounts,
+};
+pub use learning_io::{LearningFileError, MAX_LEARNING_BYTES};
 pub use neural::{neural_model, neural_model_available};
 pub use quiz::{
     AssistSettings, AssistView, AssistanceLevel, CountingState, CountingView,
