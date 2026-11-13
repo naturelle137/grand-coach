@@ -49,6 +49,9 @@ mod sort;
 #[cfg(test)]
 mod tests;
 mod training;
+
+/// Legal versioned permitted-view cases for future focused practice.
+pub mod practice_catalogue;
 mod view;
 
 pub use coach::{
