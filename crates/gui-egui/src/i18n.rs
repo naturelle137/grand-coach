@@ -388,6 +388,18 @@ mod tests {
                     "result",
                     "support",
                     "exposure",
+                    "presented",
+                    "answered",
+                    "scored",
+                    "skipped",
+                    "unknown",
+                    "correct",
+                    "overstated",
+                    "denied",
+                    "false",
+                    "understated",
+                    "unanswered",
+                    "unsupported",
                 ] {
                     args.set(name, "x");
                 }

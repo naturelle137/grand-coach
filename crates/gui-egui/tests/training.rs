@@ -208,7 +208,11 @@ fn training_is_entered_answered_retried_continued_and_left_in_both_languages() {
                 .count(),
             2
         );
+        h.get_by_role_and_label(Role::Button, t("Schließen", "Close"))
+            .scroll_to_me();
+        h.run_steps(4);
         button(&mut h, t("Schließen", "Close"));
+        assert!(!h.state().learning_open());
 
         // Back to the game: the live table is exactly as it was.
         button(&mut h, t("Zurück zur Partie", "Back to the game"));

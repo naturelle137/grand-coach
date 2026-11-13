@@ -5,7 +5,8 @@
 //! in one local file and shows descriptive counts in German and English:
 //! events per topic and context, observed answer categories with and
 //! without help, earlier and recent windows and the recorded lesson
-//! revisions. No diagnosis, mastery or strategic classification.
+//! revisions, plus separately cached explicit mechanism-response patterns.
+//! No diagnosis, mastery or strategic classification.
 
 use std::path::{Path, PathBuf};
 
@@ -44,6 +45,7 @@ pub fn data_dir() -> Option<PathBuf> {
 #[derive(Default)]
 pub(crate) struct LearningUi {
     history: LearningHistory,
+    mechanism_summary: std::cell::OnceCell<Vec<skat_app::MechanismRow>>,
     /// Where the history is saved; `None`: memory only.
     path: Option<PathBuf>,
     /// The file could not be read; it is kept unchanged and never saved
@@ -62,6 +64,7 @@ impl LearningUi {
     /// missing one starts empty, a damaged or unsupported one is kept and
     /// reported.
     pub(crate) fn use_file(&mut self, path: PathBuf) {
+        self.mechanism_summary.take();
         self.damaged = None;
         self.save_error = None;
         self.set_aside = None;
@@ -176,6 +179,7 @@ impl LearningUi {
     }
 
     fn save(&mut self) {
+        self.mechanism_summary.take();
         if self.damaged.is_some() {
             return;
         }
@@ -334,6 +338,13 @@ impl LearningUi {
     }
 
     fn overview(&self, ui: &mut egui::Ui, i: &I18n) {
+        mechanism_responses(
+            ui,
+            i,
+            self.mechanism_summary
+                .get_or_init(|| self.history.mechanism_responses()),
+        );
+        ui.separator();
         let summary = self.history.summary();
         ui.label(RichText::new(i.t("learning-descriptive")).strong());
         match summary.observations {
@@ -611,4 +622,95 @@ fn context_message(context: LearningContext) -> &'static str {
         LearningContext::Training => "learning-context-training",
         LearningContext::TrainingRepeat => "learning-context-training-repeat",
     }
+}
+
+/// Cached task/context strata, separate from the unchanged counting overview.
+fn mechanism_responses(ui: &mut egui::Ui, i: &I18n, rows: &[skat_app::MechanismRow]) {
+    use skat_app::{MechanismExposure as E, practice_catalogue::MechanismKind as K};
+    ui.label(RichText::new(i.t("mechanism-title")).strong());
+    ui.label(i.t("mechanism-limits"));
+    if rows.is_empty() {
+        ui.label(i.t("mechanism-empty"));
+        return;
+    }
+    for row in rows {
+        let topic = match row.kind {
+            K::Abstich => "mechanism-abstich",
+            K::Overtake => "mechanism-overtake",
+        };
+        let exposure = match row.exposure {
+            E::First => "mechanism-first",
+            E::Repeated => "mechanism-repeat",
+            E::Unknown => "mechanism-exposure-unknown",
+        };
+        ui.group(|ui| {
+            ui.label(
+                RichText::new(format!(
+                    "{} · {} v{}",
+                    i.t(topic),
+                    row.task.id,
+                    row.task.version
+                ))
+                .strong(),
+            );
+            ui.label(format!(
+                "{} · {} · {} · {}",
+                i.t(match row.context {
+                    LearningContext::Training => "mechanism-training",
+                    LearningContext::TrainingRepeat => "mechanism-training-repeat",
+                    other => context_message(other),
+                }),
+                i.t(exposure),
+                i.t(if row.assisted {
+                    "mechanism-assisted"
+                } else {
+                    "mechanism-unaided"
+                }),
+                i.t(if row.eligible {
+                    "mechanism-eligible"
+                } else {
+                    "mechanism-practice"
+                })
+            ));
+            mechanism_counts(ui, i, row.counts);
+            if let Some(w) = row.comparison {
+                ui.label(RichText::new(i.t("mechanism-earlier")).strong());
+                mechanism_counts(ui, i, w.earlier);
+                ui.label(RichText::new(i.t("mechanism-recent")).strong());
+                mechanism_counts(ui, i, w.recent);
+            } else {
+                ui.label(i.t("mechanism-sparse"));
+            }
+        });
+    }
+}
+
+fn mechanism_counts(ui: &mut egui::Ui, i: &I18n, c: skat_app::MechanismCounts) {
+    ui.label(i.tf(
+        "mechanism-denominators",
+        &[
+            ("presented", c.presented.into()),
+            ("answered", c.answered.into()),
+            ("scored", c.scored.into()),
+            ("skipped", c.skipped.into()),
+            ("unknown", c.unknown.into()),
+        ],
+    ));
+    ui.label(i.tf(
+        "mechanism-patterns",
+        &[
+            ("correct", c.correct.into()),
+            ("overstated", c.overstated.into()),
+            ("denied", c.denied.into()),
+            ("false", c.false_presence.into()),
+            ("understated", c.understated.into()),
+        ],
+    ));
+    ui.label(i.tf(
+        "mechanism-unscored",
+        &[
+            ("unanswered", c.unanswered.into()),
+            ("unsupported", c.unsupported.into()),
+        ],
+    ));
 }

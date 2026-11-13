@@ -439,3 +439,18 @@ Screenshot scenarios `focus-count`, `focus-changed`, `focus-help`,
 Linux/Windows screenshot CI renders them and records individual PNG SHA-256
 hashes alongside the gallery. These are technical checks; Windows 11 interactive
 acceptance, learner observations and release publication remain separate.
+
+## Mechanism-response evidence (#13)
+
+`crates/skat-app/tests/mechanism_responses.rs` independently specifies the
+complete possible/certain/absent answer matrix and unsupported inputs, legal
+catalogue positive/negative/uncertain responses, mixed help/skip/unanswered
+opportunities, repeats, dedup, restart/reset, incomplete exposure and
+19/20/21-settlement windows. Counting summaries remain unchanged.
+`crates/gui-egui/tests/learning.rs` asserts the actual German/English
+mechanism labels, denominators, sparse fallback and window category cells.
+The screenshot scenarios `mechanism-responses`, `mechanism-trends`, their
+`-en` variants and `mechanism-trends-narrow` show the changed overview;
+`learning-empty`/`learning-empty-en` cover its empty state. Both platform CI
+galleries produce individual SHA256SUMS. Actual final platform acceptance and
+human learning evidence remain the terminal owner's responsibility.

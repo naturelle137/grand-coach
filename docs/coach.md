@@ -396,3 +396,14 @@ Only the final result enters the warning check, notes and debriefing. A
 preview for a different decision or budget is discarded. The final estimate
 combines worlds in index order. Timing and thread scheduling therefore
 affect the preview while the final result remains reproducible.
+
+## Observed mechanism responses (D-74)
+
+The bilingual learning overview describes explicit conditional Abstich and
+partner-overtaking answers from catalogue training. It separates possible from
+certain, denied possibility and false presence, with assistance and app-local
+exposure context. Task/version sample denominators include unanswered cases;
+comparisons require twenty settlements in the exact same context. These
+[response patterns](mechanism-responses.md) suggest what to practise only by
+showing observed mismatches, without inferring played-card errors, thoughts,
+mastery, or ordinary-game strategic weaknesses. Counting stays separate.
