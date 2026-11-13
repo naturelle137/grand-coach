@@ -1558,10 +1558,11 @@ pub fn replay_comment(
             i18n.tf("coach-moment-trick", &[("trick", trick.into())])
         );
     }
-    let mut summary = vec![
-        line(what, Style::Heading),
-        replay_perspective(i18n, comment.perspective),
-    ];
+    let seen = match comment.perspective {
+        ReplayPerspective::Historical => "replay-coach-comment-historical",
+        ReplayPerspective::Hindsight => "replay-coach-comment-hindsight",
+    };
+    let mut summary = vec![line(what, Style::Heading), line(i18n.t(seen), Style::Weak)];
     if r.forced {
         summary.push(line(
             i18n.tf(
@@ -2364,8 +2365,8 @@ mod tests {
         for language in Language::ALL {
             let i18n = I18n::new(language);
             let view = table();
-            let historical = i18n.t("replay-coach-perspective-historical");
-            let hindsight = i18n.t("replay-coach-perspective-hindsight");
+            let historical = i18n.t("replay-coach-comment-historical");
+            let hindsight = i18n.t("replay-coach-comment-hindsight");
             for (perspective, known) in [
                 (ReplayPerspective::Historical, false),
                 (ReplayPerspective::Hindsight, true),
@@ -2383,6 +2384,8 @@ mod tests {
                 let details = joined(&text.details);
                 assert_eq!(summary.contains(&hindsight), known, "{summary}");
                 assert_eq!(summary.contains(&historical), !known, "{summary}");
+                let label = replay_perspective(&i18n, perspective).text;
+                assert_eq!(label == i18n.t("replay-coach-perspective-hindsight"), known);
                 assert!(summary.contains(&i18n.t("replay-coach-fallback")));
                 assert!(text.lesson_title.is_empty() && text.lesson.is_empty());
                 // Hindsight is the recording's real deal, never God Mode.

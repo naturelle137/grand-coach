@@ -534,8 +534,6 @@ fn coach_section(
             request = Some(CoachRequest::Cancel);
         }
     });
-    ui.label(RichText::new(i.t("replay-coach-before")).strong());
-    situation(ui, i, deck, &coach::replay_situation(i, context));
     let figures = live.coach.settings.show_figures;
     match &view.status {
         ReplayStatus::Idle => {
@@ -564,6 +562,8 @@ fn coach_section(
         }
         ReplayStatus::NoDecisions | ReplayStatus::NotSelected => {}
     }
+    ui.label(RichText::new(i.t("replay-coach-before")).strong());
+    situation(ui, i, deck, &coach::replay_situation(i, context));
     request
 }
 
