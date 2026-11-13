@@ -10,6 +10,7 @@ pub mod coach;
 pub mod i18n;
 pub mod learning;
 mod recording;
+pub mod style;
 mod text;
 mod training;
 

@@ -1,23 +1,33 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Embeds the generated card faces from `assets/cards/` into the binary.
+//! Embeds the generated card faces from `assets/cards/` and the opponent
+//! portraits from `assets/portraits/` into the binary.
 
 use std::fmt::Write;
 use std::path::Path;
 
 fn main() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/cards");
-    println!("cargo:rerun-if-changed={}", dir.display());
+    embed("cards", "CARD_FILES", "card_files.rs");
+    embed("portraits", "PORTRAIT_FILES", "portrait_files.rs");
+}
+
+/// Writes `OUT_DIR/<out>` with a static `name` of every SVG below
+/// `assets/<dir>/` as (relative path, bytes).
+fn embed(dir: &str, name: &str, out: &str) {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../assets")
+        .join(dir);
+    println!("cargo:rerun-if-changed={}", root.display());
     let mut files = Vec::new();
-    collect(&dir, &dir, &mut files);
+    collect(&root, &root, &mut files);
     files.sort();
-    let mut code = String::from("/// Card SVGs below `assets/cards/` as (relative path, bytes).\n");
-    code.push_str("pub static CARD_FILES: &[(&str, &[u8])] = &[\n");
+    let mut code = format!("/// SVGs below `assets/{dir}/` as (relative path, bytes).\n");
+    let _ = writeln!(code, "pub static {name}: &[(&str, &[u8])] = &[");
     for (rel, abs) in &files {
         let _ = writeln!(code, "    ({rel:?}, include_bytes!({abs:?})),");
     }
     code.push_str("];\n");
-    let out = Path::new(&std::env::var("OUT_DIR").unwrap()).join("card_files.rs");
+    let out = Path::new(&std::env::var("OUT_DIR").unwrap()).join(out);
     std::fs::write(out, code).unwrap();
 }
 

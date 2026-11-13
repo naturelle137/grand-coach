@@ -736,12 +736,23 @@ fn open_game_saved_reopened_reviewed_practised_and_returned_in_both_languages() 
         h.get_by_label(t("Was sicher feststeht", "What is certain"))
             .click();
         h.run_steps(4);
+        // The declarer is the left figure of the reopened game's own
+        // series (D-72).
+        let left = skat_app::SeriesCast::for_seed(late_open_herz().context.session.seed)
+            .figure(i18n.pool(), skat_app::PlayerId(1))
+            .unwrap();
+        let left = i18n.t(&format!("figure-{}", left.key()));
         assert!(has(
             &h,
-            t(
-                "Stich 3: Links hat Pik-Neun auf Kreuz-Ass gespielt, also nicht Kreuz bedient.",
-                "Trick 3: Left played Nine of Spades to Ace of Clubs and so did not follow Clubs."
-            )
+            &if en {
+                format!(
+                    "Trick 3: {left} played Nine of Spades to Ace of Clubs and so did not follow Clubs."
+                )
+            } else {
+                format!(
+                    "Stich 3: {left} hat Pik-Neun auf Kreuz-Ass gespielt, also nicht Kreuz bedient."
+                )
+            }
         ));
         assert!(!has(&h, t("Stich 4:", "Trick 4:")));
         untouched(&h);

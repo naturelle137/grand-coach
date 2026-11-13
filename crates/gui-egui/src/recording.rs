@@ -250,6 +250,14 @@ impl RecordingUi {
         self.replay.as_mut().map(|r| &mut r.coach)
     }
 
+    /// Figures of the reopened game's series (D-72), if a game is open.
+    pub fn replay_cast(&self) -> Option<skat_app::SeriesCast> {
+        let replay = self.replay.as_ref()?;
+        Some(skat_app::SeriesCast::for_seed(
+            replay.recording.context.session.seed,
+        ))
+    }
+
     fn replay_window(
         &mut self,
         ctx: &egui::Context,
@@ -666,6 +674,8 @@ fn coach_section(
     egui::ComboBox::from_label(i.t("replay-coach-decision"))
         .selected_text(label(selected))
         .width(360.0)
+        // Tall enough to list a whole game's decisions without scrolling.
+        .height(640.0)
         .show_ui(ui, |ui| {
             for n in 0..view.decisions.len() {
                 ui.selectable_value(&mut selected, Some(n), label(Some(n)));
