@@ -107,8 +107,9 @@ complete-platform release gate remain authoritative and unchanged.
    deliberately selected by the player. No directory means in-memory history.
 4. Close all instances before upgrade. Back up the data directory and saved
    recordings; extract the new package into a separate directory and launch
-   it using the same data location. Supported history formats 1/2 migrate
-   losslessly to current format 3; corrupt/unsupported files are preserved
+   it using the same data location. The packaged commit defines the supported
+   older history formats: these migrate in memory, and the next save writes
+   that build's current format. Corrupt/unsupported files are preserved
    and require deliberate recovery. Do not promise backward compatibility
    after a newer build has saved a new format. Two simultaneous instances
    have no coordination (last save wins).
