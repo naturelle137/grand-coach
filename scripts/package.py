@@ -64,6 +64,14 @@ def notices(root):
         raise ValueError("THIRD-PARTY-NOTICES does not match Cargo.lock")
 
 
+def linux_libraries(binary):
+    libraries = run("ldd", str(binary))
+    if "not found" in libraries:
+        raise ValueError("missing native runtime library")
+    # ASLR addresses vary per invocation; retain names/paths, not addresses.
+    return re.sub(r" \(0x[0-9a-f]+\)", "", libraries)
+
+
 def archive_bytes(files, windows, epoch):
     """Stable ordering, modes, owners and timestamps, independent of staging paths."""
     output = io.BytesIO()
@@ -171,13 +179,14 @@ def build(args):
         "files": {name: digest(data) for name, data in sorted(files.items())},
     }
     if not windows:
-        manifest["runtime_libraries"] = run("ldd", str(target_dir / target / "release" / binary))
+        manifest["runtime_libraries"] = linux_libraries(target_dir / target / "release" / binary)
     files["manifest.json"] = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode()
     args.out.mkdir(parents=True, exist_ok=True)
     probe = args.out / ("persistence-probe.exe" if windows else "persistence-probe")
     subprocess.run(["rustc", "--edition=2024", "--crate-name", "package_persistence", "--target", target,
                     str(ROOT / "scripts/package-persistence.rs"), "--extern", f"skat_app={app_lib}",
-                    "-L", f"dependency={app_lib.parent}", "-o", str(probe)], check=True, cwd=ROOT)
+                    "-L", f"dependency={app_lib.parent}",
+                    "-L", f"dependency={target_dir / 'release/deps'}", "-o", str(probe)], check=True, cwd=ROOT)
     suffix = ".zip" if windows else ".tar.gz"
     path = args.out / f"grand-coach-{version}-rc-{sha[:12]}-{target}{suffix}"
     data = archive_bytes(files, windows, epoch)

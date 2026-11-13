@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import package
 
@@ -62,6 +63,18 @@ class PackageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(ValueError, "Cargo.lock"):
                 package.verify(self.write(directory, self.with_manifest(files)))
+
+    def test_runtime_identity_ignores_aslr_but_rejects_missing_libraries(self):
+        with patch.object(package, "run", side_effect=[
+            "libc.so.6 => /lib/libc.so.6 (0x1234)",
+            "libc.so.6 => /lib/libc.so.6 (0xabcdef)",
+            "libEGL.so.1 => not found",
+        ]):
+            first = package.linux_libraries("binary")
+            self.assertEqual(first, package.linux_libraries("binary"))
+            self.assertIn("/lib/libc.so.6", first)
+            with self.assertRaisesRegex(ValueError, "runtime library"):
+                package.linux_libraries("binary")
 
 
 if __name__ == "__main__":

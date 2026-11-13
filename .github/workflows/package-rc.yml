@@ -3,13 +3,6 @@ name: RC packages
 
 on:
   workflow_dispatch:
-  push:
-    branches: [agent/968-13-reproducible-linux-and-windows-rc-pac]
-  pull_request:
-    paths:
-      - 'scripts/package*'
-      - '.github/workflows/package*.yml'
-      - 'docs/packaging.md'
 
 permissions:
   contents: read
