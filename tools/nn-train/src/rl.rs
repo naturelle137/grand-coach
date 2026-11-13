@@ -273,7 +273,7 @@ pub struct RlLimits {
 
 impl RlLimits {
     fn threads(&self) -> NonZeroUsize {
-        NonZeroUsize::new(self.cpus.get() / self.workers.get()).unwrap_or(NonZeroUsize::MIN)
+        NonZeroUsize::new(self.cpus.get() / self.workers).unwrap_or(NonZeroUsize::MIN)
     }
 }
 
