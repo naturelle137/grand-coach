@@ -27,6 +27,7 @@ fn guided_widgets_allow_wrong_retry_reveal_memory_any_card_observation_and_retur
         h.run_steps(4);
         let i = I18n::new(language);
         let before = h.state().session().view();
+        let history_before = h.state().learning_history().clone();
         let original_id = h.state().session().guided().unwrap().id;
         let en = language == Language::En;
         let t = |de, english| if en { english } else { de };
@@ -118,5 +119,7 @@ fn guided_widgets_allow_wrong_retry_reveal_memory_any_card_observation_and_retur
         assert_eq!(h.state().session().guided().unwrap().rule, original_rule);
         click(&mut h, &i.t("guided-return"));
         assert!(h.state().session().guided().is_none());
+        // Guided events are not silently recorded as M8 retrieval attempts.
+        assert_eq!(h.state().learning_history(), &history_before);
     }
 }

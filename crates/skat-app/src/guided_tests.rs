@@ -250,7 +250,7 @@ fn estimates_require_figures_and_request_and_keep_the_original_rule() {
 }
 
 #[test]
-fn hidden_deal_substitution_keeps_prompts_and_rule_but_changes_only_actual_observation() {
+fn hidden_substitutions_keep_dialogue_until_actual_public_play_differs() {
     for declarer in [false, true] {
         let mut a = session(declarer);
         let d = fixture::swap(
@@ -284,11 +284,54 @@ fn hidden_deal_substitution_keeps_prompts_and_rule_but_changes_only_actual_obser
             respond(s, G::Memory(true)).unwrap();
         }
         assert_eq!(a.guided().unwrap().memory, b.guided().unwrap().memory);
+        for s in [&mut a, &mut b] {
+            s.execute(Command::Act(Action::Play(fixture::card(if declarer {
+                "CQ"
+            } else {
+                "C7"
+            }))))
+            .unwrap();
+            s.run_opponents();
+            assert_eq!(s.guided().unwrap().step, S::Observe);
+            respond(s, G::Reveal).unwrap();
+        }
+        let oa = a.guided().unwrap().observation.unwrap();
+        let ob = b.guided().unwrap().observation.unwrap();
+        if declarer {
+            // The same own completing card is public in both hidden deals.
+            assert_eq!(oa, ob);
+        } else {
+            // CA in HH wins; with CA in the unknown Skat, HH follows CQ
+            // and the partner's CK actually wins. These are later facts,
+            // not premises allowed in the original dialogue.
+            assert_ne!(oa, ob);
+            assert_eq!(
+                oa.source,
+                skat_coach::Source::Trick {
+                    index: 0,
+                    seat: Seat::Hinterhand,
+                    led: fixture::card("CK"),
+                    card: fixture::card("CA")
+                }
+            );
+            assert_eq!(
+                ob.source,
+                skat_coach::Source::Trick {
+                    index: 0,
+                    seat: Seat::Hinterhand,
+                    led: fixture::card("CK"),
+                    card: fixture::card("CQ")
+                }
+            );
+            assert_eq!(oa.winner, Some(Seat::Hinterhand));
+            assert_eq!(ob.winner, Some(Seat::Vorhand));
+            assert!(!oa.proves_void && !ob.proves_void);
+        }
     }
 }
 
 #[test]
-fn guidance_events_keep_entry_identity_sequence_and_assistance_without_storage() {
+fn guidance_events_keep_entry_identity_sequence_and_assistance() {
     let mut s = session(false);
     let start = s.execute(Command::StartGuided).unwrap();
     let AppEvent::Guided(start) = start[0] else {
