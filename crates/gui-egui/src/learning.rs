@@ -344,5 +344,7 @@ fn context_message(context: LearningContext) -> &'static str {
         LearningContext::Series => "learning-context-series",
         LearningContext::Practice => "learning-context-practice",
         LearningContext::PracticeRetry => "learning-context-retry",
+        LearningContext::Training => "learning-context-training",
+        LearningContext::TrainingRepeat => "learning-context-training-repeat",
     }
 }

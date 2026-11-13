@@ -11,6 +11,7 @@ pub mod i18n;
 pub mod learning;
 mod recording;
 mod text;
+mod training;
 
 pub use app::GrandCoachApp;
 pub use cards::{Deck, Theme};

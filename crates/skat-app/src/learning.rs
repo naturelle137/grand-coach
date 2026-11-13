@@ -10,20 +10,29 @@
 //! unaided when help was available during its opportunity.
 //!
 //! Deduplication: an event is identified by its attempt, its
-//! [`crate::QuestionId`] and its action tag (opportunity, help, settlement;
-//! an answer and a skip are both the one settlement). Recording the same
-//! event again, after a reload or in a re-sent batch, changes nothing.
+//! [`crate::OpportunityId`] and its action tag (opportunity, help,
+//! settlement; an answer and a skip are both the one settlement). Recording
+//! the same event again, after a reload or in a re-sent batch, changes
+//! nothing.
+//!
+//! Formats: version 2 adds focused-training attempts and task identities
+//! (D-71). A version 1 file is read and migrated in memory: its counter,
+//! attempts and events are kept exactly; the next save writes version 2.
 
 use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use skat_analysis::counting::QuestionKind;
 
-use crate::quiz::{RetrievalAction, RetrievalEvent};
+use crate::quiz::{OpportunityId, RetrievalAction, RetrievalEvent};
 
-/// Format version of the learning history. Version 1 is the first one;
-/// there are no older formats to migrate.
-pub const LEARNING_FORMAT: u32 = 1;
+/// Format version of the learning history written by this build. Version 1
+/// (series and practice only) is read and migrated; see
+/// [`LEARNING_FORMATS_READ`].
+pub const LEARNING_FORMAT: u32 = 2;
+
+/// Format versions this build reads: 1 (migrated on reading) and 2.
+pub const LEARNING_FORMATS_READ: [u32; 2] = [1, LEARNING_FORMAT];
 
 /// Most events one history holds. Further events are refused, never
 /// replacing older ones; [`LearningSummary::full`] reports it.
@@ -54,6 +63,13 @@ pub enum AttemptKind {
         /// numbers are intentional retries of the same deal.
         attempt: u32,
     },
+    /// One presentation of a focused-training task (D-71); its events name
+    /// the fixture and version. Never a series or a same-deal practice.
+    Training {
+        /// Presentation of this fixture within one entered training, from
+        /// 1; higher numbers are deliberate retries or repeats.
+        attempt: u32,
+    },
 }
 
 impl AttemptKind {
@@ -63,7 +79,15 @@ impl AttemptKind {
             AttemptKind::Series => LearningContext::Series,
             AttemptKind::Practice { attempt: 0 | 1 } => LearningContext::Practice,
             AttemptKind::Practice { .. } => LearningContext::PracticeRetry,
+            AttemptKind::Training { attempt: 0 | 1 } => LearningContext::Training,
+            AttemptKind::Training { .. } => LearningContext::TrainingRepeat,
         }
+    }
+
+    /// Whether `id` can belong to an attempt of this kind: training tasks
+    /// only to training attempts, game questions only to the others.
+    fn admits(self, id: &OpportunityId) -> bool {
+        matches!(self, AttemptKind::Training { .. }) == matches!(id, OpportunityId::Training(_))
     }
 }
 
@@ -88,7 +112,7 @@ pub struct LearningEntry {
 /// Why a history is not valid, or why an operation was refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LearningError {
-    /// Another format version than [`LEARNING_FORMAT`].
+    /// A format version not in [`LEARNING_FORMATS_READ`].
     UnsupportedFormat,
     /// More than [`MAX_LEARNING_EVENTS`] or [`MAX_LEARNING_ATTEMPTS`].
     TooLarge,
@@ -96,8 +120,12 @@ pub enum LearningError {
     InvalidAttempt,
     /// An event names an attempt the history does not contain.
     UnknownAttempt,
-    /// The same event (attempt, question ID, action tag) appears twice.
+    /// The same event (attempt, opportunity ID, action tag) appears twice.
     DuplicateEvent,
+    /// An event's opportunity does not fit its attempt kind (a training
+    /// task outside a training attempt or the other way round), or a
+    /// format 1 history contains training content.
+    InvalidContext,
     /// The history is full; nothing was recorded.
     Full,
 }
@@ -129,9 +157,7 @@ impl Default for LearningHistory {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct EventKey {
     attempt: AttemptId,
-    series: u64,
-    game: u32,
-    trick: u8,
+    id: OpportunityId,
     tag: u8,
 }
 
@@ -139,9 +165,7 @@ impl EventKey {
     fn of(attempt: AttemptId, event: &RetrievalEvent) -> EventKey {
         EventKey {
             attempt,
-            series: event.id.series,
-            game: event.id.game,
-            trick: event.id.trick,
+            id: event.id,
             tag: match event.action {
                 RetrievalAction::Opportunity => 0,
                 RetrievalAction::Help => 1,
@@ -186,20 +210,30 @@ impl LearningHistory {
     }
 
     /// Records the `events` of `attempt`, skipping those already stored.
-    /// Nothing is recorded if the attempt is unknown or the new events would
+    /// Nothing is recorded if the attempt is unknown, an event does not fit
+    /// its kind ([`LearningError::InvalidContext`]) or the new events would
     /// exceed [`MAX_LEARNING_EVENTS`].
     pub fn record<'a>(
         &mut self,
         attempt: AttemptId,
         events: impl IntoIterator<Item = &'a RetrievalEvent>,
     ) -> Result<Recorded, LearningError> {
-        if !self.attempts.iter().rev().any(|a| a.id == attempt) {
+        let Some(kind) = self
+            .attempts
+            .iter()
+            .rev()
+            .find(|a| a.id == attempt)
+            .map(|a| a.kind)
+        else {
             return Err(LearningError::UnknownAttempt);
-        }
+        };
         let mut new = Vec::new();
         let mut seen = HashSet::new();
         let mut duplicates = 0;
         for event in events {
+            if !kind.admits(&event.id) {
+                return Err(LearningError::InvalidContext);
+            }
             let key = EventKey::of(attempt, event);
             if self.keys.contains(&key) || !seen.insert(key) {
                 duplicates += 1;
@@ -244,10 +278,28 @@ impl LearningHistory {
         self.events.is_empty()
     }
 
-    /// Checks a decoded history and rebuilds its deduplication index.
+    /// Migrates a decoded history of an older supported format to
+    /// [`LEARNING_FORMAT`], checks it and rebuilds its deduplication index.
+    /// Format 1 knows no training: its counter, attempts and events are kept
+    /// exactly, and training content in it is [`LearningError::InvalidContext`].
     pub(crate) fn validate(&mut self) -> Result<(), LearningError> {
-        if self.format != LEARNING_FORMAT {
-            return Err(LearningError::UnsupportedFormat);
+        match self.format {
+            1 => {
+                let training = self
+                    .attempts
+                    .iter()
+                    .any(|a| matches!(a.kind, AttemptKind::Training { .. }))
+                    || self
+                        .events
+                        .iter()
+                        .any(|e| matches!(e.event.id, OpportunityId::Training(_)));
+                if training {
+                    return Err(LearningError::InvalidContext);
+                }
+                self.format = LEARNING_FORMAT;
+            }
+            LEARNING_FORMAT => {}
+            _ => return Err(LearningError::UnsupportedFormat),
         }
         if self.events.len() > MAX_LEARNING_EVENTS || self.attempts.len() > MAX_LEARNING_ATTEMPTS {
             return Err(LearningError::TooLarge);
@@ -258,10 +310,15 @@ impl LearningHistory {
                 return Err(LearningError::InvalidAttempt);
             }
         }
+        let kinds: HashMap<AttemptId, AttemptKind> =
+            self.attempts.iter().map(|a| (a.id, a.kind)).collect();
         let mut keys = HashSet::new();
         for e in &self.events {
-            if !ids.contains(&e.attempt) {
+            let Some(kind) = kinds.get(&e.attempt) else {
                 return Err(LearningError::UnknownAttempt);
+            };
+            if !kind.admits(&e.event.id) {
+                return Err(LearningError::InvalidContext);
             }
             if !keys.insert(EventKey::of(e.attempt, &e.event)) {
                 return Err(LearningError::DuplicateEvent);
@@ -355,6 +412,11 @@ pub enum LearningContext {
     Practice,
     /// An intentional retry of the same deal.
     PracticeRetry,
+    /// The first presentation of a fixed training task in one entered
+    /// training. Still practice with a known fixture, never transfer.
+    Training,
+    /// A deliberate retry or repeat of a training task.
+    TrainingRepeat,
 }
 
 /// Counts of observed events. Each field counts its own event type, so
@@ -440,15 +502,23 @@ mod tests {
 
     fn event(trick: u8, action: RetrievalAction, assisted: bool) -> RetrievalEvent {
         RetrievalEvent {
+            assisted,
+            ..event_in(1, trick, action)
+        }
+    }
+
+    fn event_in(game: u32, trick: u8, action: RetrievalAction) -> RetrievalEvent {
+        RetrievalEvent {
             id: QuestionId {
                 series: 9,
-                game: 1,
+                game,
                 trick,
-            },
+            }
+            .into(),
             question: QuestionKind::TrumpfOutside,
             action,
             assistance: AssistanceLevel::AnswerBeforeReveal,
-            assisted,
+            assisted: false,
         }
     }
 
@@ -482,15 +552,15 @@ mod tests {
         while h.events.len() + events.len() <= MAX_LEARNING_EVENTS {
             let mut more = events.clone();
             let game = h.events.len() as u32;
-            for e in &mut more {
-                e.id.game = game;
+            for (t, e) in more.iter_mut().enumerate() {
+                *e = event_in(game, t as u8, RetrievalAction::Opportunity);
             }
             h.record(a, &more).unwrap();
         }
         let before = h.events.len();
         let mut last = events.clone();
-        for e in &mut last {
-            e.id.game = u32::MAX;
+        for (t, e) in last.iter_mut().enumerate() {
+            *e = event_in(u32::MAX, t as u8, RetrievalAction::Opportunity);
         }
         assert_eq!(h.record(a, &last), Err(LearningError::Full));
         assert_eq!(h.events.len(), before);
