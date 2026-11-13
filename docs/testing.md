@@ -261,6 +261,42 @@ practice start and a saved in-progress file in both languages. Latency and
 cancellation:
 `cargo run --locked --release -p skat-app --example replay_review_latency`.
 
+### Combined M7 acceptance
+
+`skat-app/tests/closed_evidence.rs` pins a public observation on the late
+Herz fixture (the human defends in Hinterhand): the declarer's S9 on CA in
+trick 3 proves a Kreuz void, taught as the proven-void lesson at the human's
+trick-4 card and as that decision's review moment; at trick 2 no void exists,
+and the declarer's Pik void (H9 on S8, played after the human's trick-4
+card) appears only at the trick-6 lead. Trumpf counts 6/6/3 follow from the
+documented deal. For every analysed card decision of all six fixture
+variants (declarer and defender) the stated voids and Trumpf count equal an
+independent public-trick deduction, and a void or Trumpf lesson assigns no
+concealed card. Open-display recordings yield the same review jobs, seeds
+and results as their closed twins. Review moments keep the D-58 role,
+metric sign, noise and provisional rules as declarer and defender.
+
+`gui-egui/tests/replay_review.rs` drives the combined flow in both languages:
+the open display chosen in the new-series dialog (not God Mode), a game
+played by clicks and saved, the next live game waiting, reopening, trick
+navigation back and forth, an exact recorded decision reached back and
+forth, its historical comment equal to the application's closed-view
+comment, the whole review with every frame timed while it works, reveal and
+hindsight that change neither review nor historical comment, replacement by
+another open recording while a comment is requested, that recording's
+proven-void lesson, and a same-deal practice attempt that keeps the open
+display, deviates and returns. Live view, recordings, both files and the
+score sheet stay unchanged; the live decision stays playable. The ignored
+`frames_stay_responsive_while_the_production_budget_review_works` times the
+frames of a production-budget review. Measured locally (test profile):
+small budget 36 frames per language while the review worked, slowest about
+3 ms; production budget about 350 frames, slowest about 10 ms, review about
+0.8 s for 7 analysed decisions. These are fixture measurements, not latency
+guarantees; whether a superseded comment was still running at a GUI
+transition depends on timing, so deterministic stale-result rejection is
+pinned by the application tests. Headless runs do not replace interactive
+Windows 11 or learner checks.
+
 ## Screenshots of the frontend
 
 `cargo run --locked -p gui-egui --example screenshots -- OUT_DIR
@@ -298,6 +334,9 @@ wgpu adapter and prefers software ones: lavapipe on Linux (Fedora/Ubuntu
   and `open-display-coach` choose the open display in the new-series dialog
   and show every hand and the Skat on the ordinary table during bidding and
   card play, with the display and the closed-view coach labelled apart.
+- `open-display-proven-void(-en)` reopen an open-display recording at the open
+  live table and show the historical comment on the human's trick-4 card with
+  its proven-void lesson (only the trick-3 evidence).
 - They support the independent agent review of a frontend change; they do not
   replace looking at the change in a real window.
 

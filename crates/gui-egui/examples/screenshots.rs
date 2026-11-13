@@ -54,6 +54,8 @@ const OPEN_DISPLAY: &[&str] = &[
     "open-display-en",
     "open-display-trick",
     "open-display-coach",
+    "open-display-proven-void",
+    "open-display-proven-void-en",
 ];
 
 const SCENARIOS: &[(&str, Scenario)] = &[
@@ -71,6 +73,8 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("replay-hindsight-en", replay_hindsight_en),
     ("replay-none", replay_none),
     ("replay-none-en", replay_none_en),
+    ("open-display-proven-void", open_display_proven_void),
+    ("open-display-proven-void-en", open_display_proven_void_en),
     ("review-running", review_running),
     ("review-cancelled", review_cancelled),
     ("review-cancelled-en", review_cancelled_en),
@@ -1295,6 +1299,69 @@ fn replay_hindsight(h: &mut Harness<'_, GrandCoachApp>) {
 
 fn replay_hindsight_en(h: &mut Harness<'_, GrandCoachApp>) {
     replay_hindsight(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+/// At the live open-display table: a reopened open-display recording (the
+/// Herz fixture as game 2, the human defending in Hinterhand) with the
+/// historical comment on the human's trick-4 card. Its proven-void lesson
+/// cites only the declarer's S9 on CA in trick 3; the declarer's Pik void,
+/// shown only after this decision, is absent.
+fn open_display_proven_void(h: &mut Harness<'_, GrandCoachApp>) {
+    let directory = std::env::temp_dir().join(format!(
+        "skat-screenshot-proven-void-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("late-herz-open.json");
+    // Each scenario owns its temporary file; never delete user recordings.
+    if path.exists() {
+        std::fs::remove_file(&path).unwrap();
+    }
+    let mut recording = skat_app::GameRecording::read_local(
+        include_bytes!("../../skat-app/tests/fixtures/recordings/herz.json").as_slice(),
+    )
+    .unwrap();
+    recording.context.number = 2;
+    recording.context.dealer = skat_app::PlayerId(0);
+    recording.context.session.display = TableDisplay::Open;
+    recording.save_local_new(&path).unwrap();
+    settle(h);
+    click(h, Role::Button, "Spiel");
+    click(h, Role::Button, "Aufnahme öffnen …");
+    set_recording_path(h, "Dateipfad:", path.to_str().unwrap());
+    click(h, Role::Button, "Datei öffnen");
+    std::fs::remove_file(&path).unwrap();
+    let label = {
+        let replay = h.state_mut().replay_coach_mut().expect("recording open");
+        let decision = *replay
+            .decisions()
+            .iter()
+            .find(|d| d.prefix == 16)
+            .expect("the trick-4 decision");
+        coach::recorded_decision(&I18n::new(Language::De), &decision)
+    };
+    h.get_by_role_and_label(Role::ComboBox, "Entscheidung")
+        .click_accesskit();
+    h.run_steps(4);
+    h.get_by_label(&label).click_accesskit();
+    h.run_steps(4);
+    h.key_press(Key::Escape);
+    h.run_steps(4);
+    click(h, Role::Button, "Kommentar anfordern");
+    await_replay(h);
+    h.get_by_label("Was sicher feststeht").click_accesskit();
+    h.run_steps(4);
+    h.get_by_label_contains("Stich 3: Links hat Pik-Neun auf Kreuz-Ass gespielt");
+    // Scroll the lesson into view.
+    h.get_by_label_contains("Stich 3: Links hat Pik-Neun auf Kreuz-Ass gespielt")
+        .scroll_to_me();
+    h.run_steps(4);
+}
+
+fn open_display_proven_void_en(h: &mut Harness<'_, GrandCoachApp>) {
+    open_display_proven_void(h);
     h.state_mut().set_language(Language::En);
     h.run_steps(4);
 }
