@@ -18,6 +18,7 @@
 //!     series: SeriesLength::Fixed(3),
 //!     kontra_re: false,
 //!     opponents: Opponents::Levels([Level::Easy, Level::Easy]),
+//!     ..SessionConfig::default()
 //! });
 //! while !session.view().series_finished {
 //!     session.run_opponents();
@@ -69,7 +70,7 @@ pub use replay_coach::{
 pub use series::{GameRecord, ScoreSheet, SeriesResult};
 pub use session::{
     AppError, AppEvent, Command, OpponentJob, OpponentMove, Opponents, PlayerId, SeriesLength,
-    Session, SessionConfig,
+    Session, SessionConfig, TableDisplay,
 };
 pub use skat_ai::{Budget, Cancel, Level};
 /// Exact counting facts and question kinds (D-64); frontends translate them.
@@ -77,7 +78,7 @@ pub use skat_analysis::counting::{AugenCount, Derivation, QuestionKind, TrumpfCo
 /// Structured coach explanations (D-13); frontends translate them.
 pub use skat_coach as coach_model;
 pub use sort::sort_hand;
-pub use view::{OpenCards, PlayedCard, ResultView, SeatInfo, TableView, TrickView};
+pub use view::{CoachBasis, OpenCards, PlayedCard, ResultView, SeatInfo, TableView, TrickView};
 
 /// Core data types shown by frontends.
 pub use skat_core::{

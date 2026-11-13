@@ -134,6 +134,7 @@ fn practice_starts_from_the_viewer_plays_alternatives_and_returns_in_both_langua
                         series: SeriesLength::Fixed(3),
                         kontra_re: true,
                         opponents: Opponents::Levels([Level::Easy; 2]),
+                        ..SessionConfig::default()
                     },
                 );
                 app.set_language(language);

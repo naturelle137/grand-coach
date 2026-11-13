@@ -50,6 +50,7 @@ fn human_view_never_shows_hidden_cards() {
             series: SeriesLength::Fixed(12),
             kontra_re: true,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         });
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         while !session.view().series_finished {
@@ -340,6 +341,7 @@ mod snapshots {
             series: SeriesLength::Fixed(3),
             kontra_re: false,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         });
         s.set_coach_budget(Budget {
             samples: 2,
@@ -404,7 +406,7 @@ mod god_mode {
 
     /// Cheap: early decisions may stay incomplete, which is enough to
     /// compare the coach with a direct analysis.
-    const SMALL: Budget = Budget {
+    pub(super) const SMALL: Budget = Budget {
         samples: 2,
         nodes_per_task: 20_000,
     };
@@ -415,11 +417,12 @@ mod god_mode {
             series: SeriesLength::Fixed(1),
             kontra_re: false,
             opponents,
+            ..SessionConfig::default()
         })
     }
 
     /// The open cards of `view` are exactly the real deal of `session`.
-    fn check_open_cards(session: &Session, view: &TableView) {
+    pub(super) fn check_open_cards(session: &Session, view: &TableView) {
         let open = view.open_cards.as_ref().expect("God Mode shows every card");
         let all = session.game.omniscient_view();
         let game = view.contract.map(|c| c.game);
@@ -499,5 +502,317 @@ mod god_mode {
                 assert_eq!(result.explanation(), Some(&expected));
             }
         }
+    }
+}
+
+// Open display (D-68): every card on the human's table, while the opponents
+// and the live coach keep their ordinary permitted information.
+
+mod open_display {
+    use rand_chacha::ChaCha8Rng;
+    use rand_chacha::rand_core::{Rng, SeedableRng};
+    use skat_ai::Budget;
+    use skat_core::{Action, Event, Phase};
+
+    use super::god_mode::{SMALL, check_open_cards};
+    use crate::{
+        AppError, AppEvent, CoachBasis, CoachLevel, CoachSettings, Command, Level, Opponents,
+        PlayerId, SeriesLength, Session, SessionConfig, TableDisplay,
+    };
+
+    const TINY: Budget = Budget {
+        samples: 1,
+        nodes_per_task: 2_000,
+    };
+
+    fn config(opponents: Opponents, seed: u64, games: u16, display: TableDisplay) -> SessionConfig {
+        SessionConfig {
+            seed,
+            series: SeriesLength::Fixed(games),
+            kontra_re: true,
+            opponents,
+            display,
+        }
+    }
+
+    fn coached(config: SessionConfig) -> Session {
+        let mut session = Session::new(config);
+        session.set_coach_budget(SMALL);
+        session
+            .execute(Command::SetCoach(CoachSettings {
+                level: CoachLevel::EveryMove,
+                ..CoachSettings::default()
+            }))
+            .unwrap();
+        session
+    }
+
+    /// What the lockstep runs covered.
+    #[derive(Debug, Default)]
+    struct Seen {
+        dealers: [bool; 3],
+        hand: bool,
+        druecken_by_opponent: bool,
+        druecken_by_human: bool,
+        ouvert: bool,
+        eingepasst: bool,
+        finished: bool,
+        coach_runs: usize,
+        opponent_moves: usize,
+    }
+
+    /// The two views are equal except for the explicit display payload,
+    /// which shows exactly the real deal; the coach basis stays closed.
+    fn same_but_display(closed: &Session, open: &Session) {
+        let closed_view = closed.view();
+        let mut open_view = open.view();
+        assert_eq!(closed_view.open_cards, None);
+        assert_eq!(closed_view.coach_basis, CoachBasis::OwnView);
+        assert_eq!(open_view.coach_basis, CoachBasis::OwnView);
+        check_open_cards(open, &open_view);
+        assert_eq!(open_view.config.display, TableDisplay::Open);
+        open_view.open_cards = None;
+        open_view.config.display = TableDisplay::Closed;
+        assert_eq!(closed_view, open_view);
+    }
+
+    /// The human's choice: random among the legal actions, bids favoured
+    /// so that games are played; a passive human always passes in the
+    /// bidding (to reach thrown-in deals).
+    fn choose(session: &Session, rng: &mut ChaCha8Rng, passive: bool) -> Action {
+        let view = session.view();
+        let legal = &view.legal_actions;
+        if passive && legal.contains(&Action::Pass) {
+            return Action::Pass;
+        }
+        let mut options = legal.clone();
+        if view.phase == Phase::Reizen
+            && let Some(&bid) = legal.iter().find(|a| matches!(a, Action::Bid(_)))
+        {
+            options.push(bid);
+        }
+        options[rng.next_u32() as usize % options.len()]
+    }
+
+    /// Plays a closed and an open session in lockstep: same deals, same
+    /// human actions, and at every step the same opponent and coach inputs,
+    /// moves, results, events and scores.
+    fn lockstep(
+        opponents: Opponents,
+        seed: u64,
+        games: u16,
+        passive: bool,
+        coach_runs: usize,
+        seen: &mut Seen,
+    ) {
+        let mut closed = coached(config(opponents, seed, games, TableDisplay::Closed));
+        let mut open = coached(config(opponents, seed, games, TableDisplay::Open));
+        let mut rng = ChaCha8Rng::seed_from_u64(seed ^ 0x0BE7);
+        let mut runs = 0;
+        loop {
+            same_but_display(&closed, &open);
+            let closed_view = closed.view();
+            seen.dealers[closed_view.dealer.index()] = true;
+            if closed_view.series_finished {
+                break;
+            }
+            // The live coach: identical input and result, never the real
+            // deal.
+            let closed_job = closed.coach_job();
+            let open_job = open.coach_job();
+            assert_eq!(
+                closed_job.as_ref().map(|j| j.analysis_input()),
+                open_job.as_ref().map(|j| j.analysis_input())
+            );
+            if let (Some(closed_job), Some(open_job)) = (closed_job, open_job) {
+                assert!(!open_job.sees_all_cards());
+                if runs < coach_runs {
+                    runs += 1;
+                    seen.coach_runs += 1;
+                    let closed_result = closed_job.run(None);
+                    let open_result = open_job.run(None);
+                    assert_eq!(closed_result.explanation(), open_result.explanation());
+                    assert_eq!(
+                        closed.finish_coach(closed_result),
+                        open.finish_coach(open_result)
+                    );
+                    continue;
+                }
+            }
+            let (closed_events, open_events) = if closed.opponent_to_move() {
+                let closed_job = closed.opponent_job().unwrap();
+                let open_job = open.opponent_job().unwrap();
+                assert_eq!(closed_job.decision_input(), open_job.decision_input());
+                assert_eq!(closed_job.level(), open_job.level());
+                assert_eq!(closed_job.sees_all_cards(), open_job.sees_all_cards());
+                // Only Mephisto sees every card, never because of the
+                // display.
+                assert!(opponents.mephisto() || !open_job.sees_all_cards());
+                seen.opponent_moves += 1;
+                (
+                    closed.finish_opponent(closed_job.run(None)),
+                    open.finish_opponent(open_job.run(None)),
+                )
+            } else if closed_view.acting == Some(PlayerId::HUMAN) {
+                let action = choose(&closed, &mut rng, passive);
+                (
+                    closed.execute(Command::Act(action)),
+                    open.execute(Command::Act(action)),
+                )
+            } else {
+                (
+                    closed.execute(Command::NextGame),
+                    open.execute(Command::NextGame),
+                )
+            };
+            assert_eq!(closed_events, open_events);
+            for event in closed_events.unwrap() {
+                let AppEvent::Game { event, player } = event else {
+                    continue;
+                };
+                match event {
+                    Event::HandChosen { .. } => seen.hand = true,
+                    Event::Discarded { .. } if player == Some(PlayerId::HUMAN) => {
+                        seen.druecken_by_human = true;
+                    }
+                    Event::Discarded { .. } => {
+                        // The discarded Skat stays hidden from the
+                        // ordinary view; only the display shows it.
+                        let view = closed.view();
+                        assert_eq!(view.own_skat, None);
+                        let shown = open.view().open_cards.unwrap();
+                        assert_eq!(shown.skat.len(), 2);
+                        for card in &shown.skat {
+                            assert!(!view.hand.contains(card));
+                        }
+                        seen.druecken_by_opponent = true;
+                    }
+                    Event::Announced { contract, .. } if contract.ouvert => seen.ouvert = true,
+                    Event::Eingepasst => seen.eingepasst = true,
+                    Event::GameFinished { .. } => seen.finished = true,
+                    _ => {}
+                }
+            }
+        }
+        assert_eq!(closed.sheet(), open.sheet());
+        assert_eq!(closed.series_result(), open.series_result());
+    }
+
+    /// Open display alone changes nothing but the display payload: ordinary
+    /// levels and Goldfish over several deals with every dealer, bidding,
+    /// Hand, Drücken, Ouvert, finished and thrown-in games.
+    #[test]
+    fn open_display_changes_only_the_display() {
+        let mut seen = Seen::default();
+        for seed in 0..6 {
+            lockstep(
+                Opponents::Levels([Level::Rookie, Level::Easy]),
+                seed,
+                4,
+                seed % 2 == 1,
+                1,
+                &mut seen,
+            );
+        }
+        lockstep(Opponents::Goldfish, 11, 1, false, 2, &mut seen);
+        assert_eq!(seen.dealers, [true; 3]);
+        assert!(
+            seen.hand && seen.ouvert && seen.eingepasst && seen.finished,
+            "{seen:?}"
+        );
+        assert!(
+            seen.druecken_by_opponent && seen.druecken_by_human,
+            "{seen:?}"
+        );
+        assert!(seen.coach_runs >= 8 && seen.opponent_moves > 100);
+    }
+
+    /// The same with the stronger and other opponent modes: open display
+    /// is compatible with them and never grants or removes privilege.
+    #[test]
+    #[ignore = "slow: CI only (docs/testing.md)"]
+    fn open_display_changes_only_the_display_in_every_ordinary_mode() {
+        let mut seen = Seen::default();
+        for (opponents, seed) in [
+            (Opponents::Levels([Level::Medium, Level::Strong]), 3),
+            (Opponents::Goldfish, 5),
+            (Opponents::Mephisto, 7),
+            (Opponents::Neural, 9),
+        ] {
+            lockstep(opponents, seed, 3, seed == 7, 4, &mut seen);
+        }
+        assert_eq!(seen.dealers, [true; 3]);
+    }
+
+    /// God Mode stays privileged and distinguishable: every card on the
+    /// table and the real deal for the coach, whatever the display field
+    /// says; an open display alone never gives the coach the real deal.
+    #[test]
+    fn god_mode_and_open_display_are_distinct() {
+        for display in [TableDisplay::Closed, TableDisplay::Open] {
+            let mut god = coached(config(Opponents::GodMode, 3, 1, display));
+            god.run_opponents();
+            let view = god.view();
+            assert!(view.open_cards.is_some());
+            assert_eq!(view.coach_basis, CoachBasis::RealDeal);
+            assert!(god.coach_job().unwrap().sees_all_cards());
+        }
+        let mut open = coached(config(
+            Opponents::Levels([Level::Easy; 2]),
+            3,
+            1,
+            TableDisplay::Open,
+        ));
+        open.run_opponents();
+        assert_eq!(open.view().coach_basis, CoachBasis::OwnView);
+        assert!(!open.coach_job().unwrap().sees_all_cards());
+        let config = config(Opponents::Mephisto, 3, 1, TableDisplay::Open);
+        assert!(config.shows_all_cards());
+        assert_eq!(config.coach_basis(), CoachBasis::OwnView);
+        assert!(!SessionConfig::default().shows_all_cards());
+    }
+
+    /// Results of another session never enter the live coach, even at an
+    /// equal position: a privileged God Mode result, a twin closed series
+    /// and an earlier series with the same seed are all rejected; pending
+    /// jobs of a replaced session are therefore harmless.
+    #[test]
+    fn foreign_and_privileged_results_never_enter_an_open_series() {
+        // Seed 1 reaches the human's first decision at the same position in
+        // God Mode and against ordinary opponents (asserted below), so only
+        // the session identity can reject the foreign results.
+        let seed = 1;
+        let ordinary = Opponents::Levels([Level::Easy; 2]);
+        let mut god = coached(config(Opponents::GodMode, seed, 1, TableDisplay::Closed));
+        let mut twin = coached(config(ordinary, seed, 1, TableDisplay::Closed));
+        let mut open = coached(config(ordinary, seed, 1, TableDisplay::Open));
+        for session in [&mut god, &mut twin, &mut open] {
+            // Only acceptance matters here, not the content.
+            session.set_coach_budget(TINY);
+            session.run_opponents();
+        }
+        let god_job = god.coach_job().expect("the human decides");
+        let twin_job = twin.coach_job().expect("the human decides");
+        let open_job = open.coach_job().expect("the human decides");
+        assert_eq!(god_job.position(), open_job.position());
+        assert!(god_job.sees_all_cards() && !open_job.sees_all_cards());
+        assert_eq!(twin_job.analysis_input(), open_job.analysis_input());
+        for foreign in [god_job.run(None), twin_job.run(None)] {
+            assert_eq!(open.finish_coach(foreign), Err(AppError::StaleCoachResult));
+            assert!(open.coach_result().is_none());
+        }
+        // A new series with the same seed replaces this one: the old
+        // session's pending job is stale there too.
+        let mut replaced = coached(config(ordinary, seed, 1, TableDisplay::Open));
+        replaced.set_coach_budget(TINY);
+        replaced.run_opponents();
+        let own = open_job.run(None);
+        assert_eq!(
+            replaced.finish_coach(own.clone()),
+            Err(AppError::StaleCoachResult)
+        );
+        assert!(replaced.coach_result().is_none());
+        assert_eq!(open.finish_coach(own), Ok(Vec::new()));
+        assert!(open.coach_result().is_some());
     }
 }

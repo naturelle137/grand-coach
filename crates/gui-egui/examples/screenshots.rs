@@ -20,7 +20,7 @@ use gui_egui::{Deck, GrandCoachApp, Language, Theme, coach, i18n::I18n};
 use skat_app::coach_model::{Concept, Judgement, LessonContent};
 use skat_app::{
     Action, Advice, Budget, Card, CoachLevel, CoachSettings, Debriefing, Level, Opponents, Pending,
-    Rank, SeriesLength, SessionConfig, TableView,
+    Rank, SeriesLength, SessionConfig, TableDisplay, TableView,
 };
 
 const SIZE: [f32; 2] = [1280.0, 820.0];
@@ -46,6 +46,14 @@ const GOD_MODE: &[&str] = &[
     "god-mode-hidden",
     "god-mode-trick",
     "god-mode-coach",
+];
+
+/// Scenarios with an open display (D-68) against two Easy opponents.
+const OPEN_DISPLAY: &[&str] = &[
+    "open-display",
+    "open-display-en",
+    "open-display-trick",
+    "open-display-coach",
 ];
 
 const SCENARIOS: &[(&str, Scenario)] = &[
@@ -134,6 +142,12 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("god-mode-hidden", god_mode_hidden),
     ("god-mode-trick", god_mode_trick),
     ("god-mode-coach", god_mode_coach),
+    ("open-display-new-series", open_display_new_series),
+    ("open-display-new-series-en", open_display_new_series_en),
+    ("open-display", open_display),
+    ("open-display-en", open_display_en),
+    ("open-display-trick", open_display_trick),
+    ("open-display-coach", open_display_coach),
 ];
 
 const AID: skat_app::AssistSettings = skat_app::AssistSettings {
@@ -854,6 +868,49 @@ fn god_mode_coach(harness: &mut Harness<'_, GrandCoachApp>) {
     coach_situation(harness);
 }
 
+/// The "new series" dialog with the open display chosen: the opponents
+/// stay as selected and the note names the closed-view coach.
+fn open_display_new_series(harness: &mut Harness<'_, GrandCoachApp>) {
+    click(
+        harness,
+        Role::CheckBox,
+        "Offene Anzeige: alle Hände und den Skat zeigen",
+    );
+}
+
+/// The same in English.
+fn open_display_new_series_en(harness: &mut Harness<'_, GrandCoachApp>) {
+    harness.state_mut().set_language(Language::En);
+    harness.run_steps(2);
+    click(
+        harness,
+        Role::CheckBox,
+        "Open display: show all hands and the Skat",
+    );
+}
+
+/// Open display at the human's first bid: every hand and the Skat face up
+/// on the ordinary green table, labelled apart from the closed-view coach.
+fn open_display(harness: &mut Harness<'_, GrandCoachApp>) {
+    settle(harness);
+}
+
+/// The same in English.
+fn open_display_en(harness: &mut Harness<'_, GrandCoachApp>) {
+    harness.state_mut().set_language(Language::En);
+    settle(harness);
+}
+
+/// Open display during card play.
+fn open_display_trick(harness: &mut Harness<'_, GrandCoachApp>) {
+    trick(harness);
+}
+
+/// The coach with an open display: it names its closed-view basis.
+fn open_display_coach(harness: &mut Harness<'_, GrandCoachApp>) {
+    coach_situation(harness);
+}
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let Some(out) = args.next() else {
@@ -885,7 +942,13 @@ fn main() {
         } else {
             Opponents::Levels([Level::Easy; 2])
         };
-        let mut harness = harness(*name == "launch", seed, opponents);
+        let display = if OPEN_DISPLAY.contains(name) {
+            TableDisplay::Open
+        } else {
+            TableDisplay::Closed
+        };
+        let launch = *name == "launch" || name.starts_with("open-display-new-series");
+        let mut harness = harness(launch, seed, opponents, display);
         scenario(&mut harness);
         if name.ends_with("-narrow") {
             harness.set_size(NARROW.into());
@@ -903,12 +966,18 @@ fn main() {
 
 /// The app with a small series; `launch` opens the "new series" dialog
 /// before the first frame, as `main` does.
-fn harness(launch: bool, seed: u64, opponents: Opponents) -> Harness<'static, GrandCoachApp> {
+fn harness(
+    launch: bool,
+    seed: u64,
+    opponents: Opponents,
+    display: TableDisplay,
+) -> Harness<'static, GrandCoachApp> {
     let config = SessionConfig {
         seed,
         series: SeriesLength::Fixed(2),
         kontra_re: true,
         opponents,
+        display,
     };
     let mut harness = Harness::builder()
         .with_size(SIZE)

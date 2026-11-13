@@ -96,6 +96,7 @@ fn reopen_select_historical_then_hindsight_navigate_close_and_practice_in_both_l
                         series: SeriesLength::Fixed(3),
                         kontra_re: true,
                         opponents: Opponents::Levels([Level::Easy; 2]),
+                        ..SessionConfig::default()
                     },
                 );
                 app.set_language(language);

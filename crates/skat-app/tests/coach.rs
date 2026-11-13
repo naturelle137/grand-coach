@@ -31,6 +31,7 @@ fn session(seed: u64, kontra_re: bool) -> Session {
         series: SeriesLength::Fixed(4),
         kontra_re,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     })
 }
 
@@ -591,7 +592,11 @@ fn coach_output_is_reproducible() {
     }
     let (x, y) = (a.coach_job().unwrap(), b.coach_job().unwrap());
     assert_eq!(x.seed(), y.seed());
-    assert_eq!(x.run(None), y.run(None));
+    // Equal analyses; each result stays bound to its own session (D-68).
+    let (rx, ry) = (x.run(None), y.run(None));
+    assert!(rx.explanation().is_some());
+    assert_eq!(rx.explanation(), ry.explanation());
+    assert_eq!(rx.is_unavailable(), ry.is_unavailable());
     // Another series seed gives another coach seed.
     let mut c = session(8, false);
     c.set_coach_budget(TINY);

@@ -17,7 +17,7 @@ use crate::context::DecisionContext;
 use crate::quiz::{AssistSettings, QuizFeedback, QuizState};
 use crate::recording::{GameRecording, RecordingContext, RecordingEnd, RecordingError};
 use crate::series::{GameRecord, ScoreSheet, SeriesResult};
-use crate::view::{TableView, build_view, open_cards};
+use crate::view::{CoachBasis, OpenCards, TableView, build_view, open_cards};
 
 /// A player of the series. Player 0 is the human; players 1 and 2 are the
 /// opponents, 1 sitting to the human's left (plays next), 2 to the right.
@@ -77,6 +77,33 @@ pub struct SessionConfig {
     pub kontra_re: bool,
     /// The opponents.
     pub opponents: Opponents,
+    /// What the human's table shows (D-68). Display only: it never changes
+    /// the opponents, their seeds, the coach's analysis input or the
+    /// scores. Missing in files written before it existed, which were all
+    /// closed; a closed table is not written, so closed recordings keep
+    /// their exact bytes.
+    #[serde(default, skip_serializing_if = "TableDisplay::is_closed")]
+    pub display: TableDisplay,
+}
+
+/// What the human's table shows (D-68).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TableDisplay {
+    /// Only what the human may see at a real table (D-23).
+    #[default]
+    Closed,
+    /// Open display: every hand and the Skat are shown to the human
+    /// ([`crate::OpenCards`]). The opponents and the live coach keep exactly
+    /// their closed-table information; only God Mode (D-62) lets the coach
+    /// use the real deal.
+    Open,
+}
+
+impl TableDisplay {
+    /// `true` for the closed table.
+    pub fn is_closed(&self) -> bool {
+        *self == TableDisplay::Closed
+    }
 }
 
 /// Who the opponents are (D-40, D-41).
@@ -126,11 +153,28 @@ impl Default for SessionConfig {
             series: SeriesLength::Fixed(36),
             kontra_re: false,
             opponents: Opponents::Levels([Level::Medium; 2]),
+            display: TableDisplay::Closed,
         }
     }
 }
 
 impl SessionConfig {
+    /// `true` if the human's table shows every card: an explicitly open
+    /// display or God Mode (D-62, D-68).
+    pub fn shows_all_cards(&self) -> bool {
+        self.display == TableDisplay::Open || self.opponents.god_mode()
+    }
+
+    /// What the live coach analyses (D-68): the real deal only in God Mode,
+    /// otherwise the human's own view, open display or not.
+    pub fn coach_basis(&self) -> CoachBasis {
+        if self.opponents.god_mode() {
+            CoachBasis::RealDeal
+        } else {
+            CoachBasis::OwnView
+        }
+    }
+
     /// Level of `player` when every opponent has one; `None` for the
     /// human and in the Goldfish, Mephisto, God and neural modes.
     pub fn level(&self, player: PlayerId) -> Option<Level> {
@@ -300,6 +344,17 @@ impl OpponentJob {
         matches!(self.brain, Brain::Mephisto(_))
     }
 
+    /// Everything the decision depends on except the session lineage
+    /// (crate tests only).
+    #[cfg(test)]
+    pub(crate) fn decision_input(&self) -> String {
+        let p = self.position;
+        format!(
+            "{:?}|{:?}|{}|{}|{}",
+            self.level, self.brain, p.number, p.actions, p.player
+        )
+    }
+
     /// Computes the decision. `cancel` stops the analysis early; the move
     /// is then chosen from what was finished, or by the rules of thumb,
     /// and is always legal.
@@ -349,8 +404,11 @@ pub struct Session {
     recording: GameRecording,
     recordings: Vec<GameRecording>,
     finished: bool,
-    /// 0 for a live series; unique per practice attempt ([`Session::start_practice`]).
+    /// Unique per session and practice attempt, so opponent moves and coach
+    /// results never cross between sessions at equal positions (D-66, D-68).
     lineage: u64,
+    /// `true` for an isolated practice attempt ([`Session::start_practice`]).
+    practice: bool,
     /// The live coach; it never influences deals or opponents.
     pub(crate) coach: CoachState,
     /// The counting aid and quiz; they never influence deals or opponents.
@@ -400,7 +458,8 @@ impl Session {
             ),
             recordings: Vec::new(),
             finished: matches!(config.series, SeriesLength::Fixed(0)),
-            lineage: 0,
+            lineage: next_lineage(),
+            practice: false,
             coach: CoachState::new(
                 coach_rng.next_u64(),
                 config.opponents == Opponents::Experimental,
@@ -419,14 +478,12 @@ impl Session {
         self.game_seed
     }
 
-    /// The human's view of the table; in God Mode with every card
-    /// ([`TableView::open_cards`], D-62).
+    /// The human's view of the table; with an open display or in God Mode
+    /// with every card ([`TableView::open_cards`], D-62, D-68).
     pub fn view(&self) -> TableView {
         let human_seat = PlayerId::HUMAN.seat(self.dealer);
         let view = self.game.view(human_seat);
-        let open_cards = self
-            .all_cards()
-            .map(|all| open_cards(&all, self.dealer, view.contract.map(|c| c.game)));
+        let open_cards = self.displayed_cards(view.contract.map(|c| c.game));
         build_view(
             &self.config,
             self.number,
@@ -448,13 +505,20 @@ impl Session {
         )
     }
 
-    /// The whole deal for the human and the coach; only in God Mode
-    /// (D-23, D-62).
-    fn all_cards(&self) -> Option<OmniscientView> {
+    /// Display path (D-68): every card for the human's table with an open
+    /// display or in God Mode. Returns display data only, which no analysis
+    /// accepts; it never feeds the coach or the opponents.
+    fn displayed_cards(&self, game: Option<skat_core::GameType>) -> Option<OpenCards> {
         self.config
-            .opponents
-            .god_mode()
-            .then(|| self.game.omniscient_view())
+            .shows_all_cards()
+            .then(|| open_cards(&self.game.omniscient_view(), self.dealer, game))
+    }
+
+    /// Analysis path (D-62, D-68): the whole deal for the live coach, only in
+    /// God Mode ([`CoachBasis::RealDeal`]). The display choice is never
+    /// consulted, so an open display keeps the closed-view coach.
+    fn coach_known_deal(&self) -> Option<OmniscientView> {
+        (self.config.coach_basis() == CoachBasis::RealDeal).then(|| self.game.omniscient_view())
     }
 
     /// Coach settings.
@@ -489,14 +553,18 @@ impl Session {
     /// decision played before its analysis finished (note and debriefing,
     /// [`CoachJob::is_review`]). Compute it with [`CoachJob::run`] (on any
     /// thread) and pass the result to [`Session::finish_coach`]. It holds
-    /// only the human's view, in God Mode also the whole deal (D-62).
+    /// only the human's view, in God Mode also the whole deal (D-62); never with an
+    /// open display alone (D-68).
     pub fn coach_job(&self) -> Option<CoachJob> {
         if let Some(key) = self.human_decision()
             && self.coach.wanted(key)
             && self.coach.result(key).is_none()
         {
             let seat = PlayerId::HUMAN.seat(self.dealer);
-            return Some(self.coach.job(key, self.game.view(seat), self.all_cards()));
+            return Some(
+                self.coach
+                    .job(key, self.game.view(seat), self.coach_known_deal()),
+            );
         }
         self.coach.review_job()
     }
@@ -568,7 +636,8 @@ impl Session {
         self.game.validate(action).map_err(AppError::Rule)?;
         let view = self.game.view(PlayerId::HUMAN.seat(self.dealer));
         let context = DecisionContext::new(key, self.dealer, &view, action);
-        self.coach.record(key, &view, self.all_cards(), context);
+        self.coach
+            .record(key, &view, self.coach_known_deal(), context);
         self.apply(action)
     }
 
@@ -920,7 +989,7 @@ impl Session {
 
     /// `true` for an isolated practice attempt ([`Session::start_practice`]).
     pub fn is_practice(&self) -> bool {
-        self.lineage != 0
+        self.practice
     }
 
     /// Starts a fresh, isolated practice attempt of a recorded deal, before
@@ -930,7 +999,7 @@ impl Session {
     /// The whole untrusted recording is validated first, including its legal
     /// history and end. The attempt then has the recording's exact cards,
     /// rules, game number, dealer and seats, series configuration (opponent
-    /// mode and levels, Kontra/Re, God Mode visibility), the recorded opponent
+    /// mode and levels, Kontra/Re, God Mode and open display), the recorded opponent
     /// seeds and Goldfish identity. The recorded actions are never replayed:
     /// every decision is taken anew. Ordinary opponents and the closed-view
     /// coach get only their own seat's view as in the live game (D-23).
@@ -950,8 +1019,7 @@ impl Session {
     pub fn start_practice(&self, recording: &GameRecording) -> Result<Session, RecordingError> {
         // Entire validation before anything is built (header, deal, history, end).
         recording.reconstruct_privileged(recording.actions.len())?;
-        static LINEAGE: AtomicU64 = AtomicU64::new(1);
-        let lineage = LINEAGE.fetch_add(1, Ordering::Relaxed);
+        let lineage = next_lineage();
         let context = &recording.context;
         let config = context.session;
         let stream = |n: u64| {
@@ -985,6 +1053,7 @@ impl Session {
             recordings: Vec::new(),
             finished: false,
             lineage,
+            practice: true,
             coach,
             quiz,
         };
@@ -1017,6 +1086,12 @@ impl Session {
     pub fn series_result(&self) -> Option<SeriesResult> {
         self.finished.then(|| self.sheet.result())
     }
+}
+
+/// A fresh session lineage; never repeats within a process (D-66, D-68).
+fn next_lineage() -> u64 {
+    static LINEAGE: AtomicU64 = AtomicU64::new(1);
+    LINEAGE.fetch_add(1, Ordering::Relaxed)
 }
 
 /// Quiz stream of a practice attempt; 0-3 are the live series streams.

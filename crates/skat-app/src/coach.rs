@@ -174,6 +174,29 @@ impl CoachJob {
         self.all.is_some()
     }
 
+    /// Game number and actions of the analysed decision (crate tests only).
+    #[cfg(test)]
+    pub(crate) fn position(&self) -> (u32, usize) {
+        (self.key.number, self.key.actions)
+    }
+
+    /// Everything the analysis depends on except the session lineage
+    /// (crate tests only).
+    #[cfg(test)]
+    pub(crate) fn analysis_input(&self) -> String {
+        format!(
+            "{}|{}|{:?}|{:?}|{:?}|{}|{}|{}",
+            self.key.number,
+            self.key.actions,
+            self.view,
+            self.all,
+            self.budget,
+            self.seed,
+            self.review,
+            self.experimental
+        )
+    }
+
     /// Sampling seed of this analysis (from the coach's own seed stream and
     /// the view, never from a deal seed).
     pub fn seed(&self) -> u64 {

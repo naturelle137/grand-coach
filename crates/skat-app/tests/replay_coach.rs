@@ -379,6 +379,7 @@ fn replay_coaching_leaves_the_live_session_its_pending_job_and_the_file_untouche
         series: SeriesLength::Fixed(3),
         kontra_re: true,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     });
     live.set_coach_budget(SMALL);
     live.run_opponents();

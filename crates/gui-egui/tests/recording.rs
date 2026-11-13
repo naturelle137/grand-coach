@@ -63,6 +63,7 @@ fn save_reopen_navigate_recover_and_close_preserve_live_decision_in_both_languag
                         series: SeriesLength::Fixed(3),
                         kontra_re: true,
                         opponents: Opponents::Levels([Level::Easy; 2]),
+                        ..SessionConfig::default()
                     },
                 );
                 app.set_language(language);
@@ -283,6 +284,7 @@ fn final_recording_labels_distinguish_all_pass_incomplete_and_early_null() {
                         series: SeriesLength::Fixed(0),
                         kontra_re: false,
                         opponents: Opponents::Levels([Level::Easy; 2]),
+                        ..SessionConfig::default()
                     },
                 )
             });

@@ -16,8 +16,8 @@ use crate::sort::sort_hand;
 
 /// Everything a frontend shows. Built from the human's [`PlayerView`], so
 /// it never contains hidden cards of the opponents or an unrevealed Skat
-/// (D-23); the one exception is [`TableView::open_cards`] in God Mode
-/// (D-62).
+/// (D-23); the one exception is [`TableView::open_cards`] with an open
+/// display or in God Mode (D-62, D-68).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TableView {
     /// Settings of the session.
@@ -52,8 +52,11 @@ pub struct TableView {
     pub own_skat: Option<Vec<Card>>,
     /// Open cards of an Ouvert declarer, in display order.
     pub declarer_cards: Option<Vec<Card>>,
-    /// Every card of the deal; only in God Mode (D-62), `None` otherwise.
+    /// Every card of the deal; only with an open display or in God Mode
+    /// (D-62, D-68), `None` otherwise. Display only.
     pub open_cards: Option<OpenCards>,
+    /// What the live coach analyses (D-68), independent of `open_cards`.
+    pub coach_basis: CoachBasis,
     /// Trick in progress.
     pub current_trick: Vec<PlayedCard>,
     /// Last completed trick.
@@ -100,8 +103,9 @@ pub struct SeatInfo {
     pub total: i32,
 }
 
-/// Every card of the deal as the human sees it in God Mode (D-62): the
-/// one place where the view model shows hidden cards.
+/// Every card of the deal as the human sees it with an open display or in
+/// God Mode (D-62, D-68): the one place where the view model shows hidden
+/// cards. Plain display data; no analysis accepts it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OpenCards {
     /// Current cards of each player (index: [`PlayerId`]), in display
@@ -110,6 +114,16 @@ pub struct OpenCards {
     /// The Skat: as dealt, or as discarded after Drücken; empty while the
     /// declarer holds twelve cards.
     pub skat: Vec<Card>,
+}
+
+/// What the live coach analyses (D-68).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum CoachBasis {
+    /// Only the human's own permitted view, as at a closed table: also with
+    /// an open display.
+    OwnView,
+    /// The real deal with every card: only in God Mode (D-62).
+    RealDeal,
 }
 
 /// The open cards of `all` for the players of a deal by `dealer`, sorted
@@ -252,6 +266,7 @@ pub(crate) fn build_view(
         own_skat: view.own_skat.map(|s| sort_hand(s, game)),
         declarer_cards: view.declarer_cards.map(|s| sort_hand(s, game)),
         open_cards,
+        coach_basis: config.coach_basis(),
         current_trick: current_trick(view, dealer),
         last_trick: view.tricks.last().map(|t| trick_view(t, dealer)),
         tricks_played: view.tricks.len() as u8,

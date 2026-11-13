@@ -8,9 +8,9 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 
 use skat_app::{
     Action, Advice, Announcement, AppError, AppEvent, AssistSettings, Cancel, Card, CardSet,
-    CoachJob, CoachLevel, CoachResult, CoachSettings, Command, CountingState, Event, GameRecording,
-    GameType, Level, OpenCards, OpponentMove, Opponents, Pending, Phase, PlayedCard, PlayerId,
-    SeriesLength, Session, SessionConfig, Suit, TableView, reizwerte,
+    CoachBasis, CoachJob, CoachLevel, CoachResult, CoachSettings, Command, CountingState, Event,
+    GameRecording, GameType, Level, OpenCards, OpponentMove, Opponents, Pending, Phase, PlayedCard,
+    PlayerId, SeriesLength, Session, SessionConfig, Suit, TableDisplay, TableView, reizwerte,
 };
 
 use skat_app::coach_model::{Concept, Stage};
@@ -60,6 +60,8 @@ struct NewSeries {
     kontra_re: bool,
     mode: Mode,
     levels: [Level; 2],
+    /// Open display (D-68); implied in God Mode.
+    open: bool,
     seed: String,
 }
 
@@ -862,6 +864,14 @@ impl GrandCoachApp {
         let coach = &view.coach;
         let human = view.acting == Some(PlayerId::HUMAN);
         ui.heading(self.t("coach-title"));
+        if view.open_cards.is_some() {
+            // The table shows every card; say what the coach uses (D-68).
+            let id = match view.coach_basis {
+                CoachBasis::OwnView => "coach-basis-own-view-open",
+                CoachBasis::RealDeal => "coach-basis-real-deal",
+            };
+            ui.label(RichText::new(self.t(id)).small().italics());
+        }
         if coach.help_available && human {
             // One stage per click (D-49); the label names the next one.
             let label = coach.next_stage.map_or_else(
@@ -1057,6 +1067,7 @@ impl GrandCoachApp {
                 Opponents::Levels(levels) => levels,
                 _ => [Level::Medium; 2],
             },
+            open: config.display == TableDisplay::Open,
             seed: seed.to_string(),
         });
     }
@@ -1137,6 +1148,20 @@ impl GrandCoachApp {
                     i.tf("status-opponents", &[("mode", i.t("mode-neural").into())])
                 }
             });
+            // Display versus coach basis (D-68), always named apart.
+            if view.config.display == TableDisplay::Open {
+                ui.separator();
+                ui.label(RichText::new(i.t("status-open-display")).strong());
+            }
+            if view.open_cards.is_some() {
+                ui.separator();
+                let (id, hover) = match view.coach_basis {
+                    CoachBasis::OwnView => ("status-coach-own-view", "coach-basis-own-view-open"),
+                    CoachBasis::RealDeal => ("status-coach-real-deal", "coach-basis-real-deal"),
+                };
+                ui.label(RichText::new(i.t(id)).strong())
+                    .on_hover_text(i.t(hover));
+            }
             if self.show_seed {
                 ui.separator();
                 ui.label(i.tf(
@@ -1663,7 +1688,8 @@ impl GrandCoachApp {
         }
     }
 
-    /// The open cards of God Mode while the player wants to see them.
+    /// The open cards of an open display or God Mode while the player wants
+    /// to see them.
     fn open_cards<'a>(&self, view: &'a TableView) -> Option<&'a OpenCards> {
         view.open_cards.as_ref().filter(|_| self.see_all)
     }
@@ -1770,6 +1796,28 @@ impl GrandCoachApp {
                 for note in notes {
                     ui.label(RichText::new(self.t(note)).small().weak());
                 }
+                ui.separator();
+                // Open display (D-68): a display choice only, independent
+                // of the opponents; God Mode always shows every card.
+                let god = draft.mode == Mode::God;
+                let mut shown = draft.open || god;
+                ui.add_enabled(
+                    !god,
+                    egui::Checkbox::new(&mut shown, self.t("option-open-display")),
+                )
+                .on_hover_text(self.t("option-open-display-description"));
+                if !god {
+                    draft.open = shown;
+                }
+                let note = match draft.mode {
+                    Mode::God => Some("option-open-display-god"),
+                    _ if !draft.open => None,
+                    Mode::Mephisto => Some("option-open-display-mephisto"),
+                    _ => Some("option-open-display-description"),
+                };
+                if let Some(note) = note {
+                    ui.label(RichText::new(self.t(note)).small().weak());
+                }
                 if self.show_seed {
                     ui.separator();
                     ui.horizontal(|ui| {
@@ -1811,6 +1859,11 @@ impl GrandCoachApp {
                     Mode::God => Opponents::GodMode,
                     Mode::Experimental => Opponents::Experimental,
                     Mode::Neural => Opponents::Neural,
+                },
+                display: if draft.open && draft.mode != Mode::God {
+                    TableDisplay::Open
+                } else {
+                    TableDisplay::Closed
                 },
             });
             self.thinking = None;
@@ -1985,6 +2038,7 @@ mod tests {
                         series: SeriesLength::Fixed(3),
                         kontra_re: false,
                         opponents: Opponents::Levels([Level::Easy; 2]),
+                        ..SessionConfig::default()
                     },
                 );
                 assert!(app.session.opponent_to_move());
@@ -2034,6 +2088,7 @@ mod tests {
                         series: SeriesLength::Fixed(3),
                         kontra_re: false,
                         opponents: Opponents::Levels([Level::Easy; 2]),
+                        ..SessionConfig::default()
                     },
                 );
                 app.session.run_opponents();
@@ -2085,6 +2140,7 @@ mod tests {
             series: SeriesLength::Fixed(3),
             kontra_re: true,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         }
     }
 

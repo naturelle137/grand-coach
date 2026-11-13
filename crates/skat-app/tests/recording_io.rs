@@ -67,6 +67,7 @@ fn local_files_survive_restart_with_identical_states_events_and_visibility() {
         series: SeriesLength::Fixed(2),
         kontra_re: false,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     });
     let current = session.export_current_recording_privileged().unwrap();
     current.save_local_new(temp.file("current")).unwrap();
@@ -299,4 +300,76 @@ fn trick_boundaries_follow_core_events_with_historical_permitted_views() {
         }
         assert_eq!(record.trick_boundaries().unwrap(), expected);
     }
+}
+
+/// Open display (D-68) is stored with the series configuration: open files
+/// carry it and survive a restart, closed files keep their format-1 bytes
+/// without the field, existing files load as closed, and a same-deal
+/// practice attempt keeps the open display with the closed-view coach.
+#[test]
+fn open_display_round_trips_through_files_and_practice() {
+    for name in ["herz", "grand", "null"] {
+        let recording = fixture(name);
+        assert_eq!(recording.context.session.display, TableDisplay::Closed);
+        assert!(
+            !serde_json::to_string(&recording)
+                .unwrap()
+                .contains("display")
+        );
+    }
+    let temp = Temp::new();
+    let mut files = Vec::new();
+    for display in [TableDisplay::Closed, TableDisplay::Open] {
+        let mut session = Session::new(SessionConfig {
+            seed: 9,
+            series: SeriesLength::Fixed(2),
+            kontra_re: true,
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            display,
+        });
+        while session.completed_recordings_privileged().is_empty() {
+            if session.opponent_to_move() {
+                session.execute(Command::AdvanceOpponent).unwrap();
+            } else {
+                let action = session.view().legal_actions[0];
+                session.execute(Command::Act(action)).unwrap();
+            }
+        }
+        let completed = session.completed_recordings_privileged()[0].clone();
+        assert_eq!(completed.context.session.display, display);
+        let path = temp.file(&format!("{display:?}"));
+        completed.save_local_new(&path).unwrap();
+        let bytes = fs::read_to_string(&path).unwrap();
+        assert_eq!(bytes.contains("display"), display == TableDisplay::Open);
+        let reopened = GameRecording::open_local(&path).unwrap();
+        assert_eq!(reopened, completed);
+        files.push((session, reopened, bytes));
+    }
+    let (closed_session, closed, closed_bytes) = &files[0];
+    let (open_session, open, open_bytes) = &files[1];
+    // Display only: the same deal, actions, seeds and result.
+    assert_eq!(closed.deal, open.deal);
+    assert_eq!(closed.actions, open.actions);
+    assert_eq!(closed.end, open.end);
+    assert_eq!(closed.context.opponent_seeds, open.context.opponent_seeds);
+    assert_eq!(closed_session.sheet(), open_session.sheet());
+    // The open file differs from the closed one only by the field; without
+    // it, it reads as an older, closed file with identical bytes.
+    let stripped = open_bytes.replace(",\n      \"display\": \"Open\"", "");
+    assert_eq!(&stripped, closed_bytes);
+    let older = GameRecording::read_local(stripped.as_bytes()).unwrap();
+    assert_eq!(&older, closed);
+    let mut practice = open_session.start_practice(open).unwrap();
+    assert!(practice.is_practice());
+    assert_eq!(practice.config().display, TableDisplay::Open);
+    practice.run_opponents();
+    let view = practice.view();
+    assert!(view.open_cards.is_some());
+    assert_eq!(view.coach_basis, CoachBasis::OwnView);
+    let job = practice
+        .coach_job()
+        .expect("on-request coach analyses the decision");
+    assert!(!job.sees_all_cards());
+    let closed_practice = closed_session.start_practice(closed).unwrap();
+    assert_eq!(closed_practice.view().open_cards, None);
 }
