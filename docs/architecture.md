@@ -265,6 +265,8 @@ the unknown field (the session object does not deny unknown fields) and
 shows it closed. Same-deal practice keeps the recorded display and the
 closed-view coach. Open display adds no hindsight pipeline: full-information
 comparison stays the explicit replay hindsight request (D-67).
+A recording of an open game gets the same historical comment and review jobs,
+seeds and results as its closed twin (D-67, D-69).
 
 ### Bounded recording review (D-69)
 
