@@ -305,6 +305,11 @@ mod tests {
                     "attempt",
                     "when",
                     "label",
+                    "each",
+                    "analysed",
+                    "eligible",
+                    "forced",
+                    "current",
                 ] {
                     args.set(name, "x");
                 }
