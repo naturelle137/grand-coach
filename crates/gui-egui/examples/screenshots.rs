@@ -59,6 +59,18 @@ const OPEN_DISPLAY: &[&str] = &[
 ];
 
 const SCENARIOS: &[(&str, Scenario)] = &[
+    ("guided-orient", guided_orient),
+    ("guided-act", guided_act),
+    ("guided-memory", guided_memory),
+    ("guided-observe", guided_observe),
+    ("guided-complete", guided_complete),
+    ("guided-figures", guided_figures),
+    ("guided-figures-en", guided_figures_en),
+    ("guided-orient-en", guided_orient_en),
+    ("guided-act-en", guided_act_en),
+    ("guided-observe-en", guided_observe_en),
+    ("guided-complete-en", guided_complete_en),
+    ("guided-orient-narrow", guided_orient),
     ("launch", launch),
     ("recording", recording),
     ("recording-final", recording_final),
@@ -1175,7 +1187,13 @@ fn main() {
             TableDisplay::Closed
         };
         let launch = *name == "launch" || name.starts_with("open-display-new-series");
-        let mut harness = harness(launch, seed, opponents, display);
+        let mut harness = harness(
+            launch,
+            seed,
+            opponents,
+            display,
+            name.starts_with("guided-"),
+        );
         scenario(&mut harness);
         if name.ends_with("-narrow") {
             harness.set_size(NARROW.into());
@@ -1198,11 +1216,16 @@ fn harness(
     seed: u64,
     opponents: Opponents,
     display: TableDisplay,
+    guided: bool,
 ) -> Harness<'static, GrandCoachApp> {
     let config = SessionConfig {
         seed,
-        series: SeriesLength::Fixed(2),
-        kontra_re: true,
+        series: if guided {
+            SeriesLength::Free
+        } else {
+            SeriesLength::Fixed(2)
+        },
+        kontra_re: !guided,
         opponents,
         display,
     };
@@ -1712,6 +1735,71 @@ fn review_navigate_en(h: &mut Harness<'_, GrandCoachApp>) {
 
 fn replay_none_en(h: &mut Harness<'_, GrandCoachApp>) {
     replay_none(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+#[path = "../tests/support/guided.rs"]
+mod guided_support;
+
+fn guided_orient(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::enter(h);
+}
+fn guided_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_orient(h);
+    guided_support::click(h, "Regelantwort bewusst aufdecken");
+}
+fn guided_memory(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_act(h);
+    guided_support::click(h, "Kartenwissen aufklappen");
+}
+fn guided_observe(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_act(h);
+    let v = view(h);
+    let action = *v.legal_actions.last().unwrap();
+    guided_support::click(h, &coach::action(&I18n::new(Language::De), &v, action));
+    guided_support::settle(h);
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        skat_app::GuidedStep::Observe
+    );
+}
+fn guided_complete(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_observe(h);
+    guided_support::click(h, "Weiß ich nicht – zeige es mir");
+}
+fn guided_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_orient(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+fn guided_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_act(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+fn guided_observe_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_observe(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+fn guided_complete_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_complete(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+fn guided_figures(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_complete(h);
+    h.state_mut().set_coach(CoachSettings {
+        show_figures: true,
+        ..CoachSettings::default()
+    });
+    h.run_steps(4);
+    guided_support::click(h, "Modellvergleich separat anfordern");
+}
+fn guided_figures_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_figures(h);
     h.state_mut().set_language(Language::En);
     h.run_steps(4);
 }

@@ -192,8 +192,63 @@ support technical behaviour; learner UAT and retention remain unmeasured.
 A request first reveals the goal, facts and inferences. The second stage
 shows legal options in neutral order and a qualitative hint. With figures
 explicitly enabled, a further request reveals estimates for every option.
-This can disclose the model's preference (D-60). Earlier stages keep
+This can disclose the model's preference (D-60). Outside the deliberately entered
+guided dialogue below, earlier stages keep
 option-specific judgements for the review after the player acts.
+
+## Guided Farbspiel dialogue (#131)
+
+**Think through this decision together** deliberately enters one decision's
+orientation, check, candidate attempt, worked rule answer and actual observation.
+It never starts automatically, is unavailable with coach off or a pending quiz,
+and can be skipped back to free play at any point. Early prompts, automatic
+hints and unaided tasks continue to conceal the preferred move. A correct
+candidate attempt or deliberate reveal (including “I don't know”) reveals the
+actual shared Easy card, not a search recommendation. All legal cards remain
+clickable throughout; answering never plays a card. Wrong answers stay on the
+current question and allow retry or reveal. No strategic optimum is claimed.
+
+The initial supported rule families are `UnderPartner` and `WinLast` in
+Farbspiel card play with at least two legal actions and a nonempty branch
+candidate set. The former follows a partner who is not a follow-class master
+with one seat still to play; Easy selects a losing card by nontrump, Augen,
+power, retaining the first exact tie. The latter wins in last seat by nontrump,
+power, retaining the first exact tie. Other branches, Grand, Null and pre-play
+report unsupported and return to free play. In particular, a side master is
+not safe against trumping: the early `FeedPartner` branch is excluded.
+
+One active prompt has at most two supporting facts. Rule conditions and
+candidates appear only after an attempt or deliberate reveal. Optional card
+memory starts hidden, cannot open before the worked answer, and closes while
+an observation question is active. It uses frozen `Knowledge` and M6 counts:
+own hand, known own Skat, public played cards and unseen cards; outside Trumpf
+excludes own hand, played and known own Skat. Unknown Skat stays unknown; no
+unseen holder is assigned, including at an open/God table. Reveal is assistance,
+not unaided learning evidence. This slice adds no persistent progress store. `AppEvent::Guided` is the plain
+in-memory handoff: unique entry/decision ID, monotonic sequence, explicit
+action, resulting step and sticky assisted flag. Consumers deduplicate by
+`(id, sequence)`; no mastery or retention inference follows.
+
+The app follows the originating trick across automated turns. For
+`UnderPartner`, the later player's actual card is the observation; for
+`WinLast`, the human's actual completing card is. Evidence carries trick index,
+seat, led card, played card and the actual completed winner, even if the human
+chose a different card. Failure to follow establishes a void at that play;
+a Bube follows Trumpf in Farbspiel, never its printed suit. Following accounts
+for that card only. Observation deductions are hidden until an answer/reveal.
+A new human move, new game, changed assistance, coach off, replay entry or
+practice session cancels the old dialogue. Each entry has its own identity;
+responses to another entry/session are rejected.
+
+After observation feedback, enabled figures plus a separate request may show
+an available analysis of the original decision, with its objective, budget,
+finished/planned distributions, uncertainty and own-view/real-deal basis.
+Missing estimates remain unavailable; incomplete estimates remain provisional.
+No model number is invented. Search agreement or disagreement never changes
+the frozen rule explanation. God Mode's statistics explicitly retain their
+privileged basis, while the rule dialogue still uses the closed permitted view.
+The [walkthrough and fixture contract](guided-dialogue.md) records technical
+evidence and remaining learner work.
 
 ## Focus and teachable moments (D-58)
 

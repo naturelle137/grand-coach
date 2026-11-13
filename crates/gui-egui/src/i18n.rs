@@ -141,6 +141,7 @@ mod tests {
             include_str!("cards.rs"),
             include_str!("coach.rs"),
             include_str!("recording.rs"),
+            include_str!("guided.rs"),
             include_str!("learning.rs"),
             include_str!("training.rs"),
         ] {
@@ -173,8 +174,8 @@ mod tests {
     fn every_id_in_the_code_is_translated_and_every_message_used() {
         let code = ids_in_code();
         let ftl = ids(DE_FTL);
-        // An egui widget id and the data folder name, not messages.
-        let not_messages = ["jump-bid", "grand-coach"];
+        // Widget identifiers and the data folder name, not messages.
+        let not_messages = ["jump-bid", "guided-model", "grand-coach"];
         let missing: Vec<_> = code
             .iter()
             .filter(|id| !ftl.contains(*id) && !not_messages.contains(&id.as_str()))
@@ -303,6 +304,10 @@ mod tests {
                     "given",
                     "size",
                     "unplayed",
+                    "unseen",
+                    "samples",
+                    "nodes",
+                    "actions",
                     "version",
                     "leader",
                     "attempt",

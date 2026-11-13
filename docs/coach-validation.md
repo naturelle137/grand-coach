@@ -32,6 +32,19 @@ Three different questions, answered by different means:
   results, impersonate the learner, or tick a human check because an
   automated scenario passed.
 
+## Guided dialogue evidence (#131)
+
+The [bounded walkthrough](guided-dialogue.md) names the shared Easy rule source,
+legal declarer/defender deals, independent candidate expectations, hidden-deal
+substitutions, trumping/Bube boundary and excluded side-master branch. The
+D-49 exception is tested only after deliberate entry and attempt/reveal;
+default/off/automatic and unaided protections remain binding. Check every
+legal alternative, wrong answer/retry, unknown/reveal, skip, hidden memory,
+stale/re-entered identities and the actual public observation across automated
+turns. Estimates are optional and separately requested; incomplete/disagreeing
+search must not change the rule. Actual de/en widget and inspected PNG evidence
+is technical validation, never learner UAT, retention or transfer evidence.
+
 ## A. Evidence checklist per lesson
 
 Each lesson PR copies this list into its PR body,

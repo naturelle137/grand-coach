@@ -38,7 +38,15 @@ with another trump suit, the player would decide unaided and explain which
 observation mattered. Recognising the same opportunity at a real table is
 the long-term measure of success.
 
-The current [live coach](coach.md) provides staged hints, six supported
+The deliberately entered [guided Farbspiel dialogue](coach.md#guided-farbspiel-dialogue-131)
+now lets the learner answer one question at a time, reveal Easy's actual
+conditional rule move and inspect the resulting public play. Free choice of
+every legal card and an immediate return to play remain available. Early,
+automatic and unaided help conceal the move; figures require a separate
+request and enabled figures. This first bounded slice does not establish
+learning efficacy or cover other phases/contracts.
+
+The current [live coach](coach.md) also provides staged hints, six supported
 lessons, a learning focus and a review of selected decisions. Optional focused
 retrieval asks for exact counts before feedback,
 with explicitly selected or restored help. It records support for the current

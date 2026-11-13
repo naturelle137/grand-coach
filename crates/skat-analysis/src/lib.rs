@@ -23,6 +23,7 @@
 //! Semantics, budgets and measured latency: `docs/analysis.md`.
 
 mod analysis;
+pub mod baseline;
 mod budget;
 pub mod counting;
 pub mod double_dummy;

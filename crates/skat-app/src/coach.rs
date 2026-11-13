@@ -231,6 +231,13 @@ pub struct CoachResult {
 }
 
 impl CoachResult {
+    pub(crate) fn guided_key(&self) -> DecisionKey {
+        self.key
+    }
+    pub(crate) fn guided_budget(&self) -> Budget {
+        self.budget
+    }
+
     /// Snapshot of ongoing work. Never resolves a warning or a review.
     pub fn is_preview(&self) -> bool {
         self.explanation()
@@ -247,6 +254,17 @@ impl CoachResult {
     pub fn explanation(&self) -> Option<&Explanation> {
         self.outcome.as_deref().ok()
     }
+    /// Test-only disagreeing ranking of real analysis values: guards separation
+    /// between model ordering and the frozen heuristic explanation.
+    #[cfg(test)]
+    pub(crate) fn guided_rank_first(mut self, action: Action) -> Self {
+        if let Ok(e) = &mut self.outcome {
+            let index = e.options.iter().position(|o| o.action == action).unwrap();
+            e.options.swap(0, index);
+        }
+        self
+    }
+
     /// A failed result for the decision of `job` (crate tests only).
     #[cfg(test)]
     pub(crate) fn failed(job: &CoachJob) -> CoachResult {

@@ -64,7 +64,7 @@ PRs and the focused references (architecture, analysis, AI, coach, testing).
 | D-10 | 2026-10-29 | Plan an optional counting quiz and dedicated practice outside a live game. |
 | D-13 | 2026-10-29 | The coach produces structured explanations (text keys + parameters); translation happens only in the presentation layer. |
 | D-48 | 2026-11-01 | Use shared utility and uncertainty for weak moves, equivalence and warnings. Hold the selected action for confirmation and execute it at most once. [Policies](coach.md#policies-d-48). |
-| D-49 | 2026-11-01 | Reveal help in stages. Keep recommendations and option judgements out of live hints. D-60 governs requested figures. Review moves after play. |
+| D-49 | 2026-11-13 | Reveal help in stages. Early, default, automatic hints and unaided tasks conceal recommendations. Only an explicitly entered [guided dialogue](coach.md#guided-farbspiel-dialogue-131) may reveal the actual shared Easy rule action after an attempt or deliberate reveal. All legal actions remain playable; no auto-play. D-60 governs separate requested figures. Review ordinary moves after play. |
 | D-50 | 2026-11-01 | Use concise, conditional lessons from shared evidence. A score difference alone cannot explain a strategic mechanism. Future practice distinguishes assisted from unaided attempts. |
 | D-52 | 2026-11-01 | Figures default off. Put comparisons and assumptions behind debriefing details. When evidence is lacking, show an honest fallback. |
 | D-53 | 2026-11-01 | Lesson evidence distinguishes exact observations from samples and tracks sources. Only reliable comparisons support mechanism lessons. [Evidence contract](analysis.md#evidence-for-lessons). |
@@ -73,7 +73,7 @@ PRs and the focused references (architecture, analysis, AI, coach, testing).
 | D-57 | 2026-11-01 | Teach own hand structure and attainable legal values before play. Keep bid coverage distinct from winning chances. |
 | D-58 | 2026-11-01 | One optional learner-selected focus. Automatic hints require a teachable situation. Select up to three debriefing moments using lessons, focus and concept diversity. |
 | D-59 | 2026-11-01 | Capture a permitted decision snapshot when the human acts. Reviews use the cards and history visible at that point. |
-| D-60 | 2026-11-01 | Stage 3 requires both enabled figures and a request. Show estimates in neutral legal order. They can reveal model preference. Stages 1 and 2 keep live options unjudged. |
+| D-60 | 2026-11-13 | Stage 3 requires both enabled figures and a request. Show estimates in neutral legal order. They can reveal model preference. Ordinary stages 1 and 2 keep live options unjudged. Guided rule answers (D-49) need no estimates; their optional separate model comparison retains original decision, objective, budget, uncertainty and basis and never rewrites the heuristic. |
 
 ## Frontend and assets
 

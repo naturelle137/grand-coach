@@ -1,0 +1,111 @@
+# Guided Farbspiel pilot (#131)
+
+This first slice implements deliberate entry, orientation, checking the next
+seat, a candidate attempt, the actual Easy rule answer, real observation and
+return to free play. It does not complete #131's later phases, other contracts,
+training, persistent history or release. Learner UAT and independent transfer
+remain unmeasured.
+
+## Rule and evidence definition
+
+`guided-under-partner@1` and `guided-win-last@1` are bounded heuristic dialogues,
+not new solver-approved mechanisms in the six-lesson catalogue. Their source
+is the existing `BaselineOpponent::choose_card` on main
+`ecfb2fe1ff5a50ab2fb5f17a892dd9e5f68c6c80`, now shared in
+`skat-analysis::baseline`. Easy's original legal order, min-first/max-last ties,
+Kontra/Re precedence and fallback are preserved. The pre-extraction regression
+hash over 200 complete legal Easy games is `12969225982751591822` (FNV-1a over
+Debug action bytes, seed order 0..200, Kontra/Re enabled). This freezes behavior;
+it is not a strategic oracle. Explicit candidate expectations below provide
+separate factual oracles.
+
+- **UnderPartner:** Farbspiel, defender, partner currently leads, one player
+  follows, and the leading card is not a master of its follow class. With at
+  least two legal cards and one losing candidate, Easy takes a loser by
+  `(is_trump, Augen, power)`, first exact tie. A nonchosen losing candidate may
+  serve the same immediate purpose. This does not secure the partner's trick.
+- **WinLast:** Farbspiel, last seat, opposing party leads, at least two legal
+  cards and a winning candidate. Easy takes a winner by `(is_trump, power)`,
+  first exact tie. Other winning cards still win this trick. No claim about
+  their future strategic value or the final game result follows.
+- **Exclusions:** no lead, early winner, partner feeding, arbitrary fallback,
+  single legal action, Kontra/Re, Grand, Null or pre-play dialogue. If the
+  partner branch has no losing card, its original lowest-card fallback is
+  explicitly marked `Fallback` and excluded, rather than explained as staying
+  under the partner. In
+  particular, `is_master` excludes only a higher card in the same follow
+  class; it does not exclude trumping. These branches report unsupported.
+
+All predicates use `Knowledge`, `TrickState`, the public trick, own permitted
+hand and legal actions. Provenance is `Source::Trick`, own hand/known Skat and
+the announced game's rules. Outstanding/unseen is not a location. Memory uses
+M6 `CountingAid` definitions and initially stays hidden. Optional model
+comparisons have their own original-decision identity, status, budget, basis,
+objective and uncertainty; agreement cannot certify a rule and disagreement
+cannot rewrite it. Rule answers work even without an analysis result.
+
+## Core-validated fixtures
+
+The explicit deal in `crates/skat-coach/tests/support/guided.rs` is:
+
+| Place | Cards (C=Kreuz, S=Pik, H=Herz, D=Karo) |
+|-------|---------------------------------------|
+| Vorhand | CK CJ C9 H7 H8 H9 HT HJ HQ HK |
+| Mittelhand | C7 C8 CT S7 S8 S9 ST SJ SQ SK |
+| Hinterhand | CA CQ SA HA D7 D8 D9 DT DJ DQ |
+| Skat | DK DA |
+
+Hinterhand declares Herz Hand at 18 through core-accepted bidding.
+As defender in Mittelhand after CK, C7/C8 leave CK ahead and CT overtakes;
+Easy selects C7 by lower power at equal zero Augen. CA can move from the
+hidden declarer to the unknown Skat by swapping DK without changing the
+permitted input, prompts or rule. A second legal family puts CA and CQ outside
+Hinterhand so that D7 may be discarded; swapping CQ with CJ and moving CA
+away also permits the Kreuz-Bube to trump. Actual public play proves a Kreuz
+void in both cases, while following CA proves only the card played.
+
+As declarer in Hinterhand after C9/C8, CQ and CA both win; the cheaper winner
+is CQ. All legal alternatives replay through the core. Moving CA into the
+defender's own hand makes CK a follow-class master and selects excluded
+`FeedPartner`; this is not narrated as safe against Trumpf. Forced last-trick
+moves and pre-play are unsupported. Hand has unknown Skat even for declarer;
+known own discards and Ouvert use the same existing `Knowledge` definitions.
+
+## Reproducible ordinary-app walkthrough
+
+Start the ordinary app with series seed 21 and two Easy opponents, leave coach
+on request, pass at bidding and play the first legal card until a supported
+Farbspiel decision. Enter **Think through this decision together** (German:
+**Entscheidung gemeinsam durchdenken**). Unsupported branches say so; return
+and continue playing. `gui-egui/tests/support/guided.rs` performs these exact
+moves through real widgets, without injected sessions or mock views.
+
+1. Identify the current winning seat, then the player who still follows (or
+   nobody). A wrong answer stays on its prompt, with retry and source feedback.
+2. Consider a candidate without playing it. A correct candidate or deliberate
+   **reveal** / **I don't know** exposes the actual Easy move and its conditional
+   ranking. Optional memory opens only now. The table's cards remain playable.
+3. Play any legal card, including another choice. Wait for the actual remaining
+   player. Answer whether that card failed to follow the led class, or reveal.
+   The result cites the real seat/card/trick and completed winner.
+4. Return to free play at any time. With figures enabled, a separate request
+   after observation may expose an available model comparison of the original
+   decision. Missing estimates remain unavailable, provisional work stays
+   provisional, and the rule answer remains unchanged.
+
+Switch language in settings for the same English flow. Headless widget tests
+exercise wrong/retry, reveal, memory, card choice, real observation and return
+in both languages. App tests additionally exercise frozen input, different
+hidden deals, stale/re-entered identities, default/off/automatic settings and
+incomplete optional estimates. These are automated technical checks, not
+observed learner clarity or interactive Windows 11 evidence.
+
+## Verification and UI evidence
+
+Use the existing `scripts/check.sh push --base origin/main` in `skat-dev`, plus
+relevant ignored app/GUI integration suites. The existing screenshots example
+adds `guided-orient`, `guided-act`, `guided-memory`, `guided-observe`,
+`guided-complete`, English orientation/action/observation/completion, separately requested
+`guided-figures` / `guided-figures-en`, and
+`guided-orient-narrow`. Each reaches the real app by widget clicks. Rendered
+PNG hashes and individual visual inspections belong to the PR evidence.
