@@ -9,7 +9,7 @@ tag, installer, administrator access, updater or network service is created.
 
 | Target | Package | Build environment | Runtime prerequisites |
 |--------|---------|-------------------|-----------------------|
-| x86_64 Linux | portable `.tar.gz` | Ubuntu 24.04 CI; Fedora 44 local development | glibc compatible with the build host, libgcc, EGL/OpenGL driver, Wayland or X11 display, libxkbcommon and its X11 extension for X11; see manifest `ldd` output |
+| x86_64 Linux | portable `.tar.gz` | Ubuntu 24.04 CI; Fedora 44 local development | glibc compatible with the build host, libgcc, EGL/OpenGL driver, Wayland or X11 display, libxkbcommon; X11 also needs Xlib, X11-XCB, Xcursor, Xi and xkbcommon's X11 extension; see manifest `ldd` output |
 | x86_64 Windows | portable `.zip` | Windows Server 2025 CI, Rust MSVC and Visual Studio C++ Build Tools | Windows 11 x64, graphics driver supporting OpenGL 2.0+, Microsoft Visual C++ v14 x64 runtime (`VCRUNTIME140.dll`) and Windows UCRT |
 
 Linux binaries are dynamically linked, not universal/static Linux binaries.
@@ -17,8 +17,9 @@ An Ubuntu build has a glibc 2.39 baseline; a Fedora-built artifact must not
 be represented as having the Ubuntu baseline. EGL/GL and display libraries
 can also be loaded dynamically and are not all visible in `ldd`. Xvfb plus
 Mesa and `libxkbcommon-x11-0` are installed for the Ubuntu smoke (Fedora:
-`libxkbcommon-x11`). A missing X11 extension causes a startup panic even when
-the executable's direct `ldd` dependencies are satisfied.
+`libxkbcommon-x11`). X11 also dynamically loads Xlib, X11-XCB, Xcursor and Xi.
+Ubuntu runtime packages are `libx11-6 libx11-xcb1 libxcursor1 libxi6`; missing
+dynamic libraries prevent startup even when direct `ldd` dependencies pass.
 Windows Server CI is not interactive Windows 11.
 Its built-in OpenGL 1.1 fails the app's OpenGL 2.0+ requirement. CI therefore
 downloads the [mesa-dist-win 26.2.6 MinGW x64 build](https://github.com/pal1000/mesa-dist-win/releases/tag/26.2.6),
@@ -92,6 +93,14 @@ and builds both native targets. It uploads archives, checksums, native launch
 screenshots/logs and `smoke.json` for 14 days; it never publishes a release.
 Record the exact run URL and head in the PR/handoff. Existing `ci.yml` and its
 complete-platform release gate remain authoritative and unchanged.
+
+Linux CI additionally builds the pinned-base `scripts/package-runtime.Dockerfile`
+and repeats the smoke with runtime libraries only, no Rust/Cargo or source
+checkout, and `--network=none`. Only the archive/probe and the single Python
+smoke script are mounted read-only. An init process lets Xvfb signal readiness;
+image metadata, OS release, exact package versions and smoke evidence are saved.
+This fresh runtime-container check catches prerequisites already installed on
+build runners. It is not a clean OS installation or an interactive desktop test.
 
 ## Install, launch, upgrade and remove
 

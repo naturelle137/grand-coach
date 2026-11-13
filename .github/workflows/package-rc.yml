@@ -33,7 +33,7 @@ jobs:
           cache-on-failure: true
       - name: Linux display and runtime libraries
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y xvfb libegl1 libgl1 libwayland-egl1 libxkbcommon0 libxkbcommon-x11-0
+        run: sudo apt-get update && sudo apt-get install -y xvfb libegl1 libgl1 libwayland-egl1 libxkbcommon0 libxkbcommon-x11-0 libx11-6 libx11-xcb1 libxcursor1 libxi6
       - name: Windows test-only software OpenGL prerequisite
         if: runner.os == 'Windows'
         shell: pwsh
@@ -57,6 +57,25 @@ jobs:
           else
             GALLIUM_DRIVER=llvmpipe python3 -B scripts/package.py smoke dist/*.zip --out evidence --windows-mesa "$GC_TEST_MESA"
           fi
+      - name: Source-free offline Linux runtime smoke
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p evidence/clean-runtime
+          docker build -t grand-coach-rc-runtime - < scripts/package-runtime.Dockerfile
+          docker image inspect grand-coach-rc-runtime > evidence/clean-runtime-image.json
+          docker run --rm --init --network=none \
+            -v "$PWD/dist:/rc:ro" \
+            -v "$PWD/scripts/package.py:/qa/package.py:ro" \
+            -v "$PWD/evidence/clean-runtime:/out:rw" \
+            grand-coach-rc-runtime sh -ec '
+              cp -a /rc /tmp/rc
+              chmod u+x /tmp/rc/persistence-probe
+              cat /etc/os-release > /out/os-release
+              dpkg-query -W > /out/packages.txt
+              test ! -e /home/runner/work/grand-coach
+              if command -v cargo; then exit 1; fi
+              xvfb-run -a -s "-screen 0 1600x1000x24" python3 -B /qa/package.py smoke /tmp/rc/*.tar.gz --out /out
+            '
       - uses: actions/upload-artifact@v4
         if: always()
         with:
