@@ -188,6 +188,10 @@ impl SessionConfig {
 /// What a frontend asks the session to do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Command {
+    /// Deliberately enter the guided card-play dialogue.
+    StartGuided,
+    /// Respond to a specific guided decision; never plays a card.
+    Guided(crate::GuidedId, crate::GuidedAction),
     /// A game action of the human player.
     Act(Action),
     /// Let the opponent whose turn it is make one move. Frontends call this
@@ -226,6 +230,8 @@ pub enum Command {
 /// What happened. Contains only information the human may see.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AppEvent {
+    /// Explicit guided dialogue progress; in-memory consumer boundary only.
+    Guided(crate::GuidedEvent),
     /// A new game was dealt.
     GameStarted {
         /// Game number in the series, from 1.
@@ -262,6 +268,8 @@ pub enum AppEvent {
 /// Why a command was rejected. The session is unchanged after an error.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AppError {
+    /// The guided response belongs to another decision/session.
+    StaleGuided,
     /// The rule engine rejected the action.
     Rule(RuleError),
     /// It is an opponent's turn.
@@ -413,6 +421,7 @@ pub struct Session {
     pub(crate) coach: CoachState,
     /// The counting aid and quiz; they never influence deals or opponents.
     pub(crate) quiz: QuizState,
+    pub(crate) guided: Option<crate::guided::GuidedState>,
 }
 
 impl Session {
@@ -465,6 +474,7 @@ impl Session {
                 config.opponents == Opponents::Experimental,
             ),
             quiz: QuizState::new(quiz_rng.next_u64()),
+            guided: None,
         }
     }
 
@@ -494,14 +504,27 @@ impl Session {
             &view,
             open_cards,
             self.is_practice(),
-            if self.quiz.withhold_coach() {
+            if self.quiz.withhold_coach() || self.guided.is_some() {
                 // The answer must not leak through a hint or a note.
-                CoachView::withheld(self.coach.settings)
+                {
+                    let mut c = CoachView::withheld(self.coach.settings);
+                    if self.guided.is_some() {
+                        c.pending = self.coach.pending.clone();
+                    }
+                    c
+                }
             } else {
                 self.coach
                     .view(self.human_decision(), self.game.current_seat().is_none())
             },
-            self.quiz.view(&view, self.dealer),
+            {
+                let mut aid = self.quiz.view(&view, self.dealer);
+                if self.guided.is_some() {
+                    aid.counting = crate::CountingState::Off;
+                    aid.quiz.feedback = None;
+                }
+                aid
+            },
         )
     }
 
@@ -582,6 +605,9 @@ impl Session {
     /// played (not weak, or no finished analysis to judge it) or held with
     /// a warning. Fails without changes if the decision changed meanwhile.
     pub fn finish_coach(&mut self, result: CoachResult) -> Result<Vec<AppEvent>, AppError> {
+        if let Some(g) = &mut self.guided {
+            g.capture(&result, self.coach.budget);
+        }
         if result.is_preview() {
             let key = self.human_decision().ok_or(AppError::StaleCoachResult)?;
             if !self.coach.accept_preview(key, result) {
@@ -737,6 +763,9 @@ impl Session {
     pub fn execute(&mut self, command: Command) -> Result<Vec<AppEvent>, AppError> {
         if let Command::SetCoach(settings) = command {
             self.coach.settings = settings;
+            if settings.level == crate::CoachLevel::Off {
+                self.guided = None;
+            }
             if !settings.warnings {
                 // Nothing to check any more: the held action is withdrawn,
                 // never played behind the human's back.
@@ -745,6 +774,7 @@ impl Session {
             return Ok(Vec::new());
         }
         if let Command::SetAssist(settings) = command {
+            self.guided = None;
             self.quiz.set(settings);
             self.refresh_quiz();
             if self.quiz.is_pending()
@@ -760,6 +790,15 @@ impl Session {
                 .into_iter()
                 .map(AppEvent::Retrieval)
                 .collect());
+        }
+        if let Command::Guided(id, action) = command {
+            let g = self.guided.as_mut().ok_or(AppError::StaleGuided)?;
+            let close = g.action(id, action, self.coach.settings.show_figures)?;
+            let event = g.event(Some(action));
+            if close {
+                self.guided = None;
+            }
+            return Ok(vec![AppEvent::Guided(event)]);
         }
         if self.finished {
             return Err(AppError::SeriesFinished);
@@ -780,6 +819,28 @@ impl Session {
             return Err(AppError::QuestionPending);
         }
         match command {
+            Command::StartGuided => {
+                if self.coach.settings.level == crate::CoachLevel::Off {
+                    return Err(AppError::CoachOff);
+                }
+                if self.quiz.is_pending() {
+                    return Err(AppError::QuestionPending);
+                }
+                if self.coach.pending.is_some() {
+                    return Err(AppError::ActionPending);
+                }
+                let key = self.human_decision().ok_or(AppError::NoDecision)?;
+                let view = self.game.view(PlayerId::HUMAN.seat(self.dealer));
+                self.guided = Some(crate::guided::GuidedState::new(
+                    key,
+                    &view,
+                    self.coach.result(key).cloned(),
+                ));
+                Ok(vec![AppEvent::Guided(
+                    self.guided.as_mut().expect("just entered").event(None),
+                )])
+            }
+            Command::Guided(..) => unreachable!("handled before game-finished guard"),
             Command::SetAssist(_) => unreachable!("handled above"),
             Command::AnswerQuiz(answer) => self.settle_quiz(Some(answer)),
             Command::SkipQuiz => self.settle_quiz(None),
@@ -881,7 +942,7 @@ impl Session {
 
     /// Asks the question due at the human's current decision, if any.
     fn refresh_quiz(&mut self) {
-        if self.finished {
+        if self.finished || self.guided.is_some() {
             return;
         }
         let view = self.game.view(PlayerId::HUMAN.seat(self.dealer));
@@ -897,7 +958,16 @@ impl Session {
     }
 
     fn apply(&mut self, action: Action) -> Result<Vec<AppEvent>, AppError> {
+        let before = self.game.current_seat();
         let core_events = self.game.apply(action).map_err(AppError::Rule)?;
+        if self.guided.as_ref().is_some_and(|g| g.expires_on(before)) {
+            self.guided = None;
+        }
+        let guided_event = self.guided.as_mut().and_then(|g| {
+            let previous = g.step();
+            g.applied(before, action, &core_events);
+            (previous != g.step()).then(|| g.event(None))
+        });
         self.recording.actions.push(action);
         self.recording.end = RecordingEnd::of(&self.game);
         self.actions += 1;
@@ -910,6 +980,7 @@ impl Session {
                 player: event_seat(&event).map(|s| PlayerId::on_seat(s, self.dealer)),
             })
             .collect();
+        events.extend(guided_event.map(AppEvent::Guided));
         if matches!(self.game.phase(), Phase::Beendet | Phase::Eingepasst) {
             events.extend(self.record_game());
         }
@@ -963,6 +1034,7 @@ impl Session {
         self.actions = 0;
         self.coach.game_changed();
         self.quiz.game_changed();
+        self.guided = None;
         self.game = Game::new(self.game_seed, rule_config(self.config));
         self.recording = GameRecording::start(
             RecordingContext {
@@ -1056,6 +1128,7 @@ impl Session {
             practice: true,
             coach,
             quiz,
+            guided: None,
         };
         practice.refresh_quiz();
         practice.quiz.take_events();
@@ -1142,3 +1215,7 @@ mod tests {
         assert_eq!(PlayerId::HUMAN.seat(PlayerId(2)), Seat::Vorhand);
     }
 }
+
+#[cfg(test)]
+#[path = "guided_tests.rs"]
+mod guided_tests;

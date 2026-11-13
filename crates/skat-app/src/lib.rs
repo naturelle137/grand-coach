@@ -34,6 +34,7 @@
 
 mod coach;
 mod context;
+mod guided;
 mod neural;
 mod quiz;
 mod recording;
@@ -90,4 +91,8 @@ pub use skat_core::{
     Action, Announcement, BidRecord, Call, Card, CardSet, Contract, Deal, Event, Follow,
     GameResult, GameType, KontraLevel, OmniscientView, Phase, PlayerView, Rank, RuleConfig,
     RuleError, Seat, Spitzen, Suit, reizwerte,
+};
+
+pub use guided::{
+    GuidedAction, GuidedAnswer, GuidedBranch, GuidedEvent, GuidedId, GuidedStep, GuidedView,
 };
