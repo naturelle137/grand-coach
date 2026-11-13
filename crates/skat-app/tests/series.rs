@@ -9,8 +9,8 @@ use std::collections::BTreeSet;
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
 use skat_app::{
-    Action, AppError, AppEvent, Cancel, Command, GameType, KontraLevel, Level, Opponents, Phase,
-    PlayerId, RuleError, SeriesLength, Session, SessionConfig,
+    Action, AppError, AppEvent, Cancel, Command, FigurePool, GameType, KontraLevel, Level,
+    Opponents, Phase, PlayerId, RuleError, SeriesCast, SeriesLength, Session, SessionConfig,
 };
 
 fn config(seed: u64, series: SeriesLength, kontra_re: bool) -> SessionConfig {
@@ -645,4 +645,54 @@ fn mephisto_sees_all_cards_where_configured(opponents: Opponents) {
         }
     }
     assert_eq!(cases.len(), 3, "{cases:?}");
+}
+
+/// FNV-1a over the debug form of every action of a seeded series.
+fn trajectory_digest(seed: u64) -> u64 {
+    let mut session = Session::new(SessionConfig {
+        seed,
+        series: SeriesLength::Fixed(3),
+        kontra_re: true,
+        opponents: Opponents::Levels([Level::Easy, Level::Medium]),
+        ..SessionConfig::default()
+    });
+    let mut text = String::new();
+    while !session.view().series_finished {
+        session.run_opponents();
+        let view = session.view();
+        // Reading the cast in both languages, as a frontend does on every
+        // frame and language switch, must not touch the series.
+        for pool in FigurePool::ALL {
+            assert_eq!(view.cast.pool(pool), SeriesCast::for_seed(seed).pool(pool));
+        }
+        if view.series_finished {
+            break;
+        }
+        let command = match view.legal_actions.first() {
+            Some(&action) => Command::Act(action),
+            None => Command::NextGame,
+        };
+        session.execute(command).unwrap();
+    }
+    for recording in session.completed_recordings_privileged() {
+        text.push_str(&format!("{}|{:?}\n", recording.seed, recording.actions));
+    }
+    text.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+        (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+    })
+}
+
+/// The named opponents (D-72) draw from their own stream: deals and
+/// opponent decisions are exactly those of the series before figures
+/// existed. The digests were computed on main before the cast was added
+/// (c0edefc) with the same function.
+#[test]
+fn the_cast_changes_neither_cards_nor_opponent_decisions() {
+    for (seed, digest) in [
+        (3, 0xa978_c7a4_6d30_9ec9),
+        (21, 0x13c2_df7b_0159_c42f),
+        (1134, 0x761c_3b2c_086d_46ef),
+    ] {
+        assert_eq!(trajectory_digest(seed), digest, "seed {seed}");
+    }
 }
