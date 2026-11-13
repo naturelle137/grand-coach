@@ -76,6 +76,11 @@ class PackageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "runtime library"):
                 package.linux_libraries("binary")
 
+    def test_runner_identity_survives_windows_environment_case_normalization(self):
+        expected = {"ImageOS": "win25", "ImageVersion": "20261111.1"}
+        self.assertEqual(package.runner_image(expected), expected)
+        self.assertEqual(package.runner_image({k.upper(): v for k, v in expected.items()}), expected)
+
 
 if __name__ == "__main__":
     unittest.main()

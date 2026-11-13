@@ -10,7 +10,7 @@ tag, installer, administrator access, updater or network service is created.
 | Target | Package | Build environment | Runtime prerequisites |
 |--------|---------|-------------------|-----------------------|
 | x86_64 Linux | portable `.tar.gz` | Ubuntu 24.04 CI; Fedora 44 local development | glibc compatible with the build host, libgcc, EGL/OpenGL driver, Wayland or X11 display, libxkbcommon and its X11 extension for X11; see manifest `ldd` output |
-| x86_64 Windows | portable `.zip` | Windows Server 2025 CI, Rust MSVC and Visual Studio C++ Build Tools | Windows 11 x64, graphics driver supporting OpenGL 2.0+, Microsoft Visual C++ runtime when required by the toolchain |
+| x86_64 Windows | portable `.zip` | Windows Server 2025 CI, Rust MSVC and Visual Studio C++ Build Tools | Windows 11 x64, graphics driver supporting OpenGL 2.0+, Microsoft Visual C++ v14 x64 runtime (`VCRUNTIME140.dll`) and Windows UCRT |
 
 Linux binaries are dynamically linked, not universal/static Linux binaries.
 An Ubuntu build has a glibc 2.39 baseline; a Fedora-built artifact must not

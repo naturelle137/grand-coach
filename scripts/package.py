@@ -30,6 +30,12 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def runner_image(env):
+    # A plain copy of Windows os.environ has upper-case keys.
+    values = {key.upper(): value for key, value in env.items()}
+    return {key: values.get(key.upper(), "") for key in ("ImageOS", "ImageVersion")}
+
+
 def resources(root):
     """Require every known card face, portrait and both embedded languages."""
     paths = [root / "assets/cards/back.svg"]
@@ -174,7 +180,7 @@ def build(args):
         "os": platform.platform(), "python": platform.python_version(),
         "build_command": command, "features": "default", "models": [],
         "build_environment": {k: env.get(k, "") for k in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CC", "CXX", "CARGO_INCREMENTAL", "SOURCE_DATE_EPOCH")},
-        "runner_image": {k: env.get(k, "") for k in ("ImageOS", "ImageVersion")},
+        "runner_image": runner_image(env),
         "embedded_resources": names,
         "files": {name: digest(data) for name, data in sorted(files.items())},
     }
