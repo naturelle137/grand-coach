@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 /target/
 .tmp/
+.worktrees/
 .bash_history
 /reports/
 /research_notes/
