@@ -14,6 +14,7 @@ fn config() -> SessionConfig {
         series: SeriesLength::Fixed(3),
         kontra_re: true,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     }
 }
 

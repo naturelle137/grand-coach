@@ -50,6 +50,7 @@ fn human_view_never_shows_hidden_cards() {
             series: SeriesLength::Fixed(12),
             kontra_re: true,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         });
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         while !session.view().series_finished {
@@ -340,6 +341,7 @@ mod snapshots {
             series: SeriesLength::Fixed(3),
             kontra_re: false,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         });
         s.set_coach_budget(Budget {
             samples: 2,
@@ -415,6 +417,7 @@ mod god_mode {
             series: SeriesLength::Fixed(1),
             kontra_re: false,
             opponents,
+            ..SessionConfig::default()
         })
     }
 

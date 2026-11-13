@@ -17,6 +17,7 @@ fn config(opponents: Opponents) -> SessionConfig {
         series: SeriesLength::Fixed(6),
         kontra_re: true,
         opponents,
+        ..SessionConfig::default()
     }
 }
 

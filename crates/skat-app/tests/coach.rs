@@ -31,6 +31,7 @@ fn session(seed: u64, kontra_re: bool) -> Session {
         series: SeriesLength::Fixed(4),
         kontra_re,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     })
 }
 

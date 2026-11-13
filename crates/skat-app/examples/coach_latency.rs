@@ -69,6 +69,7 @@ fn main() {
             series: SeriesLength::Fixed(3),
             kontra_re: true,
             opponents: Opponents::Levels([Level::Medium; 2]),
+            ..SessionConfig::default()
         });
         session
             .execute(Command::SetCoach(CoachSettings {

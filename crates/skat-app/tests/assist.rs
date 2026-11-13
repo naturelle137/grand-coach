@@ -20,6 +20,7 @@ fn session(seed: u64) -> Session {
         series: SeriesLength::Fixed(12),
         kontra_re: false,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     })
 }
 

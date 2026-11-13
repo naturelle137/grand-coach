@@ -157,6 +157,7 @@ fn series_played_entirely_by_clicks() {
             series: SeriesLength::Fixed(6),
             kontra_re: true,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         };
         let mut harness = harness(config);
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
@@ -201,6 +202,7 @@ fn free_play_ends_on_request() {
         series: SeriesLength::Free,
         kontra_re: false,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     };
     let mut harness = harness(config);
     let mut rng = ChaCha8Rng::seed_from_u64(3);
@@ -223,6 +225,7 @@ fn language_and_faces_switch_without_touching_the_game() {
         series: SeriesLength::Fixed(36),
         kontra_re: true,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     };
     let mut harness = harness(config);
     settle(&mut harness);
@@ -262,6 +265,7 @@ fn rejected_commands_show_translated_errors() {
             series: SeriesLength::Fixed(1),
             kontra_re: false,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         };
         let mut harness = harness(config);
         // Bid until the human is declarer or out.
@@ -376,6 +380,7 @@ fn every_decision_and_variant_is_clickable() {
             series: SeriesLength::Fixed(6),
             kontra_re: true,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         };
         let mut harness = harness(config);
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
@@ -467,6 +472,7 @@ fn table_shows_phase_turn_announcements_tricks_and_sheet() {
         series: SeriesLength::Fixed(3),
         kontra_re: true,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     };
     let mut harness = harness(config);
     settle(&mut harness);
@@ -556,6 +562,7 @@ fn trick_cards_lie_on_the_side_of_their_player() {
         series: SeriesLength::Fixed(2),
         kontra_re: true,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     };
     let mut harness = harness(config);
     // Simulated time (0.25 s per frame): opponents wait 2 s after the human's
@@ -606,6 +613,7 @@ fn ouvert_kontra_round() -> (SessionConfig, Vec<Command>) {
             series: SeriesLength::Fixed(36),
             kontra_re: true,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         };
         let mut session = Session::new(config);
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
@@ -673,6 +681,7 @@ fn opponent_levels_are_chosen_per_opponent() {
         series: SeriesLength::Fixed(36),
         kontra_re: false,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     };
     let mut harness = harness(config);
     let name = |level: Level| match level {
@@ -779,6 +788,7 @@ fn seed_is_shown_and_set_only_with_the_developer_option() {
         series: SeriesLength::Fixed(36),
         kontra_re: true,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     };
     let mut harness = harness(config);
     let seed_input = "Startwert (Seed):";
@@ -841,6 +851,7 @@ fn launch_shows_the_new_series_settings() {
         series: SeriesLength::Fixed(12),
         kontra_re: false,
         opponents: Opponents::Levels([Level::Rookie, Level::Easy]),
+        ..SessionConfig::default()
     };
     // A deal in which an opponent decides first.
     let seed = (0..100)
@@ -921,6 +932,7 @@ fn coach_explains_on_request_in_both_languages_with_or_without_figures() {
         series: SeriesLength::Fixed(36),
         kontra_re: true,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     };
     let mut harness = harness(config);
     harness.state_mut().set_coach_budget(COACH_BUDGET);
@@ -1048,6 +1060,7 @@ fn coach_levels_are_set_in_the_settings_menu() {
         series: SeriesLength::Fixed(36),
         kontra_re: true,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     };
     let mut harness = harness(config);
     let levels = [
@@ -1119,6 +1132,7 @@ fn every_move_shows_lessons_or_a_compact_status_and_can_be_hidden() {
         series: SeriesLength::Fixed(36),
         kontra_re: true,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     };
     let mut harness = harness(config);
     harness.state_mut().set_coach_budget(COACH_BUDGET);
@@ -1171,6 +1185,7 @@ fn debriefing_details_open_and_close_without_touching_the_game() {
         series: SeriesLength::Fixed(36),
         kontra_re: true,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     };
     let mut harness = harness(config);
     harness.state_mut().set_coach_budget(COACH_BUDGET);
@@ -1330,6 +1345,7 @@ fn warning_before_a_weak_card_by_clicks() {
             series: SeriesLength::Fixed(2),
             kontra_re: false,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         };
         let mut harness = harness(config);
         harness.state_mut().set_coach_budget(COACH_BUDGET);
@@ -1406,6 +1422,7 @@ fn window_stays_responsive_while_the_coach_analyses() {
         series: SeriesLength::Fixed(36),
         kontra_re: false,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     };
     let mut harness = harness(config);
     harness.state_mut().set_coach(CoachSettings {
@@ -1475,6 +1492,7 @@ fn counting_aid_and_quiz_work_by_clicks_in_both_languages() {
             series: SeriesLength::Fixed(12),
             kontra_re: false,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         };
         let mut harness = harness(config);
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
@@ -1576,6 +1594,7 @@ fn coach_help_waits_while_a_counting_question_is_open() {
             series: SeriesLength::Fixed(12),
             kontra_re: false,
             opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
         };
         let mut harness = harness(config);
         harness.state_mut().set_coach_budget(COACH_BUDGET);
@@ -1608,6 +1627,7 @@ fn focused_retrieval_help_and_levels_work_in_both_languages() {
             series: SeriesLength::Fixed(12),
             opponents: Opponents::Levels([Level::Easy; 2]),
             kontra_re: false,
+            ..SessionConfig::default()
         });
         let mut rng = ChaCha8Rng::seed_from_u64(1);
         // Exercise the German menu and each explicit level through actual clicks.
@@ -1694,6 +1714,7 @@ fn a_completed_game_can_be_selected_saved_and_reopened_after_next_game() {
         series: SeriesLength::Fixed(3),
         kontra_re: false,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     });
     let mut rng = ChaCha8Rng::seed_from_u64(21);
     for _ in 0..200 {

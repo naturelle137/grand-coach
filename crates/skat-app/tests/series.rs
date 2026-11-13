@@ -19,6 +19,7 @@ fn config(seed: u64, series: SeriesLength, kontra_re: bool) -> SessionConfig {
         series,
         kontra_re,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     }
 }
 

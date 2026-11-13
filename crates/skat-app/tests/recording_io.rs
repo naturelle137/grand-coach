@@ -67,6 +67,7 @@ fn local_files_survive_restart_with_identical_states_events_and_visibility() {
         series: SeriesLength::Fixed(2),
         kontra_re: false,
         opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
     });
     let current = session.export_current_recording_privileged().unwrap();
     current.save_local_new(temp.file("current")).unwrap();

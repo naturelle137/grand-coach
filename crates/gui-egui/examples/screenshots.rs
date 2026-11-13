@@ -909,6 +909,7 @@ fn harness(launch: bool, seed: u64, opponents: Opponents) -> Harness<'static, Gr
         series: SeriesLength::Fixed(2),
         kontra_re: true,
         opponents,
+        ..SessionConfig::default()
     };
     let mut harness = Harness::builder()
         .with_size(SIZE)
