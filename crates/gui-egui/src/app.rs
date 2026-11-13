@@ -1572,9 +1572,12 @@ impl GrandCoachApp {
                     );
                 }
                 ui.vertical(|ui| {
-                    let mut title = RichText::new(self.player(player))
-                        .heading()
-                        .color(style::ON_TABLE);
+                    let mut title = RichText::new(self.player(player)).color(style::ON_TABLE);
+                    title = if compact {
+                        title.strong()
+                    } else {
+                        title.heading()
+                    };
                     if acting {
                         title = title.underline().color(style::ON_TABLE_ACCENT);
                     }
@@ -1951,7 +1954,8 @@ impl GrandCoachApp {
         // so every card stays reachable in a small window (issue #134).
         let gap = 4.0;
         let n = view.hand.len().max(1) as f32;
-        // Each card is a button: its padding and frame add to the width.
+        // Each card is a button: a slim padding and the frame add to it.
+        ui.spacing_mut().button_padding = Vec2::splat(2.0);
         let frame = 2.0 * ui.spacing().button_padding.x + 2.0;
         let fit = (ui.available_width() - n * frame - gap * (n - 1.0)) / n;
         let widest = if compact(ui.ctx()) {
@@ -2068,6 +2072,9 @@ impl GrandCoachApp {
             )
             .on_hover_text(player);
         }
+        // `put` leaves the cursor after the last card placed; whatever
+        // follows (the result) goes below the whole triangle.
+        ui.advance_cursor_after_rect(area);
     }
 
     fn card_image(&self, ui: &mut egui::Ui, card: Card, size: Vec2) -> egui::Response {
@@ -2421,11 +2428,13 @@ impl eframe::App for GrandCoachApp {
                 egui::Panel::right("side")
                     .default_size(230.0)
                     .min_size(200.0)
+                    .max_size(250.0)
                     .show(ui, |ui| self.side_panel(ui, &view));
                 if coach {
                     egui::Panel::left("coach")
                         .default_size(240.0)
                         .min_size(200.0)
+                        .max_size(260.0)
                         .show(ui, |ui| self.coach_panel(ui, &view, now));
                 }
             }
