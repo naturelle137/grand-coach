@@ -11,9 +11,9 @@ use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
 use skat_app::coach_model::Judgement;
 use skat_app::{
-    Action, Advice, Announcement, Budget, Card, CoachLevel, CoachSettings, Command, Debriefing,
-    GameType, Level, Opponents, Pending, Phase, PlayedCard, PlayerId, SeriesLength, Session,
-    SessionConfig, Suit, TableView,
+    Action, Advice, Announcement, Budget, Card, CoachBasis, CoachLevel, CoachSettings, Command,
+    Debriefing, GameType, Level, Opponents, Pending, Phase, PlayedCard, PlayerId, SeriesLength,
+    Session, SessionConfig, Suit, TableDisplay, TableView,
 };
 
 const TABLE_GREEN: egui::Color32 = egui::Color32::from_rgb(34, 102, 58);
@@ -1775,4 +1775,117 @@ fn a_completed_game_can_be_selected_saved_and_reopened_after_next_game() {
     button(&mut h, "Aufnahme schließen");
     assert_eq!(view(&h), before);
     std::fs::remove_dir_all(directory).unwrap();
+}
+
+/// Open display (D-68) chosen in the "new series" dialog by clicks, in both
+/// languages: every hand and the Skat are shown on the ordinary table, the
+/// opponents stay as selected and decide from their own views, the coach is
+/// labelled with its closed-view basis, and God Mode stays distinct.
+#[test]
+fn open_display_is_chosen_and_played_by_clicks_in_both_languages() {
+    let config = SessionConfig {
+        seed: 1,
+        series: SeriesLength::Fixed(36),
+        kontra_re: true,
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
+    };
+    let mut harness = harness(config);
+    assert!(
+        harness
+            .query_by_label("Offene Anzeige: alle Karten")
+            .is_none()
+    );
+    button(&mut harness, "Spiel");
+    button(&mut harness, "Neue Serie …");
+    click(
+        &mut harness,
+        Role::CheckBox,
+        "Offene Anzeige: alle Hände und den Skat zeigen",
+    );
+    button(&mut harness, "Starten");
+    let start = view(&harness);
+    // No silent engine switch: the same opponents and table.
+    assert_eq!(start.config.display, TableDisplay::Open);
+    assert_eq!(start.config.opponents, Opponents::Levels([Level::Easy; 2]));
+    assert_eq!(start.config.seed, 2);
+    assert_eq!(start.coach_basis, CoachBasis::OwnView);
+    assert_eq!(harness.state().back(), "back.svg");
+    assert_eq!(harness.state().table_color(), TABLE_GREEN);
+    assert!(start.open_cards.is_some());
+    harness.get_by_label("Gegner: Leicht (links), Leicht (rechts)");
+    harness.get_by_label("Offene Anzeige: alle Karten");
+    harness.get_by_label("Coach: nur deine Karten");
+    harness.get_by_role_and_label(Role::CheckBox, "Alle Karten sehen");
+    // Ordinary play by clicks: the opponents and the coach never see every
+    // card, and the display keeps matching the real hands.
+    let mut rng = ChaCha8Rng::seed_from_u64(5);
+    let mut human_actions = 0;
+    while human_actions < 8 {
+        settle(&mut harness);
+        let session = harness.state().session();
+        assert!(session.opponent_job().is_none_or(|j| !j.sees_all_cards()));
+        assert!(session.coach_job().is_none_or(|j| !j.sees_all_cards()));
+        let view = view(&harness);
+        let open = view.open_cards.as_ref().expect("open display");
+        assert_eq!(open.hands[0], view.hand);
+        for p in PlayerId::ALL {
+            assert_eq!(
+                open.hands[p.index()].len(),
+                usize::from(view.players[p.index()].cards)
+            );
+        }
+        if view.acting == Some(PlayerId::HUMAN) {
+            human_turn(&mut harness, &mut rng);
+            human_actions += 1;
+        } else if view.acting.is_none() {
+            button(&mut harness, "Nächstes Spiel");
+        }
+    }
+    let progressed = view(&harness);
+    assert!(progressed.game_number > 1 || progressed.phase != Phase::Reizen);
+    // The coach panel names its closed-view basis while the table is open.
+    assert!(
+        harness
+            .query_by_label_contains("doch der Coach urteilt nur aus dem")
+            .is_some(),
+        "closed-view coach label"
+    );
+    // English.
+    harness.state_mut().set_language(Language::En);
+    harness.run_steps(4);
+    harness.get_by_label("Open display: all cards");
+    harness.get_by_label("Coach: your cards only");
+    assert!(
+        harness
+            .query_by_label_contains("but the coach judges only from what you could know")
+            .is_some()
+    );
+    // God Mode always shows every card; its coach uses the real deal and is
+    // labelled so. The open-display box is checked and disabled there.
+    button(&mut harness, "Game");
+    button(&mut harness, "New series …");
+    click(&mut harness, Role::RadioButton, "God Mode");
+    let open_box =
+        harness.get_by_role_and_label(Role::CheckBox, "Open display: show all hands and the Skat");
+    let node = open_box.accesskit_node();
+    assert!(node.is_disabled());
+    assert_eq!(node.toggled(), Some(egui::accesskit::Toggled::True));
+    harness.get_by_label("God Mode always shows every card.");
+    button(&mut harness, "Start");
+    let god = view(&harness);
+    assert_eq!(god.config.opponents, Opponents::GodMode);
+    assert_eq!(god.coach_basis, CoachBasis::RealDeal);
+    assert!(god.open_cards.is_some());
+    harness.get_by_label("Coach: all cards (God Mode)");
+    assert!(harness.query_by_label("Open display: all cards").is_none());
+    // Back to single levels: a closed table again unless chosen.
+    button(&mut harness, "Game");
+    button(&mut harness, "New series …");
+    click(&mut harness, Role::RadioButton, "Choose each opponent");
+    button(&mut harness, "Start");
+    let closed = view(&harness);
+    assert_eq!(closed.config.display, TableDisplay::Closed);
+    assert_eq!(closed.open_cards, None);
+    assert!(harness.query_by_label("Coach: your cards only").is_none());
 }
