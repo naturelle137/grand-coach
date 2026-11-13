@@ -176,6 +176,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
       - run: cargo run --locked -p gui-egui --example screenshots -- screenshots
         shell: bash
+      - name: Hash each screenshot
+        shell: bash
+        run: python3 -c "import hashlib,pathlib; p=pathlib.Path('screenshots'); (p/'SHA256SUMS').write_text(''.join(hashlib.sha256(f.read_bytes()).hexdigest()+'  '+f.name+'\n' for f in sorted(p.glob('*.png'))), encoding='utf-8')"
       - uses: actions/upload-artifact@v4
         with:
           name: screenshots-${{ runner.os }}

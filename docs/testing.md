@@ -421,3 +421,21 @@ changes, automated fixtures establish the tested facts. Missing target-platform
 evidence remains pending. The maintainer's
 [learner sessions](coach-validation.md) assess comprehension and unaided
 transfer. Manual validation takes place at release time (D-61).
+
+### Catalogue focus sessions (D-73)
+
+`skat-app/tests/focus.rs` exercises independently specified count/judgement
+responses across all four families, answer-before-feedback, the possible/certain
+counterexample, boundaries, unsupported counts, unknown IDs/revisions, durable
+unanswered exposure, retries, sticky assistance, deduplication, reset and lossless
+formats 1/2/3 migration. The original catalogue oracle and hidden-substitution
+witness tests remain unchanged. `gui-egui/tests/focus.rs` exercises the actual
+German/English widgets through answer/help/skip/retry/next/exit and restart;
+compares live game and recording before/after, and preserves corrupt/newer files.
+
+Screenshot scenarios `focus-count`, `focus-changed`, `focus-help`,
+`focus-mechanism`, `focus-feedback`, `focus-boundary`, `focus-practice` (and
+`-en`) and `focus-void(-en)-narrow` show the actual session states. The existing
+Linux/Windows screenshot CI renders them and records individual PNG SHA-256
+hashes alongside the gallery. These are technical checks; Windows 11 interactive
+acceptance, learner observations and release publication remain separate.

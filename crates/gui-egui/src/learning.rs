@@ -67,9 +67,13 @@ impl LearningUi {
         self.set_aside = None;
         match LearningHistory::open_local(&path) {
             Ok(history) => self.history = history,
-            Err(LearningFileError::Missing) => self.history = LearningHistory::new(),
+            Err(LearningFileError::Missing) => {
+                self.history = LearningHistory::new();
+                self.history.invalidate_exposure();
+            }
             Err(error) => {
                 self.history = LearningHistory::new();
+                self.history.invalidate_exposure();
                 self.damaged = Some(error);
             }
         }
@@ -78,6 +82,59 @@ impl LearningUi {
 
     pub(crate) fn history(&self) -> &LearningHistory {
         &self.history
+    }
+
+    fn persistent(&self) -> bool {
+        self.path.is_some() && self.damaged.is_none() && self.save_error.is_none()
+    }
+
+    pub(crate) fn start_focus(
+        &mut self,
+        family: skat_app::practice_catalogue::PracticeFamily,
+        assistance: skat_app::AssistanceLevel,
+    ) -> Option<skat_app::TrainingSession> {
+        let reliable = self.persistent();
+        let mut session =
+            skat_app::TrainingSession::catalogue(family, assistance, &mut self.history, reliable)
+                .ok()?;
+        self.save();
+        if !self.persistent() {
+            session.withhold_focus_credit(&mut self.history);
+        }
+        if self.save_error.is_some() {
+            return None;
+        }
+        Some(session)
+    }
+
+    pub(crate) fn run_focus(
+        &mut self,
+        session: &mut skat_app::TrainingSession,
+        command: skat_app::FocusCommand,
+    ) -> bool {
+        let previous = session.clone();
+        let prior_attempt = session.focus_view().map(|v| v.entry.attempt);
+        let reliable = self.persistent();
+        if session
+            .execute_focus(command, &mut self.history, reliable)
+            .is_err()
+        {
+            return false;
+        }
+        self.save();
+        if !self.persistent() {
+            session.withhold_focus_credit(&mut self.history);
+        }
+        if self.save_error.is_some()
+            && session.focus_view().map(|v| v.entry.attempt) != prior_attempt
+        {
+            // Never expose a new position after a failed durable write: the old
+            // file could otherwise label that unseen after an app restart.
+            *session = previous;
+            session.withhold_focus_credit(&mut self.history);
+            return false;
+        }
+        true
     }
 
     pub(crate) fn path(&self) -> Option<&Path> {
@@ -173,6 +230,50 @@ impl LearningUi {
                     self.storage(ui, i);
                     ui.separator();
                     self.overview(ui, i);
+                    ui.separator();
+                    ui.label(RichText::new(i.t("focus-history")).strong());
+                    ui.label(i.t("focus-limits"));
+                    for entry in self.history.focus_entries().iter().filter(|e| {
+                        matches!(
+                            e.action,
+                            skat_app::FocusAction::Answer { .. } | skat_app::FocusAction::Skip(_)
+                        )
+                    }) {
+                        let result = match entry.correct() {
+                            Some(true) => "focus-correct",
+                            Some(false) => "focus-incorrect",
+                            None => "focus-unscored",
+                        };
+                        ui.label(
+                            i.tf(
+                                "focus-history-row",
+                                &[
+                                    ("attempt", entry.attempt.0.to_string().into()),
+                                    ("task", entry.task.id.clone().into()),
+                                    ("version", entry.task.version.into()),
+                                    ("result", i.t(result).into()),
+                                    (
+                                        "support",
+                                        i.t(if entry.assisted {
+                                            "training-was-assisted"
+                                        } else {
+                                            "focus-unaided"
+                                        })
+                                        .into(),
+                                    ),
+                                    (
+                                        "exposure",
+                                        i.t(if entry.unseen_correct() {
+                                            "focus-unseen-correct"
+                                        } else {
+                                            "focus-practice"
+                                        })
+                                        .into(),
+                                    ),
+                                ],
+                            ),
+                        );
+                    }
                     ui.separator();
                     self.reset_controls(ui, i);
                     ui.separator();

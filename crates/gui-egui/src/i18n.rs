@@ -383,6 +383,11 @@ mod tests {
                     "high",
                     "window",
                     "family",
+                    "trumping",
+                    "task",
+                    "result",
+                    "support",
+                    "exposure",
                 ] {
                     args.set(name, "x");
                 }

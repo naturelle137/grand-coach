@@ -622,7 +622,7 @@ fn training_attempts_persist_apart_from_series_and_practice_without_duplicates()
     let path = dir.join("learning-history.json");
     history.save_local(&path).unwrap();
     let saved: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    assert_eq!(saved["format"], 3);
+    assert_eq!(saved["format"], skat_app::LEARNING_FORMAT);
     let text = fs::read_to_string(&path).unwrap();
     assert!(text.contains("TrumpfDeclarerFarbspiel"), "{text}");
     let reopened = LearningHistory::open_local(&path).unwrap();
@@ -733,7 +733,7 @@ fn a_format_1_file_migrates_without_loss_and_damaged_or_newer_files_stay_unchang
     migrated.save_local(&path).unwrap();
     let saved: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     let old: serde_json::Value = serde_json::from_str(FORMAT_1).unwrap();
-    assert_eq!(saved["format"], 3);
+    assert_eq!(saved["format"], skat_app::LEARNING_FORMAT);
     assert_eq!(saved["events"], old["events"]);
     assert_eq!(saved["next_attempt"], 5);
     assert_eq!(LearningHistory::open_local(&path).unwrap(), migrated);
@@ -748,7 +748,7 @@ fn a_format_1_file_migrates_without_loss_and_damaged_or_newer_files_stay_unchang
     training_kind["attempts"][0]["kind"] =
         serde_json::to_value(AttemptKind::Training { attempt: 1 }).unwrap();
     let mut newer: serde_json::Value = serde_json::from_str(FORMAT_1).unwrap();
-    newer["format"] = 4.into();
+    newer["format"] = (skat_app::LEARNING_FORMAT + 1).into();
     for (n, (value, error)) in [
         (
             with_training,

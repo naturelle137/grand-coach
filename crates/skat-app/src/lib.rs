@@ -118,3 +118,7 @@ pub use skat_core::{
 pub use guided::{
     GuidedAction, GuidedAnswer, GuidedBranch, GuidedEvent, GuidedId, GuidedStep, GuidedView,
 };
+
+pub use training::{
+    FocusAction, FocusAnswer, FocusCommand, FocusEntry, FocusTask, FocusView, focus_expected,
+};

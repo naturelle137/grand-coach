@@ -50,10 +50,16 @@ The current [live coach](coach.md) also provides staged hints, six supported
 lessons, a learning focus and a review of selected decisions. Optional focused
 retrieval asks for exact counts before feedback,
 with explicitly selected or restored help. It records support for the current
-opportunity without claiming mastery. A first focused counting training
-practises these two counts on fixed positions outside a game. A separate
-[twelve-case catalogue](practice-catalogue.md) prepares varied legal positions
-for the planned focus sessions; it is not yet a learner-facing session. The [roadmap](roadmap.md)
+opportunity without claiming mastery. Focused training retains the four original counting fixtures and adds
+catalogue sessions in four families with intro, changed and boundary cases.
+Learners answer counts or bounded mechanism judgements before feedback, can
+request help and return to the unchanged game. The single local history records
+exposure (including unanswered presentations), sticky assistance and supported
+responses. Only an app-local unseen changed case with an unaided response is
+eligible for that descriptive label; missing, migrated, reset or unreadable
+history cannot establish novelty. Exposure outside this app file is unknown;
+these checks establish no learning efficacy or observed human transfer.
+The [roadmap](roadmap.md)
 covers the next steps from guided play to independent practice.
 
 ## Playing environment

@@ -574,7 +574,7 @@ fn format_1_and_2_events_migrate_unversioned_with_unknown_deviation() {
         let old: serde_json::Value = serde_json::from_str(text).unwrap();
         h.save_local(&path).unwrap();
         let saved: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-        assert_eq!(saved["format"], 3);
+        assert_eq!(saved["format"], skat_app::LEARNING_FORMAT);
         assert_eq!(saved["events"], old["events"]);
         assert_eq!(saved["attempts"], old["attempts"]);
         assert_eq!(saved["next_attempt"], old["next_attempt"]);
@@ -622,7 +622,7 @@ fn files_with_impossible_provenance_are_reported_and_kept() {
 
     let h = mixed();
     let good = serde_json::to_value(&h).unwrap();
-    assert_eq!(good["format"], 3);
+    assert_eq!(good["format"], skat_app::LEARNING_FORMAT);
     let mut contradicting = good.clone();
     contradicting["events"][1]["event"]["action"]["Answer"]["expected"] = 4.into();
     let mut changed = good.clone();
@@ -631,7 +631,7 @@ fn files_with_impossible_provenance_are_reported_and_kept() {
     wrong_family["events"][0]["event"]["lesson"] = serde_json::to_value(TRAINING).unwrap();
     wrong_family["events"][1]["event"]["lesson"] = serde_json::to_value(TRAINING).unwrap();
     let mut newer = good.clone();
-    newer["format"] = 4.into();
+    newer["format"] = (skat_app::LEARNING_FORMAT + 1).into();
     // A format 3 file may hold unversioned legacy events.
     let mut legacy = good.clone();
     legacy["events"][0]["event"]

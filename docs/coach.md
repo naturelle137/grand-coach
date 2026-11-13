@@ -138,8 +138,27 @@ one defender position, one Farbspiel and one Grand; the defender void
 position is the moment right after the declarer failed to follow, one card
 after nothing was proven. Null is excluded from the Trumpf topic because it
 has no Trumpf. Fixed positions and repeats are practice, never transfer
-evidence; varied unaided transfer is #50. See
+evidence. See
 [the contract](architecture.md#focused-counting-training-d-71).
+
+### Catalogue focus sessions (D-73)
+
+The same training entry also offers remaining Trumpf, proven voids, side-card
+vulnerability and partner overtaking across the twelve accepted catalogue
+positions. Each family has intro, changed and boundary cases. Learners submit
+an exact count or judge a hypothetical legal card's narrow mechanism as
+possible, certain or absent. Feedback uses shared analysis; question correctness
+is separate from optimal card choice. Before answer or explicit help/skip, no
+answer, counter or preferred plan is shown. Every legal alternative stays valid.
+
+History records exposure before presenting the task, even if the learner exits
+unanswered. Assistance is sticky. A changed case can carry app-local unseen
+eligibility only before its first exposure in complete, available history;
+repeats and uncertain exposure are practice. Missing, migrated, reset, corrupt
+or unsupported histories cannot establish novelty. Atomic-save failure withholds
+new positions. No human efficacy/transfer claim follows. Retry, next, topic choice
+and return reuse the isolated training lifecycle; normal play waits unchanged.
+See [session behaviour and limitations](practice-catalogue.md#session-behaviour-and-conservative-exposure).
 
 ### Learning history (D-70)
 
