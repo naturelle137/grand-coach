@@ -26,7 +26,8 @@ use skat_core::{
 
 use crate::learning::AttemptKind;
 use crate::quiz::{
-    AssistanceLevel, OpportunityId, QuizFeedback, QuizOutcome, RetrievalAction, RetrievalEvent,
+    AssistanceLevel, LessonFamily, OpportunityId, QuizFeedback, QuizOutcome, RetrievalAction,
+    RetrievalEvent,
 };
 use crate::sort::sort_hand;
 
@@ -413,6 +414,7 @@ impl TrainingSession {
             action,
             assistance: self.assistance,
             assisted: self.current.assisted,
+            lesson: Some(LessonFamily::CountingTraining.current()),
         });
     }
 
@@ -453,6 +455,7 @@ impl TrainingSession {
                 RetrievalAction::Answer {
                     given,
                     correct: given == expected,
+                    expected: Some(expected),
                 },
             ),
         };

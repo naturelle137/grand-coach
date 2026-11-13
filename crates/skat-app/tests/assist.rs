@@ -639,10 +639,12 @@ fn focused_support_is_explicit_sticky_and_deduplicated() {
                 0 => RetrievalAction::Answer {
                     given: exact,
                     correct: true,
+                    expected: Some(exact),
                 },
                 1 => RetrievalAction::Answer {
                     given: exact + 1,
                     correct: false,
+                    expected: Some(exact),
                 },
                 2 => RetrievalAction::Skip { disabled: false },
                 _ => RetrievalAction::Skip { disabled: true },
@@ -781,7 +783,8 @@ fn focused_unaided_delayed_responses_use_the_frozen_public_count() {
             r[0].action,
             RetrievalAction::Answer {
                 given,
-                correct: given == exact
+                correct: given == exact,
+                expected: Some(exact)
             }
         );
         assert!(!r[0].assisted);

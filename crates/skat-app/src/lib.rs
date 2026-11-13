@@ -57,17 +57,18 @@ pub use coach::{
 };
 pub use context::DecisionContext;
 pub use learning::{
-    AttemptId, AttemptKind, LEARNING_FORMAT, LEARNING_FORMATS_READ, LIMITED_OBSERVATIONS,
-    LearningAttempt, LearningContext, LearningEntry, LearningError, LearningHistory, LearningRow,
-    LearningSummary, LearningTopic, MAX_LEARNING_ATTEMPTS, MAX_LEARNING_EVENTS, Observations,
-    Recorded, RetrievalCounts,
+    AttemptId, AttemptKind, COMPARISON_WINDOW, CategoryCounts, ContextCount, LEARNING_FORMAT,
+    LEARNING_FORMATS_READ, LIMITED_OBSERVATIONS, LearningAttempt, LearningContext, LearningEntry,
+    LearningError, LearningHistory, LearningRow, LearningSummary, LearningTopic,
+    MAX_LEARNING_ATTEMPTS, MAX_LEARNING_EVENTS, Observations, ProvenanceCount, Recorded,
+    ResponseCategory, ResponseCounts, ResponseWindow, RetrievalCounts, TopicComparison,
 };
 pub use learning_io::{LearningFileError, MAX_LEARNING_BYTES};
 pub use neural::{neural_model, neural_model_available};
 pub use quiz::{
-    AssistSettings, AssistView, AssistanceLevel, CountingState, CountingView, OpportunityId,
-    QUESTION_AFTER_TRICKS, QuestionId, QuizFeedback, QuizOutcome, QuizView, RetrievalAction,
-    RetrievalEvent,
+    AssistSettings, AssistView, AssistanceLevel, CountingState, CountingView, LessonFamily,
+    LessonRevision, OpportunityId, QUESTION_AFTER_TRICKS, QuestionId, QuizFeedback, QuizOutcome,
+    QuizView, RetrievalAction, RetrievalEvent,
 };
 pub use recording::{
     GameRecording, MAX_RECORDING_ACTIONS, PrivilegedRecordingPosition, RECORDING_ENGINE,
