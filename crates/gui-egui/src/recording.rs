@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Detached read-only recording windows. No commands or analysis jobs.
+//! Detached read-only recording windows. No commands or analysis jobs; the
+//! viewer can only request a separate practice attempt from the app.
 
 use eframe::egui::{self, RichText, Vec2};
 use skat_app::{
@@ -35,6 +36,8 @@ pub(crate) struct Replay {
     boundaries: Vec<usize>,
     selected: usize,
     reveal: bool,
+    /// The last practice start was rejected; the viewer stays open.
+    practice_error: bool,
 }
 
 impl RecordingUi {
@@ -58,10 +61,19 @@ impl RecordingUi {
         });
     }
 
-    pub fn windows(&mut self, ctx: &egui::Context, i: &I18n, deck: Deck) {
-        self.replay_window(ctx, i, deck);
+    /// Draws the windows. Returns the recording of a requested practice
+    /// start ([`skat_app::Session::start_practice`] validates it again);
+    /// `can_practice` is `false` while an attempt is running.
+    pub fn windows(
+        &mut self,
+        ctx: &egui::Context,
+        i: &I18n,
+        deck: Deck,
+        can_practice: bool,
+    ) -> Option<GameRecording> {
+        let practice = self.replay_window(ctx, i, deck, can_practice);
         let Some(mut dialog) = self.dialog.take() else {
-            return;
+            return practice;
         };
         let mut open = true;
         let mut done = false;
@@ -129,6 +141,7 @@ impl RecordingUi {
                                     boundaries,
                                     selected,
                                     reveal: false,
+                                    practice_error: false,
                                 });
                             })
                         };
@@ -145,14 +158,33 @@ impl RecordingUi {
         if open && !done {
             self.dialog = Some(dialog);
         }
+        practice
     }
 
-    fn replay_window(&mut self, ctx: &egui::Context, i: &I18n, deck: Deck) {
-        let Some(replay) = &mut self.replay else {
-            return;
-        };
+    /// A requested practice start was rejected: keep the viewer and say so.
+    pub fn practice_failed(&mut self) {
+        if let Some(replay) = &mut self.replay {
+            replay.practice_error = true;
+        }
+    }
+
+    /// Closes every recording window (a practice attempt has started).
+    pub fn close(&mut self) {
+        self.dialog = None;
+        self.replay = None;
+    }
+
+    fn replay_window(
+        &mut self,
+        ctx: &egui::Context,
+        i: &I18n,
+        deck: Deck,
+        can_practice: bool,
+    ) -> Option<GameRecording> {
+        let replay = self.replay.as_mut()?;
         let mut open = true;
         let mut close = false;
+        let mut practice = None;
         egui::Window::new(i.t("record-title"))
             .id(egui::Id::unique("record_view"))
             .open(&mut open)
@@ -179,6 +211,25 @@ impl RecordingUi {
                     RecordingEnd::Eingepasst => "record-all-pass",
                     RecordingEnd::Finished(_) => "record-finished",
                 }));
+                ui.label(i.t("record-practice-help"));
+                if replay.practice_error {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(200, 40, 40),
+                        i.t("record-practice-error"),
+                    );
+                }
+                ui.horizontal(|ui| {
+                    let start = ui
+                        .add_enabled(
+                            can_practice,
+                            egui::Button::new(RichText::new(i.t("record-practice-start")).strong()),
+                        )
+                        .on_disabled_hover_text(i.t("record-practice-unavailable"));
+                    if start.clicked() {
+                        practice = Some(replay.recording.clone());
+                    }
+                });
+                ui.separator();
                 ui.horizontal(|ui| {
                     let last = replay.boundaries.len() - 1;
                     let mut next = replay.selected;
@@ -291,6 +342,7 @@ impl RecordingUi {
         if !open || close {
             self.replay = None;
         }
+        practice
     }
 }
 

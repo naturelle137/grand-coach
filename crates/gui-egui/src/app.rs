@@ -8,9 +8,9 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 
 use skat_app::{
     Action, Advice, Announcement, AppError, AppEvent, AssistSettings, Cancel, Card, CardSet,
-    CoachJob, CoachLevel, CoachResult, CoachSettings, Command, CountingState, Event, GameType,
-    Level, OpenCards, OpponentMove, Opponents, Pending, Phase, PlayedCard, PlayerId, SeriesLength,
-    Session, SessionConfig, Suit, TableView, reizwerte,
+    CoachJob, CoachLevel, CoachResult, CoachSettings, Command, CountingState, Event, GameRecording,
+    GameType, Level, OpenCards, OpponentMove, Opponents, Pending, Phase, PlayedCard, PlayerId,
+    SeriesLength, Session, SessionConfig, Suit, TableView, reizwerte,
 };
 
 use skat_app::coach_model::{Concept, Stage};
@@ -102,6 +102,42 @@ impl Drop for CoachThinking {
     }
 }
 
+/// Most attempts per entered practice before the learner must return
+/// (bounds repeated starts and their cancelled background work).
+pub const MAX_PRACTICE_ATTEMPTS: u32 = 50;
+
+/// The table state of one session: the session and everything the window
+/// keeps for it, including its outstanding background work.
+struct Parked {
+    session: Session,
+    selected: CardSet,
+    draft: Announcement,
+    jump_bid: Option<u16>,
+    error: Option<AppError>,
+    next_move_at: f64,
+    thinking: Option<Thinking>,
+    ready: Option<OpponentMove>,
+    show_trick_until: f64,
+    new_series: Option<NewSeries>,
+    coach_thinking: Option<CoachThinking>,
+    quiz_value: u8,
+}
+
+/// A running practice attempt (M7): the live series waits, untouched and
+/// with its outstanding opponent and coach work, until the learner returns.
+struct Practice {
+    live: Parked,
+    source: GameRecording,
+    attempt: u32,
+}
+
+/// Practice lifecycle request from this frame, applied after drawing.
+enum PracticeRequest {
+    Start(GameRecording),
+    Restart,
+    Return,
+}
+
 /// The Grand-Coach window.
 pub struct GrandCoachApp {
     session: Session,
@@ -135,6 +171,10 @@ pub struct GrandCoachApp {
     /// God Mode: show every card face up (on by default); off, the
     /// opponents' cards and the Skat show their backs.
     see_all: bool,
+    /// The isolated practice attempt, if one runs; `session` is then the
+    /// practice session and the live table waits inside.
+    practice: Option<Practice>,
+    practice_request: Option<PracticeRequest>,
 }
 
 impl GrandCoachApp {
@@ -160,7 +200,157 @@ impl GrandCoachApp {
             coach_thinking: None,
             quiz_value: 0,
             see_all: true,
+            practice: None,
+            practice_request: None,
         }
+    }
+
+    /// Whether a practice attempt is running.
+    pub fn practicing(&self) -> bool {
+        self.practice.is_some()
+    }
+
+    /// The live series, also while a practice attempt runs (read-only, for
+    /// tests and diagnostics).
+    pub fn live_session(&self) -> &Session {
+        self.practice
+            .as_ref()
+            .map_or(&self.session, |p| &p.live.session)
+    }
+
+    /// Number of the running practice attempt, from 1.
+    pub fn practice_attempt(&self) -> Option<u32> {
+        self.practice.as_ref().map(|p| p.attempt)
+    }
+
+    /// Installs `session` with a fresh table state and returns the previous
+    /// one, including its background work (kept running, not polled).
+    fn park(&mut self, session: Session) -> Parked {
+        use std::mem::replace;
+        Parked {
+            session: replace(&mut self.session, session),
+            selected: replace(&mut self.selected, CardSet::EMPTY),
+            draft: replace(&mut self.draft, Announcement::plain(GameType::Grand)),
+            jump_bid: self.jump_bid.take(),
+            error: self.error.take(),
+            next_move_at: replace(&mut self.next_move_at, 0.0),
+            thinking: self.thinking.take(),
+            ready: self.ready.take(),
+            show_trick_until: replace(&mut self.show_trick_until, 0.0),
+            new_series: self.new_series.take(),
+            coach_thinking: self.coach_thinking.take(),
+            quiz_value: replace(&mut self.quiz_value, 0),
+        }
+    }
+
+    /// Restores a parked table state; the replaced one is dropped, which
+    /// cancels its background work and disconnects its channels.
+    fn unpark(&mut self, parked: Parked) {
+        let current = self.park(parked.session);
+        self.selected = parked.selected;
+        self.draft = parked.draft;
+        self.jump_bid = parked.jump_bid;
+        self.error = parked.error;
+        self.next_move_at = parked.next_move_at;
+        self.thinking = parked.thinking;
+        self.ready = parked.ready;
+        self.show_trick_until = parked.show_trick_until;
+        self.new_series = parked.new_series;
+        self.coach_thinking = parked.coach_thinking;
+        self.quiz_value = parked.quiz_value;
+        drop(current);
+    }
+
+    /// Starts a practice attempt of `recording` before bidding. The whole
+    /// recording is validated first; the live session is only parked, never
+    /// changed, and a rejected recording leaves everything as it was.
+    fn start_practice(&mut self, recording: GameRecording) -> Result<(), skat_app::RecordingError> {
+        if self.practice.is_some() {
+            return Ok(());
+        }
+        let session = self.session.start_practice(&recording)?;
+        let live = self.park(session);
+        self.practice = Some(Practice {
+            live,
+            source: recording,
+            attempt: 1,
+        });
+        self.recording.close();
+        Ok(())
+    }
+
+    /// A fresh attempt of the same deal; the previous attempt and its
+    /// background work are dropped. Keeps the practice's own settings.
+    fn restart_practice(&mut self) {
+        let Some(practice) = &self.practice else {
+            return;
+        };
+        if practice.attempt >= MAX_PRACTICE_ATTEMPTS {
+            return;
+        }
+        let session = self
+            .session
+            .start_practice(&practice.source)
+            .expect("validated when the practice started");
+        drop(self.park(session));
+        if let Some(practice) = &mut self.practice {
+            practice.attempt += 1;
+        }
+    }
+
+    /// Ends the attempt (finished or not) and returns to the live series
+    /// exactly as it was left.
+    fn return_to_series(&mut self) {
+        if let Some(practice) = self.practice.take() {
+            self.unpark(practice.live);
+        }
+    }
+
+    fn apply_practice_request(&mut self) {
+        match self.practice_request.take() {
+            Some(PracticeRequest::Start(recording)) => {
+                if self.start_practice(recording).is_err() {
+                    self.recording.practice_failed();
+                }
+            }
+            Some(PracticeRequest::Restart) => self.restart_practice(),
+            Some(PracticeRequest::Return) => self.return_to_series(),
+            None => {}
+        }
+    }
+
+    /// The practice banner with its lifecycle controls.
+    fn practice_bar(&mut self, ui: &mut egui::Ui, view: &TableView) {
+        let Some(practice) = &self.practice else {
+            return;
+        };
+        let attempt = practice.attempt;
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                RichText::new(self.i18n.tf(
+                    "practice-banner",
+                    &[
+                        ("number", view.game_number.into()),
+                        ("attempt", attempt.into()),
+                    ],
+                ))
+                .color(Color32::from_rgb(140, 70, 0))
+                .strong(),
+            );
+            ui.label(self.t("practice-isolation"));
+            ui.separator();
+            if ui.button(self.t("practice-return")).clicked() {
+                self.practice_request = Some(PracticeRequest::Return);
+            }
+            let more = attempt < MAX_PRACTICE_ATTEMPTS;
+            if ui
+                .add_enabled(more, egui::Button::new(self.t("practice-restart")))
+                .on_disabled_hover_text(self.t("practice-limit"))
+                .clicked()
+            {
+                self.practice_request = Some(PracticeRequest::Restart);
+            }
+        });
     }
 
     /// Sets the work budget of coach analyses (tests; default interactive).
@@ -381,16 +571,24 @@ impl GrandCoachApp {
     fn menu_bar(&mut self, ui: &mut egui::Ui, view: &TableView, now: f64) {
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button(self.t("menu-game"), |ui| {
-                if ui.button(self.t("record-save")).clicked() {
+                // A practice attempt has nothing to save and starts nothing.
+                let live = self.practice.is_none();
+                if ui
+                    .add_enabled(live, egui::Button::new(self.t("record-save")))
+                    .clicked()
+                {
                     self.recording.show_dialog(true, &self.session);
                     ui.close();
                 }
-                if ui.button(self.t("record-open")).clicked() {
+                if ui
+                    .add_enabled(live, egui::Button::new(self.t("record-open")))
+                    .clicked()
+                {
                     self.recording.show_dialog(false, &self.session);
                     ui.close();
                 }
                 ui.separator();
-                ui.add_enabled_ui(!self.recording.active(), |ui| {
+                ui.add_enabled_ui(live && !self.recording.active(), |ui| {
                     if ui.button(self.t("menu-new-series")).clicked() {
                         self.open_new_series();
                         ui.close();
@@ -967,6 +1165,10 @@ impl GrandCoachApp {
         self.aid_section(ui, view);
         ui.separator();
         ui.heading(self.t("sheet-title"));
+        if view.practice {
+            ui.label(self.t("practice-not-scored"));
+            return;
+        }
         egui::ScrollArea::vertical()
             .stick_to_bottom(true)
             .show(ui, |ui| {
@@ -1185,6 +1387,11 @@ impl GrandCoachApp {
                 if ui.button(self.t("menu-new-series")).clicked() {
                     self.open_new_series();
                 }
+                return;
+            }
+            if view.practice && view.acting.is_none() {
+                // Return or a new attempt: in the practice bar above.
+                ui.label(RichText::new(self.t("practice-finished")).strong());
                 return;
             }
             if view.acting.is_none() {
@@ -1686,6 +1893,13 @@ impl eframe::App for GrandCoachApp {
         let view = self.session.view();
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui, &view, now));
         let blocked = self.recording.active();
+        if self.practice.is_some() {
+            egui::Panel::top("practice")
+                .frame(
+                    egui::Frame::side_top_panel(ui.style()).fill(Color32::from_rgb(255, 236, 200)),
+                )
+                .show(ui, |ui| self.practice_bar(ui, &view));
+        }
         ui.add_enabled_ui(!blocked, |ui| {
             egui::Panel::top("status").show(ui, |ui| self.status(ui, &view));
             egui::Panel::right("side")
@@ -1716,7 +1930,17 @@ impl eframe::App for GrandCoachApp {
             }
         });
         let ctx = ui.ctx().clone();
-        self.recording.windows(&ctx, &self.i18n, self.deck);
+        let can_practice = self.practice.is_none();
+        if let Some(recording) = self
+            .recording
+            .windows(&ctx, &self.i18n, self.deck, can_practice)
+        {
+            self.practice_request = Some(PracticeRequest::Start(recording));
+        }
+        if self.practice_request.is_some() {
+            self.apply_practice_request();
+            ctx.request_repaint();
+        }
         if now < self.show_trick_until {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64(
                 self.show_trick_until - now,
@@ -1840,6 +2064,162 @@ mod tests {
         h.get_by_role_and_label(egui::Role::Button, "Abbrechen")
             .click();
         h.run_steps(4);
+        assert_eq!(h.state().session.view(), control.view());
+    }
+
+    fn easy_series() -> SessionConfig {
+        SessionConfig {
+            seed: 7,
+            series: SeriesLength::Fixed(3),
+            kontra_re: true,
+            opponents: Opponents::Levels([Level::Easy; 2]),
+        }
+    }
+
+    #[test]
+    fn practice_retains_live_opponent_work_and_disconnects_stale_practice_output() {
+        use egui_kittest::{Harness, kittest::Queryable};
+        let (live_sender, live_receiver) = std::sync::mpsc::channel();
+        let live_cancel = Cancel::new();
+        let observed_live = live_cancel.clone();
+        let mut h = Harness::builder()
+            .with_size([1280.0, 820.0])
+            .build_eframe(move |cc| {
+                let mut app = GrandCoachApp::new(&cc.egui_ctx, easy_series());
+                assert!(app.session.opponent_to_move());
+                app.thinking = Some(Thinking {
+                    result: live_receiver,
+                    cancel: live_cancel,
+                });
+                app.next_move_at = 1e9;
+                app.selected = CardSet::EMPTY;
+                app.jump_bid = Some(23);
+                app
+            });
+        let before = h.state().session.view();
+        let mut control = h.state().session.clone();
+        let live_move = control.opponent_job().unwrap().run(None);
+        // Same game and position as the live table: before bidding.
+        let recording = h
+            .state()
+            .session
+            .export_current_recording_privileged()
+            .unwrap();
+        h.state_mut().start_practice(recording).unwrap();
+        assert!(h.state().practicing());
+        assert!(h.state().session.is_practice());
+        assert!(h.state().thinking.is_none() && h.state().jump_bid.is_none());
+        // A practice opponent decision that will be outstanding at return.
+        let (practice_sender, practice_receiver) = std::sync::mpsc::channel();
+        let practice_cancel = Cancel::new();
+        let observed_practice = practice_cancel.clone();
+        let practice_move = h.state().session.opponent_job().unwrap().run(None);
+        h.state_mut().thinking = Some(Thinking {
+            result: practice_receiver,
+            cancel: practice_cancel,
+        });
+        h.state_mut().next_move_at = 1e9;
+        // The live move completes while practising: neither table takes it.
+        live_sender.send(live_move).unwrap();
+        h.run_steps(4);
+        h.get_by_label_contains("ÜBUNG");
+        assert!(h.state().session.is_practice());
+        assert_eq!(
+            h.state_mut().session.finish_opponent(live_move),
+            Err(AppError::StaleOpponentMove)
+        );
+        assert!(!observed_live.is_cancelled());
+        assert_eq!(h.state().live_session().view(), before);
+        h.get_by_role_and_label(egui::Role::Button, "Zurück zur Serie")
+            .click();
+        h.run_steps(2);
+        assert!(!h.state().practicing());
+        // Practice work was cancelled and its channel is gone.
+        assert!(observed_practice.is_cancelled());
+        assert!(practice_sender.send(practice_move).is_err());
+        assert_eq!(
+            h.state_mut().session.finish_opponent(practice_move),
+            Err(AppError::StaleOpponentMove)
+        );
+        assert_eq!(h.state().jump_bid, Some(23));
+        assert_eq!(h.state().session.view(), before);
+        // The retained live move was received (not lost or cancelled first)
+        // and is applied exactly as without practice.
+        assert!(h.state().ready.is_some());
+        let ctx = h.ctx.clone();
+        h.state_mut().drive_opponents(&ctx, 1e9);
+        control.finish_opponent(live_move).unwrap();
+        assert_eq!(h.state().session.view(), control.view());
+    }
+
+    #[test]
+    fn practice_retains_live_coach_analysis_and_restarts_isolate_attempts() {
+        use egui_kittest::{Harness, kittest::Queryable};
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let cancel = Cancel::new();
+        let observed_cancel = cancel.clone();
+        let mut h = Harness::builder()
+            .with_size([1280.0, 820.0])
+            .build_eframe(move |cc| {
+                let mut app = GrandCoachApp::new(&cc.egui_ctx, easy_series());
+                app.session.run_opponents();
+                app.session.set_coach_budget(skat_app::Budget {
+                    samples: 1,
+                    nodes_per_task: 10,
+                });
+                app.session.execute(Command::RequestAdvice).unwrap();
+                let job = app.session.coach_job().expect("requested analysis");
+                app.coach_thinking = Some(CoachThinking {
+                    job,
+                    result: receiver,
+                    cancel,
+                });
+                app.opponent_delay = 0.0;
+                app
+            });
+        let before = h.state().session.view();
+        let job = h.state().coach_thinking.as_ref().unwrap().job.clone();
+        let recording = h
+            .state()
+            .session
+            .export_current_recording_privileged()
+            .unwrap();
+        h.state_mut().start_practice(recording).unwrap();
+        assert_eq!(h.state().practice_attempt(), Some(1));
+        // Practice spawns its own work; the live analysis keeps running.
+        for _ in 0..200 {
+            if !h.state().session.opponent_to_move() {
+                break;
+            }
+            h.run_steps(1);
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert!(!observed_cancel.is_cancelled());
+        let practice_view = h.state().session.view();
+        assert!(practice_view.practice);
+        // A new attempt is fresh: before bidding, attempt 2, settings kept.
+        h.get_by_role_and_label(egui::Role::Button, "Neuer Versuch")
+            .click();
+        h.run_steps(1);
+        assert_eq!(h.state().practice_attempt(), Some(2));
+        assert!(h.state().session.view().bidding.len() <= 1);
+        assert_eq!(h.state().session.coach_settings(), before.coach.settings);
+        // The live result arrives while practising; it is delivered on return.
+        let result = job.run(None);
+        let mut control = h.state().live_session().clone();
+        control.finish_coach(result.clone()).unwrap();
+        sender.send(result.clone()).unwrap();
+        h.run_steps(2);
+        assert_eq!(
+            h.state_mut().session.finish_coach(result),
+            Err(AppError::StaleCoachResult)
+        );
+        assert_eq!(h.state().live_session().view(), before);
+        h.get_by_role_and_label(egui::Role::Button, "Zurück zur Serie")
+            .click();
+        h.run_steps(4);
+        // Received and applied: identical to delivering it without practice.
+        assert!(h.state().coach_thinking.is_none());
         assert_eq!(h.state().session.view(), control.view());
     }
 

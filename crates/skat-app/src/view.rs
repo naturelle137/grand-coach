@@ -78,6 +78,9 @@ pub struct TableView {
     pub coach: CoachView,
     /// The optional counting aid and quiz.
     pub assist: AssistView,
+    /// `true` in an isolated practice attempt ([`crate::Session::start_practice`]):
+    /// one unscored game, never part of a series.
+    pub practice: bool,
 }
 
 /// One player at the table.
@@ -195,6 +198,7 @@ pub(crate) fn build_view(
     opponent_to_move: bool,
     view: &PlayerView,
     open_cards: Option<OpenCards>,
+    practice: bool,
     coach: CoachView,
     assist: AssistView,
 ) -> TableView {
@@ -260,11 +264,13 @@ pub(crate) fn build_view(
         sheet: sheet.clone(),
         series_finished,
         series_result: series_finished.then(|| sheet.result()),
-        can_next_game: game_over && !series_finished,
+        can_next_game: game_over && !series_finished && !practice,
         can_end_series: game_over
             && !series_finished
+            && !practice
             && config.series == crate::session::SeriesLength::Free,
         coach,
         assist,
+        practice,
     }
 }

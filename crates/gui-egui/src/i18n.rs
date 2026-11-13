@@ -302,6 +302,7 @@ mod tests {
                     "unplayed",
                     "version",
                     "leader",
+                    "attempt",
                 ] {
                     args.set(name, "x");
                 }

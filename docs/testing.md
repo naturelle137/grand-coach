@@ -219,7 +219,18 @@ fixtures with file round trips, incomplete and all-pass records. Navigation
 boundaries are checked against independently applied core events and seat
 views. GUI checks retain the original score sheet, recording and coach view;
 recording windows cannot apply moves or start analysis. These checks do not
-claim session resumption or same-deal practice.
+claim session resumption.
+
+Practice tests (`skat-app/tests/practice.rs`) start attempts from a real
+late-series game with a non-default dealer, reproduce the recorded game from
+the same human choices (cards, seats, levels and seeds), check Goldfish, God
+Mode, Mephisto and Kontra/Re configuration and visibility, complete and
+abandon attempts with alternative legal choices without changing the live
+view, recordings or saved file bytes, reject stale moves and coach results
+across sessions and attempts, and recover from invalid/unsupported records.
+GUI tests park and deliver pending live opponent and coach work, cancel and
+disconnect practice work, and drive the German and English
+viewer-to-practice-to-return flow through real widgets.
 
 ## Screenshots of the frontend
 
@@ -242,6 +253,10 @@ wgpu adapter and prefers software ones: lavapipe on Linux (Fedora/Ubuntu
   detached viewer or a recoverable corrupt-file error with the prior viewer
   retained. The temporary files belong to each scenario. These headless runs
   do not establish real-window Linux/Windows file-dialog usability.
+- `practice`, `practice-play`, `practice-play-en`, `practice-finished`,
+  `practice-return` and `practice-return-en` start a practice attempt from
+  that viewer, play other legal cards than the original, finish it or return
+  early to the unchanged live series.
 - They support the independent agent review of a frontend change; they do not
   replace looking at the change in a real window.
 

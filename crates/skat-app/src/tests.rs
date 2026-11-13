@@ -119,7 +119,11 @@ mod snapshots {
 
     /// The snapshot of the human's decision `actions` in `game`.
     fn snapshot(game: &Game, actions: usize, action: Action) -> DecisionContext {
-        let key = DecisionKey { number: 1, actions };
+        let key = DecisionKey {
+            lineage: 0,
+            number: 1,
+            actions,
+        };
         DecisionContext::new(key, DEALER, &game.view(HUMAN), action)
     }
 
