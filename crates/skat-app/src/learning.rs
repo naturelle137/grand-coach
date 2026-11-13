@@ -16,23 +16,32 @@
 //! nothing.
 //!
 //! Formats: version 2 adds focused-training attempts and task identities
-//! (D-71). A version 1 file is read and migrated in memory: its counter,
-//! attempts and events are kept exactly; the next save writes version 2.
+//! (D-71). Version 3 adds provenance to new events: the immutable lesson
+//! family and version of each opportunity and, with an answer only, the
+//! exact count it was scored against. Version 1 and 2 files are read and
+//! migrated in memory: counter, attempts, events and their order are kept
+//! exactly, their events stay unversioned and their wrong answers keep an
+//! unknown deviation; the next save writes version 3.
+//!
+//! Response categories ([`ResponseCategory`]) describe only the observed
+//! counting response against the recorded exact count. They never name a
+//! reason, a strategic mistake, mastery or transfer; strategic decision
+//! classification is not part of this history yet.
 
 use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use skat_analysis::counting::QuestionKind;
 
-use crate::quiz::{OpportunityId, RetrievalAction, RetrievalEvent};
+use crate::quiz::{LessonRevision, OpportunityId, RetrievalAction, RetrievalEvent};
 
-/// Format version of the learning history written by this build. Version 1
-/// (series and practice only) is read and migrated; see
-/// [`LEARNING_FORMATS_READ`].
-pub const LEARNING_FORMAT: u32 = 2;
+/// Format version of the learning history written by this build. Versions
+/// 1 (series and practice only) and 2 (without provenance) are read and
+/// migrated; see [`LEARNING_FORMATS_READ`].
+pub const LEARNING_FORMAT: u32 = 3;
 
-/// Format versions this build reads: 1 (migrated on reading) and 2.
-pub const LEARNING_FORMATS_READ: [u32; 2] = [1, LEARNING_FORMAT];
+/// Format versions this build reads: 1 and 2 (migrated on reading) and 3.
+pub const LEARNING_FORMATS_READ: [u32; 3] = [1, 2, LEARNING_FORMAT];
 
 /// Most events one history holds. Further events are refused, never
 /// replacing older ones; [`LearningSummary::full`] reports it.
@@ -44,6 +53,10 @@ pub const MAX_LEARNING_ATTEMPTS: usize = 20_000;
 /// Below this many opportunities the overview states that the observations
 /// are limited.
 pub const LIMITED_OBSERVATIONS: u32 = 20;
+
+/// Settled responses per window of an earlier/recent comparison. A topic
+/// needs twice as many before any comparison is shown.
+pub const COMPARISON_WINDOW: u32 = 10;
 
 /// Identity of one attempt within one history: assigned by
 /// [`LearningHistory::begin_attempt`] from a persisted counter, so it is
@@ -126,6 +139,12 @@ pub enum LearningError {
     /// task outside a training attempt or the other way round), or a
     /// format 1 history contains training content.
     InvalidContext,
+    /// Provenance is missing or inconsistent: a new event without its
+    /// lesson revision or a new answer without its exact count, a lesson
+    /// that does not fit the opportunity or changes within it, an exact
+    /// count that contradicts the recorded score, or provenance in a
+    /// format 1 or 2 history.
+    InvalidProvenance,
     /// The history is full; nothing was recorded.
     Full,
 }
@@ -142,6 +161,9 @@ pub struct LearningHistory {
     /// Deduplication keys of `events`; rebuilt by [`LearningHistory::validate`].
     #[serde(skip)]
     keys: HashSet<EventKey>,
+    /// Lesson revision of each stored opportunity; rebuilt with `keys`.
+    #[serde(skip)]
+    lessons: HashMap<Opportunity, Option<LessonRevision>>,
     /// Events were refused because the history was full (not persisted).
     #[serde(skip)]
     refused: bool,
@@ -175,6 +197,52 @@ impl EventKey {
     }
 }
 
+/// One opportunity of one attempt.
+type Opportunity = (AttemptId, OpportunityId);
+
+/// Checks one event's own provenance: a lesson must fit the opportunity, an
+/// exact count must agree with the score. With `fresh` (newly recorded
+/// events), both must be present.
+fn check_provenance(event: &RetrievalEvent, fresh: bool) -> Result<(), LearningError> {
+    let lesson = match event.lesson {
+        Some(lesson) => lesson.family.issues(&event.id) && lesson.version > 0,
+        None => !fresh,
+    };
+    let expected = match event.action {
+        RetrievalAction::Answer {
+            given,
+            correct,
+            expected: Some(expected),
+        } => correct == (given == expected),
+        RetrievalAction::Answer { expected: None, .. } => !fresh,
+        _ => true,
+    };
+    if lesson && expected {
+        Ok(())
+    } else {
+        Err(LearningError::InvalidProvenance)
+    }
+}
+
+/// Checks that `event` keeps the lesson already known for its opportunity
+/// in `known` or `batch`, and notes it in `batch`.
+fn check_lesson(
+    known: &HashMap<Opportunity, Option<LessonRevision>>,
+    batch: &mut HashMap<Opportunity, Option<LessonRevision>>,
+    attempt: AttemptId,
+    event: &RetrievalEvent,
+) -> Result<(), LearningError> {
+    let key = (attempt, event.id);
+    match known.get(&key).or_else(|| batch.get(&key)) {
+        Some(&lesson) if lesson != event.lesson => Err(LearningError::InvalidProvenance),
+        Some(_) => Ok(()),
+        None => {
+            batch.insert(key, event.lesson);
+            Ok(())
+        }
+    }
+}
+
 /// What [`LearningHistory::record`] did.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Recorded {
@@ -193,6 +261,7 @@ impl LearningHistory {
             attempts: Vec::new(),
             events: Vec::new(),
             keys: HashSet::new(),
+            lessons: HashMap::new(),
             refused: false,
         }
     }
@@ -211,8 +280,9 @@ impl LearningHistory {
 
     /// Records the `events` of `attempt`, skipping those already stored.
     /// Nothing is recorded if the attempt is unknown, an event does not fit
-    /// its kind ([`LearningError::InvalidContext`]) or the new events would
-    /// exceed [`MAX_LEARNING_EVENTS`].
+    /// its kind ([`LearningError::InvalidContext`]), lacks or contradicts
+    /// its provenance ([`LearningError::InvalidProvenance`]) or the new
+    /// events would exceed [`MAX_LEARNING_EVENTS`].
     pub fn record<'a>(
         &mut self,
         attempt: AttemptId,
@@ -229,15 +299,20 @@ impl LearningHistory {
         };
         let mut new = Vec::new();
         let mut seen = HashSet::new();
+        let mut lessons = HashMap::new();
         let mut duplicates = 0;
         for event in events {
             if !kind.admits(&event.id) {
                 return Err(LearningError::InvalidContext);
             }
             let key = EventKey::of(attempt, event);
-            if self.keys.contains(&key) || !seen.insert(key) {
+            if self.keys.contains(&key) || seen.contains(&key) {
+                // Already stored: its stored provenance stays.
                 duplicates += 1;
             } else {
+                check_provenance(event, true)?;
+                check_lesson(&self.lessons, &mut lessons, attempt, event)?;
+                seen.insert(key);
                 new.push(LearningEntry {
                     attempt,
                     event: *event,
@@ -249,6 +324,7 @@ impl LearningHistory {
             return Err(LearningError::Full);
         }
         self.keys.extend(seen);
+        self.lessons.extend(lessons);
         let added = new.len();
         self.events.extend(new);
         Ok(Recorded { added, duplicates })
@@ -260,6 +336,7 @@ impl LearningHistory {
         self.attempts.clear();
         self.events.clear();
         self.keys.clear();
+        self.lessons.clear();
         self.refused = false;
     }
 
@@ -280,11 +357,13 @@ impl LearningHistory {
 
     /// Migrates a decoded history of an older supported format to
     /// [`LEARNING_FORMAT`], checks it and rebuilds its deduplication index.
-    /// Format 1 knows no training: its counter, attempts and events are kept
-    /// exactly, and training content in it is [`LearningError::InvalidContext`].
+    /// Formats 1 and 2 keep their counter, attempts and events exactly and
+    /// stay unversioned: provenance in them is
+    /// [`LearningError::InvalidProvenance`]. Format 1 knows no training:
+    /// training content in it is [`LearningError::InvalidContext`].
     pub(crate) fn validate(&mut self) -> Result<(), LearningError> {
         match self.format {
-            1 => {
+            1 | 2 => {
                 let training = self
                     .attempts
                     .iter()
@@ -293,8 +372,21 @@ impl LearningHistory {
                         .events
                         .iter()
                         .any(|e| matches!(e.event.id, OpportunityId::Training(_)));
-                if training {
+                if self.format == 1 && training {
                     return Err(LearningError::InvalidContext);
+                }
+                let provenance = self.events.iter().any(|e| {
+                    e.event.lesson.is_some()
+                        || matches!(
+                            e.event.action,
+                            RetrievalAction::Answer {
+                                expected: Some(_),
+                                ..
+                            }
+                        )
+                });
+                if provenance {
+                    return Err(LearningError::InvalidProvenance);
                 }
                 self.format = LEARNING_FORMAT;
             }
@@ -313,6 +405,7 @@ impl LearningHistory {
         let kinds: HashMap<AttemptId, AttemptKind> =
             self.attempts.iter().map(|a| (a.id, a.kind)).collect();
         let mut keys = HashSet::new();
+        let mut lessons = HashMap::new();
         for e in &self.events {
             let Some(kind) = kinds.get(&e.attempt) else {
                 return Err(LearningError::UnknownAttempt);
@@ -320,19 +413,28 @@ impl LearningHistory {
             if !kind.admits(&e.event.id) {
                 return Err(LearningError::InvalidContext);
             }
+            check_provenance(&e.event, false)?;
+            check_lesson(&HashMap::new(), &mut lessons, e.attempt, &e.event)?;
             if !keys.insert(EventKey::of(e.attempt, &e.event)) {
                 return Err(LearningError::DuplicateEvent);
             }
         }
         self.keys = keys;
+        self.lessons = lessons;
         self.refused = false;
         Ok(())
     }
 
-    /// Descriptive counts per topic and context.
+    /// Descriptive counts per topic and context, response categories, the
+    /// lesson revisions of the opportunities and earlier/recent
+    /// comparisons in persisted order.
     pub fn summary(&self) -> LearningSummary {
         let mut rows: Vec<LearningRow> = Vec::new();
         let mut totals = RetrievalCounts::default();
+        let mut responses = ResponseCounts::default();
+        let mut provenance: Vec<ProvenanceCount> = Vec::new();
+        let mut settled: Vec<(LearningTopic, AttemptId, LearningContext, &RetrievalEvent)> =
+            Vec::new();
         let mut used = HashSet::new();
         let kinds: HashMap<AttemptId, AttemptKind> =
             self.attempts.iter().map(|a| (a.id, a.kind)).collect();
@@ -353,14 +455,70 @@ impl LearningHistory {
                         topic,
                         context,
                         counts: RetrievalCounts::default(),
+                        responses: ResponseCounts::default(),
                     });
                     rows.last_mut().expect("just pushed")
                 }
             };
             row.counts.add(&e.event);
             totals.add(&e.event);
+            if row.responses.add(&e.event) {
+                responses.add(&e.event);
+                settled.push((topic, e.attempt, context, &e.event));
+            }
+            if e.event.action == RetrievalAction::Opportunity {
+                match provenance.iter_mut().find(|p| p.lesson == e.event.lesson) {
+                    Some(p) => p.opportunities += 1,
+                    None => provenance.push(ProvenanceCount {
+                        lesson: e.event.lesson,
+                        opportunities: 1,
+                    }),
+                }
+            }
         }
         rows.sort_by_key(|r| (r.topic, r.context));
+        provenance.sort_by_key(|p| p.lesson);
+        let mut comparisons: Vec<TopicComparison> = Vec::new();
+        for topic in rows.iter().map(|r| r.topic) {
+            if comparisons.last().is_some_and(|c| c.topic == topic) {
+                continue;
+            }
+            let of_topic: Vec<_> = settled.iter().filter(|s| s.0 == topic).collect();
+            if of_topic.is_empty() {
+                continue;
+            }
+            let n = of_topic.len();
+            let w = COMPARISON_WINDOW as usize;
+            let window = |start: usize| {
+                let mut out = ResponseWindow {
+                    first: start as u32 + 1,
+                    last: (start + w) as u32,
+                    lowest_attempt: of_topic[start].1,
+                    highest_attempt: of_topic[start].1,
+                    responses: ResponseCounts::default(),
+                    contexts: Vec::new(),
+                };
+                for &&(_, attempt, context, event) in &of_topic[start..start + w] {
+                    out.lowest_attempt = out.lowest_attempt.min(attempt);
+                    out.highest_attempt = out.highest_attempt.max(attempt);
+                    out.responses.add(event);
+                    match out.contexts.iter_mut().find(|c| c.context == context) {
+                        Some(c) => c.settled += 1,
+                        None => out.contexts.push(ContextCount {
+                            context,
+                            settled: 1,
+                        }),
+                    }
+                }
+                out.contexts.sort_by_key(|c| c.context);
+                out
+            };
+            comparisons.push(TopicComparison {
+                topic,
+                settled: n as u32,
+                windows: (n >= 2 * w).then(|| [window(n - 2 * w), window(n - w)]),
+            });
+        }
         let observations = match totals.opportunities {
             0 => Observations::None,
             n if n < LIMITED_OBSERVATIONS => Observations::Limited,
@@ -369,6 +527,9 @@ impl LearningHistory {
         LearningSummary {
             rows,
             totals,
+            responses,
+            provenance,
+            comparisons,
             attempts: used.len() as u32,
             observations,
             full: self.refused
@@ -458,6 +619,105 @@ impl RetrievalCounts {
     }
 }
 
+/// Observed category of one settled counting response (an answer or a
+/// skip), judged only against the exact count recorded with it. It says
+/// what was answered, never why, and is no strategic error, mastery or
+/// transfer measure.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ResponseCategory {
+    /// The answer equals the exact count.
+    Exact,
+    /// The answer is above the recorded exact count.
+    TooHigh,
+    /// The answer is below the recorded exact count.
+    TooLow,
+    /// The answer differed, but its exact count was not recorded (before
+    /// format 3): the deviation is unknown and not reconstructed.
+    MismatchUnrecorded,
+    /// No answer.
+    Skipped,
+}
+
+impl ResponseCategory {
+    /// The category of a settling action; `None` for an opportunity or
+    /// help, which settle nothing.
+    pub fn of(action: RetrievalAction) -> Option<ResponseCategory> {
+        Some(match action {
+            RetrievalAction::Opportunity | RetrievalAction::Help => return None,
+            RetrievalAction::Answer { correct: true, .. } => ResponseCategory::Exact,
+            RetrievalAction::Answer {
+                given,
+                expected: Some(expected),
+                ..
+            } if given > expected => ResponseCategory::TooHigh,
+            RetrievalAction::Answer {
+                expected: Some(_), ..
+            } => ResponseCategory::TooLow,
+            RetrievalAction::Answer { expected: None, .. } => ResponseCategory::MismatchUnrecorded,
+            RetrievalAction::Skip { .. } => ResponseCategory::Skipped,
+        })
+    }
+}
+
+/// Settled responses per [`ResponseCategory`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CategoryCounts {
+    /// [`ResponseCategory::Exact`].
+    pub exact: u32,
+    /// [`ResponseCategory::TooHigh`].
+    pub too_high: u32,
+    /// [`ResponseCategory::TooLow`].
+    pub too_low: u32,
+    /// [`ResponseCategory::MismatchUnrecorded`].
+    pub mismatch_unrecorded: u32,
+    /// [`ResponseCategory::Skipped`].
+    pub skipped: u32,
+}
+
+impl CategoryCounts {
+    /// All settled responses counted.
+    pub fn total(&self) -> u32 {
+        self.exact + self.too_high + self.too_low + self.mismatch_unrecorded + self.skipped
+    }
+}
+
+/// Settled responses by support: without help available during the
+/// opportunity, and with help (visible aid or a request, sticky).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResponseCounts {
+    /// Without help.
+    pub unaided: CategoryCounts,
+    /// With help.
+    pub assisted: CategoryCounts,
+}
+
+impl ResponseCounts {
+    /// Counts `e` if it settles its opportunity; returns whether it did.
+    fn add(&mut self, e: &RetrievalEvent) -> bool {
+        let Some(category) = ResponseCategory::of(e.action) else {
+            return false;
+        };
+        let counts = if e.assisted {
+            &mut self.assisted
+        } else {
+            &mut self.unaided
+        };
+        *match category {
+            ResponseCategory::Exact => &mut counts.exact,
+            ResponseCategory::TooHigh => &mut counts.too_high,
+            ResponseCategory::TooLow => &mut counts.too_low,
+            ResponseCategory::MismatchUnrecorded => &mut counts.mismatch_unrecorded,
+            ResponseCategory::Skipped => &mut counts.skipped,
+        } += 1;
+        true
+    }
+
+    /// All settled responses.
+    pub fn settled(&self) -> u32 {
+        self.unaided.total() + self.assisted.total()
+    }
+}
+
 /// Counts of one topic in one context.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LearningRow {
@@ -467,6 +727,58 @@ pub struct LearningRow {
     pub context: LearningContext,
     /// The counts.
     pub counts: RetrievalCounts,
+    /// Its settled responses by category and support.
+    pub responses: ResponseCounts,
+}
+
+/// Opportunities recorded under one lesson revision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProvenanceCount {
+    /// The revision; `None`: recorded before format 3, version unknown.
+    pub lesson: Option<LessonRevision>,
+    /// Opportunities.
+    pub opportunities: u32,
+}
+
+/// Settled responses of one context within a window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContextCount {
+    /// The context.
+    pub context: LearningContext,
+    /// Settled responses.
+    pub settled: u32,
+}
+
+/// [`COMPARISON_WINDOW`] consecutive settled responses of one topic, in
+/// the order they were recorded.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResponseWindow {
+    /// Position of its first response among the topic's settled
+    /// responses, from 1 (oldest recorded).
+    pub first: u32,
+    /// Position of its last response.
+    pub last: u32,
+    /// Lowest attempt ID among its responses.
+    pub lowest_attempt: AttemptId,
+    /// Highest attempt ID among its responses.
+    pub highest_attempt: AttemptId,
+    /// Its responses by category and support.
+    pub responses: ResponseCounts,
+    /// Its responses per context, ordered by context.
+    pub contexts: Vec<ContextCount>,
+}
+
+/// Earlier and recent recorded responses of one topic side by side. Only
+/// a description of two windows: no trend, retention or transfer claim.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TopicComparison {
+    /// The topic.
+    pub topic: LearningTopic,
+    /// All its settled responses.
+    pub settled: u32,
+    /// The [`COMPARISON_WINDOW`] responses before the last ones, then the
+    /// last ones; `None` below twice the window.
+    pub windows: Option<[ResponseWindow; 2]>,
 }
 
 /// How much was observed overall.
@@ -487,6 +799,12 @@ pub struct LearningSummary {
     pub rows: Vec<LearningRow>,
     /// All rows together.
     pub totals: RetrievalCounts,
+    /// All settled responses by category and support.
+    pub responses: ResponseCounts,
+    /// Opportunities per lesson revision, unversioned first.
+    pub provenance: Vec<ProvenanceCount>,
+    /// Topics with settled responses, ordered by topic.
+    pub comparisons: Vec<TopicComparison>,
     /// Attempts with at least one event.
     pub attempts: u32,
     /// Sample size category.
@@ -498,7 +816,7 @@ pub struct LearningSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::quiz::{AssistanceLevel, QuestionId};
+    use crate::quiz::{AssistanceLevel, LessonFamily, QuestionId};
 
     fn event(trick: u8, action: RetrievalAction, assisted: bool) -> RetrievalEvent {
         RetrievalEvent {
@@ -519,6 +837,7 @@ mod tests {
             action,
             assistance: AssistanceLevel::AnswerBeforeReveal,
             assisted: false,
+            lesson: Some(LessonFamily::FocusedRetrieval.current()),
         }
     }
 
@@ -531,6 +850,7 @@ mod tests {
             RetrievalAction::Answer {
                 given: 2,
                 correct: true,
+                expected: Some(2),
             },
             false,
         );

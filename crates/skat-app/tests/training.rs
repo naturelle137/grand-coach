@@ -409,7 +409,8 @@ fn answer_help_skip_retry_next_and_topic_follow_the_contract() {
             RetrievalAction::Help,
             RetrievalAction::Answer {
                 given: 3,
-                correct: false
+                correct: false,
+                expected: Some(2)
             }
         ]
     );
@@ -535,6 +536,7 @@ fn game_event(trick: u8, action: RetrievalAction) -> RetrievalEvent {
         action,
         assistance: AssistanceLevel::AnswerBeforeReveal,
         assisted: false,
+        lesson: Some(LessonFamily::FocusedRetrieval.current()),
     }
 }
 
@@ -620,7 +622,7 @@ fn training_attempts_persist_apart_from_series_and_practice_without_duplicates()
     let path = dir.join("learning-history.json");
     history.save_local(&path).unwrap();
     let saved: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    assert_eq!(saved["format"], 2);
+    assert_eq!(saved["format"], 3);
     let text = fs::read_to_string(&path).unwrap();
     assert!(text.contains("TrumpfDeclarerFarbspiel"), "{text}");
     let reopened = LearningHistory::open_local(&path).unwrap();
@@ -658,7 +660,7 @@ fn training_attempts_persist_apart_from_series_and_practice_without_duplicates()
         assert!(!text.contains(card), "{card} in {text}");
     }
 
-    // Reset forgets everything, keeps the counter, and saves format 2.
+    // Reset forgets everything, keeps the counter, and saves format 3.
     let mut reset = reopened;
     reset.reset();
     reset.save_local(&path).unwrap();
@@ -727,16 +729,16 @@ fn a_format_1_file_migrates_without_loss_and_damaged_or_newer_files_stay_unchang
         .begin_attempt(AttemptKind::Training { attempt: 1 })
         .unwrap();
     assert_eq!(next, AttemptId(4));
-    // Saving writes format 2 with the old events unchanged in shape.
+    // Saving writes format 3 with the old events unchanged in shape.
     migrated.save_local(&path).unwrap();
     let saved: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     let old: serde_json::Value = serde_json::from_str(FORMAT_1).unwrap();
-    assert_eq!(saved["format"], 2);
+    assert_eq!(saved["format"], 3);
     assert_eq!(saved["events"], old["events"]);
     assert_eq!(saved["next_attempt"], 5);
     assert_eq!(LearningHistory::open_local(&path).unwrap(), migrated);
 
-    // Format 1 cannot hold training content; format 3 is from a newer
+    // Format 1 cannot hold training content; format 4 is from a newer
     // build. Both are reported, never rewritten, and can be set aside.
     let mut s = TrainingSession::new(TrainingTopic::ProvenVoids, AssistanceLevel::VisibleAid);
     let training = s.take_events()[0];
@@ -746,7 +748,7 @@ fn a_format_1_file_migrates_without_loss_and_damaged_or_newer_files_stay_unchang
     training_kind["attempts"][0]["kind"] =
         serde_json::to_value(AttemptKind::Training { attempt: 1 }).unwrap();
     let mut newer: serde_json::Value = serde_json::from_str(FORMAT_1).unwrap();
-    newer["format"] = 3.into();
+    newer["format"] = 4.into();
     for (n, (value, error)) in [
         (
             with_training,

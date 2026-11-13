@@ -93,12 +93,59 @@ pub enum RetrievalAction {
         given: u8,
         /// Exact match.
         correct: bool,
+        /// The exact count it was scored against, recorded only with the
+        /// answer itself (never at the opportunity or with help). `None`
+        /// in events recorded before learning history format 3; such an
+        /// answer's numeric deviation is unknown and never reconstructed.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expected: Option<u8>,
     },
     /// No answer; disabling the quiz is also an explicit skip.
     Skip {
         /// Quiz was disabled rather than the skip button used.
         disabled: bool,
     },
+}
+
+/// Lesson family of a counting opportunity: which rules issued it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum LessonFamily {
+    /// In-game counting quiz over all applicable questions (M6, D-64).
+    CountingQuiz,
+    /// In-game focused retrieval: remaining Trumpf and proven voids (#48).
+    FocusedRetrieval,
+    /// Focused counting training on fixed fixtures (D-71); the fixture's
+    /// own version is in its [`TrainingTask`].
+    CountingTraining,
+}
+
+/// Immutable lesson identity and version of an opportunity, fixed when it
+/// is offered. The version names the rules for when questions are asked,
+/// how the exact count is derived and how an answer is scored; it is
+/// raised whenever one of them changes, so observations never merge
+/// across rule revisions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct LessonRevision {
+    /// The family.
+    pub family: LessonFamily,
+    /// Its rule version, from 1.
+    pub version: u32,
+}
+
+impl LessonFamily {
+    /// The revision this build issues.
+    pub const fn current(self) -> LessonRevision {
+        LessonRevision {
+            family: self,
+            version: 1,
+        }
+    }
+
+    /// Whether this family can issue `id`: training tasks only the
+    /// training, game questions only the in-game families.
+    pub fn issues(self, id: &OpportunityId) -> bool {
+        matches!(self, LessonFamily::CountingTraining) == matches!(id, OpportunityId::Training(_))
+    }
 }
 
 /// Plain in-memory event shared with future progress consumers. No storage
@@ -115,6 +162,10 @@ pub struct RetrievalEvent {
     pub assistance: AssistanceLevel,
     /// Exact help was available during this opportunity; sticky even if hidden again.
     pub assisted: bool,
+    /// Lesson family and version, fixed at the opportunity. `None` only in
+    /// events recorded before learning history format 3 (unversioned).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lesson: Option<LessonRevision>,
 }
 
 /// How a question ended.
@@ -205,6 +256,7 @@ pub(crate) struct Pending {
     kind: QuestionKind,
     snapshot: Knowledge,
     id: QuestionId,
+    lesson: LessonRevision,
     assisted: bool,
     revealed: bool,
 }
@@ -275,6 +327,7 @@ impl QuizState {
             action,
             assistance: self.settings.assistance,
             assisted: p.assisted,
+            lesson: Some(p.lesson),
         });
     }
 
@@ -350,6 +403,12 @@ impl QuizState {
                 game: key.number,
                 trick: tricks,
             },
+            lesson: if self.settings.retrieval {
+                LessonFamily::FocusedRetrieval
+            } else {
+                LessonFamily::CountingQuiz
+            }
+            .current(),
             assisted,
             revealed: assisted,
         };
@@ -377,6 +436,7 @@ impl QuizState {
                 Some(given) => RetrievalAction::Answer {
                     given,
                     correct: given == derivation.expected(),
+                    expected: Some(derivation.expected()),
                 },
                 None => RetrievalAction::Skip { disabled: false },
             },

@@ -326,6 +326,15 @@ mod tests {
                     "position",
                     "presentation",
                     "seats",
+                    "unaided",
+                    "assisted",
+                    "needed",
+                    "first",
+                    "last",
+                    "low",
+                    "high",
+                    "window",
+                    "family",
                 ] {
                     args.set(name, "x");
                 }

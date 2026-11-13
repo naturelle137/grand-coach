@@ -82,6 +82,11 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("learning-history", learning_history),
     ("learning-history-en", learning_history_en),
     ("learning-reset", learning_reset),
+    ("learning-categories", learning_categories),
+    ("learning-categories-en", learning_categories_en),
+    ("learning-categories-narrow", learning_categories),
+    ("learning-compare", learning_compare),
+    ("learning-compare-en", learning_compare_en),
     ("learning-damaged", learning_damaged),
     ("learning-damaged-en", learning_damaged_en),
     ("training-topics", training_topics),
@@ -278,7 +283,11 @@ fn retrieval_void_en(h: &mut Harness<'_, GrandCoachApp>) {
 }
 
 /// A fresh learning-history file for a scenario, under the temp directory.
-fn learning_file(h: &mut Harness<'_, GrandCoachApp>, name: &str, content: Option<&[u8]>) {
+fn learning_file(
+    h: &mut Harness<'_, GrandCoachApp>,
+    name: &str,
+    content: Option<&[u8]>,
+) -> std::path::PathBuf {
     let dir = std::env::temp_dir()
         .join("grand-coach-screenshots")
         .join(name);
@@ -288,7 +297,8 @@ fn learning_file(h: &mut Harness<'_, GrandCoachApp>, name: &str, content: Option
     if let Some(content) = content {
         std::fs::write(&file, content).expect("write scenario file");
     }
-    h.state_mut().use_learning_file(file);
+    h.state_mut().use_learning_file(file.clone());
+    file
 }
 
 fn open_learning(h: &mut Harness<'_, GrandCoachApp>) {
@@ -342,6 +352,99 @@ fn learning_history_en(h: &mut Harness<'_, GrandCoachApp>) {
 fn learning_reset(h: &mut Harness<'_, GrandCoachApp>) {
     learning_history(h);
     click(h, Role::Button, "Lernverlauf zurücksetzen …");
+}
+
+/// A format 2 file as the PR #137 build wrote it: a wrong and an exact
+/// Trumpf answer in a series, a training task skipped after help.
+const LEGACY_FORMAT_2: &str = r#"{"format":2,"next_attempt":3,"attempts":[{"id":1,"kind":"Series"},{"id":2,"kind":{"Training":{"attempt":1}}}],"events":[{"attempt":1,"event":{"id":{"series":7,"game":1,"trick":3},"question":"TrumpfOutside","action":"Opportunity","assistance":"AnswerBeforeReveal","assisted":false}},{"attempt":1,"event":{"id":{"series":7,"game":1,"trick":3},"question":"TrumpfOutside","action":{"Answer":{"given":4,"correct":false}},"assistance":"AnswerBeforeReveal","assisted":false}},{"attempt":1,"event":{"id":{"series":7,"game":1,"trick":6},"question":"TrumpfOutside","action":"Opportunity","assistance":"AnswerBeforeReveal","assisted":false}},{"attempt":1,"event":{"id":{"series":7,"game":1,"trick":6},"question":"TrumpfOutside","action":{"Answer":{"given":1,"correct":true}},"assistance":"AnswerBeforeReveal","assisted":false}},{"attempt":2,"event":{"id":{"fixture":"VoidsDeclarerGrand","version":1},"question":{"ProvenVoids":{"class":{"Farbe":"Herz"}}},"action":"Opportunity","assistance":"RevealOnRequest","assisted":false}},{"attempt":2,"event":{"id":{"fixture":"VoidsDeclarerGrand","version":1},"question":{"ProvenVoids":{"class":{"Farbe":"Herz"}}},"action":"Help","assistance":"RevealOnRequest","assisted":true}},{"attempt":2,"event":{"id":{"fixture":"VoidsDeclarerGrand","version":1},"question":{"ProvenVoids":{"class":{"Farbe":"Herz"}}},"action":{"Skip":{"disabled":false}},"assistance":"RevealOnRequest","assisted":true}}]}"#;
+
+/// A legacy format 2 history upgraded in place by real answers at the
+/// table: three focused questions (help then the default answer, the
+/// default answer unaided, skip)
+/// beside the unversioned events; then the answer categories.
+fn learning_categories(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "learning-categories", Some(LEGACY_FORMAT_2.as_bytes()));
+    h.state_mut().set_assist(skat_app::AssistSettings {
+        retrieval: true,
+        ..AID_AND_QUIZ
+    });
+    for step in 0..3 {
+        play_until(h, |v, _| v.assist.quiz.question.is_some());
+        match step {
+            0 => {
+                click(h, Role::Button, "Hilfe einblenden");
+                click(h, Role::Button, "Antworten");
+            }
+            1 => click(h, Role::Button, "Antworten"),
+            _ => click(h, Role::Button, "Überspringen"),
+        }
+    }
+    let summary = h.state().learning_history().summary();
+    assert_eq!(summary.totals.opportunities, 6);
+    assert_eq!(summary.provenance.len(), 2);
+    open_learning(h);
+    h.get_by_label("Antworten nach beobachtetem Ergebnis")
+        .scroll_to_me();
+    h.run_steps(4);
+}
+
+fn learning_categories_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_categories(h);
+    english(h);
+}
+
+/// The legacy file plus 20 focused Trumpf answers in a new series attempt
+/// (1-10 one too high, 11-20 exact, 11 and 12 after help): the earlier
+/// and most recent windows, the sparse voids topic and the provenance.
+fn learning_compare(h: &mut Harness<'_, GrandCoachApp>) {
+    use skat_app::{
+        AssistanceLevel, AttemptKind, LearningHistory, LessonFamily, QuestionId, QuestionKind,
+        RetrievalAction, RetrievalEvent,
+    };
+    let mut history = LearningHistory::read_local(LEGACY_FORMAT_2.as_bytes()).expect("format 2");
+    let attempt = history.begin_attempt(AttemptKind::Series).expect("attempt");
+    for i in 1..=20u8 {
+        let assisted = matches!(i, 11 | 12);
+        let e = |action, assisted| RetrievalEvent {
+            id: QuestionId {
+                series: 1,
+                game: u32::from(i),
+                trick: 3,
+            }
+            .into(),
+            question: QuestionKind::TrumpfOutside,
+            action,
+            assistance: AssistanceLevel::RevealOnRequest,
+            assisted,
+            lesson: Some(LessonFamily::FocusedRetrieval.current()),
+        };
+        let given = if i <= 10 { 4 } else { 3 };
+        let mut events = vec![e(RetrievalAction::Opportunity, false)];
+        if assisted {
+            events.push(e(RetrievalAction::Help, true));
+        }
+        events.push(e(
+            RetrievalAction::Answer {
+                given,
+                correct: given == 3,
+                expected: Some(3),
+            },
+            assisted,
+        ));
+        history.record(attempt, &events).expect("record");
+    }
+    let file = learning_file(h, "learning-compare", None);
+    history.save_local(&file).expect("save scenario file");
+    h.state_mut().use_learning_file(file);
+    open_learning(h);
+    h.get_by_label("Frühere und letzte Antworten")
+        .scroll_to_me();
+    h.run_steps(4);
+}
+
+fn learning_compare_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_compare(h);
+    english(h);
 }
 
 /// A damaged file is reported, kept and offered to be set aside.

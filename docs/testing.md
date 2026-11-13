@@ -317,13 +317,29 @@ practice with duplicates and context mismatches refused, reset, lossless
 migration of a literal format 1 file and unchanged invalid or newer files.
 A unit test swaps unseen cards of one follow class between the two other
 hands and requires identical views, help, feedback and events.
+`skat-app/tests/learning_responses.rs` checks format 3 provenance against
+hand-written expectations: exact, too high, too low, unrecorded legacy
+mismatch and skips with and without help per topic and context, empty and
+sparse histories, window boundaries at 19, 20 and 21 settled responses with
+positions, attempt ranges and contexts, windows over interleaved attempts,
+duplicates, reloads and reset, refused missing or inconsistent provenance,
+literal format 1 and 2 files migrated unversioned and written back
+unchanged in shape, and files with impossible provenance kept unchanged.
+`skat-app/tests/learning.rs` additionally checks that real session and
+training events carry their lesson revision, that only answers carry the
+exact count, and that a pending question keeps its lesson when the question
+set changes.
 `gui-egui/tests/training.rs` runs the training through the real widgets in
 both languages and returns to an identical live table.
 `gui-egui/tests/learning.rs` answers and skips questions through the real
 widgets, restarts on the same file, reads the window, cancels and confirms a
 reset, and keeps a damaged or newer file until it is set aside, in both
-languages. Screenshot scenarios `learning-*` show the empty, recorded,
-reset-confirmation and damaged states; `training-*` show the topic choice,
+languages; it reads exact category cells, window labels, the sparse note and
+provenance lines of a hand-built legacy-plus-new history in de/en.
+Screenshot scenarios `learning-*` show the empty, recorded,
+reset-confirmation and damaged states, `learning-categories(-en, -narrow)`
+a format 2 file extended by real answers and `learning-compare(-en)` the
+earlier/recent windows; `training-*` show the topic choice,
 both families and roles, help, retry, feedback, the boundary, the learning
 history with training rows, a narrow view and the return to the live table.
 

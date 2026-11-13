@@ -2,14 +2,18 @@
 
 //! The learning history window (M8 foundation, D-70): records the
 //! retrieval events of the running session or practice attempt, keeps them
-//! in one local file and shows descriptive counts in German and English.
+//! in one local file and shows descriptive counts in German and English:
+//! events per topic and context, observed answer categories with and
+//! without help, earlier and recent windows and the recorded lesson
+//! revisions. No diagnosis, mastery or strategic classification.
 
 use std::path::{Path, PathBuf};
 
 use eframe::egui::{self, Color32, RichText};
 use skat_app::{
-    AttemptId, AttemptKind, LearningContext, LearningError, LearningFileError, LearningHistory,
-    LearningTopic, Observations, RetrievalEvent,
+    AttemptId, AttemptKind, COMPARISON_WINDOW, CategoryCounts, LearningContext, LearningError,
+    LearningFileError, LearningHistory, LearningSummary, LearningTopic, LessonFamily, Observations,
+    ResponseCounts, ResponseWindow, RetrievalEvent,
 };
 
 use crate::i18n::I18n;
@@ -160,6 +164,8 @@ impl LearningUi {
             .open(&mut open)
             .default_pos(egui::pos2(60.0, 80.0))
             .default_width(720.0)
+            // The overview has several sections: start tall, then scroll.
+            .default_height((ctx.content_rect().height() - 140.0).max(300.0))
             .max_width((ctx.content_rect().width() - 80.0).max(320.0))
             .max_height((ctx.content_rect().height() - 100.0).max(300.0))
             .show(ctx, |ui| {
@@ -293,6 +299,13 @@ impl LearningUi {
                 }
             });
         ui.label(i.t("learning-legend"));
+        ui.separator();
+        responses(ui, i, &summary);
+        ui.separator();
+        comparisons(ui, i, &summary);
+        ui.separator();
+        provenance(ui, i, &summary);
+        ui.label(i.t("learning-strategic-separate"));
     }
 
     fn reset_controls(&mut self, ui: &mut egui::Ui, i: &I18n) {
@@ -318,6 +331,156 @@ impl LearningUi {
                 self.confirm_reset = false;
             }
         });
+    }
+}
+
+/// Column headers of the answer categories.
+const CATEGORY_COLUMNS: [&str; 5] = [
+    "learning-col-exact",
+    "learning-col-too-high",
+    "learning-col-too-low",
+    "learning-col-unrecorded",
+    "learning-col-skipped",
+];
+
+/// One cell per category: without help + with help.
+fn category_cells(ui: &mut egui::Ui, i: &I18n, r: &ResponseCounts) {
+    let pick: [fn(&CategoryCounts) -> u32; 5] = [
+        |c| c.exact,
+        |c| c.too_high,
+        |c| c.too_low,
+        |c| c.mismatch_unrecorded,
+        |c| c.skipped,
+    ];
+    for f in pick {
+        ui.label(i.tf(
+            "learning-split",
+            &[
+                ("unaided", f(&r.unaided).into()),
+                ("assisted", f(&r.assisted).into()),
+            ],
+        ));
+    }
+}
+
+/// Settled answers per topic and context by observed category.
+fn responses(ui: &mut egui::Ui, i: &I18n, summary: &LearningSummary) {
+    if summary.responses.settled() == 0 {
+        return;
+    }
+    ui.label(RichText::new(i.t("learning-responses-title")).strong());
+    egui::Grid::new("learning_responses")
+        .striped(true)
+        .num_columns(7)
+        .show(ui, |ui| {
+            ui.label(RichText::new(i.t("learning-col-topic")).strong());
+            ui.label(RichText::new(i.t("learning-col-context")).strong());
+            for id in CATEGORY_COLUMNS {
+                ui.label(RichText::new(i.t(id)).strong());
+            }
+            ui.end_row();
+            for row in summary.rows.iter().filter(|r| r.responses.settled() > 0) {
+                ui.label(i.t(topic_message(row.topic)));
+                ui.label(i.t(context_message(row.context)));
+                category_cells(ui, i, &row.responses);
+                ui.end_row();
+            }
+        });
+    ui.label(i.t("learning-responses-legend"));
+}
+
+/// Earlier and recent windows per topic, or why there is none yet.
+fn comparisons(ui: &mut egui::Ui, i: &I18n, summary: &LearningSummary) {
+    if summary.comparisons.is_empty() {
+        return;
+    }
+    ui.label(RichText::new(i.t("learning-compare-title")).strong());
+    for c in &summary.comparisons {
+        let Some([earlier, recent]) = &c.windows else {
+            ui.label(i.tf(
+                "learning-compare-sparse",
+                &[
+                    ("topic", i.t(topic_message(c.topic)).into()),
+                    ("count", c.settled.into()),
+                    ("needed", (2 * COMPARISON_WINDOW).into()),
+                ],
+            ));
+            continue;
+        };
+        ui.label(i.t(topic_message(c.topic)));
+        egui::Grid::new(("learning_compare", c.topic as u8))
+            .striped(true)
+            .num_columns(8)
+            .show(ui, |ui| {
+                ui.label(RichText::new(i.t("learning-col-window")).strong());
+                ui.label(RichText::new(i.t("learning-col-attempts")).strong());
+                for id in CATEGORY_COLUMNS {
+                    ui.label(RichText::new(i.t(id)).strong());
+                }
+                ui.label(RichText::new(i.t("learning-col-context")).strong());
+                ui.end_row();
+                for (id, w) in [
+                    ("learning-window-earlier", earlier),
+                    ("learning-window-recent", recent),
+                ] {
+                    window_row(ui, i, id, w);
+                }
+            });
+    }
+    ui.label(i.tf(
+        "learning-compare-legend",
+        &[("window", COMPARISON_WINDOW.into())],
+    ));
+}
+
+fn window_row(ui: &mut egui::Ui, i: &I18n, label: &str, w: &ResponseWindow) {
+    ui.label(i.tf(label, &[("first", w.first.into()), ("last", w.last.into())]));
+    ui.label(i.tf(
+        "learning-attempt-range",
+        &[
+            ("low", w.lowest_attempt.0.into()),
+            ("high", w.highest_attempt.0.into()),
+        ],
+    ));
+    category_cells(ui, i, &w.responses);
+    let contexts: Vec<String> = w
+        .contexts
+        .iter()
+        .map(|c| format!("{} {}", i.t(context_message(c.context)), c.settled))
+        .collect();
+    ui.label(contexts.join(", "));
+    ui.end_row();
+}
+
+/// Opportunities per recorded lesson revision, unversioned first.
+fn provenance(ui: &mut egui::Ui, i: &I18n, summary: &LearningSummary) {
+    if summary.provenance.is_empty() {
+        return;
+    }
+    ui.label(RichText::new(i.t("learning-provenance-title")).strong());
+    for p in &summary.provenance {
+        ui.label(match p.lesson {
+            Some(lesson) => i.tf(
+                "learning-provenance-lesson",
+                &[
+                    ("family", i.t(family_message(lesson.family)).into()),
+                    ("version", lesson.version.into()),
+                    ("count", p.opportunities.into()),
+                ],
+            ),
+            None => i.tf(
+                "learning-provenance-unversioned",
+                &[("count", p.opportunities.into())],
+            ),
+        });
+    }
+}
+
+fn family_message(family: LessonFamily) -> &'static str {
+    match family {
+        LessonFamily::CountingQuiz => "learning-family-quiz",
+        LessonFamily::FocusedRetrieval => "learning-family-focused",
+        LessonFamily::CountingTraining => "learning-family-training",
     }
 }
 

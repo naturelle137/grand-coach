@@ -324,8 +324,13 @@ fn damaged_unsupported_and_oversized_files_are_reported_and_kept() {
             LearningFileError::InvalidJson,
         ),
         (
-            edit(&|v| v["format"] = 3.into()),
+            edit(&|v| v["format"] = 4.into()),
             LearningFileError::UnsupportedFormat,
+        ),
+        (
+            // Format 2 never held provenance: not silently accepted.
+            edit(&|v| v["format"] = 2.into()),
+            LearningFileError::Invalid(LearningError::InvalidProvenance),
         ),
         (
             edit(&|v| v["format"] = 0.into()),
@@ -416,4 +421,120 @@ fn damaged_unsupported_and_oversized_files_are_reported_and_kept() {
     fs::create_dir(&sub).unwrap();
     assert_eq!(history.save_local(&sub), Err(LearningFileError::Io));
     fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn session_events_carry_their_immutable_lesson_and_expected_only_with_the_answer() {
+    // Focused retrieval and the full quiz name their own lesson family.
+    for (retrieval, family) in [
+        (true, LessonFamily::FocusedRetrieval),
+        (false, LessonFamily::CountingQuiz),
+    ] {
+        let mut found = false;
+        for seed in 1..40 {
+            let mut s = Session::new(config(seed));
+            s.execute(Command::SetAssist(AssistSettings {
+                retrieval,
+                ..focused(AssistanceLevel::RevealOnRequest)
+            }))
+            .unwrap();
+            let events = play_game(&mut s, Respond::HelpThenExact);
+            if events.is_empty() {
+                continue;
+            }
+            found = true;
+            for e in &events {
+                assert_eq!(e.lesson, Some(family.current()), "{e:?}");
+                let json = serde_json::to_string(e).unwrap();
+                match e.action {
+                    // The exact count is recorded with the answer only.
+                    RetrievalAction::Answer {
+                        given,
+                        correct,
+                        expected,
+                    } => assert_eq!((expected, correct), (Some(given), true)),
+                    _ => assert!(!json.contains("expected"), "{json}"),
+                }
+            }
+            break;
+        }
+        assert!(found, "no questions for retrieval={retrieval}");
+    }
+
+    // Switching the question set while a question is pending keeps the
+    // lesson it was asked under; the scored count is the frozen one.
+    for seed in 1..40 {
+        let mut s = Session::new(config(seed));
+        s.execute(Command::SetAssist(focused(
+            AssistanceLevel::AnswerBeforeReveal,
+        )))
+        .unwrap();
+        let mut events = Vec::new();
+        while s.view().assist.quiz.question.is_none() {
+            events.extend(retrieval(&s.run_opponents()));
+            let view = s.view();
+            if view.assist.quiz.question.is_some() {
+                break;
+            }
+            let Some(&action) = view.legal_actions.first() else {
+                break;
+            };
+            events.extend(retrieval(&s.execute(Command::Act(action)).unwrap()));
+        }
+        if s.view().assist.quiz.question.is_none() {
+            continue;
+        }
+        events.extend(retrieval(
+            &s.execute(Command::SetAssist(AssistSettings {
+                retrieval: false,
+                ..focused(AssistanceLevel::AnswerBeforeReveal)
+            }))
+            .unwrap(),
+        ));
+        events.extend(retrieval(&s.execute(Command::AnswerQuiz(9)).unwrap()));
+        let exact = s.view().assist.quiz.feedback.unwrap().derivation.expected();
+        let last = events.last().unwrap();
+        assert_eq!(
+            last.action,
+            RetrievalAction::Answer {
+                given: 9,
+                correct: exact == 9,
+                expected: Some(exact)
+            }
+        );
+        assert!(
+            events
+                .iter()
+                .all(|e| e.lesson == Some(LessonFamily::FocusedRetrieval.current()))
+        );
+        let mut history = LearningHistory::new();
+        let a = history.begin_attempt(AttemptKind::Series).unwrap();
+        history.record(a, &events).unwrap();
+        return;
+    }
+    panic!("no pending question");
+}
+
+#[test]
+fn training_events_carry_the_training_lesson_and_fixture_version() {
+    let mut s = TrainingSession::new(TrainingTopic::TrumpfOutside, AssistanceLevel::VisibleAid);
+    s.execute(TrainingCommand::Answer(0)).unwrap();
+    let events = s.take_events();
+    assert_eq!(events.len(), 2);
+    for e in &events {
+        assert_eq!(e.lesson, Some(LessonFamily::CountingTraining.current()));
+        assert_eq!(
+            e.id,
+            OpportunityId::Training(TrainingFixture::TrumpfDeclarerFarbspiel.task())
+        );
+    }
+    // The fixture's exact count is 2 (frozen in tests/training.rs).
+    assert_eq!(
+        events[1].action,
+        RetrievalAction::Answer {
+            given: 0,
+            correct: false,
+            expected: Some(2)
+        }
+    );
 }

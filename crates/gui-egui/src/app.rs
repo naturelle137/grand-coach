@@ -2311,7 +2311,8 @@ mod tests {
     #[test]
     fn series_practice_and_retry_record_under_their_own_learning_attempts() {
         use skat_app::{
-            AssistanceLevel, AttemptKind, QuestionId, QuestionKind, RetrievalAction, RetrievalEvent,
+            AssistanceLevel, AttemptKind, LessonFamily, QuestionId, QuestionKind, RetrievalAction,
+            RetrievalEvent,
         };
         let ctx = egui::Context::default();
         let mut app = GrandCoachApp::new(&ctx, easy_series());
@@ -2327,6 +2328,7 @@ mod tests {
                 action: RetrievalAction::Opportunity,
                 assistance: AssistanceLevel::AnswerBeforeReveal,
                 assisted: false,
+                lesson: Some(LessonFamily::FocusedRetrieval.current()),
             })]
         };
         app.record_learning(&opportunity(3));
