@@ -369,6 +369,17 @@ impl GrandCoachApp {
         self.send(Command::SetAssist(settings), 0.0);
     }
 
+    /// `true` while the recording window computes a replay comment
+    /// (tests and diagnostics).
+    pub fn replay_computing(&self) -> bool {
+        self.recording.replay_computing()
+    }
+
+    /// The replay coach of the open recording window (tests, screenshots).
+    pub fn replay_coach_mut(&mut self) -> Option<&mut skat_app::ReplayCoach> {
+        self.recording.replay_coach_mut()
+    }
+
     /// The running session (read-only, for tests and diagnostics).
     pub fn session(&self) -> &Session {
         &self.session
@@ -1931,9 +1942,10 @@ impl eframe::App for GrandCoachApp {
         });
         let ctx = ui.ctx().clone();
         let can_practice = self.practice.is_none();
-        if let Some(recording) = self
-            .recording
-            .windows(&ctx, &self.i18n, self.deck, can_practice)
+        self.recording.budget = self.session.coach_budget();
+        if let Some(recording) =
+            self.recording
+                .windows(&ctx, &self.i18n, self.deck, can_practice, &view)
         {
             self.practice_request = Some(PracticeRequest::Start(recording));
         }

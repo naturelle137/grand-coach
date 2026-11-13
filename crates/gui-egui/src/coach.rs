@@ -19,7 +19,8 @@ use skat_app::coach_model::{
 };
 use skat_app::{
     Action, Card, CardSet, Contract, Debriefing, DebriefingMoment, DecisionContext, GameType,
-    LastMove, Phase, PlayerId, Seat, TableView, Unavailable,
+    LastMove, Phase, PlayerId, RecordedDecision, ReplayComment, ReplayPerspective, Seat, TableView,
+    Unavailable,
 };
 
 use crate::i18n::I18n;
@@ -1473,6 +1474,179 @@ pub fn debriefing(i18n: &I18n, view: &TableView, d: &Debriefing, figures: bool) 
     DebriefingText { lines, moments }
 }
 
+/// The label of a recorded own decision in the replay selector.
+pub fn recorded_decision(i18n: &I18n, d: &RecordedDecision) -> String {
+    let when = match d.trick {
+        Some(trick) => i18n.tf("coach-moment-trick", &[("trick", trick.into())]),
+        None => text::phase(i18n, d.phase),
+    };
+    let label = i18n.tf(
+        "replay-coach-option",
+        &[
+            ("number", (d.prefix + 1).into()),
+            ("when", when.into()),
+            (
+                "action",
+                action_at(i18n, d.bid, d.hand_game, d.action).into(),
+            ),
+        ],
+    );
+    if d.options == 1 {
+        i18n.tf("replay-coach-forced-option", &[("label", label.into())])
+    } else {
+        label
+    }
+}
+
+/// The persistent label of a replay perspective (D-67).
+pub fn replay_perspective(i18n: &I18n, perspective: ReplayPerspective) -> Line {
+    match perspective {
+        ReplayPerspective::Historical => {
+            line(i18n.t("replay-coach-perspective-historical"), Style::Strong)
+        }
+        ReplayPerspective::Hindsight => {
+            line(i18n.t("replay-coach-perspective-hindsight"), Style::Strong)
+        }
+    }
+}
+
+/// The table before a recorded decision, from its permitted snapshot only.
+pub fn replay_situation(i18n: &I18n, c: &DecisionContext) -> SituationText {
+    let role = match c.declarer {
+        None => Role::Bidder,
+        Some(p) if p == PlayerId::HUMAN => Role::Declarer,
+        Some(_) => Role::Defender,
+    };
+    situation(i18n, role, c)
+}
+
+/// A comment on one recorded decision (D-67): perspective, the choice and
+/// the model's rating, the compared legal alternative, the lesson or the
+/// honest fallback; comparison, facts and basis as details.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReplayText {
+    /// Decision and perspective, then what was chosen and compared.
+    pub summary: Vec<Line>,
+    /// Heading of the lesson's evidence; empty without a lesson.
+    pub lesson_title: String,
+    /// The lesson's evidence and exceptions.
+    pub lesson: Vec<Line>,
+    /// Comparison by metric, ratings, figures (if shown), facts, basis.
+    pub details: Vec<Line>,
+}
+
+/// The comment on a recorded decision. `view` supplies player names only;
+/// seats follow the decision's game.
+pub fn replay_comment(
+    i18n: &I18n,
+    view: &TableView,
+    c: &DecisionContext,
+    comment: &ReplayComment,
+    figures: bool,
+) -> ReplayText {
+    let r = &comment.review;
+    let mut view = view.clone();
+    for p in &mut view.players {
+        p.seat = c.seat(p.player);
+    }
+    let view = &view;
+    let name = |a: Action| action_at(i18n, r.bid, r.hand_game, a);
+    let mut what = decision(i18n, r.decision);
+    if let Some(trick) = c.trick() {
+        what = format!(
+            "{} · {what}",
+            i18n.tf("coach-moment-trick", &[("trick", trick.into())])
+        );
+    }
+    let mut summary = vec![
+        line(what, Style::Heading),
+        replay_perspective(i18n, comment.perspective),
+    ];
+    if r.forced {
+        summary.push(line(
+            i18n.tf(
+                "replay-coach-forced",
+                &[("action", name(r.chosen.action).into())],
+            ),
+            Style::Strong,
+        ));
+    } else {
+        summary.push(line(chosen(i18n, r, &name), Style::Strong));
+        if let Some(alt) = &comment.alternative {
+            summary.push(line(
+                i18n.tf(
+                    "replay-coach-alternative",
+                    &[
+                        ("action", name(alt.action).into()),
+                        ("judgement", judgement(i18n, alt.judgement).into()),
+                    ],
+                ),
+                Style::Normal,
+            ));
+        }
+        if r.status != skat_app::coach_model::Status::Complete {
+            summary.push(line(i18n.t("replay-coach-provisional"), Style::Weak));
+        }
+    }
+    let (lesson_title, lesson) = match r.lesson_for(None) {
+        Some(t) => {
+            let mut taught = lesson(i18n, view, &t.content).into_iter();
+            let title = taught.next().map(|l| l.text).unwrap_or_default();
+            let (questions, evidence): (Vec<Line>, Vec<Line>) =
+                taught.partition(|l| l.style == Style::Strong);
+            summary.extend(questions);
+            summary.push(line(i18n.t("coach-moment-no-reason"), Style::Weak));
+            (title, evidence)
+        }
+        None => {
+            summary.push(line(i18n.t("replay-coach-fallback"), Style::Weak));
+            (String::new(), Vec::new())
+        }
+    };
+    let below = |l: Line| match l.style {
+        Style::Heading => line(l.text, Style::Strong),
+        _ => l,
+    };
+    let mut details = comparison(i18n, r.role, &r.chosen, name, figures);
+    for o in [Some(&r.chosen), comment.alternative.as_ref()]
+        .into_iter()
+        .flatten()
+    {
+        details.push(line(
+            i18n.tf(
+                "coach-details-rating",
+                &[
+                    ("action", name(o.action).into()),
+                    ("judgement", judgement(i18n, o.judgement).into()),
+                ],
+            ),
+            Style::Normal,
+        ));
+        if let Some(e) = o.estimate.filter(|_| figures) {
+            details.push(line(metrics(i18n, r.role, &e), Style::Weak));
+        }
+    }
+    details.extend(
+        considerations(i18n, view, &r.considerations, figures)
+            .into_iter()
+            .map(below),
+    );
+    let mut basis = basis(i18n, &r.basis, &r.assumptions, figures);
+    if r.basis.known
+        && let Some(l) = basis.get_mut(1)
+    {
+        // The real deal of the recording, not God Mode.
+        *l = line(i18n.t("replay-coach-basis-known"), Style::Weak);
+    }
+    details.extend(basis.into_iter().map(below));
+    ReplayText {
+        summary,
+        lesson_title,
+        lesson,
+        details,
+    }
+}
+
 /// The warning before a weak action, as lines. It names no alternative
 /// (D-49).
 pub fn warning(i18n: &I18n, view: &TableView, w: &Warning, figures: bool) -> Vec<Line> {
@@ -2183,6 +2357,56 @@ mod tests {
         assert_eq!(s.lines[3].text, "Offene Karten von Rechts: Kreuz-Ass");
         assert_eq!(s.trick_label, "Du spielst Stich 1 an.");
         assert_eq!(texts(&s.history)[1], "Noch kein Stich gespielt.");
+    }
+
+    #[test]
+    fn replay_comments_label_their_perspective_and_stay_honest() {
+        for language in Language::ALL {
+            let i18n = I18n::new(language);
+            let view = table();
+            let historical = i18n.t("replay-coach-perspective-historical");
+            let hindsight = i18n.t("replay-coach-perspective-hindsight");
+            for (perspective, known) in [
+                (ReplayPerspective::Historical, false),
+                (ReplayPerspective::Hindsight, true),
+            ] {
+                let mut review = fallback(weak());
+                review.basis.known = known;
+                let comment = ReplayComment {
+                    perspective,
+                    alternative: review.best.clone(),
+                    review: review.clone(),
+                };
+                let c = fixture_context(review.chosen.action);
+                let text = replay_comment(&i18n, &view, &c, &comment, false);
+                let summary = joined(&text.summary);
+                let details = joined(&text.details);
+                assert_eq!(summary.contains(&hindsight), known, "{summary}");
+                assert_eq!(summary.contains(&historical), !known, "{summary}");
+                assert!(summary.contains(&i18n.t("replay-coach-fallback")));
+                assert!(text.lesson_title.is_empty() && text.lesson.is_empty());
+                // Hindsight is the recording's real deal, never God Mode.
+                assert!(!details.contains(&i18n.t("coach-basis-known")));
+                assert_eq!(details.contains(&i18n.t("replay-coach-basis-known")), known);
+                assert_no_estimates(&summary);
+            }
+            // Provisional: no rating, said so; forced: no comparison.
+            let comment = ReplayComment {
+                perspective: ReplayPerspective::Historical,
+                alternative: None,
+                review: uncertain(),
+            };
+            let c = fixture_context(comment.review.chosen.action);
+            let summary = joined(&replay_comment(&i18n, &view, &c, &comment, false).summary);
+            assert!(summary.contains(&i18n.t("replay-coach-provisional")));
+            let comment = ReplayComment {
+                perspective: ReplayPerspective::Historical,
+                alternative: None,
+                review: forced(),
+            };
+            let summary = joined(&replay_comment(&i18n, &view, &c, &comment, false).summary);
+            assert!(!summary.contains(&i18n.t("coach-details-comparison")));
+        }
     }
 
     fn table() -> TableView {

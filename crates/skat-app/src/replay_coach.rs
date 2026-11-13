@@ -60,6 +60,10 @@ pub struct RecordedDecision {
     pub trick: Option<u8>,
     /// Number of legal actions then (1: forced).
     pub options: u8,
+    /// Bid value reached then (to name "hold").
+    pub bid: u16,
+    /// Hand game, once decided then (to name announcements).
+    pub hand_game: Option<bool>,
 }
 
 /// Identifies one replay request: the opened recording, the user's request
@@ -304,6 +308,8 @@ impl ReplayCoach {
                     phase: view.phase,
                     trick: (view.phase == Phase::Spiel).then_some(view.tricks.len() as u8 + 1),
                     options: view.legal_actions.len().min(usize::from(u8::MAX)) as u8,
+                    bid: view.bid,
+                    hand_game: view.hand_game,
                 });
             }
             game.apply(action).expect("entire history validated");
