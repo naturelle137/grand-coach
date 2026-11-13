@@ -34,6 +34,7 @@
 
 mod coach;
 mod context;
+mod figures;
 mod guided;
 mod learning;
 mod learning_io;
@@ -59,6 +60,9 @@ pub use coach::{
     DebriefingMoment, LastMove, Pending, Unavailable,
 };
 pub use context::DecisionContext;
+pub use figures::{
+    FAMILIAR_WEIGHT, FIGURES, Figure, FigureId, FigurePool, Gender, RARE_WEIGHT, SeriesCast,
+};
 pub use learning::{
     AttemptId, AttemptKind, COMPARISON_WINDOW, CategoryCounts, ContextCount, LEARNING_FORMAT,
     LEARNING_FORMATS_READ, LIMITED_OBSERVATIONS, LearningAttempt, LearningContext, LearningEntry,

@@ -27,8 +27,11 @@ while held, exclude an unknown Skat and remain concealed in accessibility
 labels and tooltips; bilingual named opponent portraits are deterministic,
 fixed to physical seats and use an isolated random stream. The existing M8,
 learner and platform gates remain required. The #131 dialogue is not a
-prerequisite for #134; Godot animation is outside its scope. See the
-[release test plan](release-test-plan.md) for pending checks.
+prerequisite for #134; Godot animation is outside its scope. The
+implementation and its design decisions are recorded in D-72
+(`docs/decisions.md`); #134 counts as done only once that work is reviewed
+and merged. See the [release test plan](release-test-plan.md) for pending
+checks.
 
 For coach changes, read the [live behaviour](coach.md) and
 [evidence checklist](coach-validation.md). Use the [opponent guide](ai.md)

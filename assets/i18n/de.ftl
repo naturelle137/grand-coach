@@ -810,3 +810,44 @@ learning-family-quiz = Zählfragen im Spiel
 learning-family-focused = Gezieltes Zählen im Spiel
 learning-family-training = Zähltraining
 learning-strategic-separate = Hier werden nur Zählantworten beschrieben. Kartenspiel und andere Entscheidungen werden in diesem Verlauf nicht eingeordnet.
+
+## Opponent figures (D-72): names of both pools, shown in their language
+
+figure-de-anna = Anna
+figure-de-sabine = Sabine
+figure-de-monika = Monika
+figure-de-annemarie = Annemarie
+figure-de-adelheid = Adelheid
+figure-de-hildegard = Hildegard
+figure-de-thomas = Thomas
+figure-de-michael = Michael
+figure-de-peter = Peter
+figure-de-stefan = Stefan
+figure-de-kunibert = Kunibert
+figure-de-friedrich-wilhelm = Friedrich-Wilhelm
+figure-en-emma = Emma
+figure-en-sarah = Sarah
+figure-en-linda = Linda
+figure-en-elizabeth = Elizabeth
+figure-en-ethel = Ethel
+figure-en-mildred = Mildred
+figure-en-james = James
+figure-en-david = David
+figure-en-tom = Tom
+figure-en-oliver = Oliver
+figure-en-archibald = Archibald
+figure-en-bartholomew = Bartholomew
+
+## Table layout and concealed Augen (issue #134)
+
+opponent-strength = Spielstärke: { $level }
+opponent-mode = Modus: { $mode }
+opponent-portrait = Karikatur von { $player }
+augen-title = Augen
+augen-reveal = Augen zeigen (gedrückt halten)
+augen-hidden = Verdeckt. Zum Ansehen die Schaltfläche gedrückt halten; Loslassen verdeckt sofort.
+augen-none = Noch kein Stich abgeschlossen.
+augen-declarer = Alleinspieler { $player }: { $augen }
+augen-defence = Gegenpartei { $player }: { $augen }
+augen-player = { $player }: { $augen }
+augen-skat-excluded = Nur abgeschlossene Stiche; der Skat zählt nicht mit.

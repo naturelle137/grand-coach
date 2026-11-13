@@ -7,6 +7,7 @@ use eframe::egui;
 use skat_app::Card;
 
 include!(concat!(env!("OUT_DIR"), "/card_files.rs"));
+include!(concat!(env!("OUT_DIR"), "/portrait_files.rs"));
 
 /// Selectable card faces (D-14).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -100,6 +101,21 @@ pub fn image(path: &str) -> egui::ImageSource<'static> {
         .unwrap_or_else(|| panic!("card image {path} is not embedded"));
     egui::ImageSource::Bytes {
         uri: format!("bytes://cards/{path}").into(),
+        bytes: bytes.into(),
+    }
+}
+
+/// Image source of the caricature of `figure` (`assets/portraits/`,
+/// D-72).
+pub fn portrait(figure: skat_app::FigureId) -> egui::ImageSource<'static> {
+    let name = format!("{}.svg", figure.key());
+    let bytes = PORTRAIT_FILES
+        .iter()
+        .find(|(p, _)| *p == name)
+        .map(|(_, b)| *b)
+        .unwrap_or_else(|| panic!("portrait {name} is not embedded"));
+    egui::ImageSource::Bytes {
+        uri: format!("bytes://portraits/{name}").into(),
         bytes: bytes.into(),
     }
 }

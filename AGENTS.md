@@ -56,6 +56,7 @@ crates/skat-coach     structured explanations (text keys + parameters), no texts
 crates/skat-app       application interface: session, commands, events, view models
 crates/gui-egui       egui frontend
 tools/cardgen         generates card SVGs into assets/cards/
+tools/portraitgen     generates opponent caricature SVGs into assets/portraits/
 tools/notices         generates THIRD-PARTY-NOTICES from Cargo.lock (D-43)
 tools/nn-train        trains the skat-nn networks outside the app (CPU, GPU via Vulkan; D-11)
 ```

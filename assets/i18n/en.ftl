@@ -810,3 +810,44 @@ learning-family-quiz = In-game counting quiz
 learning-family-focused = In-game focused counting
 learning-family-training = Counting training
 learning-strategic-separate = Only counting answers are described here. Card play and other decisions are not classified in this history.
+
+## Opponent figures (D-72): names of both pools, shown in their language
+
+figure-de-anna = Anna
+figure-de-sabine = Sabine
+figure-de-monika = Monika
+figure-de-annemarie = Annemarie
+figure-de-adelheid = Adelheid
+figure-de-hildegard = Hildegard
+figure-de-thomas = Thomas
+figure-de-michael = Michael
+figure-de-peter = Peter
+figure-de-stefan = Stefan
+figure-de-kunibert = Kunibert
+figure-de-friedrich-wilhelm = Friedrich-Wilhelm
+figure-en-emma = Emma
+figure-en-sarah = Sarah
+figure-en-linda = Linda
+figure-en-elizabeth = Elizabeth
+figure-en-ethel = Ethel
+figure-en-mildred = Mildred
+figure-en-james = James
+figure-en-david = David
+figure-en-tom = Tom
+figure-en-oliver = Oliver
+figure-en-archibald = Archibald
+figure-en-bartholomew = Bartholomew
+
+## Table layout and concealed Augen (issue #134)
+
+opponent-strength = Strength: { $level }
+opponent-mode = Mode: { $mode }
+opponent-portrait = Caricature of { $player }
+augen-title = Card points
+augen-reveal = Show card points (press and hold)
+augen-hidden = Hidden. Press and hold the button to look; releasing hides them at once.
+augen-none = No trick completed yet.
+augen-declarer = Declarer { $player }: { $augen }
+augen-defence = Defenders { $player }: { $augen }
+augen-player = { $player }: { $augen }
+augen-skat-excluded = Completed tricks only; the Skat is not counted.

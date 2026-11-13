@@ -10,13 +10,22 @@ use skat_app::{
 use crate::cards::Theme;
 use crate::i18n::I18n;
 
-/// Name of a player.
+/// Name of a player: "you" for the human, the opponent's figure name
+/// (D-72), or "left"/"right" without a cast.
 pub fn player(i18n: &I18n, player: PlayerId) -> String {
+    if let Some(figure) = i18n.figure(player) {
+        return figure_name(i18n, figure);
+    }
     i18n.t(match player.0 {
         0 => "player-human",
         1 => "player-left",
         _ => "player-right",
     })
+}
+
+/// Name of a figure.
+pub fn figure_name(i18n: &I18n, figure: skat_app::FigureId) -> String {
+    i18n.t(&format!("figure-{}", figure.key()))
 }
 
 /// Name of a seat.

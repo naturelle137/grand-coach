@@ -19,10 +19,15 @@ use crate::assist;
 use crate::cards::{self, Deck, Theme};
 use crate::coach::{self, Style};
 use crate::i18n::{Faces, I18n, Language};
+use crate::style;
 use crate::text;
 
 const CARD: Vec2 = Vec2::new(78.0, 117.0);
 const SMALL_CARD: Vec2 = Vec2::new(44.0, 66.0);
+/// Closed opponent cards and the own Skat in a small window.
+const COMPACT_CARD: Vec2 = Vec2::new(32.0, 48.0);
+/// Widest hand card in a small window, so the trick stays in view.
+const COMPACT_HAND_CARD: f32 = 66.0;
 /// Cards of a debriefing moment: ten fit the coach panel's width.
 const MOMENT_CARD: Vec2 = Vec2::new(30.0, 45.0);
 /// Gap between the cards of the trick triangle.
@@ -32,6 +37,14 @@ const TRICK_LABEL_HEIGHT: f32 = 20.0;
 const TABLE_GREEN: Color32 = Color32::from_rgb(34, 102, 58);
 const TABLE_RED: Color32 = Color32::from_rgb(110, 22, 26);
 const TABLE_BLUE: Color32 = Color32::from_rgb(30, 74, 140);
+/// Side of an opponent's caricature on the table (D-72).
+const PORTRAIT: f32 = 56.0;
+/// Narrowest hand card before the hand wraps into a second row.
+const MIN_HAND_CARD: f32 = 52.0;
+/// From this window width on, the hand sits in the centre between coach
+/// and side panel; below it spans the window, so every card and action
+/// stays reachable down to 960 px (issue #134).
+const WIDE_LAYOUT: f32 = 1200.0;
 
 /// Size of the trick triangle: left and right card on top, the human's card
 /// below between them.
@@ -186,12 +199,25 @@ pub struct GrandCoachApp {
     /// The focused counting training screen (D-71); while open, the live
     /// table waits undriven and unchanged.
     training: crate::training::TrainingUi,
+    /// The game in which the concealed Augen were revealed by holding the
+    /// button; `None` while it is not held (issue #134).
+    augen_hold: Option<GameKey>,
+}
+
+/// Identifies the shown game: a new game, series or practice attempt
+/// conceals the Augen again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct GameKey {
+    seed: u64,
+    number: u32,
+    practice: Option<u32>,
 }
 
 impl GrandCoachApp {
-    /// Creates the app and installs the SVG image loader.
+    /// Creates the app, installs the SVG image loader and the light theme.
     pub fn new(ctx: &egui::Context, config: SessionConfig) -> GrandCoachApp {
         egui_extras::install_image_loaders(ctx);
+        style::apply(ctx);
         GrandCoachApp {
             session: Session::new(config),
             recording: Default::default(),
@@ -216,6 +242,7 @@ impl GrandCoachApp {
             learning: Default::default(),
             learning_attempt: None,
             training: Default::default(),
+            augen_hold: None,
         }
     }
 
@@ -723,30 +750,7 @@ impl GrandCoachApp {
             });
             ui.add_enabled_ui(!self.recording.active(), |ui| {
                 ui.menu_button(self.t("menu-settings"), |ui| {
-                    ui.label(RichText::new(self.t("setting-language")).strong());
-                    for language in Language::ALL {
-                        let id = match language {
-                            Language::De => "language-de",
-                            Language::En => "language-en",
-                        };
-                        let label = self.t(id);
-                        ui.radio_value(&mut self.i18n.language, language, label);
-                    }
-                    ui.separator();
-                    ui.label(RichText::new(self.t("setting-deck")).strong());
-                    for deck in Deck::ALL {
-                        let label = self.t(deck.message());
-                        ui.radio_value(&mut self.deck, deck, label);
-                    }
-                    ui.separator();
-                    self.coach_settings(ui);
-                    ui.separator();
-                    self.assist_settings(ui);
-                    ui.separator();
-                    ui.label(RichText::new(self.t("setting-developer")).strong());
-                    let label = self.t("setting-show-seed");
-                    ui.checkbox(&mut self.show_seed, label)
-                        .on_hover_text(self.t("seed-description"));
+                    self.settings_menu(ui);
                 });
                 if view.open_cards.is_some() {
                     ui.separator();
@@ -756,6 +760,33 @@ impl GrandCoachApp {
                 }
             });
         });
+    }
+
+    fn settings_menu(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new(self.t("setting-language")).strong());
+        for language in Language::ALL {
+            let id = match language {
+                Language::De => "language-de",
+                Language::En => "language-en",
+            };
+            let label = self.t(id);
+            ui.radio_value(&mut self.i18n.language, language, label);
+        }
+        ui.separator();
+        ui.label(RichText::new(self.t("setting-deck")).strong());
+        for deck in Deck::ALL {
+            let label = self.t(deck.message());
+            ui.radio_value(&mut self.deck, deck, label);
+        }
+        ui.separator();
+        self.coach_settings(ui);
+        ui.separator();
+        self.assist_settings(ui);
+        ui.separator();
+        ui.label(RichText::new(self.t("setting-developer")).strong());
+        let label = self.t("setting-show-seed");
+        ui.checkbox(&mut self.show_seed, label)
+            .on_hover_text(self.t("seed-description"));
     }
 
     fn coach_settings(&mut self, ui: &mut egui::Ui) {
@@ -1293,9 +1324,31 @@ impl GrandCoachApp {
     // ----------------------------------------------------------------------
     // Right: score sheet and last trick.
 
-    fn side_panel(&self, ui: &mut egui::Ui, view: &TableView) {
+    fn side_panel(&mut self, ui: &mut egui::Ui, view: &TableView) {
+        // Every section scrolls and collapses, so the panel fits any height.
+        egui::ScrollArea::vertical()
+            .id_salt("side_scroll")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                egui::CollapsingHeader::new(RichText::new(self.t("trick-last")).heading())
+                    .id_salt("side_last_trick")
+                    .default_open(true)
+                    .show(ui, |ui| self.last_trick(ui, view));
+                egui::CollapsingHeader::new(RichText::new(self.t("augen-title")).heading())
+                    .id_salt("side_augen")
+                    .default_open(true)
+                    .show(ui, |ui| self.augen(ui, view));
+                self.aid_section(ui, view);
+                ui.separator();
+                egui::CollapsingHeader::new(RichText::new(self.t("sheet-title")).heading())
+                    .id_salt("side_sheet")
+                    .default_open(true)
+                    .show(ui, |ui| self.sheet(ui, view));
+            });
+    }
+
+    fn last_trick(&self, ui: &mut egui::Ui, view: &TableView) {
         let i = &self.i18n;
-        ui.heading(self.t("trick-last"));
         match &view.last_trick {
             Some(trick) => {
                 ui.horizontal(|ui| {
@@ -1315,14 +1368,97 @@ impl GrandCoachApp {
                 ui.label("–");
             }
         }
-        self.aid_section(ui, view);
-        ui.separator();
-        ui.heading(self.t("sheet-title"));
+    }
+
+    /// The shown game, for concealing the Augen again when it changes.
+    fn game_key(&self, view: &TableView) -> GameKey {
+        GameKey {
+            seed: view.config.seed,
+            number: view.game_number,
+            practice: self.practice_attempt(),
+        }
+    }
+
+    /// The Augen won in completed tricks (issue #134): concealed unless the
+    /// button is held down with the mouse or the keyboard in the current
+    /// game while the window has focus. The button's label and every text
+    /// shown while concealed are free of numbers, so neither a tooltip nor
+    /// assistive technology can reveal them.
+    fn augen(&mut self, ui: &mut egui::Ui, view: &TableView) {
+        let button = ui.add(egui::Button::new(self.t("augen-reveal")));
+        // Held with the mouse: the primary button is down and the press
+        // began on the button, however long it lasts.
+        let rect = button.interact_rect;
+        let pointer = ui.input(|i| {
+            i.pointer.primary_down() && i.pointer.press_origin().is_some_and(|p| rect.contains(p))
+        });
+        let keys = button.has_focus()
+            && ui.input(|i| i.key_down(egui::Key::Space) || i.key_down(egui::Key::Enter));
+        let window = ui.input(|i| i.viewport().focused != Some(false));
+        let held = (pointer || keys) && window;
+        let game = self.game_key(view);
+        let reveal = hold_reveals(&mut self.augen_hold, held, game);
+        let i = &self.i18n;
+        let declarer = view.declarer.filter(|_| view.tricks_played > 0);
+        match declarer {
+            None => {
+                ui.label(RichText::new(i.t("augen-none")).weak());
+            }
+            Some(_) if !reveal => {
+                ui.label(RichText::new(i.t("augen-hidden")).weak());
+            }
+            Some(declarer) => {
+                let augen = view.trick_augen;
+                ui.label(
+                    RichText::new(i.tf(
+                        "augen-declarer",
+                        &[
+                            ("player", self.player(declarer).into()),
+                            ("augen", augen[declarer.index()].into()),
+                        ],
+                    ))
+                    .strong(),
+                );
+                let defenders: Vec<PlayerId> = PlayerId::ALL
+                    .into_iter()
+                    .filter(|&p| p != declarer)
+                    .collect();
+                let names: Vec<String> = defenders.iter().map(|&p| self.player(p)).collect();
+                let sum: u16 = defenders.iter().map(|p| u16::from(augen[p.index()])).sum();
+                ui.label(
+                    RichText::new(i.tf(
+                        "augen-defence",
+                        &[("player", names.join(" + ").into()), ("augen", sum.into())],
+                    ))
+                    .strong(),
+                );
+                for p in defenders {
+                    ui.label(
+                        RichText::new(i.tf(
+                            "augen-player",
+                            &[
+                                ("player", self.player(p).into()),
+                                ("augen", augen[p.index()].into()),
+                            ],
+                        ))
+                        .small(),
+                    );
+                }
+            }
+        }
+        ui.label(RichText::new(i.t("augen-skat-excluded")).small().weak());
+    }
+
+    /// The score sheet with Seeger-Fabian totals; always visible.
+    fn sheet(&self, ui: &mut egui::Ui, view: &TableView) {
+        let i = &self.i18n;
         if view.practice {
             ui.label(self.t("practice-not-scored"));
             return;
         }
-        egui::ScrollArea::vertical()
+        egui::ScrollArea::both()
+            .id_salt("sheet_scroll")
+            .max_height(360.0)
             .stick_to_bottom(true)
             .show(ui, |ui| {
                 egui::Grid::new("sheet").striped(true).show(ui, |ui| {
@@ -1367,54 +1503,116 @@ impl GrandCoachApp {
     // Centre: opponents, Skat and the trick.
 
     fn table(&mut self, ui: &mut egui::Ui, view: &TableView, now: f64) {
-        if self.session.guided().is_some() {
-            // Keep the fixed-size trick triangle clear of opponent headers,
-            // including at the smallest supported desktop window.
-            ui.columns(2, |columns| {
-                self.opponent(&mut columns[0], view, PlayerId(1));
-                self.opponent(&mut columns[1], view, PlayerId(2));
+        // The table scrolls rather than overlapping when results, the Skat
+        // and a trick meet in a small window.
+        egui::ScrollArea::vertical()
+            .id_salt("table_scroll")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let wide = ui.available_width() >= 3.0 * (trick_area().x + 24.0);
+                if self.session.guided().is_some() || !wide {
+                    // Keep the fixed-size trick triangle clear of opponent
+                    // headers: both opponents above it, at their sides.
+                    ui.columns(2, |columns| {
+                        self.opponent(&mut columns[0], view, PlayerId(1));
+                        columns[1].with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
+                            self.opponent(ui, view, PlayerId(2))
+                        });
+                    });
+                    ui.add_space(12.0);
+                    self.middle(ui, view, now);
+                    return;
+                }
+                ui.columns(3, |columns| {
+                    self.opponent(&mut columns[0], view, PlayerId(1));
+                    self.middle(&mut columns[1], view, now);
+                    columns[2].with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
+                        self.opponent(ui, view, PlayerId(2))
+                    });
+                });
             });
-            ui.add_space(12.0);
-            self.middle(ui, view, now);
-            return;
-        }
-        ui.columns(3, |columns| {
-            self.opponent(&mut columns[0], view, PlayerId(1));
-            self.middle(&mut columns[1], view, now);
-            self.opponent(&mut columns[2], view, PlayerId(2));
-        });
     }
 
+    /// Strength or table mode of an opponent, shown apart from its name.
+    fn strength(&self, view: &TableView, player: PlayerId) -> String {
+        let i = &self.i18n;
+        match view.config.level(player) {
+            Some(level) => i.tf(
+                "opponent-strength",
+                &[("level", i.t(level_message(level)).into())],
+            ),
+            None => i.tf(
+                "opponent-mode",
+                &[("mode", i.t(mode_message(view.config.opponents)).into())],
+            ),
+        }
+    }
+
+    /// An opponent's seat: caricature, name, seat and role, strength or
+    /// mode, last call, cards and tricks (D-72).
     fn opponent(&self, ui: &mut egui::Ui, view: &TableView, player: PlayerId) {
         let i = &self.i18n;
         let info = view.players[player.index()];
-        ui.vertical(|ui| {
-            let mut title = RichText::new(self.player(player))
-                .heading()
-                .color(Color32::WHITE);
-            if view.acting == Some(player) {
-                title = title.underline();
-            }
-            ui.label(title);
-            let mut line = text::seat(i, info.seat);
-            if view.declarer == Some(player) {
-                line = format!("{line} · {}", self.t("label-declarer"));
-            }
-            ui.label(RichText::new(line).color(Color32::WHITE));
-            if let Some(call) = info.last_call {
-                ui.label(RichText::new(text::call(i, call)).color(Color32::LIGHT_YELLOW));
-            }
-            ui.label(
-                RichText::new(i.tf(
-                    "label-cards-tricks",
-                    &[("cards", info.cards.into()), ("tricks", info.tricks.into())],
-                ))
-                .color(Color32::WHITE),
-            );
+        let acting = view.acting == Some(player);
+        let plate = style::seat_plate(self.table_color(), acting);
+        let compact = compact(ui.ctx());
+        plate.show(ui, |ui| {
+            ui.set_max_width(ui.available_width().min(320.0));
+            let portrait = if compact { 0.7 * PORTRAIT } else { PORTRAIT };
+            ui.horizontal(|ui| {
+                if let Some(figure) = i.figure(player) {
+                    let alt = i.tf(
+                        "opponent-portrait",
+                        &[("player", self.player(player).into())],
+                    );
+                    ui.add(
+                        egui::Image::new(cards::portrait(figure))
+                            .fit_to_exact_size(Vec2::splat(portrait))
+                            .alt_text(alt),
+                    );
+                }
+                ui.vertical(|ui| {
+                    let mut title = RichText::new(self.player(player)).color(style::ON_TABLE);
+                    title = if compact {
+                        title.strong()
+                    } else {
+                        title.heading()
+                    };
+                    if acting {
+                        title = title.underline().color(style::ON_TABLE_ACCENT);
+                    }
+                    ui.add(egui::Label::new(title).wrap());
+                    let mut line = text::seat(i, info.seat);
+                    if view.declarer == Some(player) {
+                        line = format!("{line} · {}", self.t("label-declarer"));
+                    }
+                    ui.add(egui::Label::new(RichText::new(line).color(style::ON_TABLE)).wrap());
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(self.strength(view, player))
+                                .small()
+                                .color(style::ON_TABLE_WEAK),
+                        )
+                        .wrap(),
+                    );
+                });
+            });
+            ui.horizontal_wrapped(|ui| {
+                if let Some(call) = info.last_call {
+                    ui.label(RichText::new(text::call(i, call)).color(style::ON_TABLE_ACCENT));
+                }
+                ui.label(
+                    RichText::new(i.tf(
+                        "label-cards-tricks",
+                        &[("cards", info.cards.into()), ("tricks", info.tricks.into())],
+                    ))
+                    .color(style::ON_TABLE),
+                );
+            });
             let open = view.declarer == Some(player);
             match (&view.declarer_cards, open) {
                 (Some(cards), true) => {
-                    ui.label(RichText::new(self.t("label-open-cards")).color(Color32::WHITE));
+                    ui.label(RichText::new(self.t("label-open-cards")).color(style::ON_TABLE));
                     ui.horizontal_wrapped(|ui| {
                         ui.spacing_mut().item_spacing.x = 2.0;
                         for &card in cards {
@@ -1423,21 +1621,28 @@ impl GrandCoachApp {
                     });
                 }
                 _ => {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing.x = -SMALL_CARD.x * 0.6;
-                        if let Some(open) = self.open_cards(view) {
+                    if let Some(open) = self.open_cards(view) {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing.x = -SMALL_CARD.x * 0.6;
                             for &card in &open.hands[player.index()] {
                                 self.card_image(ui, card, SMALL_CARD);
                             }
-                            return;
-                        }
-                        for _ in 0..info.cards {
-                            ui.add(
-                                egui::Image::new(cards::image(self.back()))
-                                    .fit_to_exact_size(SMALL_CARD),
-                            );
-                        }
-                    });
+                        });
+                    } else {
+                        // Closed backs overlap in one row that fits the seat.
+                        let size = if compact { COMPACT_CARD } else { SMALL_CARD };
+                        let n = f32::from(info.cards.max(2));
+                        let fit = (ui.available_width() - size.x) / (n - 1.0) - size.x;
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = fit.min(-size.x * 0.6);
+                            for _ in 0..info.cards {
+                                ui.add(
+                                    egui::Image::new(cards::image(self.back()))
+                                        .fit_to_exact_size(size),
+                                );
+                            }
+                        });
+                    }
                 }
             }
         });
@@ -1452,14 +1657,14 @@ impl GrandCoachApp {
                 .map(|o| o.skat.as_slice())
                 .filter(|s| !s.is_empty() && view.result.is_none());
             if let Some(skat) = open_skat {
-                ui.label(RichText::new(self.t("label-skat")).color(Color32::WHITE));
+                ui.label(RichText::new(self.t("label-skat")).color(style::ON_TABLE));
                 ui.horizontal(|ui| {
                     for &card in skat {
                         self.card_image(ui, card, SMALL_CARD);
                     }
                 });
             } else if matches!(view.phase, Phase::Reizen | Phase::SkatAufnahme) {
-                ui.label(RichText::new(self.t("label-skat")).color(Color32::WHITE));
+                ui.label(RichText::new(self.t("label-skat")).color(style::ON_TABLE));
                 ui.horizontal(|ui| {
                     for _ in 0..2 {
                         ui.add(
@@ -1488,7 +1693,7 @@ impl GrandCoachApp {
                 (String::new(), Vec::new())
             };
             if !cards.is_empty() {
-                ui.label(RichText::new(title).color(Color32::WHITE));
+                ui.label(RichText::new(title).color(style::ON_TABLE));
                 self.trick_triangle(ui, &cards);
             }
             if let Some(result) = &view.result {
@@ -1745,13 +1950,28 @@ impl GrandCoachApp {
         let free = view.acting == Some(PlayerId::HUMAN) && view.coach.pending.is_none();
         let discarding = view.phase == Phase::Druecken && free;
         let playing = view.phase == Phase::Spiel && free;
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 4.0;
+        // Cards shrink to fit the width, down to a minimum; then they wrap,
+        // so every card stays reachable in a small window (issue #134).
+        let gap = 4.0;
+        let n = view.hand.len().max(1) as f32;
+        // Each card is a button: a slim padding and the frame add to it.
+        ui.spacing_mut().button_padding = Vec2::splat(2.0);
+        let frame = 2.0 * ui.spacing().button_padding.x + 2.0;
+        let fit = (ui.available_width() - n * frame - gap * (n - 1.0)) / n;
+        let widest = if compact(ui.ctx()) {
+            COMPACT_HAND_CARD
+        } else {
+            CARD.x
+        };
+        let width = fit.clamp(MIN_HAND_CARD, widest);
+        let size = Vec2::new(width, width * CARD.y / CARD.x);
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
             for &card in &view.hand {
                 let selected = self.selected.contains(card);
                 let dim = playing && !playable.contains(&card);
                 let mut image =
-                    egui::Image::new(cards::image(&self.face(card))).fit_to_exact_size(CARD);
+                    egui::Image::new(cards::image(&self.face(card))).fit_to_exact_size(size);
                 if dim {
                     image = image.tint(Color32::from_gray(150));
                 }
@@ -1777,10 +1997,15 @@ impl GrandCoachApp {
             }
         });
         if let Some(skat) = &view.own_skat {
+            let size = if compact(ui.ctx()) {
+                COMPACT_CARD
+            } else {
+                SMALL_CARD
+            };
             ui.horizontal(|ui| {
                 ui.label(self.t("label-own-skat"));
                 for &card in skat {
-                    self.card_image(ui, card, SMALL_CARD);
+                    self.card_image(ui, card, size);
                 }
             });
         }
@@ -1838,11 +2063,18 @@ impl GrandCoachApp {
                 card.left_bottom(),
                 Vec2::new(CARD.x, TRICK_LABEL_HEIGHT),
             );
+            // Long names are shortened under the card; the full name shows
+            // on hover and at the seat.
+            let player = self.player(played.player);
             ui.put(
                 name,
-                egui::Label::new(RichText::new(self.player(played.player)).color(Color32::WHITE)),
-            );
+                egui::Label::new(RichText::new(&player).color(style::ON_TABLE)).truncate(),
+            )
+            .on_hover_text(player);
         }
+        // `put` leaves the cursor after the last card placed; whatever
+        // follows (the result) goes below the whole triangle.
+        ui.advance_cursor_after_rect(area);
     }
 
     fn card_image(&self, ui: &mut egui::Ui, card: Card, size: Vec2) -> egui::Response {
@@ -2030,6 +2262,36 @@ fn level_message(level: Level) -> &'static str {
 }
 
 /// Shows coach lines in their styles.
+/// `true` in a window narrower than [`WIDE_LAYOUT`]: smaller seats, hand
+/// and own Skat keep the trick in view down to 960 × 640.
+fn compact(ctx: &egui::Context) -> bool {
+    ctx.content_rect().width() < WIDE_LAYOUT
+}
+
+/// `true` if the held reveal button shows the concealed Augen of `game`:
+/// only while held and only in the game in which the hold began, so a new
+/// game, series or practice attempt conceals them until the next press.
+fn hold_reveals(hold: &mut Option<GameKey>, held: bool, game: GameKey) -> bool {
+    if !held {
+        *hold = None;
+    } else if hold.is_none() {
+        *hold = Some(game);
+    }
+    held && *hold == Some(game)
+}
+
+/// Message of a table mode without per-opponent levels.
+fn mode_message(opponents: Opponents) -> &'static str {
+    match opponents {
+        Opponents::Levels(_) => "mode-levels",
+        Opponents::Goldfish => "mode-goldfish",
+        Opponents::Mephisto => "mode-mephisto",
+        Opponents::GodMode => "mode-god",
+        Opponents::Neural => "mode-neural",
+        Opponents::Experimental => "mode-experimental",
+    }
+}
+
 fn show_lines(ui: &mut egui::Ui, lines: &[coach::Line]) {
     for line in lines {
         let text = RichText::new(&line.text);
@@ -2107,6 +2369,8 @@ impl eframe::App for GrandCoachApp {
             self.send(Command::Guided(g.id, skat_app::GuidedAction::Return), now);
         }
         let view = self.session.view();
+        // Names and portraits of this series' opponents (D-72).
+        self.i18n.cast = Some(view.cast);
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui, &view, now));
         let blocked = self.recording.active();
         if self.practice.is_some() {
@@ -2119,32 +2383,60 @@ impl eframe::App for GrandCoachApp {
         ui.add_enabled_ui(!blocked, |ui| {
             egui::Panel::top("status").show(ui, |ui| self.status(ui, &view));
             let guided = self.session.guided().is_some();
-            if !guided {
-                egui::Panel::right("side")
-                    .default_size(320.0)
-                    .show(ui, |ui| self.side_panel(ui, &view));
-            }
-            egui::Panel::bottom("hand").show(ui, |ui| {
-                ui.add_space(4.0);
-                self.actions(ui, &view, now);
-                ui.add_space(4.0);
-                self.hand(ui, &view, now);
-                ui.add_space(4.0);
-            });
+            let coach = Self::coach_visible(&view);
+            let wide = ui.available_width() >= WIDE_LAYOUT;
+            let hand = |app: &mut Self, ui: &mut egui::Ui| {
+                egui::Panel::bottom("hand").show(ui, |ui| {
+                    ui.add_space(4.0);
+                    app.actions(ui, &view, now);
+                    ui.add_space(4.0);
+                    app.hand(ui, &view, now);
+                    ui.add_space(4.0);
+                });
+            };
             if guided {
                 // The complete playable hand keeps the window width, even
                 // at 960 px; history stays beside the table above it.
+                hand(self, ui);
                 egui::Panel::right("side")
-                    .default_size(320.0)
+                    .default_size(300.0)
                     .show(ui, |ui| self.side_panel(ui, &view));
-            }
-            // After the hand, so the hand keeps the full width (twelve cards
-            // when discarding).
-            if Self::coach_visible(&view) {
-                egui::Panel::left("coach")
-                    .default_size(if guided { 300.0 } else { 360.0 })
-                    .min_size(if guided { 280.0 } else { 0.0 })
-                    .show(ui, |ui| self.coach_panel(ui, &view, now));
+                if coach {
+                    egui::Panel::left("coach")
+                        .default_size(300.0)
+                        .min_size(280.0)
+                        .show(ui, |ui| self.coach_panel(ui, &view, now));
+                }
+            } else if wide {
+                // Coach left, table with the hand in the centre, last trick,
+                // Augen and score sheet right (issue #134).
+                if coach {
+                    egui::Panel::left("coach")
+                        .default_size(340.0)
+                        .min_size(240.0)
+                        .show(ui, |ui| self.coach_panel(ui, &view, now));
+                }
+                egui::Panel::right("side")
+                    .default_size(300.0)
+                    .min_size(220.0)
+                    .show(ui, |ui| self.side_panel(ui, &view));
+                hand(self, ui);
+            } else {
+                // A small window: the hand and the actions span the full
+                // width below both panels.
+                hand(self, ui);
+                egui::Panel::right("side")
+                    .default_size(230.0)
+                    .min_size(200.0)
+                    .max_size(250.0)
+                    .show(ui, |ui| self.side_panel(ui, &view));
+                if coach {
+                    egui::Panel::left("coach")
+                        .default_size(240.0)
+                        .min_size(200.0)
+                        .max_size(260.0)
+                        .show(ui, |ui| self.coach_panel(ui, &view, now));
+                }
             }
             egui::CentralPanel::default()
                 .frame(egui::Frame::central_panel(ui.style()).fill(self.table_color()))
@@ -2159,10 +2451,15 @@ impl eframe::App for GrandCoachApp {
         let ctx = ui.ctx().clone();
         let can_practice = self.practice.is_none();
         self.recording.budget = self.session.coach_budget();
-        if let Some(recording) =
-            self.recording
-                .windows(&ctx, &self.i18n, self.deck, can_practice, &view)
-        {
+        // A reopened game names the figures of its own series.
+        if let Some(cast) = self.recording.replay_cast() {
+            self.i18n.cast = Some(cast);
+        }
+        let started = self
+            .recording
+            .windows(&ctx, &self.i18n, self.deck, can_practice, &view);
+        self.i18n.cast = Some(view.cast);
+        if let Some(recording) = started {
             self.practice_request = Some(PracticeRequest::Start(recording));
         }
         self.learning.window(&ctx, &self.i18n);
@@ -2512,6 +2809,33 @@ mod tests {
         // Received and applied: identical to delivering it without practice.
         assert!(h.state().coach_thinking.is_none());
         assert_eq!(h.state().session.view(), control.view());
+    }
+
+    #[test]
+    fn a_held_reveal_ends_with_release_and_with_the_game() {
+        let game = |number| GameKey {
+            seed: 3,
+            number,
+            practice: None,
+        };
+        let mut hold = None;
+        assert!(!hold_reveals(&mut hold, false, game(1)));
+        assert!(hold_reveals(&mut hold, true, game(1)));
+        assert!(hold_reveals(&mut hold, true, game(1)));
+        // The next game starts while the button is still held: concealed
+        // until it is released and pressed again.
+        assert!(!hold_reveals(&mut hold, true, game(2)));
+        assert!(!hold_reveals(&mut hold, true, game(2)));
+        assert!(!hold_reveals(&mut hold, false, game(2)));
+        assert!(hold_reveals(&mut hold, true, game(2)));
+        // A practice attempt of the same game number is another game.
+        let practice = GameKey {
+            practice: Some(1),
+            ..game(2)
+        };
+        assert!(!hold_reveals(&mut hold, true, practice));
+        assert!(!hold_reveals(&mut hold, false, practice));
+        assert_eq!(hold, None);
     }
 
     #[test]

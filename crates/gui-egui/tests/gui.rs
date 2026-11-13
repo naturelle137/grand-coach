@@ -513,6 +513,15 @@ fn table_shows_phase_turn_announcements_tricks_and_sheet() {
     harness.get_by_label("Nächstes Spiel");
 }
 
+/// German name of an opponent's figure in the running series (D-72).
+fn figure_name(harness: &Harness<'_, GrandCoachApp>, player: PlayerId) -> String {
+    let figure = view(harness)
+        .cast
+        .figure(skat_app::FigurePool::German, player)
+        .expect("an opponent has a figure");
+    gui_egui::i18n::I18n::new(Language::De).t(&format!("figure-{}", figure.key()))
+}
+
 /// Checks that the shown trick lies as a triangle: left opponent's card
 /// left, right opponent's card right, the human's card below between them.
 fn assert_trick_triangle(harness: &Harness<'_, GrandCoachApp>, trick: &[PlayedCard]) {
@@ -532,8 +541,10 @@ fn assert_trick_triangle(harness: &Harness<'_, GrandCoachApp>, trick: &[PlayedCa
         }
         .unwrap()
     };
-    let left = played(PlayerId(1)).then(|| innermost("Links", true));
-    let right = played(PlayerId(2)).then(|| innermost("Rechts", false));
+    let left_name = figure_name(harness, PlayerId(1));
+    let right_name = figure_name(harness, PlayerId(2));
+    let left = played(PlayerId(1)).then(|| innermost(&left_name, true));
+    let right = played(PlayerId(2)).then(|| innermost(&right_name, false));
     let human = played(PlayerId::HUMAN).then(|| innermost("Du", false));
     if let (Some(l), Some(r)) = (left, right) {
         assert!(l.max.x < r.min.x, "left {l:?}, right {r:?}");

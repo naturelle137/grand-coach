@@ -53,6 +53,9 @@ pub struct I18n {
     pub language: Language,
     /// The shown card faces, for suit names.
     pub faces: Faces,
+    /// The named opponents of the shown series (D-72); without one they
+    /// are "left" and "right".
+    pub cast: Option<skat_app::SeriesCast>,
 }
 
 fn bundle(lang: &str, source: &str) -> FluentBundle<FluentResource> {
@@ -75,7 +78,23 @@ impl I18n {
             en: bundle("en", EN_FTL),
             language,
             faces: Faces::default(),
+            cast: None,
         }
+    }
+
+    /// The figure pool of the selected language: switching the language
+    /// switches names and portraits together.
+    pub fn pool(&self) -> skat_app::FigurePool {
+        match self.language {
+            Language::De => skat_app::FigurePool::German,
+            Language::En => skat_app::FigurePool::English,
+        }
+    }
+
+    /// Figure of `player` in the shown series and language; `None` for the
+    /// human or without a cast.
+    pub fn figure(&self, player: skat_app::PlayerId) -> Option<skat_app::FigureId> {
+        self.cast?.figure(self.pool(), player)
     }
 
     fn current(&self) -> &FluentBundle<FluentResource> {
@@ -155,7 +174,36 @@ mod tests {
                 }
             }
         }
+        // Figure names are looked up by key (`text::figure_name`).
+        for figure in skat_app::FIGURES {
+            found.insert(format!("figure-{}", figure.key));
+        }
         found
+    }
+
+    #[test]
+    fn every_figure_has_a_name_in_its_language_and_a_portrait() {
+        for language in Language::ALL {
+            let mut i18n = I18n::new(language);
+            for figure in skat_app::FigureId::pool(i18n.pool()) {
+                let name = crate::text::figure_name(&i18n, figure);
+                assert!(!name.starts_with("figure-"), "{}", figure.key());
+                // Embedded, or this panics.
+                let _ = crate::cards::portrait(figure);
+            }
+            // A cast follows the language; the human stays "you".
+            let cast = skat_app::SeriesCast::for_seed(7);
+            i18n.cast = Some(cast);
+            let left = cast.figure(i18n.pool(), skat_app::PlayerId(1)).unwrap();
+            assert_eq!(
+                crate::text::player(&i18n, skat_app::PlayerId(1)),
+                crate::text::figure_name(&i18n, left)
+            );
+            assert_eq!(
+                crate::text::player(&i18n, skat_app::PlayerId::HUMAN),
+                i18n.t("player-human")
+            );
+        }
     }
 
     #[test]
