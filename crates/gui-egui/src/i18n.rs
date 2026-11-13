@@ -303,6 +303,8 @@ mod tests {
                     "version",
                     "leader",
                     "attempt",
+                    "when",
+                    "label",
                 ] {
                     args.set(name, "x");
                 }

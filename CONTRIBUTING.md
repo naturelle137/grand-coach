@@ -161,10 +161,10 @@ Example: `docs: add roadmap with milestones`
 - If a change affects a decision, the vision or the roadmap, update the
   matching file in `docs/` in the same PR.
 
-Each PR receives an independent review from a provider other than the
-implementation author. Record the provider, reviewed commit, evidence and
-verdict in the PR. The CTO agent merges after blocking findings are resolved
-and required CI is green; the CEO is not a technical reviewer. See D-27 and
+Each PR receives one independent review in a fresh session from any
+provider. Record the provider, reviewed commit, evidence and verdict in the
+PR. Named blocking findings get one fix round; the CTO agent verifies them
+and green required CI and merges; the CEO is not a technical reviewer. See D-27 and
 [AGENTS.md](AGENTS.md#review-and-delivery-ownership).
 
 ## Automated implementation (Claude)

@@ -136,11 +136,12 @@ syntax and fixture commands are in [testing](docs/testing.md#offline-markdown-li
 ## Review and delivery ownership
 
 Agents own implementation, technical validation, review and integration.
-Every PR needs an independent review by a provider other than its author
-(Claude reviews Codex changes; Codex reviews Claude changes). Record the
-reviewed commit, provider, evidence and `VERDICT: APPROVE` or blocking
-findings in the PR. Re-review relevant changes after fixes; merge only with
-no unresolved blockers and green required CI. The CTO agent integrates.
+Every PR needs one independent review in a fresh session; any provider may
+review. Record the reviewed commit, provider, evidence and
+`VERDICT: APPROVE` or named blocking findings in the PR. Named blockers get
+exactly one fix round; the CTO agent then verifies those findings and green
+final required CI and integrates, without a second full review after the
+fix or a rebase.
 The CEO does not review PRs or resolve technical findings. Changes to
 repository protection settings require a separate CEO decision.
 

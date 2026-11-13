@@ -218,7 +218,7 @@ Recording tests supplement the fixed Farbspiel/Grand/Null legal-history
 fixtures with file round trips, incomplete and all-pass records. Navigation
 boundaries are checked against independently applied core events and seat
 views. GUI checks retain the original score sheet, recording and coach view;
-recording windows cannot apply moves or start analysis. These checks do not
+recording windows cannot apply moves and analyse only a requested replay comment. These checks do not
 claim session resumption.
 
 Practice tests (`skat-app/tests/practice.rs`) start attempts from a real
@@ -231,6 +231,21 @@ across sessions and attempts, and recover from invalid/unsupported records.
 GUI tests park and deliver pending live opponent and coach work, cancel and
 disconnect practice work, and drive the German and English
 viewer-to-practice-to-return flow through real widgets.
+
+Replay-comment tests (`skat-app/tests/replay_coach.rs`, D-67) check the exact
+pre-action view (hand, own Skat, Ouvert cards, bidding, current trick, no
+later trick) against the documented fixture deal, a late-series dealer that
+moves the human, the chosen action and legal alternative with role, seat and
+basis, forced/cancelled/all-pass/in-progress honest status, and stale-result
+rejection after every change and across identical or reopened recordings,
+while the live session, its pending coach job and file bytes stay unchanged.
+A `skat-app` unit test substitutes concealed cards under an identical
+permitted view and gets identical historical jobs and comments; only
+hindsight jobs differ. A `compile_fail` doctest keeps replay results out of
+`Session::finish_coach`. `gui-egui/tests/replay_coach.rs` drives selection,
+historical and hindsight requests, reveal, rapid changes, cancel/retry,
+close/reopen and practice start in both languages. Latency:
+`cargo run --locked --release -p skat-app --example replay_coach_latency`.
 
 ## Screenshots of the frontend
 
@@ -257,6 +272,10 @@ wgpu adapter and prefers software ones: lavapipe on Linux (Fedora/Ubuntu
   `practice-return` and `practice-return-en` start a practice attempt from
   that viewer, play other legal cards than the original, finish it or return
   early to the unchanged live series.
+- `replay-before`, `replay-historical(-en)`, `replay-hindsight(-en)` and
+  `replay-none(-en)` show a selected recorded decision before any request,
+  its historical and labelled hindsight comments, and an early file without
+  a recorded own decision.
 - They support the independent agent review of a frontend change; they do not
   replace looking at the change in a real window.
 

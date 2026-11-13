@@ -16,7 +16,7 @@
 use eframe::egui::{Key, Role};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use gui_egui::{Deck, GrandCoachApp, Language, Theme};
+use gui_egui::{Deck, GrandCoachApp, Language, Theme, coach, i18n::I18n};
 use skat_app::coach_model::{Concept, Judgement, LessonContent};
 use skat_app::{
     Action, Advice, Budget, Card, CoachLevel, CoachSettings, Debriefing, Level, Opponents, Pending,
@@ -56,6 +56,13 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("recording-error", recording_error),
     ("recording-error-en", recording_error_en),
     ("recording-narrow", recording),
+    ("replay-before", replay_before),
+    ("replay-historical", replay_historical),
+    ("replay-historical-en", replay_historical_en),
+    ("replay-hindsight", replay_hindsight),
+    ("replay-hindsight-en", replay_hindsight_en),
+    ("replay-none", replay_none),
+    ("replay-none-en", replay_none_en),
     ("practice", practice),
     ("practice-play", practice_play),
     ("practice-play-en", practice_play_en),
@@ -1142,6 +1149,114 @@ fn practice_return(h: &mut Harness<'_, GrandCoachApp>) {
 
 fn practice_return_en(h: &mut Harness<'_, GrandCoachApp>) {
     practice_return(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+/// The reopened completed game with its first own card decision after the
+/// opening lead that had a choice, selected in the replay coach: the table
+/// before that move.
+fn replay_before(h: &mut Harness<'_, GrandCoachApp>) {
+    recording(h);
+    // Final position with every card revealed: the reveal stays a display
+    // choice and does not change the comment's perspective.
+    click(h, Role::Button, "Ende");
+    let label = {
+        let replay = h.state_mut().replay_coach_mut().expect("recording open");
+        let decision = *replay
+            .decisions()
+            .iter()
+            .find(|d| d.options > 1 && d.trick.is_some_and(|t| t > 1))
+            .expect("an own card decision with a choice");
+        coach::recorded_decision(&I18n::new(Language::De), &decision)
+    };
+    click(h, Role::ComboBox, "Entscheidung");
+    h.get_by_label(&label).click();
+    h.run_steps(4);
+    h.get_by_value(&label);
+}
+
+fn await_replay(h: &mut Harness<'_, GrandCoachApp>) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(600);
+    while h.state().replay_computing() {
+        assert!(std::time::Instant::now() < deadline, "replay comment hangs");
+        h.run_steps(1);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    h.run_steps(4);
+}
+
+/// The historical comment: only what the player knew then.
+fn replay_historical(h: &mut Harness<'_, GrandCoachApp>) {
+    replay_before(h);
+    click(h, Role::Button, "Kommentar anfordern");
+    await_replay(h);
+    assert!(
+        h.query_all_by_label_contains("Sicht: damaliger Wissensstand")
+            .next()
+            .is_some()
+    );
+}
+
+fn replay_historical_en(h: &mut Harness<'_, GrandCoachApp>) {
+    replay_historical(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+/// The deliberately requested hindsight comment, persistently labelled.
+fn replay_hindsight(h: &mut Harness<'_, GrandCoachApp>) {
+    replay_historical(h);
+    click(h, Role::Button, "Rückblick: mit allen Karten vergleichen");
+    await_replay(h);
+    assert!(
+        h.query_all_by_label_contains("RÜCKBLICK: alle Karten bekannt")
+            .next()
+            .is_some()
+    );
+}
+
+fn replay_hindsight_en(h: &mut Harness<'_, GrandCoachApp>) {
+    replay_hindsight(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+/// An in-progress file saved before the player's first decision: nothing
+/// to comment on, said honestly.
+fn replay_none(h: &mut Harness<'_, GrandCoachApp>) {
+    let directory = std::env::temp_dir().join(format!(
+        "skat-screenshot-replay-none-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("early.json");
+    if path.exists() {
+        std::fs::remove_file(&path).unwrap();
+    }
+    click(h, Role::Button, "Spiel");
+    click(h, Role::Button, "Spiel speichern …");
+    set_recording_path(h, "Dateipfad:", path.to_str().unwrap());
+    click(
+        h,
+        Role::CheckBox,
+        "Verdeckte Informationen bewusst in die Datei schreiben",
+    );
+    click(h, Role::Button, "Datei speichern");
+    click(h, Role::Button, "Spiel");
+    click(h, Role::Button, "Aufnahme öffnen …");
+    set_recording_path(h, "Dateipfad:", path.to_str().unwrap());
+    click(h, Role::Button, "Datei öffnen");
+    assert!(
+        h.query_all_by_label_contains("noch keine Entscheidung von dir")
+            .next()
+            .is_some()
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+fn replay_none_en(h: &mut Harness<'_, GrandCoachApp>) {
+    replay_none(h);
     h.state_mut().set_language(Language::En);
     h.run_steps(4);
 }

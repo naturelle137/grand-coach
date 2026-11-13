@@ -37,6 +37,7 @@ mod neural;
 mod quiz;
 mod recording;
 mod recording_io;
+mod replay_coach;
 mod series;
 mod session;
 mod sort;
@@ -60,6 +61,11 @@ pub use recording::{
     RECORDING_FORMAT, RecordingContext, RecordingEnd, RecordingError,
 };
 pub use recording_io::{MAX_RECORDING_BYTES, RecordingFileError};
+pub use replay_coach::{
+    REPLAY_COACH_SEED, REPLAY_COACH_TIME_LIMIT, RecordedDecision, ReplayCoach, ReplayCoachJob,
+    ReplayCoachResult, ReplayCoachView, ReplayComment, ReplayPerspective, ReplayStale,
+    ReplayStatus,
+};
 pub use series::{GameRecord, ScoreSheet, SeriesResult};
 pub use session::{
     AppError, AppEvent, Command, OpponentJob, OpponentMove, Opponents, PlayerId, SeriesLength,

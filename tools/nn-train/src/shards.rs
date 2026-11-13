@@ -400,7 +400,7 @@ impl Limits {
     /// Analysis threads per worker: `cpus / workers`, at least one; with
     /// at most `cpus` workers their product stays within the budget.
     pub fn threads(&self) -> NonZeroUsize {
-        NonZeroUsize::new(self.cpus.get() / self.workers.get()).unwrap_or(NonZeroUsize::MIN)
+        NonZeroUsize::new(self.cpus.get() / self.workers).unwrap_or(NonZeroUsize::MIN)
     }
 }
 

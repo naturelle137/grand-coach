@@ -469,6 +469,11 @@ impl Session {
         self.coach.budget = budget;
     }
 
+    /// Work budget of coach analyses.
+    pub fn coach_budget(&self) -> Budget {
+        self.coach.budget
+    }
+
     /// The current decision of the human, if any.
     fn human_decision(&self) -> Option<DecisionKey> {
         let seat = self.game.current_seat()?;

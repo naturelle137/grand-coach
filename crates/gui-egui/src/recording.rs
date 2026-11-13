@@ -1,16 +1,22 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Detached read-only recording windows. No commands or analysis jobs; the
-//! viewer can only request a separate practice attempt from the app.
+//! Detached read-only recording windows. No game commands; the viewer can
+//! request a separate practice attempt from the app and, on demand, one
+//! comment on a recorded own decision (D-67), computed off the UI thread.
+
+use std::sync::mpsc::{Receiver, TryRecvError};
+use std::time::Instant;
 
 use eframe::egui::{self, RichText, Vec2};
 use skat_app::{
-    Card, GameRecording, PlayerId, PrivilegedRecordingPosition, RecordingEnd, RecordingFileError,
-    Session,
+    Budget, Cancel, Card, GameRecording, PlayerId, PrivilegedRecordingPosition,
+    REPLAY_COACH_TIME_LIMIT, RecordingEnd, RecordingFileError, ReplayCoach, ReplayCoachResult,
+    ReplayPerspective, ReplayStatus, Session, TableView,
 };
 
 use crate::{
     cards::{self, Deck},
+    coach::{self, Line, Style},
     i18n::I18n,
     text,
 };
@@ -19,6 +25,21 @@ use crate::{
 pub(crate) struct RecordingUi {
     pub dialog: Option<FileDialog>,
     pub replay: Option<Replay>,
+    /// Budget of replay comments opened from now on (the coach budget).
+    pub budget: Budget,
+}
+
+/// The one running replay comment. Dropping it cancels the analysis and
+/// disconnects its channel, so a late result cannot arrive.
+struct ReplayThinking {
+    result: Receiver<ReplayCoachResult>,
+    cancel: Cancel,
+}
+
+impl Drop for ReplayThinking {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+    }
 }
 
 pub(crate) struct FileDialog {
@@ -38,6 +59,17 @@ pub(crate) struct Replay {
     reveal: bool,
     /// The last practice start was rejected; the viewer stays open.
     practice_error: bool,
+    /// On-demand comments on recorded own decisions (D-67).
+    coach: ReplayCoach,
+    thinking: Option<ReplayThinking>,
+}
+
+/// A replay-coach control used in this frame.
+enum CoachRequest {
+    Select(Option<usize>),
+    Request,
+    Perspective(ReplayPerspective),
+    Cancel,
 }
 
 impl RecordingUi {
@@ -70,8 +102,9 @@ impl RecordingUi {
         i: &I18n,
         deck: Deck,
         can_practice: bool,
+        live: &TableView,
     ) -> Option<GameRecording> {
-        let practice = self.replay_window(ctx, i, deck, can_practice);
+        let practice = self.replay_window(ctx, i, deck, can_practice, live);
         let Some(mut dialog) = self.dialog.take() else {
             return practice;
         };
@@ -135,6 +168,10 @@ impl RecordingUi {
                                 let position = recording
                                     .reconstruct_privileged(boundaries[selected])
                                     .expect("validated file");
+                                // A new recording always starts unselected
+                                // in the historical perspective.
+                                let coach = ReplayCoach::open(&recording, self.budget)
+                                    .expect("validated file");
                                 self.replay = Some(Replay {
                                     recording,
                                     position,
@@ -142,6 +179,8 @@ impl RecordingUi {
                                     selected,
                                     reveal: false,
                                     practice_error: false,
+                                    coach,
+                                    thinking: None,
                                 });
                             })
                         };
@@ -174,17 +213,30 @@ impl RecordingUi {
         self.replay = None;
     }
 
+    /// `true` while a replay comment is being computed (tests).
+    pub fn replay_computing(&self) -> bool {
+        self.replay.as_ref().is_some_and(|r| r.thinking.is_some())
+    }
+
+    /// The replay coach of the open recording (tests, screenshots).
+    pub fn replay_coach_mut(&mut self) -> Option<&mut ReplayCoach> {
+        self.replay.as_mut().map(|r| &mut r.coach)
+    }
+
     fn replay_window(
         &mut self,
         ctx: &egui::Context,
         i: &I18n,
         deck: Deck,
         can_practice: bool,
+        live: &TableView,
     ) -> Option<GameRecording> {
         let replay = self.replay.as_mut()?;
+        replay.poll();
         let mut open = true;
         let mut close = false;
         let mut practice = None;
+        let mut request = None;
         egui::Window::new(i.t("record-title"))
             .id(egui::Id::unique("record_view"))
             .open(&mut open)
@@ -261,11 +313,14 @@ impl RecordingUi {
                 ui.checkbox(&mut replay.reveal, i.t("record-reveal"));
                 if replay.reveal {
                     ui.label(RichText::new(i.t("record-privileged")).strong());
+                    ui.label(RichText::new(i.t("record-reveal-note")).small());
                 }
                 egui::ScrollArea::vertical()
                     .id_salt("record_scroll")
                     .max_height((ctx.content_rect().height() - 340.0).max(120.0))
                     .show(ui, |ui| {
+                        request = coach_section(ui, i, deck, &replay.coach, live);
+                        ui.separator();
                         let state = &replay.position.state;
                         let public = &state.seats[0];
                         ui.label(text::phase(i, public.phase));
@@ -339,11 +394,241 @@ impl RecordingUi {
                     close = true;
                 }
             });
+        if let Some(request) = request {
+            replay.apply(request, ctx);
+        }
         if !open || close {
+            // Dropping the replay cancels its running comment.
             self.replay = None;
         }
         practice
     }
+}
+
+impl Replay {
+    /// Delivers a finished comment; the coach rejects anything stale.
+    fn poll(&mut self) {
+        let Some(thinking) = &self.thinking else {
+            return;
+        };
+        match thinking.result.try_recv() {
+            Ok(result) => {
+                self.thinking = None;
+                let _ = self.coach.finish(result);
+            }
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => {
+                self.thinking = None;
+                self.coach.cancel();
+            }
+        }
+    }
+
+    /// Applies a control. Every change drops the running comment first.
+    fn apply(&mut self, request: CoachRequest, ctx: &egui::Context) {
+        self.thinking = None;
+        match request {
+            CoachRequest::Select(index) => self.coach.select(index),
+            CoachRequest::Cancel => self.coach.cancel(),
+            CoachRequest::Perspective(p) => {
+                self.coach.set_perspective(p);
+                self.start(ctx);
+            }
+            CoachRequest::Request => self.start(ctx),
+        }
+    }
+
+    /// Starts the one replay analysis on a background thread, bounded by
+    /// its budget and [`REPLAY_COACH_TIME_LIMIT`].
+    fn start(&mut self, ctx: &egui::Context) {
+        let Some(job) = self.coach.request() else {
+            return;
+        };
+        let (sender, result) = std::sync::mpsc::channel();
+        let cancel = Cancel::with_deadline(Instant::now() + REPLAY_COACH_TIME_LIMIT);
+        let (stop, repaint) = (cancel.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            // The receiver is gone if the request was replaced meanwhile.
+            let _ = sender.send(job.run(Some(&stop)));
+            repaint.request_repaint();
+        });
+        self.thinking = Some(ReplayThinking { result, cancel });
+    }
+}
+
+/// The replay-coach section: decision selector, persistent perspective
+/// label, controls, the table before the action and the comment.
+fn coach_section(
+    ui: &mut egui::Ui,
+    i: &I18n,
+    deck: Deck,
+    coach: &ReplayCoach,
+    live: &TableView,
+) -> Option<CoachRequest> {
+    let mut request = None;
+    let view = coach.view();
+    ui.heading(i.t("replay-coach-title"));
+    if view.status == ReplayStatus::NoDecisions {
+        ui.label(i.t("replay-coach-no-decisions"));
+        return None;
+    }
+    ui.label(RichText::new(i.t("replay-coach-help")).small());
+    let label = |n: Option<usize>| match n {
+        Some(n) => coach::recorded_decision(i, &view.decisions[n]),
+        None => i.t("replay-coach-none-selected"),
+    };
+    let mut selected = view.selected;
+    egui::ComboBox::from_label(i.t("replay-coach-decision"))
+        .selected_text(label(selected))
+        .width(360.0)
+        .show_ui(ui, |ui| {
+            for n in 0..view.decisions.len() {
+                ui.selectable_value(&mut selected, Some(n), label(Some(n)));
+            }
+        });
+    if selected != view.selected {
+        request = Some(CoachRequest::Select(selected));
+    }
+    let Some(context) = &view.context else {
+        return request;
+    };
+    let banner = coach::replay_perspective(i, view.perspective);
+    let color = match view.perspective {
+        ReplayPerspective::Historical => egui::Color32::from_rgb(30, 90, 160),
+        ReplayPerspective::Hindsight => egui::Color32::from_rgb(170, 70, 0),
+    };
+    egui::Frame::group(ui.style())
+        .stroke(egui::Stroke::new(2.0, color))
+        .show(ui, |ui| {
+            ui.colored_label(color, RichText::new(banner.text).strong());
+        });
+    let computing = view.status == ReplayStatus::Computing;
+    ui.horizontal_wrapped(|ui| {
+        let again = matches!(
+            view.status,
+            ReplayStatus::Ready(_) | ReplayStatus::Unavailable(_)
+        );
+        let key = if again {
+            "replay-coach-retry"
+        } else {
+            "replay-coach-request"
+        };
+        if ui
+            .add_enabled(!computing, egui::Button::new(i.t(key)))
+            .clicked()
+        {
+            request = Some(CoachRequest::Request);
+        }
+        let (key, other) = match view.perspective {
+            ReplayPerspective::Historical => {
+                ("replay-coach-hindsight", ReplayPerspective::Hindsight)
+            }
+            ReplayPerspective::Hindsight => {
+                ("replay-coach-historical", ReplayPerspective::Historical)
+            }
+        };
+        if ui.button(i.t(key)).clicked() {
+            request = Some(CoachRequest::Perspective(other));
+        }
+        if computing && ui.button(i.t("replay-coach-cancel")).clicked() {
+            request = Some(CoachRequest::Cancel);
+        }
+    });
+    let figures = live.coach.settings.show_figures;
+    match &view.status {
+        ReplayStatus::Idle => {
+            ui.label(RichText::new(i.t("replay-coach-idle")).weak());
+        }
+        ReplayStatus::Computing => {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(i.t("replay-coach-computing"));
+            });
+        }
+        ReplayStatus::Unavailable(reason) => {
+            ui.label(coach::unavailable(i, *reason));
+        }
+        ReplayStatus::Ready(comment) => {
+            let text = coach::replay_comment(i, live, context, comment, figures);
+            show_lines(ui, &text.summary);
+            if !text.lesson_title.is_empty() {
+                egui::CollapsingHeader::new(&text.lesson_title)
+                    .id_salt("replay_lesson")
+                    .show(ui, |ui| show_lines(ui, &text.lesson));
+            }
+            egui::CollapsingHeader::new(i.t("coach-details"))
+                .id_salt("replay_details")
+                .show(ui, |ui| show_lines(ui, &text.details));
+        }
+        ReplayStatus::NoDecisions | ReplayStatus::NotSelected => {}
+    }
+    ui.label(RichText::new(i.t("replay-coach-before")).strong());
+    situation(ui, i, deck, &coach::replay_situation(i, context));
+    request
+}
+
+/// The table before the recorded action: facts, the hand with the chosen
+/// cards marked and the trick in progress. Display only.
+fn situation(ui: &mut egui::Ui, i: &I18n, deck: Deck, s: &coach::SituationText) {
+    show_lines(ui, &s.lines);
+    ui.label(RichText::new(&s.hand_label).small());
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 2.0;
+        for &card in &s.hand {
+            let response = card_image(ui, i, deck, card);
+            if s.chosen.contains(&card) {
+                ui.painter().rect_stroke(
+                    response.rect.expand(1.0),
+                    3.0,
+                    egui::Stroke::new(2.0, ui.visuals().selection.stroke.color),
+                    egui::StrokeKind::Outside,
+                );
+            }
+        }
+    });
+    if !s.trick_label.is_empty() {
+        ui.label(RichText::new(&s.trick_label).small());
+        ui.horizontal(|ui| {
+            for (player, card) in &s.trick {
+                ui.vertical(|ui| {
+                    card_image(ui, i, deck, *card);
+                    ui.label(RichText::new(player).small());
+                });
+            }
+        });
+    }
+    egui::CollapsingHeader::new(&s.history_title)
+        .id_salt("replay_history")
+        .show(ui, |ui| show_lines(ui, &s.history));
+}
+
+fn show_lines(ui: &mut egui::Ui, lines: &[Line]) {
+    for line in lines {
+        let text = RichText::new(&line.text);
+        match line.style {
+            Style::Heading => {
+                ui.add_space(4.0);
+                ui.label(text.strong().size(15.0));
+            }
+            Style::Strong => {
+                ui.label(text.strong());
+            }
+            Style::Normal => {
+                ui.label(text);
+            }
+            Style::Weak => {
+                ui.label(text.weak().small());
+            }
+        }
+    }
+}
+
+fn card_image(ui: &mut egui::Ui, i: &I18n, deck: Deck, card: Card) -> egui::Response {
+    ui.add(
+        egui::Image::new(cards::image(&cards::face_path(deck, card, i.faces.theme)))
+            .fit_to_exact_size(Vec2::new(44.0, 66.0)),
+    )
+    .on_hover_text(text::card(i, card))
 }
 
 fn source_label(i: &I18n, dialog: &FileDialog, n: usize) -> String {
@@ -363,11 +648,7 @@ fn source_label(i: &I18n, dialog: &FileDialog, n: usize) -> String {
 fn card_row(ui: &mut egui::Ui, i: &I18n, deck: Deck, cards: impl IntoIterator<Item = Card>) {
     ui.horizontal_wrapped(|ui| {
         for card in cards {
-            ui.add(
-                egui::Image::new(cards::image(&cards::face_path(deck, card, i.faces.theme)))
-                    .fit_to_exact_size(Vec2::new(44.0, 66.0)),
-            )
-            .on_hover_text(text::card(i, card));
+            card_image(ui, i, deck, card);
         }
     });
 }

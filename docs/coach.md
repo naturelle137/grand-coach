@@ -207,6 +207,19 @@ Reconstructing the display from the final deal would leak later information.
   game number and the view; opponents and deals are untouched. Same view,
   seed and budget give the same explanation.
 
+## Replay comments (D-67)
+
+In the recording window the learner selects one recorded own decision and
+asks for a comment. It is the same `review` as the debriefing (chosen
+option, compared legal alternative, lesson or fallback, uncertainty, basis)
+over the table as the player saw it before the move. The default uses only
+that view. Hindsight is a separate control and stays labelled as a model
+comparison with cards unknown then, not proof of a mistake. Lesson evidence
+still comes from the permitted view; in hindsight only the option comparison
+uses the real deal, as in God Mode (D-62). No lesson or claim was added, so
+the [evidence checklist](coach-validation.md) is unchanged. Nothing is computed
+automatically; whole-recording ranking is not offered.
+
 ## Latency
 
 The coach runs one `analyze` with `Budget::INTERACTIVE` per human
