@@ -1989,10 +1989,15 @@ fn open_display_proven_void(h: &mut Harness<'_, GrandCoachApp>) {
     await_replay(h);
     h.get_by_label("Was sicher feststeht").click_accesskit();
     h.run_steps(4);
-    h.get_by_label_contains("Stich 3: Links hat Pik-Neun auf Kreuz-Ass gespielt");
+    // The declarer is the left figure of the recording's series (D-72).
+    let figure = skat_app::SeriesCast::for_seed(recording.context.session.seed)
+        .figure(skat_app::FigurePool::German, skat_app::PlayerId(1))
+        .expect("an opponent has a figure");
+    let left = I18n::new(Language::De).t(&format!("figure-{}", figure.key()));
+    let lesson = format!("Stich 3: {left} hat Pik-Neun auf Kreuz-Ass gespielt");
+    h.get_by_label_contains(&lesson);
     // Scroll the lesson into view.
-    h.get_by_label_contains("Stich 3: Links hat Pik-Neun auf Kreuz-Ass gespielt")
-        .scroll_to_me();
+    h.get_by_label_contains(&lesson).scroll_to_me();
     h.run_steps(4);
 }
 
