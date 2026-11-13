@@ -13,7 +13,7 @@
 //! labels, as in `tests/gui.rs`. Add a scenario when a frontend change needs
 //! its own picture.
 
-use eframe::egui::{Key, Role};
+use eframe::egui::{self, Key, Role};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
 use gui_egui::{Deck, GrandCoachApp, Language, Theme, coach, i18n::I18n};
@@ -38,9 +38,31 @@ const SEED: u64 = 21;
 /// human never plays second to the declarer's lead in the two games.
 const SEEDS: &[(&str, u64)] = &[("coach-lesson-overtake", 1)];
 
+/// Size of the `table-*` scenarios of issue #134 by name suffix; others
+/// use [`SIZE`].
+fn table_size(name: &str) -> Option<[f32; 2]> {
+    if !name.starts_with("table-") {
+        return None;
+    }
+    Some(if name.ends_with("-1600") {
+        [1600.0, 1000.0]
+    } else if name.ends_with("-960") {
+        NARROW
+    } else {
+        SIZE
+    })
+}
+
+/// Series seed of the `table-*` scenarios: its German cast is
+/// Friedrich-Wilhelm and Hildegard, its English one James and Bartholomew,
+/// so the longest name of each pool is on the table (D-72); the human wins
+/// the first bidding at 24 against two Easy opponents.
+const LONG_NAMES: u64 = 1116;
+
 /// Scenarios in God Mode (D-62); all others play against two Easy
 /// opponents.
 const GOD_MODE: &[&str] = &[
+    "table-god-960",
     "god-mode",
     "god-mode-german",
     "god-mode-hidden",
@@ -50,6 +72,7 @@ const GOD_MODE: &[&str] = &[
 
 /// Scenarios with an open display (D-68) against two Easy opponents.
 const OPEN_DISPLAY: &[&str] = &[
+    "table-open-960",
     "open-display",
     "open-display-en",
     "open-display-trick",
@@ -199,6 +222,36 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("open-display-en", open_display_en),
     ("open-display-trick", open_display_trick),
     ("open-display-coach", open_display_coach),
+    ("table-bidding-1600", table_bidding_1600),
+    ("table-discard-1600", table_discard_1600),
+    ("table-trick-1600", table_trick_1600),
+    ("table-result-1600", table_result_1600),
+    ("table-bidding", table_bidding),
+    ("table-discard", table_discard),
+    ("table-announce", table_announce),
+    ("table-trick", table_trick),
+    ("table-augen", table_augen),
+    ("table-result", table_result),
+    ("table-series-end", table_series_end),
+    ("table-bidding-960", table_bidding_960),
+    ("table-discard-960", table_discard_960),
+    ("table-announce-960", table_announce_960),
+    ("table-trick-960", table_trick_960),
+    ("table-augen-960", table_augen_960),
+    ("table-result-960", table_result_960),
+    ("table-series-end-960", table_series_end_960),
+    ("table-en-960", table_en_960),
+    ("table-german-deck-960", table_german_deck_960),
+    ("table-french2-en", table_french2_en),
+    ("table-large-text-960", table_large_text_960),
+    ("table-large-text-en-960", table_large_text_en_960),
+    ("table-zoom-1280", table_zoom_1280),
+    ("table-mephisto-960", table_mephisto_960),
+    ("table-goldfish-960", table_goldfish_960),
+    ("table-god-960", table_god_960),
+    ("table-open-960", table_open_960),
+    ("table-neural-960", table_neural_960),
+    ("table-coach-off-960", table_coach_off_960),
 ];
 
 const AID: skat_app::AssistSettings = skat_app::AssistSettings {
@@ -1277,9 +1330,18 @@ fn main() {
             .iter()
             .find(|(n, _)| n == name)
             .map_or(SEED, |&(_, seed)| seed);
+        let seed = if name.starts_with("table-") {
+            LONG_NAMES
+        } else {
+            seed
+        };
         let opponents = if GOD_MODE.contains(name) {
             Opponents::GodMode
-        } else if *name == "neural-trick" {
+        } else if *name == "table-mephisto-960" {
+            Opponents::Mephisto
+        } else if *name == "table-goldfish-960" {
+            Opponents::Goldfish
+        } else if *name == "neural-trick" || *name == "table-neural-960" {
             Opponents::Neural
         } else {
             Opponents::Levels([Level::Easy; 2])
@@ -1297,6 +1359,10 @@ fn main() {
             display,
             name.starts_with("guided-"),
         );
+        if let Some(size) = table_size(name) {
+            harness.set_size(size.into());
+            harness.run_steps(2);
+        }
         scenario(&mut harness);
         if name.ends_with("-narrow") {
             harness.set_size(NARROW.into());
@@ -1352,6 +1418,235 @@ fn harness(
     });
     harness.run_steps(2);
     harness
+}
+
+// ---------------------------------------------------------------------------
+// The modern table of issue #134: the human declares, discards from twelve
+// cards, announces, plays tricks to the result and the series end, at
+// 1600 × 1000, 1280 × 820 and 960 × 640, with long names, scaled text,
+// both languages and card faces and every special table mode.
+
+/// Plays as declarer by clicks: bids while the value is at most 30 (else
+/// passes), takes the Skat, discards the first two cards, announces the
+/// preset Grand, declines Re and plays the first legal card, until `stop`.
+/// As a defender in later games it passes and plays the first legal card.
+fn declare_until(h: &mut Harness<'_, GrandCoachApp>, stop: impl Fn(&TableView) -> bool) {
+    for _ in 0..400 {
+        settle(h);
+        let v = view(h);
+        if stop(&v) {
+            return;
+        }
+        let legal = &v.legal_actions;
+        if v.acting.is_none() {
+            if v.series_finished {
+                panic!("series finished before the state");
+            }
+            click(h, Role::Button, "Nächstes Spiel");
+            continue;
+        }
+        let bid = legal.iter().find_map(|a| match a {
+            Action::Bid(b) if *b <= 30 && v.game_number == 1 => Some(*b),
+            _ => None,
+        });
+        if let Some(b) = bid {
+            click(h, Role::Button, &format!("{b} sagen"));
+        } else if legal.contains(&Action::Hold) && v.bid <= 30 && v.game_number == 1 {
+            click(h, Role::Button, &format!("Ja, {} halten", v.bid));
+        } else if legal.contains(&Action::Pass) {
+            click(h, Role::Button, "Passe");
+        } else if legal.contains(&Action::TakeSkat) {
+            click(h, Role::Button, "Skat aufnehmen");
+        } else if legal.iter().any(|a| matches!(a, Action::Discard(_))) {
+            for &card in &v.hand[..2] {
+                let label = shown_card_label(h, card);
+                click(h, Role::Button, &label);
+            }
+            click(h, Role::Button, "Drücken");
+        } else if legal.iter().any(|a| matches!(a, Action::Announce(_))) {
+            click(h, Role::Button, "Ansagen");
+        } else if legal.contains(&Action::KeinRe) {
+            click(h, Role::Button, "Kein Re");
+        } else if legal.contains(&Action::KeinKontra) {
+            click(h, Role::Button, "Kein Kontra");
+        } else if let Some(&Action::Play(card)) = legal.first() {
+            let label = shown_card_label(h, card);
+            click(h, Role::Button, &label);
+        } else {
+            panic!("no scripted click for {legal:?}");
+        }
+    }
+    panic!("scenario did not reach its state");
+}
+
+fn human_declares(v: &TableView) -> bool {
+    v.declarer == Some(skat_app::PlayerId::HUMAN)
+}
+
+fn table_bidding(h: &mut Harness<'_, GrandCoachApp>) {
+    settle(h);
+}
+
+fn table_discard(h: &mut Harness<'_, GrandCoachApp>) {
+    declare_until(h, |v| {
+        v.phase == skat_app::Phase::Druecken && v.hand.len() == 12
+    });
+    // Two cards chosen, not yet discarded.
+    let v = view(h);
+    for &card in &v.hand[..2] {
+        let label = shown_card_label(h, card);
+        click(h, Role::Button, &label);
+    }
+}
+
+fn table_announce(h: &mut Harness<'_, GrandCoachApp>) {
+    declare_until(h, |v| v.phase == skat_app::Phase::Ansage);
+}
+
+fn table_trick(h: &mut Harness<'_, GrandCoachApp>) {
+    declare_until(h, |v| {
+        human_declares(v) && v.tricks_played >= 3 && v.acting == Some(skat_app::PlayerId::HUMAN)
+    });
+}
+
+/// The concealed Augen shown while the button is held down (not released
+/// before the picture).
+fn table_augen(h: &mut Harness<'_, GrandCoachApp>) {
+    table_trick(h);
+    let pos = h
+        .get_by_role_and_label(Role::Button, "Augen zeigen (gedrückt halten)")
+        .rect()
+        .center();
+    h.input_mut().events.push(egui::Event::PointerMoved(pos));
+    h.input_mut().events.push(egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    });
+    h.run_steps(4);
+    assert!(
+        h.query_all_by_label_contains("Gegenpartei ")
+            .next()
+            .is_some(),
+        "Augen revealed while held"
+    );
+}
+
+fn table_result(h: &mut Harness<'_, GrandCoachApp>) {
+    declare_until(h, |v| v.game_number == 1 && v.acting.is_none());
+}
+
+fn table_series_end(h: &mut Harness<'_, GrandCoachApp>) {
+    declare_until(h, |v| v.series_finished);
+}
+
+fn table_bidding_1600(h: &mut Harness<'_, GrandCoachApp>) {
+    table_bidding(h);
+}
+fn table_discard_1600(h: &mut Harness<'_, GrandCoachApp>) {
+    table_discard(h);
+}
+fn table_trick_1600(h: &mut Harness<'_, GrandCoachApp>) {
+    table_trick(h);
+}
+fn table_result_1600(h: &mut Harness<'_, GrandCoachApp>) {
+    table_result(h);
+}
+fn table_bidding_960(h: &mut Harness<'_, GrandCoachApp>) {
+    table_bidding(h);
+}
+fn table_discard_960(h: &mut Harness<'_, GrandCoachApp>) {
+    table_discard(h);
+}
+fn table_announce_960(h: &mut Harness<'_, GrandCoachApp>) {
+    table_announce(h);
+}
+fn table_trick_960(h: &mut Harness<'_, GrandCoachApp>) {
+    table_trick(h);
+}
+fn table_augen_960(h: &mut Harness<'_, GrandCoachApp>) {
+    table_augen(h);
+}
+fn table_result_960(h: &mut Harness<'_, GrandCoachApp>) {
+    table_result(h);
+}
+fn table_series_end_960(h: &mut Harness<'_, GrandCoachApp>) {
+    table_series_end(h);
+}
+
+/// English names and portraits of the same series after the trick state.
+fn table_en_960(h: &mut Harness<'_, GrandCoachApp>) {
+    table_trick(h);
+    h.state_mut().set_language(Language::En);
+}
+
+fn table_german_deck_960(h: &mut Harness<'_, GrandCoachApp>) {
+    table_trick(h);
+    h.state_mut().set_deck(Deck::German);
+}
+
+fn table_french2_en(h: &mut Harness<'_, GrandCoachApp>) {
+    table_trick(h);
+    h.state_mut().set_deck(Deck::French2);
+    h.state_mut().set_language(Language::En);
+}
+
+/// Every text style 30 % larger (as with a larger system font).
+fn scale_text(h: &mut Harness<'_, GrandCoachApp>) {
+    h.ctx.all_styles_mut(|style| {
+        for font in style.text_styles.values_mut() {
+            font.size *= 1.3;
+        }
+    });
+    h.run_steps(2);
+}
+
+fn table_large_text_960(h: &mut Harness<'_, GrandCoachApp>) {
+    scale_text(h);
+    table_discard(h);
+}
+
+fn table_large_text_en_960(h: &mut Harness<'_, GrandCoachApp>) {
+    scale_text(h);
+    table_trick(h);
+    h.state_mut().set_language(Language::En);
+}
+
+/// egui's own zoom (Ctrl +) at 125 %: 1280 × 820 shows like 1024 × 656.
+fn table_zoom_1280(h: &mut Harness<'_, GrandCoachApp>) {
+    h.ctx.set_zoom_factor(1.25);
+    h.run_steps(2);
+    table_discard(h);
+}
+
+fn table_mephisto_960(h: &mut Harness<'_, GrandCoachApp>) {
+    play_until(h, |view, _| view.tricks_played >= 2);
+}
+
+fn table_goldfish_960(h: &mut Harness<'_, GrandCoachApp>) {
+    play_until(h, |view, _| view.tricks_played >= 2);
+}
+
+fn table_god_960(h: &mut Harness<'_, GrandCoachApp>) {
+    play_until(h, |view, _| view.tricks_played >= 2);
+}
+
+fn table_open_960(h: &mut Harness<'_, GrandCoachApp>) {
+    play_until(h, |view, _| view.tricks_played >= 2);
+}
+
+fn table_neural_960(h: &mut Harness<'_, GrandCoachApp>) {
+    play_until(h, |view, _| view.tricks_played >= 2);
+}
+
+/// Without the coach the table and hand take the room of the coach panel.
+fn table_coach_off_960(h: &mut Harness<'_, GrandCoachApp>) {
+    h.state_mut().set_coach(CoachSettings {
+        level: CoachLevel::Off,
+        ..CoachSettings::default()
+    });
+    table_trick(h);
 }
 
 fn view(harness: &Harness<'_, GrandCoachApp>) -> TableView {
