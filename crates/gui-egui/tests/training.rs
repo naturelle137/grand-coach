@@ -202,7 +202,12 @@ fn training_is_entered_answered_retried_continued_and_left_in_both_languages() {
                 .count()
                 >= 2
         );
-        h.get_by_label(t("Zähltraining, Wiederholung", "Counting training, repeat"));
+        // The repeat row in the counts grid and in the answer grid.
+        assert_eq!(
+            h.query_all_by_label(t("Zähltraining, Wiederholung", "Counting training, repeat"))
+                .count(),
+            2
+        );
         button(&mut h, t("Schließen", "Close"));
 
         // Back to the game: the live table is exactly as it was.
