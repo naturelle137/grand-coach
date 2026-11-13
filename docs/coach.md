@@ -157,8 +157,20 @@ presentations and their repeats, so a repeated deal or fixed training
 position is never presented as a new unaided task. Without observations the window says so;
 below 20 questions it states that the sample is too small for any
 conclusion. It always states that the counts are not a measure of skill or
-understanding. No mastery, trend, thought, game-loss diagnosis or strategic
-error classification is derived; those remain #13/#49 scope.
+understanding.
+
+Below, answers are listed by observed result per topic and context: exact,
+too high, too low, wrong with the value not stored (answers saved before
+format 3) and skipped, each as "without help + with help". Per topic,
+from 20 answers or skips on, the 10 before the last 10 are set beside the
+last 10, numbered in saving order with their attempt range and places;
+below that the window states how many there are and that 20 are needed.
+The question rules (lesson family and version) recorded with each question
+are listed, with older unversioned questions counted apart. The window says
+that categories describe the answer, not its reason, and that a difference
+between windows is no trend, progress or transfer. No mastery, thought,
+game-loss diagnosis, recommendation or strategic error classification is
+derived; card-play decisions are not classified (remaining #13/#49 scope).
 
 The legal replay fixtures in `skat-analysis/tests/retrieval.rs` cover both
 roles and Farbspiel/Grand/Null. `counting_fixtures.rs` additionally covers

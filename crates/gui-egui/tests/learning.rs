@@ -12,7 +12,8 @@ use egui_kittest::{
 };
 use gui_egui::{GrandCoachApp, Language};
 use skat_app::{
-    Action, AssistSettings, AssistanceLevel, Card, LearningHistory, Level, Observations, Opponents,
+    Action, AssistSettings, AssistanceLevel, AttemptKind, Card, LearningHistory, LessonFamily,
+    Level, Observations, Opponents, QuestionId, QuestionKind, RetrievalAction, RetrievalEvent,
     SeriesLength, SessionConfig, TableView,
 };
 use std::{
@@ -198,17 +199,34 @@ fn history_is_recorded_shown_retained_and_reset_in_both_languages() {
             "Only 2 question(s) observed so far",
         ));
         h.get_by_label_contains(t("kein Maß für Können", "not a measure of skill"));
-        // One grid row per observed topic, in the series context.
+        // Both questions were issued under the current focused lesson.
+        h.get_by_label(t(
+            "Gezieltes Zählen im Spiel (Version 1): 2 gefragt",
+            "In-game focused counting (version 1): 2 asked",
+        ));
+        h.get_by_label(t(
+            "Antworten nach beobachtetem Ergebnis",
+            "Answers by observed result",
+        ));
+        h.get_by_label_contains(t(
+            "Kartenspiel und andere Entscheidungen werden in diesem Verlauf nicht eingeordnet",
+            "Card play and other decisions are not classified in this history",
+        ));
+        // One row per observed topic in the series context, in the counts
+        // grid and again in the answer grid where something was settled.
         let rows = history.summary().rows;
         assert!(!rows.is_empty());
         assert_eq!(
             h.query_all_by_label(t("Serie", "Series")).count(),
-            rows.len()
+            rows.len() + rows.iter().filter(|r| r.responses.settled() > 0).count()
         );
         h.get_by_label_contains(file.to_str().unwrap());
 
         // Cancel keeps everything; confirming deletes it and the file.
         let reset = t("Lernverlauf zurücksetzen …", "Reset learning history …");
+        // The controls are below the overview in the scrolled window.
+        h.get_by_role_and_label(Role::Button, reset).scroll_to_me();
+        h.run_steps(4);
         button(&mut h, reset);
         h.get_by_label_contains(t("endgültig löschen", "permanently"));
         button(&mut h, t("Abbrechen", "Cancel"));
@@ -267,7 +285,7 @@ fn a_damaged_file_is_kept_until_the_learner_sets_it_aside() {
         assert_eq!(saved.summary().totals.opportunities, 1);
 
         // Unsupported (newer) format: reported as such, also kept.
-        let newer = b"{\"format\": 3}".to_vec();
+        let newer = b"{\"format\": 4}".to_vec();
         fs::write(&file, &newer).unwrap();
         let mut h = app(language, &file);
         open_window(&mut h, en);
@@ -278,5 +296,136 @@ fn a_damaged_file_is_kept_until_the_learner_sets_it_aside() {
         button(&mut h, t("Schließen", "Close"));
         play_questions(&mut h, en, 1);
         assert_eq!(fs::read(&file).unwrap(), newer);
+    }
+}
+
+/// A format 2 file as the PR #137 build wrote it: a series with a wrong and
+/// an exact Trumpf answer, a training task skipped after help.
+const FORMAT_2: &str = r#"{"format":2,"next_attempt":3,"attempts":[{"id":1,"kind":"Series"},{"id":2,"kind":{"Training":{"attempt":1}}}],"events":[{"attempt":1,"event":{"id":{"series":7,"game":1,"trick":3},"question":"TrumpfOutside","action":"Opportunity","assistance":"AnswerBeforeReveal","assisted":false}},{"attempt":1,"event":{"id":{"series":7,"game":1,"trick":3},"question":"TrumpfOutside","action":{"Answer":{"given":4,"correct":false}},"assistance":"AnswerBeforeReveal","assisted":false}},{"attempt":1,"event":{"id":{"series":7,"game":1,"trick":6},"question":"TrumpfOutside","action":"Opportunity","assistance":"AnswerBeforeReveal","assisted":false}},{"attempt":1,"event":{"id":{"series":7,"game":1,"trick":6},"question":"TrumpfOutside","action":{"Answer":{"given":1,"correct":true}},"assistance":"AnswerBeforeReveal","assisted":false}},{"attempt":2,"event":{"id":{"fixture":"VoidsDeclarerGrand","version":1},"question":{"ProvenVoids":{"class":{"Farbe":"Herz"}}},"action":"Opportunity","assistance":"RevealOnRequest","assisted":false}},{"attempt":2,"event":{"id":{"fixture":"VoidsDeclarerGrand","version":1},"question":{"ProvenVoids":{"class":{"Farbe":"Herz"}}},"action":"Help","assistance":"RevealOnRequest","assisted":true}},{"attempt":2,"event":{"id":{"fixture":"VoidsDeclarerGrand","version":1},"question":{"ProvenVoids":{"class":{"Farbe":"Herz"}}},"action":{"Skip":{"disabled":false}},"assistance":"RevealOnRequest","assisted":true}}]}"#;
+
+/// The legacy file plus a new series attempt (#3) with 20 Trumpf answers:
+/// numbers 1 to 10 are 4 for 3, numbers 11 to 20 exact, 11 and 12 after
+/// requested help.
+fn legacy_and_new() -> LearningHistory {
+    let mut h = LearningHistory::read_local(FORMAT_2.as_bytes()).unwrap();
+    let a = h.begin_attempt(AttemptKind::Series).unwrap();
+    for i in 1..=20u8 {
+        let assisted = matches!(i, 11 | 12);
+        let e = |action, assisted| RetrievalEvent {
+            id: QuestionId {
+                series: 1,
+                game: u32::from(i),
+                trick: 3,
+            }
+            .into(),
+            question: QuestionKind::TrumpfOutside,
+            action,
+            assistance: AssistanceLevel::RevealOnRequest,
+            assisted,
+            lesson: Some(LessonFamily::FocusedRetrieval.current()),
+        };
+        let given = if i <= 10 { 4 } else { 3 };
+        let mut events = vec![e(RetrievalAction::Opportunity, false)];
+        if assisted {
+            events.push(e(RetrievalAction::Help, true));
+        }
+        events.push(e(
+            RetrievalAction::Answer {
+                given,
+                correct: given == 3,
+                expected: Some(3),
+            },
+            assisted,
+        ));
+        h.record(a, &events).unwrap();
+    }
+    h
+}
+
+#[test]
+fn categories_windows_and_provenance_are_shown_with_their_counts_in_both_languages() {
+    for language in Language::ALL {
+        let en = language == Language::En;
+        let t = |de, english| if en { english } else { de };
+        let temp = Temp::new();
+        let file = temp.0.join("learning-history.json");
+        legacy_and_new().save_local(&file).unwrap();
+        let mut h = app(language, &file);
+        open_window(&mut h, en);
+        let count =
+            |h: &Harness<'_, GrandCoachApp>, label: &str| h.query_all_by_label(label).count();
+        // Hand-derived from the fixture. Series Trumpf row: exact 1 legacy
+        // + 8 new unaided, 2 new with help; too high 10; one legacy wrong
+        // answer without a stored value. Training voids row: one skip with
+        // help. Earlier window: answers no. 3-12 (new 1-10), all too high;
+        // most recent: no. 13-22 (new 11-20), exact 8 + 2.
+        assert_eq!(count(&h, "9 + 2"), 1, "series exact");
+        assert_eq!(count(&h, "10 + 0"), 2, "series and earlier too high");
+        assert_eq!(count(&h, "1 + 0"), 1, "legacy value not stored");
+        assert_eq!(count(&h, "0 + 1"), 1, "training skip with help");
+        assert_eq!(count(&h, "8 + 2"), 1, "recent exact");
+        h.get_by_label(t("Früher: Nr. 3–12", "Earlier: no. 3–12"));
+        h.get_by_label(t("Zuletzt: Nr. 13–22", "Most recent: no. 13–22"));
+        assert_eq!(count(&h, "#3–#3"), 2);
+        assert_eq!(count(&h, t("Serie 10", "Series 10")), 2);
+        h.get_by_label(t(
+            "Nachgewiesene Fehlfarben: 1 beantwortet oder übersprungen – ein Vergleich braucht mindestens 20.",
+            "Proven voids: 1 answered or skipped – a comparison needs at least 20.",
+        ));
+        h.get_by_label(t(
+            "Gespeichert, bevor Versionen erfasst wurden: 3 gefragt (Version unbekannt)",
+            "Saved before versions were stored: 3 asked (version unknown)",
+        ));
+        h.get_by_label(t(
+            "Gezieltes Zählen im Spiel (Version 1): 20 gefragt",
+            "In-game focused counting (version 1): 20 asked",
+        ));
+        h.get_by_label_contains(t("kein Trend, Fortschritt", "no trend, progress"));
+        // The column in the answer grid and in the window grid.
+        assert_eq!(
+            count(
+                &h,
+                t("Falsch, Wert nicht gespeichert", "Wrong, value not stored")
+            ),
+            2
+        );
+        // Opening the window changes nothing in the file.
+        assert_eq!(
+            LearningHistory::open_local(&file).unwrap(),
+            legacy_and_new()
+        );
+    }
+}
+
+#[test]
+fn a_sparse_history_shows_no_windows() {
+    for language in Language::ALL {
+        let en = language == Language::En;
+        let t = |de, english| if en { english } else { de };
+        let temp = Temp::new();
+        let file = temp.0.join("learning-history.json");
+        fs::write(&file, FORMAT_2).unwrap();
+        let mut h = app(language, &file);
+        open_window(&mut h, en);
+        h.get_by_label(t(
+            "Resttrümpfe: 2 beantwortet oder übersprungen – ein Vergleich braucht mindestens 20.",
+            "Remaining Trumpf: 2 answered or skipped – a comparison needs at least 20.",
+        ));
+        assert_eq!(
+            h.query_all_by_label_contains(t("Früher: Nr.", "Earlier: no."))
+                .count(),
+            0
+        );
+        h.get_by_label(t(
+            "Gespeichert, bevor Versionen erfasst wurden: 3 gefragt (Version unbekannt)",
+            "Saved before versions were stored: 3 asked (version unknown)",
+        ));
+        assert_eq!(
+            h.query_all_by_label_contains(t("(Version 1)", "(version 1)"))
+                .count(),
+            0
+        );
+        // Reading a format 2 file does not rewrite it.
+        assert_eq!(fs::read_to_string(&file).unwrap(), FORMAT_2);
     }
 }

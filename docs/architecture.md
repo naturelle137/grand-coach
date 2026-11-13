@@ -326,7 +326,7 @@ file bytes stay untouched.
 
 `skat_app::LearningHistory` is the single local store for learning
 observations; later decision provenance extends it rather than adding a
-second statistics system. Format 2 holds a persisted attempt counter, the
+second statistics system. Format 3 holds a persisted attempt counter, the
 attempts (`AttemptId`, `AttemptKind::Series`, `Practice { attempt }` or
 `Training { attempt }`, where attempt 2 and higher are intentional retries
 or repeats) and the `RetrievalEvent`s exactly as the session or the
@@ -335,6 +335,38 @@ its attempt. An event's `OpportunityId` is either `Game(QuestionId)` or
 `Training(TrainingTask)` (fixture and version); it must fit its attempt
 kind (`LearningError::InvalidContext`). It holds no cards, deals, seeds or
 recordings.
+
+Provenance (format 3): each new event carries `lesson`, the immutable
+`LessonRevision` (`LessonFamily::CountingQuiz`, `FocusedRetrieval` or
+`CountingTraining`, and a rule version, currently 1) fixed when its
+opportunity is offered. The version names when questions are asked, how
+the exact count is derived and how an answer is scored; it is raised when
+one of them changes, so observations never merge across rule revisions.
+Training events still name the fixture and its own version in their
+`OpportunityId`. A new `Answer` carries `expected`, the exact count it was
+scored against; it exists only on the answer itself, never on the
+opportunity or help events, so nothing persisted reveals the count before
+the learner answers (help shows it on screen, but its event stores none).
+`record` refuses (`LearningError::InvalidProvenance`) a new event without
+lesson or a new answer without `expected`, a lesson that does not fit the
+opportunity or changes within it, and an `expected` contradicting
+`correct`. No question snapshot, card or deal is stored for this.
+
+Summary: besides the counts per topic and context, `summary` classifies
+each settled response by `ResponseCategory` (exact, too high, too low,
+mismatch with unrecorded value, skipped), split by support (without help /
+with help) per row and in total. The category is only the observed answer
+against the stored exact count: no reason, strategic mistake, mastery or
+transfer is inferred, and strategic decision classification is not part of
+the history. Legacy wrong answers have no stored count and stay
+`MismatchUnrecorded`; their deviation is never reconstructed. `provenance`
+counts opportunities per lesson revision, with unversioned legacy ones
+listed separately. `comparisons` gives, per topic, the number of settled
+responses and, from twice `COMPARISON_WINDOW` (10) on, two windows: the 10
+before the last 10 and the last 10, in persisted event order, each with its
+positions, lowest and highest attempt ID, categories by support and
+responses per context. Skips stay skips; the windows are descriptions, not
+trends.
 
 Identity: the frontend asks `begin_attempt` for a fresh ID on the first
 retrieval event of each series and each practice attempt. IDs come from the
@@ -366,15 +398,20 @@ of this run stay in memory until the learner chooses **Rename damaged file
 and start a new history**, which renames it to the first free
 `learning-history.damaged-<n>.json` and saves.
 
-Migration: this build reads formats 1 and 2 (`LEARNING_FORMATS_READ`) and
-writes 2. Format 1 (PR #133) is decoded unchanged: the untagged
+Migration: this build reads formats 1, 2 and 3 (`LEARNING_FORMATS_READ`)
+and writes 3. Format 1 (PR #133) is decoded unchanged: the untagged
 `OpportunityId::Game` serialises exactly like the former `QuestionId`.
-It is migrated in memory, keeping counter, attempts, events and their
-order, so summaries and deduplication are identical; reading never rewrites
-the file, and the next save (after a new event or a reset) writes format 2.
-A format 1 file containing training attempts or tasks is invalid. Any other
-version (for example 3 from a newer build) is reported as unsupported.
-Older builds report a format 2 file as unsupported and keep it. Two app instances writing the same file are not coordinated; the
+Formats 1 and 2 (PR #137) are migrated in memory, keeping counter,
+attempts, events and their order, so counts and deduplication are
+identical; their events stay unversioned (`lesson: None`) and their answers
+have no `expected`: no current lesson revision or count is assigned
+retrospectively. Both fields are omitted when absent, so legacy events are
+written back unchanged in shape. Reading never rewrites the file, and the
+next save (after a new event or a reset) writes format 3. A format 1 file
+containing training attempts or tasks, and a format 1 or 2 file containing
+provenance fields, is invalid. Any other version (for example 4 from a
+newer build) is reported as unsupported. Older builds report a format 3
+file as unsupported and keep it, so they never drop its provenance. Two app instances writing the same file are not coordinated; the
 last save wins.
 
 ## Focused counting training (D-71)
