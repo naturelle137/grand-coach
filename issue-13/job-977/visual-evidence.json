@@ -1,0 +1,125 @@
+{
+  "platform": "local Linux skat-dev headless",
+  "images": [
+    {
+      "file": "learning-categories-en.png",
+      "sha256": "12cbc72308b3c6181aceae6765dc527f29663d809f0f7fd63e1e025d9316ef34",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "learning-categories-narrow.png",
+      "sha256": "935e5d1ceea293eab30c1cf22344df3bbb11b5640812da18c17333509ec7e893",
+      "width": 960,
+      "height": 640,
+      "visually_inspected": true
+    },
+    {
+      "file": "learning-categories.png",
+      "sha256": "77286cab5d423084571149efb8bf512eb050aa495301122f350d543022120343",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "learning-compare-en.png",
+      "sha256": "acdd6879fda70e66049635d407d5beef5d1a7453ad109242036bfaab868b72eb",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "learning-compare.png",
+      "sha256": "921384e918c662c2ede481aa4bd8dbe996ac3aece6334b1cd161926cdab2c74c",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "learning-damaged-en.png",
+      "sha256": "7ddfcce58efaf8a2133f2da371aefe92b078fb6cd66035117e38f93136ade5f8",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "learning-damaged.png",
+      "sha256": "401092e36d40c6c228d612c243c284753ae8cb173f0061339fc14c43de560539",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "learning-empty-en.png",
+      "sha256": "8553bdf0737a98e2f33c3297ff678b35d9388c5c02f86401ed5e1bf6127a0941",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "learning-empty.png",
+      "sha256": "aaec47dc7fa7405b8d973361a4315b0af1c0ea8e5fd4bfc8d2fc6c5e627add28",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "learning-history-en.png",
+      "sha256": "c4218f22db4150ad774da0d3fed5f7d40a2fb9400e2a25462ee6d97ceff4e0c3",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "learning-history.png",
+      "sha256": "ca8c1df0709ebd2abd353a441639acb27d3a98bf4b246ef056f54a29f478faf1",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "learning-reset.png",
+      "sha256": "221645219610189e4ad1e634ed7ee72c67665ce947c9162165519879da657a8a",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "mechanism-responses-en.png",
+      "sha256": "80ebc8a0b200f37c349a09033c2e3ef6bfa8080784e5f568e8e3cfc774cba8e4",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "mechanism-responses.png",
+      "sha256": "2e89821932991749653786b133244f0d8f318cd466631a0aa60e0a18bea1cad3",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "mechanism-trends-en.png",
+      "sha256": "442efc2d46b8ea7cad2927702971104e5aacb1d16d7687f26a94875511c77408",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    },
+    {
+      "file": "mechanism-trends-narrow.png",
+      "sha256": "4b45a5afe73b9f6e957a6f1a08750a0f0f748036812e1bf2735f912b07b33704",
+      "width": 960,
+      "height": 640,
+      "visually_inspected": true
+    },
+    {
+      "file": "mechanism-trends.png",
+      "sha256": "ccb00033e3f631d48dec665c55e015ae6854f6ee5e284ef3aac4197abf150a2b",
+      "width": 1280,
+      "height": 820,
+      "visually_inspected": true
+    }
+  ],
+  "limits": "No Windows or interactive platform acceptance. Final source screenshots-final.log plus corrected reset screenshots-reset.log. All17 personally inspected; windows and unknown/help contexts checked; scroll clipping is deliberate viewport navigation."
+}
