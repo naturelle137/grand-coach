@@ -344,6 +344,17 @@ impl OpponentJob {
         matches!(self.brain, Brain::Mephisto(_))
     }
 
+    /// Everything the decision depends on except the session lineage
+    /// (crate tests only).
+    #[cfg(test)]
+    pub(crate) fn decision_input(&self) -> String {
+        let p = self.position;
+        format!(
+            "{:?}|{:?}|{}|{}|{}",
+            self.level, self.brain, p.number, p.actions, p.player
+        )
+    }
+
     /// Computes the decision. `cancel` stops the analysis early; the move
     /// is then chosen from what was finished, or by the rules of thumb,
     /// and is always legal.
