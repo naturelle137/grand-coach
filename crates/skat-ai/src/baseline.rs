@@ -3,9 +3,8 @@
 //! Baseline opponent: fixed rules of thumb on top of `skat-analysis`. It has
 //! no randomness, so the same view always gives the same action.
 
-use skat_analysis::hand::power;
-use skat_analysis::{Knowledge, TrickState, policy};
-use skat_core::{Action, Card, GameType, Phase, PlayerView};
+use skat_analysis::{baseline, policy};
+use skat_core::{Action, Phase, PlayerView};
 
 /// A deliberately simple, deterministic opponent: the shared continuation
 /// policy of `skat-analysis` for the decisions before card play, plus rules
@@ -35,7 +34,7 @@ impl BaselineOpponent {
                 view.hand_game == Some(true),
                 legal,
             ),
-            Phase::Spiel => play(view),
+            Phase::Spiel => baseline::play(view),
             Phase::Beendet | Phase::Eingepasst => return None,
         };
         if legal.contains(&wanted) {
@@ -43,93 +42,6 @@ impl BaselineOpponent {
         } else {
             legal.first().copied()
         }
-    }
-}
-
-fn play(view: &PlayerView) -> Action {
-    let legal = &view.legal_actions;
-    if legal.contains(&Action::KeinKontra) {
-        return Action::KeinKontra;
-    }
-    let game = view.contract.map_or(GameType::Grand, |c| c.game);
-    if legal.contains(&Action::Re) {
-        let cards = view.hand | view.own_skat.unwrap_or_default();
-        return if policy::wants_re(game, cards) {
-            Action::Re
-        } else {
-            Action::KeinRe
-        };
-    }
-    if legal.contains(&Action::Kontra) && policy::wants_kontra(game, view.hand) {
-        return Action::Kontra;
-    }
-    let cards: Vec<Card> = legal
-        .iter()
-        .filter_map(|a| match a {
-            Action::Play(card) => Some(*card),
-            _ => None,
-        })
-        .collect();
-    Action::Play(choose_card(view, game, &cards))
-}
-
-fn lowest(game: GameType, cards: impl Iterator<Item = Card>) -> Option<Card> {
-    cards.min_by_key(|&c| (game.is_trump(c), c.augen(), power(game, c)))
-}
-
-fn choose_card(view: &PlayerView, game: GameType, cards: &[Card]) -> Card {
-    let k = Knowledge::from_view(view);
-    let trick = TrickState::of(game, &view.current_trick);
-    let declarer = view.declarer.expect("declarer during play");
-    let me_declarer = view.seat == declarer;
-    let all = cards.iter().copied();
-    let winners: Vec<Card> = all.clone().filter(|&c| trick.beaten_by(game, c)).collect();
-    let losers: Vec<Card> = all.clone().filter(|&c| !trick.beaten_by(game, c)).collect();
-    let last = view.current_trick.len() == 2;
-    let fallback = lowest(game, all.clone()).expect("at least one legal card");
-
-    if game == GameType::Null {
-        let highest_loser = losers.iter().copied().max_by_key(|&c| power(game, c));
-        return match (trick.led, me_declarer) {
-            (None, _) => fallback,
-            (Some(_), true) => highest_loser.unwrap_or(fallback),
-            (Some(_), false) if trick.best_seat == Some(declarer) => {
-                highest_loser.unwrap_or(fallback)
-            }
-            (Some(_), false) => fallback,
-        };
-    }
-
-    if trick.led.is_none() {
-        let trumps: Vec<Card> = all.clone().filter(|&c| game.is_trump(c)).collect();
-        if me_declarer && !trumps.is_empty() && !k.trumps_out().is_empty() {
-            return *trumps.iter().max_by_key(|&&c| power(game, c)).unwrap();
-        }
-        let master = all
-            .clone()
-            .filter(|&c| !game.is_trump(c) && k.is_master(c))
-            .max_by_key(|&c| c.augen());
-        return master.unwrap_or(fallback);
-    }
-
-    let partner_wins = !me_declarer && trick.best_seat.is_some_and(|s| s != declarer);
-    if partner_wins {
-        let safe = last || trick.best.is_some_and(|b| k.is_master(b));
-        if safe {
-            return all
-                .clone()
-                .max_by_key(|&c| (!game.is_trump(c), c.augen()))
-                .unwrap_or(fallback);
-        }
-        return lowest(game, losers.into_iter()).unwrap_or(fallback);
-    }
-    let cheapest_winner = winners
-        .iter()
-        .copied()
-        .min_by_key(|&c| (game.is_trump(c), power(game, c)));
-    match cheapest_winner {
-        Some(card) if last || k.is_master(card) || game.is_trump(card) => card,
-        _ => lowest(game, losers.into_iter()).unwrap_or(fallback),
     }
 }
 
@@ -192,6 +104,23 @@ mod tests {
                 game.apply(action).unwrap();
             }
         }
+    }
+
+    #[test]
+    fn frozen_easy_choices_before_rule_extraction() {
+        // Frozen on origin/main ecfb2fe before moving the rule path.
+        let mut hash = 0xcbf29ce484222325u64;
+        for seed in 0..200 {
+            let mut game = Game::new(seed, RuleConfig { kontra_re: true });
+            while let Some(seat) = game.current_seat() {
+                let action = BaselineOpponent.decide(&game.view(seat)).unwrap();
+                for byte in format!("{action:?}").bytes() {
+                    hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+                }
+                game.apply(action).unwrap();
+            }
+        }
+        assert_eq!(hash, 12_969_225_982_751_591_822);
     }
 
     #[test]

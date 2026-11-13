@@ -32,6 +32,27 @@ The AI and coach use the same option evaluations from `skat-analysis` (D-37, D-3
   ranks by: own expected Seeger-Fabian points, for a defender minus half
   the declarer's expected game points.
 
+## Shared deterministic rule path (#131)
+
+`baseline::play` is the original Easy card-play policy, moved from
+`skat-ai` without changing selections, Kontra/Re precedence, legal ordering,
+min-first/max-last ties or fallback. `baseline::rule` returns its actual card,
+branch, predicates, winning/losing groups, candidates and selection key from
+one permitted view. Easy and `skat-coach::guided` consume this result; the coach
+has no dependency on `skat-ai` and runs no second strategy or search.
+`Knowledge::is_master` means master of the follow class only: a side master
+can still be trumped. Unsupported branches are not explained as safe tactics.
+
+The guided exception to D-49 exposes action-bearing rule data only after an
+attempt or deliberate reveal inside that explicitly entered dialogue. Ordinary
+lesson `Evidence` below remains action-free. The two bounded guided families
+and their core-legal fixtures are specified in [the walkthrough](guided-dialogue.md).
+Exact facts come from own hand, known own Skat, public trick cards, seat order
+and rules; unknown holders, including unknown Skat, stay unknown. Observations
+cite `Source::Trick` and use the announced game's follow class (Buben are
+Trumpf in Farbspiel). Search estimates remain a separate optional source,
+attached to the original decision with their budget and uncertainty.
+
 ## Evidence for lessons
 
 `lesson` (D-53) is the contract between the analysis and coach lessons.

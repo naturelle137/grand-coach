@@ -340,6 +340,13 @@ wgpu adapter and prefers software ones: lavapipe on Linux (Fedora/Ubuntu
 - They support the independent agent review of a frontend change; they do not
   replace looking at the change in a real window.
 
+The guided-dialogue scenarios `guided-orient`, `guided-act`, `guided-memory`,
+`guided-observe`, `guided-complete` and `guided-figures` (plus English variants
+and `guided-orient-narrow`) use seed 21, free play and two Easy opponents without
+Kontra/Re. They enter through real widgets. The ignored bilingual `guided`
+widget test also opens/closes a real recording, cancels the old dialogue and
+re-enters with a fresh identity. These are technical checks, not learner UAT.
+
 ## Platform verification (M2)
 
 The desktop app has been played interactively on Linux/Wayland. CI builds
