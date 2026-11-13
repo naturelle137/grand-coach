@@ -376,6 +376,18 @@ wgpu adapter and prefers software ones: lavapipe on Linux (Fedora/Ubuntu
   `review-moments-narrow` and `review-navigate(-en)` request the recording
   review of the reopened game, cancel it (partial scope), let it finish with
   its moments and open a moment's decision with its historical comment.
+- `table-*` show the modern table of #134 (D-72) with series seed 1116,
+  whose figures carry the longest names of both pools: the human bids,
+  discards from twelve cards, announces, plays tricks, sees the result and
+  the series end. Suffix `-1600` renders at 1600 × 1000, `-960` at
+  960 × 640, the rest at 1280 × 820; `table-augen(-960)` holds the reveal
+  button down, `table-large-text(-en)-960` enlarges every text style by
+  30 %, `table-zoom-1280` uses egui zoom 125 %, and `table-en-960`,
+  `table-german-deck-960`, `table-french2-en`, `table-mephisto-960`,
+  `table-goldfish-960`, `table-god-960`, `table-open-960`,
+  `table-neural-960` and `table-coach-off-960` cover languages, faces and
+  every table mode. Real widget tests for the concealed Augen, the figures
+  and the language switch are in `crates/gui-egui/tests/table.rs`.
 - `open-display-new-series(-en)`, `open-display(-en)`, `open-display-trick`
   and `open-display-coach` choose the open display in the new-series dialog
   and show every hand and the Skat on the ordinary table during bidding and
