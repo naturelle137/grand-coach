@@ -16,6 +16,9 @@
 //! (fixture and version) as their opportunity identity. Fixed fixtures and
 //! retries are practice, never new transfer or mastery.
 
+mod focus;
+pub use focus::*;
+
 use serde::{Deserialize, Serialize};
 use skat_analysis::Knowledge;
 use skat_analysis::counting::{Derivation, QuestionKind, derive, retrieval_questions};
@@ -371,7 +374,7 @@ struct Presented {
 /// files; the frontend records [`Self::take_events`] in the learning
 /// history under [`Self::attempt_kind`], one attempt per presentation.
 #[derive(Clone, Debug)]
-pub struct TrainingSession {
+struct CountingSession {
     topic: TrainingTopic,
     index: usize,
     assistance: AssistanceLevel,
@@ -381,11 +384,11 @@ pub struct TrainingSession {
     events: Vec<RetrievalEvent>,
 }
 
-impl TrainingSession {
+impl CountingSession {
     /// Enters a training of `topic` with the first task presented.
-    pub fn new(topic: TrainingTopic, assistance: AssistanceLevel) -> TrainingSession {
+    pub fn new(topic: TrainingTopic, assistance: AssistanceLevel) -> CountingSession {
         let fixture = topic.fixtures()[0];
-        let mut session = TrainingSession {
+        let mut session = CountingSession {
             topic,
             index: 0,
             assistance,
@@ -657,7 +660,7 @@ mod tests {
                     AssistanceLevel::AnswerBeforeReveal,
                 ] {
                     let run = |v: PlayerView| {
-                        let mut s = TrainingSession::new(fixture.topic(), level);
+                        let mut s = CountingSession::new(fixture.topic(), level);
                         s.current = from_view(fixture, v, 1, level);
                         s.execute(TrainingCommand::Help).unwrap();
                         let help = s.view();
@@ -671,6 +674,70 @@ mod tests {
                     assert_eq!(run(view.clone()), run(other_view.clone()), "{fixture:?}");
                 }
             }
+        }
+    }
+}
+
+/// Existing training session with either legacy counting or catalogue mode.
+/// Neither mode owns a live game, score sheet, file or separate evaluator.
+#[derive(Clone, Debug)]
+pub struct TrainingSession {
+    mode: TrainingMode,
+}
+
+#[derive(Clone, Debug)]
+enum TrainingMode {
+    Counting(CountingSession),
+    Catalogue(FocusSession),
+}
+
+impl TrainingSession {
+    /// Enter one of the original four-fixture counting topics.
+    pub fn new(topic: TrainingTopic, assistance: AssistanceLevel) -> Self {
+        Self {
+            mode: TrainingMode::Counting(CountingSession::new(topic, assistance)),
+        }
+    }
+
+    /// Legacy counting commands. Catalogue mode uses `execute_focus`.
+    pub fn execute(&mut self, command: TrainingCommand) -> Result<(), TrainingError> {
+        match &mut self.mode {
+            TrainingMode::Counting(s) => s.execute(command),
+            TrainingMode::Catalogue(_) => Err(TrainingError::InvalidFixture),
+        }
+    }
+
+    /// Legacy counting view. Use `focus_view` for catalogue mode.
+    /// Panics if called for a catalogue session.
+    pub fn view(&self) -> TrainingView {
+        match &self.mode {
+            TrainingMode::Counting(s) => s.view(),
+            TrainingMode::Catalogue(_) => panic!("catalogue mode uses focus_view"),
+        }
+    }
+
+    /// Legacy events; catalogue transitions are recorded directly in the history.
+    pub fn take_events(&mut self) -> Vec<RetrievalEvent> {
+        match &mut self.mode {
+            TrainingMode::Counting(s) => s.take_events(),
+            TrainingMode::Catalogue(_) => Vec::new(),
+        }
+    }
+
+    /// Legacy attempt kind. Catalogue views carry their allocated history ID.
+    /// Panics if called for a catalogue session.
+    pub fn attempt_kind(&self) -> AttemptKind {
+        match &self.mode {
+            TrainingMode::Counting(s) => s.attempt_kind(),
+            TrainingMode::Catalogue(_) => panic!("catalogue mode carries its attempt ID"),
+        }
+    }
+
+    /// Legacy fixture/presentation identity. Panics in catalogue mode.
+    pub fn presentation(&self) -> (TrainingFixture, u32) {
+        match &self.mode {
+            TrainingMode::Counting(s) => s.presentation(),
+            TrainingMode::Catalogue(_) => panic!("catalogue mode carries its task ID"),
         }
     }
 }

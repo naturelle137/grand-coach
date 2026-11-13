@@ -4,8 +4,9 @@
 //! observed counting-question events and descriptive counts over them.
 //!
 //! The history holds the [`RetrievalEvent`]s a [`crate::Session`] emits,
-//! each tagged with a store-assigned [`AttemptId`]. It never holds cards,
-//! deals or recordings. Counts describe what was observed; they are not a
+//! each tagged with a store-assigned [`AttemptId`]. Catalogue entries retain
+//! bounded permitted-view scoring provenance, never full deals, other hands
+//! or recordings. Counts describe what was observed; they are not a
 //! measure of mastery, retention or transfer, and no answer is credited as
 //! unaided when help was available during its opportunity.
 //!
@@ -21,7 +22,8 @@
 //! exact count it was scored against. Version 1 and 2 files are read and
 //! migrated in memory: counter, attempts, events and their order are kept
 //! exactly, their events stay unversioned and their wrong answers keep an
-//! unknown deviation; the next save writes version 3.
+//! unknown deviation; format 4 additionally holds typed catalogue transitions
+//! and conservative persisted exposure. The next save writes version 4.
 //!
 //! Response categories ([`ResponseCategory`]) describe only the observed
 //! counting response against the recorded exact count. They never name a
@@ -38,10 +40,10 @@ use crate::quiz::{LessonRevision, OpportunityId, RetrievalAction, RetrievalEvent
 /// Format version of the learning history written by this build. Versions
 /// 1 (series and practice only) and 2 (without provenance) are read and
 /// migrated; see [`LEARNING_FORMATS_READ`].
-pub const LEARNING_FORMAT: u32 = 3;
+pub const LEARNING_FORMAT: u32 = 4;
 
-/// Format versions this build reads: 1 and 2 (migrated on reading) and 3.
-pub const LEARNING_FORMATS_READ: [u32; 3] = [1, 2, LEARNING_FORMAT];
+/// Format versions this build reads: 1, 2, 3 (migrated) and 4.
+pub const LEARNING_FORMATS_READ: [u32; 4] = [1, 2, 3, LEARNING_FORMAT];
 
 /// Most events one history holds. Further events are refused, never
 /// replacing older ones; [`LearningSummary::full`] reports it.
@@ -154,10 +156,14 @@ pub enum LearningError {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LearningHistory {
     format: u32,
+    #[serde(default)]
+    pub(crate) focus: Vec<crate::training::FocusEntry>,
+    #[serde(default)]
+    pub(crate) exposure_complete: bool,
     /// Next attempt ID; survives [`LearningHistory::reset`].
     next_attempt: u64,
-    attempts: Vec<LearningAttempt>,
-    events: Vec<LearningEntry>,
+    pub(crate) attempts: Vec<LearningAttempt>,
+    pub(crate) events: Vec<LearningEntry>,
     /// Deduplication keys of `events`; rebuilt by [`LearningHistory::validate`].
     #[serde(skip)]
     keys: HashSet<EventKey>,
@@ -166,7 +172,7 @@ pub struct LearningHistory {
     lessons: HashMap<Opportunity, Option<LessonRevision>>,
     /// Events were refused because the history was full (not persisted).
     #[serde(skip)]
-    refused: bool,
+    pub(crate) refused: bool,
 }
 
 impl Default for LearningHistory {
@@ -257,6 +263,8 @@ impl LearningHistory {
     pub fn new() -> LearningHistory {
         LearningHistory {
             format: LEARNING_FORMAT,
+            focus: Vec::new(),
+            exposure_complete: true,
             next_attempt: 1,
             attempts: Vec::new(),
             events: Vec::new(),
@@ -319,7 +327,7 @@ impl LearningHistory {
                 });
             }
         }
-        if self.events.len() + new.len() > MAX_LEARNING_EVENTS {
+        if self.events.len() + self.focus.len() + new.len() > MAX_LEARNING_EVENTS {
             self.refused = true;
             return Err(LearningError::Full);
         }
@@ -333,6 +341,8 @@ impl LearningHistory {
     /// Deliberately forgets every attempt and event. The attempt counter is
     /// kept, so no identity issued before is ever issued again.
     pub fn reset(&mut self) {
+        self.focus.clear();
+        self.exposure_complete = false;
         self.attempts.clear();
         self.events.clear();
         self.keys.clear();
@@ -352,7 +362,7 @@ impl LearningHistory {
 
     /// `true` without any event.
     pub fn is_empty(&self) -> bool {
-        self.events.is_empty()
+        self.events.is_empty() && self.focus.is_empty()
     }
 
     /// Migrates a decoded history of an older supported format to
@@ -362,6 +372,9 @@ impl LearningHistory {
     /// [`LearningError::InvalidProvenance`]. Format 1 knows no training:
     /// training content in it is [`LearningError::InvalidContext`].
     pub(crate) fn validate(&mut self) -> Result<(), LearningError> {
+        if self.format < LEARNING_FORMAT && (!self.focus.is_empty() || self.exposure_complete) {
+            return Err(LearningError::InvalidProvenance);
+        }
         match self.format {
             1 | 2 => {
                 let training = self
@@ -388,6 +401,10 @@ impl LearningHistory {
                 if provenance {
                     return Err(LearningError::InvalidProvenance);
                 }
+                self.format = LEARNING_FORMAT;
+            }
+            3 => {
+                self.exposure_complete = false;
                 self.format = LEARNING_FORMAT;
             }
             LEARNING_FORMAT => {}
@@ -419,6 +436,7 @@ impl LearningHistory {
                 return Err(LearningError::DuplicateEvent);
             }
         }
+        self.validate_focus()?;
         self.keys = keys;
         self.lessons = lessons;
         self.refused = false;
@@ -519,6 +537,7 @@ impl LearningHistory {
                 windows: (n >= 2 * w).then(|| [window(n - 2 * w), window(n - w)]),
             });
         }
+        used.extend(self.focus.iter().map(|e| e.attempt));
         let observations = match totals.opportunities {
             0 => Observations::None,
             n if n < LIMITED_OBSERVATIONS => Observations::Limited,
@@ -533,7 +552,7 @@ impl LearningHistory {
             attempts: used.len() as u32,
             observations,
             full: self.refused
-                || self.events.len() >= MAX_LEARNING_EVENTS
+                || self.events.len() + self.focus.len() >= MAX_LEARNING_EVENTS
                 || self.attempts.len() >= MAX_LEARNING_ATTEMPTS,
         }
     }
