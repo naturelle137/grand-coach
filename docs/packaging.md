@@ -9,14 +9,26 @@ tag, installer, administrator access, updater or network service is created.
 
 | Target | Package | Build environment | Runtime prerequisites |
 |--------|---------|-------------------|-----------------------|
-| x86_64 Linux | portable `.tar.gz` | Ubuntu 24.04 CI; Fedora 44 local development | glibc compatible with the build host, libgcc, EGL/OpenGL driver, Wayland or X11 display, libxkbcommon; see manifest `ldd` output |
-| x86_64 Windows | portable `.zip` | Windows Server 2025 CI, Rust MSVC and Visual Studio C++ Build Tools | Windows 11 x64, graphics driver supporting OpenGL, Microsoft Visual C++ runtime when required by the toolchain |
+| x86_64 Linux | portable `.tar.gz` | Ubuntu 24.04 CI; Fedora 44 local development | glibc compatible with the build host, libgcc, EGL/OpenGL driver, Wayland or X11 display, libxkbcommon and its X11 extension for X11; see manifest `ldd` output |
+| x86_64 Windows | portable `.zip` | Windows Server 2025 CI, Rust MSVC and Visual Studio C++ Build Tools | Windows 11 x64, graphics driver supporting OpenGL 2.0+, Microsoft Visual C++ runtime when required by the toolchain |
 
 Linux binaries are dynamically linked, not universal/static Linux binaries.
 An Ubuntu build has a glibc 2.39 baseline; a Fedora-built artifact must not
 be represented as having the Ubuntu baseline. EGL/GL and display libraries
 can also be loaded dynamically and are not all visible in `ldd`. Xvfb plus
-Mesa is used for CI launch; Windows Server CI is not interactive Windows 11.
+Mesa and `libxkbcommon-x11-0` are installed for the Ubuntu smoke (Fedora:
+`libxkbcommon-x11`). A missing X11 extension causes a startup panic even when
+the executable's direct `ldd` dependencies are satisfied.
+Windows Server CI is not interactive Windows 11.
+Its built-in OpenGL 1.1 fails the app's OpenGL 2.0+ requirement. CI therefore
+downloads the MIT-licensed [mesa-dist-win 26.2.6 MSVC build](https://github.com/pal1000/mesa-dist-win/releases/tag/26.2.6),
+checks SHA-256 `b2e00615feaba45942343c265cc8c5f576142ca682c1ac6661922d4b72492877`,
+and passes its x64 DLL directory to `smoke --windows-mesa <directory>`.
+Only the temporary test installation receives `opengl32.dll` and
+`libgallium_wgl.dll`, with `GALLIUM_DRIVER=llvmpipe`. Their hashes are recorded
+in `smoke.json`; they are never added to the application ZIP or distributed
+with its notices. This verifies a declared software-driver prerequisite on
+the server, not native Windows 11 hardware acceleration or a clean OS.
 An installed runtime may satisfy prerequisites on CI without proving a clean
 machine has them. Record and check these prerequisites on the target machine.
 
@@ -107,7 +119,8 @@ complete-platform release gate remain authoritative and unchanged.
 The archive tests check both formats, deterministic ordering/bytes, inventory,
 tampering, extra/unsafe files, missing cards/translations/notices and stale
 notices. The packaged smoke validates hashes, launches only the extracted
-executable from an unrelated directory, captures a native screenshot, restarts,
+executable from an unrelated directory (plus explicitly declared test driver
+DLLs on Windows CI), captures a native screenshot, restarts,
 replaces the executable with the same build and removes the install directory.
 The linked probe creates a valid history from actual training events through
 the existing app API, saves/reopens it and checks it after each packaged launch.

@@ -201,6 +201,7 @@ def build(args):
 def smoke(args):
     manifest, files = verify(args.archive)
     args.out.mkdir(parents=True, exist_ok=True)
+    runtime_dlls = {}
     with tempfile.TemporaryDirectory(prefix="grand-coach-package-") as directory:
         root = Path(directory)
         install = root / "install"
@@ -209,6 +210,13 @@ def smoke(args):
         binary = install / manifest["binary"]
         binary.write_bytes(files[manifest["binary"]])
         binary.chmod(0o755)
+        if args.windows_mesa:
+            if platform.system() != "Windows":
+                raise ValueError("--windows-mesa is a Windows-only test prerequisite")
+            for name in ("opengl32.dll", "libgallium_wgl.dll"):
+                payload = (args.windows_mesa / name).read_bytes()
+                (install / name).write_bytes(payload)
+                runtime_dlls[name] = digest(payload)
         data = root / "user-data"
         data.mkdir()
         history = data / "learning-history.json"
@@ -228,8 +236,14 @@ def smoke(args):
             screenshot.unlink(missing_ok=True)
             env = dict(os.environ, GRAND_COACH_DATA=str(data), GRAND_COACH_SEED="13", GRAND_COACH_SCREENSHOT=str(screenshot))
             # cwd has no checkout/assets and models are not shipped.
-            with (args.out / f"{stage}.log").open("w") as log:
-                subprocess.run([str(binary)], cwd=root, env=env, stdout=log, stderr=log, check=True, timeout=90)
+            log_path = args.out / f"{stage}.log"
+            with log_path.open("w") as log:
+                try:
+                    subprocess.run([str(binary)], cwd=root, env=env, stdout=log, stderr=log, check=True, timeout=90)
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                    log.flush()
+                    print(log_path.read_text(encoding="utf-8", errors="replace")[-8192:])
+                    raise
             image = screenshot.read_bytes()
             if not image.startswith(b"P6\n") or len(image) < 100000:
                 raise ValueError("native packaged launch did not produce a screenshot")
@@ -244,7 +258,8 @@ def smoke(args):
         "commit": manifest["commit"], "archive_sha256": digest(args.archive.read_bytes()),
         "os": platform.platform(), "result": "passed",
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
-        "checks": ["archive resources/hashes/notices", "binary-only native launch", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "uninstall retains data"],
+        "test_runtime_dlls": runtime_dlls,
+        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "uninstall retains data"],
         "limitations": "History creation/check uses linked app API probe, not GUI interaction. No cross-version migration or interactive flows; no clean OS or Windows 11 claim.",
     }, indent=2) + "\n", encoding="utf-8", newline="\n")
 
@@ -260,6 +275,7 @@ def main():
     s = sub.add_parser("smoke")
     s.add_argument("archive", type=Path)
     s.add_argument("--out", type=Path, required=True)
+    s.add_argument("--windows-mesa", type=Path, help="test-only Mesa x64 DLL directory, never added to the application archive")
     args = parser.parse_args()
     if args.action == "build":
         build(args)
