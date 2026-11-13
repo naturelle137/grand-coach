@@ -23,7 +23,7 @@ LEGAL = ("LICENSE", "LICENSE-ASSETS", "THIRD-PARTY-NOTICES", "Cargo.lock")
 
 
 def run(*args, cwd=ROOT, **kwargs):
-    return subprocess.check_output(args, cwd=cwd, text=True, **kwargs).strip()
+    return subprocess.check_output(args, cwd=cwd, text=True, encoding="utf-8", **kwargs).strip()
 
 
 def digest(data):
@@ -55,9 +55,9 @@ def resources(root):
 
 
 def notices(root):
-    lock = tomllib.loads((root / "Cargo.lock").read_text())
+    lock = tomllib.loads((root / "Cargo.lock").read_text(encoding="utf-8"))
     expected = {f"{p['name']} {p['version']}" for p in lock["package"] if "source" in p}
-    text = (root / "THIRD-PARTY-NOTICES").read_text()
+    text = (root / "THIRD-PARTY-NOTICES").read_text(encoding="utf-8")
     actual = set(re.findall(r"^== (.+) ==$", text, re.M))
     actual = {s for s in actual if not s.startswith("Appendix")}
     if expected != actual:
@@ -150,10 +150,10 @@ def build(args):
     notices(ROOT)
     sha = run("git", "rev-parse", "HEAD")
     epoch = int(run("git", "show", "-s", "--format=%ct", "HEAD"))
-    version = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
+    version = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
     command = ["cargo", "build", "--locked", "--offline", "--release", "-p", "gui-egui", "--bin", "grand-coach", "--target", target, "--message-format=json-render-diagnostics"]
     env = dict(os.environ, SOURCE_DATE_EPOCH=str(epoch), CARGO_INCREMENTAL="0")
-    compiled = subprocess.run(command, cwd=ROOT, env=env, check=True, stdout=subprocess.PIPE, text=True)
+    compiled = subprocess.run(command, cwd=ROOT, env=env, check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8")
     artifacts = [json.loads(line) for line in compiled.stdout.splitlines() if line.startswith("{")]
     app_lib = next(Path(name) for a in artifacts if a.get("reason") == "compiler-artifact" and a["target"]["name"] == "skat_app" for name in a["filenames"] if name.endswith(".rlib"))
     binary = "grand-coach.exe" if windows else "grand-coach"
@@ -194,7 +194,7 @@ def build(args):
     if data != archive_bytes(files, windows, epoch):
         raise ValueError("archive reproducibility check failed")
     verify(path)
-    path.with_name(path.name + ".sha256").write_text(f"{digest(data)}  {path.name}\n")
+    path.with_name(path.name + ".sha256").write_text(f"{digest(data)}  {path.name}\n", encoding="utf-8", newline="\n")
     print(path.resolve())
 
 
@@ -246,7 +246,7 @@ def smoke(args):
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "checks": ["archive resources/hashes/notices", "binary-only native launch", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "uninstall retains data"],
         "limitations": "History creation/check uses linked app API probe, not GUI interaction. No cross-version migration or interactive flows; no clean OS or Windows 11 claim.",
-    }, indent=2) + "\n")
+    }, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
 def main():
