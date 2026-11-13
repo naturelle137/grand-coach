@@ -65,6 +65,13 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("recording-en", recording_en),
     ("recording-error", recording_error),
     ("recording-error-en", recording_error_en),
+    ("learning-empty", learning_empty),
+    ("learning-empty-en", learning_empty_en),
+    ("learning-history", learning_history),
+    ("learning-history-en", learning_history_en),
+    ("learning-reset", learning_reset),
+    ("learning-damaged", learning_damaged),
+    ("learning-damaged-en", learning_damaged_en),
     ("recording-narrow", recording),
     ("replay-before", replay_before),
     ("replay-historical", replay_historical),
@@ -239,6 +246,89 @@ fn retrieval_void(h: &mut Harness<'_, GrandCoachApp>) {
 
 fn retrieval_void_en(h: &mut Harness<'_, GrandCoachApp>) {
     retrieval_void(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+/// A fresh learning-history file for a scenario, under the temp directory.
+fn learning_file(h: &mut Harness<'_, GrandCoachApp>, name: &str, content: Option<&[u8]>) {
+    let dir = std::env::temp_dir()
+        .join("grand-coach-screenshots")
+        .join(name);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create scenario directory");
+    let file = dir.join("learning-history.json");
+    if let Some(content) = content {
+        std::fs::write(&file, content).expect("write scenario file");
+    }
+    h.state_mut().use_learning_file(file);
+}
+
+fn open_learning(h: &mut Harness<'_, GrandCoachApp>) {
+    click(h, Role::Button, "Spiel");
+    click(h, Role::Button, "Lernverlauf …");
+}
+
+/// The learning history before any counting question (D-70).
+fn learning_empty(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "learning-empty", None);
+    open_learning(h);
+}
+
+fn learning_empty_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_empty(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+/// Three real focused-retrieval questions at the table: answered after
+/// requested help, answered unaided, skipped; then the overview.
+fn learning_history(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "learning-history", None);
+    h.state_mut().set_assist(skat_app::AssistSettings {
+        retrieval: true,
+        ..AID_AND_QUIZ
+    });
+    for step in 0..3 {
+        play_until(h, |v, _| v.assist.quiz.question.is_some());
+        match step {
+            0 => {
+                click(h, Role::Button, "Hilfe einblenden");
+                click(h, Role::Button, "Antworten");
+            }
+            1 => click(h, Role::Button, "Antworten"),
+            _ => click(h, Role::Button, "Überspringen"),
+        }
+    }
+    let totals = h.state().learning_history().summary().totals;
+    assert_eq!((totals.opportunities, totals.help), (3, 1));
+    open_learning(h);
+}
+
+fn learning_history_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_history(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+/// The confirmation step before deleting the history.
+fn learning_reset(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_history(h);
+    click(h, Role::Button, "Lernverlauf zurücksetzen …");
+}
+
+/// A damaged file is reported, kept and offered to be set aside.
+fn learning_damaged(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(
+        h,
+        "learning-damaged",
+        Some(b"{\"format\": 1, \"events\": broken"),
+    );
+    open_learning(h);
+}
+
+fn learning_damaged_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_damaged(h);
     h.state_mut().set_language(Language::En);
     h.run_steps(4);
 }
