@@ -212,7 +212,8 @@ fn failed_saves_never_modify_original_bytes_and_validate_before_creation() {
         recording.save_local_new(temp.file("absent/child")),
         Err(RecordingFileError::Missing)
     );
-    // A file cannot be used as a parent directory on either platform.
+    // A file cannot be used as a parent directory: Io on every platform (Windows
+    // natively reports NotFound, normalized by `create_error`).
     assert_eq!(
         recording.save_local_new(path.join("child")),
         Err(RecordingFileError::Io)
