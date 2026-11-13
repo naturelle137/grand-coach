@@ -325,19 +325,23 @@ file bytes stay untouched.
 ## Learning history (D-70)
 
 `skat_app::LearningHistory` is the single local store for learning
-observations; later decision and training provenance extends it rather than
-adding a second statistics system. Format 1 holds a persisted attempt
-counter, the attempts (`AttemptId`, `AttemptKind::Series` or
-`Practice { attempt }`, where attempt 2 and higher are intentional retries)
-and the `RetrievalEvent`s exactly as the session emitted them, each tagged
-with its attempt. It holds no cards, deals, seeds or recordings.
+observations; later decision provenance extends it rather than adding a
+second statistics system. Format 2 holds a persisted attempt counter, the
+attempts (`AttemptId`, `AttemptKind::Series`, `Practice { attempt }` or
+`Training { attempt }`, where attempt 2 and higher are intentional retries
+or repeats) and the `RetrievalEvent`s exactly as the session or the
+[training](#focused-counting-training-d-71) emitted them, each tagged with
+its attempt. An event's `OpportunityId` is either `Game(QuestionId)` or
+`Training(TrainingTask)` (fixture and version); it must fit its attempt
+kind (`LearningError::InvalidContext`). It holds no cards, deals, seeds or
+recordings.
 
 Identity: the frontend asks `begin_attempt` for a fresh ID on the first
 retrieval event of each series and each practice attempt. IDs come from the
 persisted counter and are never reused, not even after a reset; session
 lineages and quiz seeds are not used because they repeat across restarts
-and practice attempts of one deal. An event's key is (attempt, `QuestionId`,
-action tag), with answer and skip sharing the one settlement tag; `record`
+and practice attempts of one deal. Each training presentation gets its own
+attempt. An event's key is (attempt, `OpportunityId`, action tag), with answer and skip sharing the one settlement tag; `record`
 skips stored keys, so re-sent batches, reloads and replays never count
 twice. Browsing recordings and replay comments emit no retrieval events.
 Original recordings, score sheets and live jobs are not touched.
@@ -360,9 +364,60 @@ unsupported format, too large, I/O). A damaged or unsupported file is kept
 byte for byte and never saved over: the window reports it and new events
 of this run stay in memory until the learner chooses **Rename damaged file
 and start a new history**, which renames it to the first free
-`learning-history.damaged-<n>.json` and saves. Format 1 is the first
-format; there are no older formats to migrate, and a file with another
-version (for example from a newer build) is reported as unsupported.
-Migration rules for later versions belong to the issue that introduces
-them. Two app instances writing the same file are not coordinated; the
+`learning-history.damaged-<n>.json` and saves.
+
+Migration: this build reads formats 1 and 2 (`LEARNING_FORMATS_READ`) and
+writes 2. Format 1 (PR #133) is decoded unchanged: the untagged
+`OpportunityId::Game` serialises exactly like the former `QuestionId`.
+It is migrated in memory, keeping counter, attempts, events and their
+order, so summaries and deduplication are identical; reading never rewrites
+the file, and the next save (after a new event or a reset) writes format 2.
+A format 1 file containing training attempts or tasks is invalid. Any other
+version (for example 3 from a newer build) is reported as unsupported.
+Older builds report a format 2 file as unsupported and keep it. Two app instances writing the same file are not coordinated; the
 last save wins.
+
+## Focused counting training (D-71)
+
+`skat_app::TrainingSession` is a small plain state machine outside any
+`Session`; it owns no game, score sheet, recording or file. Topics are the
+two focused-retrieval families (`TrainingTopic::TrumpfOutside`,
+`ProvenVoids`). Each `TrainingFixture` is a fixed position: a seed for
+`Game::new` with `RuleConfig::default()`, a recorded action prefix
+(bidding, Skat, announcement, card play), the intended seat (whose turn it
+is) and one question. `TrainingFixture::view` replays the prefix through
+`Game::apply`, rejects an illegal action, a position that is not the seat's
+card-play turn or a question outside `retrieval_questions`, and returns only
+that seat's `PlayerView`; the full game is dropped. Question, help,
+expected answer and feedback come from the view's `Knowledge` via
+`skat_analysis::counting::derive`, as in the quiz, so hidden-card
+substitutions with identical views give identical tasks.
+
+Initial set (version 1 each; a changed position gets a new version):
+
+| Fixture | Seed | Seat, role | Game | Question |
+| --- | --- | --- | --- | --- |
+| `TrumpfDeclarerFarbspiel` | 1 | Hinterhand, declarer (own discard known) | Karo | Trumpf outside: 2 |
+| `TrumpfDefenderGrand` | 19 | Vorhand, defender (Skat unknown) | Grand | Trumpf outside: 1 |
+| `VoidsDeclarerGrand` | 0 | Vorhand, declarer | Grand | Proven Trumpf voids: 2 |
+| `VoidsDefenderFarbspiel` | 3 | Hinterhand, defender | Kreuz | Proven Herz voids: 1 (0 one card earlier) |
+
+Null has no Trumpf, so the Trumpf topic has no Null fixture. These four are a
+baseline, not #50's varied transfer set.
+
+Commands: `Topic`, `Assistance` (existing support levels), `Help`,
+`Answer`, `Skip`, then `Retry` (same task) or `Next` (next fixture of the
+topic, cycling); a refused command changes nothing. Help is recorded once
+and stays assisted for that presentation; `VisibleAid` starts assisted.
+Every presentation emits an `Opportunity` and is numbered per fixture within
+one entered training (`presentation`); the frontend records each in its own
+`AttemptKind::Training { attempt: presentation }`. A topic switch or leaving
+with an open task records no answer or skip.
+
+GUI: **Game → Counting training …** replaces the whole window content with
+the training screen (banner with **Back to the game** and the learning
+history). While it is open, the live session is not drawn, its opponents and
+coach are not driven and no command reaches it; pending background results
+wait in their channels. The screen shows contract, bid, roles, completed
+tricks with seats, the trick on the table, the hand, and the own discard or
+that the Skat is unknown.

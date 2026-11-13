@@ -725,6 +725,7 @@ training-note-voids = Public evidence only: who did not follow a led group.
 training-practice-only = Every position is a fixed practice position. Repeats are practice, not a new task and no proof of skill. Answers, help and skips go into the learning history.
 training-topic = Topic:
 training-question = Question
+training-result = Result
 training-was-assisted = Help was visible in this round; it counts as assisted.
 training-retry = Try again
 training-next = Next position

@@ -116,7 +116,7 @@ impl TrainingUi {
                         ),
                         None => i.t("training-title"),
                     };
-                    ui.label(RichText::new(banner).strong());
+                    ui.label(RichText::new(banner).strong().color(BANNER_TEXT));
                     if ui.button(i.t("training-return")).clicked() {
                         request = Some(TrainingRequest::Exit);
                     }
@@ -124,7 +124,7 @@ impl TrainingUi {
                         request = Some(TrainingRequest::History);
                     }
                 });
-                ui.label(i.t("training-isolation"));
+                ui.label(RichText::new(i.t("training-isolation")).color(BANNER_TEXT));
             });
         let mut command = None;
         egui::CentralPanel::default().show(ui, |ui| {
@@ -219,7 +219,7 @@ impl TrainingUi {
         }
         ui.add_space(4.0);
         if let Some(feedback) = v.feedback {
-            ui.label(RichText::new(i.t("quiz-feedback-title")).strong());
+            ui.label(RichText::new(i.t("training-result")).strong());
             for line in assist::feedback_lines(i, &feedback) {
                 ui.label(line);
             }
@@ -286,6 +286,9 @@ impl TrainingUi {
         command
     }
 }
+
+/// Text on the light banner, readable in both themes.
+const BANNER_TEXT: Color32 = Color32::from_rgb(16, 48, 80);
 
 const LEVELS: [(AssistanceLevel, &str); 3] = [
     (AssistanceLevel::VisibleAid, "retrieval-visible"),
@@ -389,10 +392,16 @@ fn played(
 ) {
     ui.horizontal(|ui| {
         for &(seat, card) in cards {
-            ui.vertical(|ui| {
-                crate::recording::card_image(ui, i, deck, card);
-                ui.label(RichText::new(seat_label(i, v, seat)).small());
-            });
+            // Equal columns, so the cards line up across tricks.
+            ui.allocate_ui_with_layout(
+                egui::vec2(110.0, 100.0),
+                egui::Layout::top_down(egui::Align::Center),
+                |ui| {
+                    ui.set_width(110.0);
+                    crate::recording::card_image(ui, i, deck, card);
+                    ui.add(egui::Label::new(RichText::new(seat_label(i, v, seat)).small()).wrap());
+                },
+            );
         }
     });
 }

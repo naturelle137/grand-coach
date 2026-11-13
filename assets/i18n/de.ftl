@@ -725,6 +725,7 @@ training-note-voids = Nur öffentlich belegt: wer eine ausgespielte Gruppe nicht
 training-practice-only = Jede Stellung ist eine feste Übungsstellung. Wiederholungen sind Übung, keine neue Aufgabe und kein Nachweis von Können. Antworten, Hilfe und Überspringen kommen in den Lernverlauf.
 training-topic = Thema:
 training-question = Frage
+training-result = Ergebnis
 training-was-assisted = Hilfe war in diesem Durchgang sichtbar; er zählt als unterstützt.
 training-retry = Noch einmal
 training-next = Nächste Stellung

@@ -108,27 +108,53 @@ of retention. Nothing fades automatically or infers mastery.
 
 `AppEvent::Retrieval` is the plain-data progress boundary: `Opportunity`,
 `Help`, `Answer { given, correct }` and `Skip { disabled }`. Each carries
-`QuestionId` (independent quiz-stream identity, game number, trick count),
+an `OpportunityId`, in play `Game(QuestionId)` (independent quiz-stream
+identity, game number, trick count),
 the frozen question, selected assistance level and a sticky `assisted`
-flag. Consumers deduplicate by `(QuestionId, action variant tag)`; repeat
+flag. Consumers deduplicate by `(OpportunityId, action variant tag)`; repeat
 help and settings commands emit no duplicate transitions, and a settled
 question rejects another answer. Disabling a pending quiz emits one skip
 without exposing its expected answer. All events support serde; they need
 no storage, replay service or model. Existing `AppEvent::Quiz` feedback is
 retained for callers. No efficacy or mastery claim follows from these events.
 
+### Focused counting training (D-71)
+
+**Game → Counting training …** practises the same two families outside a
+game. The learner chooses a support level and a topic, then sees one fixed
+legal position from one seat: contract and bid, their seat and role, every
+completed trick with seats and winner, the trick on the table, their hand
+and their own discard (declarer) or that the Skat is unknown. The question,
+help, expected answer and feedback are those of the in-game focused
+retrieval, derived from that seat's view only. For voids, help and feedback
+name only the seats with public proof (failure to follow); an unknown Skat
+is stated as a possible place of outside Trumpf, unseen holders are never
+named. No card recommendation, strategic advice or diagnosis is given. After
+answering or skipping, **Try again** presents the same position as a new,
+labelled round and **Next position** the topic's other position; the topic
+can be switched at any time and **Back to the game** returns to the live
+table exactly as it was. Initial fixtures: each family has one declarer and
+one defender position, one Farbspiel and one Grand; the defender void
+position is the moment right after the declarer failed to follow, one card
+after nothing was proven. Null is excluded from the Trumpf topic because it
+has no Trumpf. Fixed positions and repeats are practice, never transfer
+evidence; varied unaided transfer is #50. See
+[the contract](architecture.md#focused-counting-training-d-71).
+
 ### Learning history (D-70)
 
 **Game → Learning history …** shows what the local
 [learning history](architecture.md#learning-history-d-70) recorded from
 these events: per topic (remaining Trumpf, proven voids, Augen won, cards
-played) and context (series, practice, practice retry) the questions asked,
+played) and context (series, practice, practice retry, counting training,
+training repeat) the questions asked,
 answers (exact), answers without help (exact), help shown and skips. Every
 column counts its own event type; an answer counts as without help only if
 no exact aid was available during its opportunity, so visible-aid and
 restored-help answers never do. Practice attempts and intentional retries of
-the same deal are listed apart from series games, so a repeated deal is never
-presented as a new unaided task. Without observations the window says so;
+the same deal are listed apart from series games, and so are training
+presentations and their repeats, so a repeated deal or fixed training
+position is never presented as a new unaided task. Without observations the window says so;
 below 20 questions it states that the sample is too small for any
 conclusion. It always states that the counts are not a measure of skill or
 understanding. No mastery, trend, thought, game-loss diagnosis or strategic

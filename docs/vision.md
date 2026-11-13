@@ -42,7 +42,8 @@ The current [live coach](coach.md) provides staged hints, six supported
 lessons, a learning focus and a review of selected decisions. Optional focused
 retrieval asks for exact counts before feedback,
 with explicitly selected or restored help. It records support for the current
-opportunity without claiming mastery. The [roadmap](roadmap.md)
+opportunity without claiming mastery. A first focused counting training
+practises these two counts on fixed positions outside a game. The [roadmap](roadmap.md)
 covers the next steps from guided play to independent practice.
 
 ## Playing environment

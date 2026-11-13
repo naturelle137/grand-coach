@@ -72,6 +72,21 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("learning-reset", learning_reset),
     ("learning-damaged", learning_damaged),
     ("learning-damaged-en", learning_damaged_en),
+    ("training-topics", training_topics),
+    ("training-topics-en", training_topics_en),
+    ("training-trumpf", training_trumpf),
+    ("training-trumpf-en", training_trumpf_en),
+    ("training-trumpf-narrow", training_trumpf),
+    ("training-feedback", training_feedback),
+    ("training-retry-help", training_retry_help),
+    ("training-defender", training_defender),
+    ("training-defender-en", training_defender_en),
+    ("training-voids", training_voids),
+    ("training-voids-en", training_voids_en),
+    ("training-boundary", training_boundary),
+    ("training-history", training_history),
+    ("training-history-en", training_history_en),
+    ("training-return", training_return),
     ("recording-narrow", recording),
     ("replay-before", replay_before),
     ("replay-historical", replay_historical),
@@ -331,6 +346,116 @@ fn learning_damaged_en(h: &mut Harness<'_, GrandCoachApp>) {
     learning_damaged(h);
     h.state_mut().set_language(Language::En);
     h.run_steps(4);
+}
+
+fn english(h: &mut Harness<'_, GrandCoachApp>) {
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+}
+
+fn plus(h: &mut Harness<'_, GrandCoachApp>, n: u8) {
+    for _ in 0..n {
+        click(h, Role::Button, "+ 1");
+    }
+}
+
+/// The topic choice of the focused counting training (D-71), entered
+/// from the Game menu during a live game.
+fn training_topics(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "training", None);
+    play_until(h, |v, _| v.tricks_played >= 1);
+    click(h, Role::Button, "Spiel");
+    click(h, Role::Button, "Zähltraining …");
+    assert!(h.state().training_active());
+}
+
+fn training_topics_en(h: &mut Harness<'_, GrandCoachApp>) {
+    training_topics(h);
+    english(h);
+}
+
+/// The Karo declarer task: hand, own discard, three tricks, the question.
+fn training_trumpf(h: &mut Harness<'_, GrandCoachApp>) {
+    training_topics(h);
+    click(h, Role::Button, "Resttrümpfe üben");
+}
+
+fn training_trumpf_en(h: &mut Harness<'_, GrandCoachApp>) {
+    training_trumpf(h);
+    english(h);
+}
+
+/// The exact answer with its derivation.
+fn training_feedback(h: &mut Harness<'_, GrandCoachApp>) {
+    training_trumpf(h);
+    plus(h, 2);
+    click(h, Role::Button, "Antworten");
+}
+
+/// A deliberate retry with help requested: round 2, assisted.
+fn training_retry_help(h: &mut Harness<'_, GrandCoachApp>) {
+    training_feedback(h);
+    click(h, Role::Button, "Noch einmal");
+    click(h, Role::Button, "Hilfe einblenden");
+}
+
+/// The Grand defender who does not know the Skat, answered wrongly.
+fn training_defender(h: &mut Harness<'_, GrandCoachApp>) {
+    training_feedback(h);
+    click(h, Role::Button, "Nächste Stellung");
+    click(h, Role::Button, "Antworten");
+}
+
+fn training_defender_en(h: &mut Harness<'_, GrandCoachApp>) {
+    training_defender(h);
+    english(h);
+}
+
+/// Proven voids from the declarer's seat with help naming the public proof.
+fn training_voids(h: &mut Harness<'_, GrandCoachApp>) {
+    training_topics(h);
+    click(h, Role::Button, "Nachgewiesene Fehlfarben üben");
+    click(h, Role::Button, "Hilfe einblenden");
+}
+
+fn training_voids_en(h: &mut Harness<'_, GrandCoachApp>) {
+    training_voids(h);
+    english(h);
+}
+
+/// The defender right after the declarer failed to follow Herz.
+fn training_boundary(h: &mut Harness<'_, GrandCoachApp>) {
+    training_voids(h);
+    plus(h, 2);
+    click(h, Role::Button, "Antworten");
+    click(h, Role::Button, "Nächste Stellung");
+    plus(h, 1);
+    click(h, Role::Button, "Antworten");
+}
+
+/// The learning history with training rows apart from the series.
+fn training_history(h: &mut Harness<'_, GrandCoachApp>) {
+    training_retry_help(h);
+    click(h, Role::Button, "Überspringen");
+    click(h, Role::Button, "Lernverlauf …");
+}
+
+fn training_history_en(h: &mut Harness<'_, GrandCoachApp>) {
+    training_history(h);
+    english(h);
+}
+
+/// Back at the unchanged live table after a training.
+fn training_return(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "training-return", None);
+    play_until(h, |v, _| v.tricks_played >= 1);
+    let before = h.state().live_session().view();
+    click(h, Role::Button, "Spiel");
+    click(h, Role::Button, "Zähltraining …");
+    click(h, Role::Button, "Resttrümpfe üben");
+    click(h, Role::Button, "Antworten");
+    click(h, Role::Button, "Zurück zur Partie");
+    assert_eq!(h.state().live_session().view(), before);
 }
 
 /// The counting aid in card play, after the third trick (D-64).
