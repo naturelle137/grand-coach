@@ -942,7 +942,7 @@ fn rl(args: &[String]) {
         "budget: {} CPUs, {} parallel games x {} analysis threads; stop with `touch {}`",
         limits.cpus,
         limits.workers,
-        (limits.cpus.get() / limits.workers.get()).max(1),
+        (limits.cpus.get() / limits.workers).max(1),
         stop_file.display()
     );
     let result = run(
