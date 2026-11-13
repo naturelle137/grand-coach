@@ -39,6 +39,7 @@ mod quiz;
 mod recording;
 mod recording_io;
 mod replay_coach;
+mod replay_review;
 mod series;
 mod session;
 mod sort;
@@ -66,6 +67,10 @@ pub use replay_coach::{
     REPLAY_COACH_SEED, REPLAY_COACH_TIME_LIMIT, RecordedDecision, ReplayCoach, ReplayCoachJob,
     ReplayCoachResult, ReplayCoachView, ReplayComment, ReplayPerspective, ReplayStale,
     ReplayStatus,
+};
+pub use replay_review::{
+    REPLAY_REVIEW_DECISION_LIMIT, REPLAY_REVIEW_TIME_LIMIT, ReplayReviewJob, ReplayReviewResult,
+    ReviewEnd, ReviewMoment, ReviewStatus, ReviewSummary, ReviewUnavailable,
 };
 pub use series::{GameRecord, ScoreSheet, SeriesResult};
 pub use session::{
