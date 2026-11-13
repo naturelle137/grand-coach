@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: EUPL-1.2
+name: RC packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/968-13-reproducible-linux-and-windows-rc-pac]
+  pull_request:
+    paths:
+      - 'scripts/package*'
+      - '.github/workflows/package*.yml'
+      - 'docs/packaging.md'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.95.0'
+      - name: Linux display and runtime libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb libegl1 libgl1 libwayland-egl1 libxkbcommon0
+      - name: Archive contract and failure cases
+        run: python3 -B scripts/package_test.py
+      - name: Fetch locked build inputs
+        run: cargo fetch --locked
+      - name: Build offline and verify deterministic archive
+        run: python3 -B scripts/package.py build --out dist
+      - name: Native packaged launch and lifecycle smoke
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a python3 -B scripts/package.py smoke dist/*.tar.gz --out evidence
+          else
+            python3 -B scripts/package.py smoke dist/*.zip --out evidence
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rc-${{ matrix.os }}-${{ github.sha }}
+          path: |
+            dist/
+            evidence/
+          if-no-files-found: error
+          retention-days: 14
