@@ -144,14 +144,15 @@ shows bidding, contract/result, completed and partial tricks. Concealed hands,
 Skat and original deal require deliberate reveal and carry a full-information
 label. First/previous/next/last navigate initial, completed-trick and final
 boundaries derived from core `TrickWon` events. Historical seat views are
-reconstructed at each boundary, without analysis or coach comments.
+reconstructed at each boundary. Coach comments exist only for a separately
+selected recorded own decision (D-67).
 
 Live controls and background-result delivery pause while a file dialog or
 recording is open. Pending opponent/coach jobs are retained, not cancelled or
 replaced. Closing resumes the original series; invalid input leaves the last
 valid recording and live session untouched. Recording data never enters live
-analysis. Editable history, hindsight coaching and training history remain
-unimplemented.
+analysis. Editable history, automatic decisive-moment ranking and training
+history remain unimplemented.
 
 ### Same-deal practice (D-66)
 
@@ -187,3 +188,41 @@ Saving, opening and new-series commands are disabled. "New attempt" (at most
 background work and disconnecting its channels; return restores the parked
 live state, whose retained results are then delivered normally. Language and
 deck are shared display settings.
+
+### Historical and hindsight replay comments (D-67)
+
+`ReplayCoach::open(&recording, budget)` validates the whole recording and
+lists every recorded action of the human (`PlayerId::HUMAN` at the recorded
+dealer, so late-series seats are right) as `RecordedDecision`. Opponent
+actions, the final position and an in-progress file's outstanding decision
+are not selectable; a file without a recorded human action reports
+`ReplayStatus::NoDecisions`. Selecting a decision builds its
+`DecisionContext` from the historical permitted view **before** the action;
+later tricks, Skat or Ouvert cards never enter it.
+
+The default perspective is `Historical`: the job holds only that
+`PlayerView` and runs `skat_coach::advise`, seeded by `decision_seed` of the
+constant `REPLAY_COACH_SEED` and the view. No recording, series or game seed
+and no concealed card is used, so a substituted hidden deal with the same
+permitted view gives the same comment. `Hindsight` is requested by a separate
+control; only the explicitly privileged path adds the reconstructed
+`OmniscientView` and runs `advise_known` (basis `known`). The comment is
+`skat_coach::review` of the recorded action plus the compared legal
+alternative (best option, or the runner-up when the choice was best), with
+lesson or fallback, uncertainty and basis unchanged.
+
+Every request has a key of opened-recording source (unique per open, even
+for identical files), generation, prefix, perspective, budget and seed;
+`ReplayCoach::finish` accepts only the outstanding key. Selecting another
+decision restores the historical perspective and computes nothing;
+changing perspective, retrying, cancelling or changing budget invalidates
+the previous request. `ReplayCoachJob`/`ReplayCoachResult` are distinct from
+`CoachJob`/`CoachResult`, so `Session::finish_coach` cannot accept them.
+
+The recording window runs one replay job at a time on a background thread
+with the live coach budget and `REPLAY_COACH_TIME_LIMIT` (60 s); reaching it
+shows as cancelled. Selection, perspective, cancel, close and practice start
+drop the job, cancelling it and disconnecting its channel. A newly opened
+recording starts unselected and historical. Revealing concealed cards remains
+a display choice and never changes the perspective. Live opponent/coach jobs
+stay parked, and session, scores, recordings and files are untouched.

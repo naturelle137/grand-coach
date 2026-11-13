@@ -303,6 +303,8 @@ unticked; no further compute campaign is authorised.
 - `Cancel` stops an analysis from outside; `Cancel::with_deadline` adds a
   time limit for interactive use (then only the status is reproducible).
 - `Budget::INTERACTIVE` = 24 samples, 100,000,000 nodes per task.
+- Historical replay comments (D-67) seed `analyze` from the permitted view
+  and a fixed constant only, never from recorded or concealed data.
 
 ## Latency target and benchmark
 
