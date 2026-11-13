@@ -23,7 +23,9 @@ bis du die entscheidende Situation auch am echten Tisch selbst erkennst.
 Spiele eine feste Serie oder frei, mit optionalem Kontra/Re und Wertung nach
 Seeger-Fabian. Wähle die Gegnerstärke je Sitz oder einen Sondertisch:
 Goldfisch, Mephisto, God Mode, Experimentell oder KI-Netz (Test). Im God Mode
-siehst du auch die verdeckten Karten. Der Coach bietet gestufte Hinweise,
+siehst du auch die verdeckten Karten. Mit der offenen Anzeige siehst du an
+jedem normalen Tisch alle Hände und den Skat, während Gegner und Coach nur
+ihre üblichen Informationen nutzen. Der Coach bietet gestufte Hinweise,
 sechs Lektionen, einen Lernfokus und einen Rückblick auf bis zu drei
 Entscheidungen. Eine optionale Zählhilfe und Zählfragen im Spiel zeigen
 exakte Fakten aus deiner Sicht. Oberfläche und Kartenbilder sind umschaltbar.
@@ -104,7 +106,8 @@ you can recognise the moment for yourself at a real table.
 Play a fixed series or free play with optional Kontra/Re and Seeger-Fabian
 scoring. Set the strength per opponent or select Goldfish, Mephisto, God
 Mode, Experimental or Neural net (test). God Mode reveals the concealed
-cards. The coach offers staged hints, six lessons, a learning focus and a
+cards. The open display shows every hand and the Skat at an ordinary table,
+while opponents and coach keep their usual information. The coach offers staged hints, six lessons, a learning focus and a
 review of up to three decisions. An optional counting aid and in-game
 counting questions show exact facts from your view. Language and card faces
 are switchable.

@@ -67,7 +67,8 @@ Keep it short; details belong in the code (`crates/skat-core`).
   own hand, bidding history, tricks played, the own discarded Skat (declarer
   only), and the declarer's cards in Ouvert games once revealed.
 - God Mode uses `OmniscientView` for its table and known-deal coach. Ordinary
-  opponents and the closed-play coach receive a permitted view.
+  opponents and the closed-play coach receive a permitted view, also with an
+  [open display](#open-display-d-68), which changes only the human's table.
 
 ## Rules and scoring
 
@@ -162,7 +163,7 @@ nothing on failure. The new session starts **before bidding** with the
 recorded cards and rules, game number, dealer and stable player coordinates
 (late-series games keep their seats), the recorded series configuration
 (opponent mode and levels, Kontra/Re, Goldfish identity, God Mode
-visibility) and opponent seeds. It does not use the recording's game seed as
+visibility, open display) and opponent seeds. It does not use the recording's game seed as
 a series seed and never reruns the recorded actions. Opponents and the coach
 use the same shared code paths and permitted views as in a live game. From
 the live session it copies only coach/assistance settings and coach budget.
@@ -175,9 +176,10 @@ series. Deal and opponent-seed streams are never advanced.
 An attempt is exactly one game: `NextGame`/`EndSeries` return
 `AppError::PracticeAttempt`, the result enters no score sheet, no recording is
 retained and `export_current_recording_privileged` returns `None`.
-`TableView::practice` labels it. Each attempt has a unique nonzero lineage in
-opponent positions and coach decision keys, so moves and analyses from the
-live series or another attempt are rejected as stale even at equal positions.
+`TableView::practice` labels it. Each attempt, like every live session, has a
+unique lineage in opponent positions and coach decision keys (D-68), so moves
+and analyses from the live series or another attempt are rejected as stale
+even at equal positions.
 
 The recording window offers "Practise this deal". The app then parks the live
 table state (session, drafts, error, pacing, outstanding opponent and coach
@@ -226,3 +228,40 @@ drop the job, cancelling it and disconnecting its channel. A newly opened
 recording starts unselected and historical. Revealing concealed cards remains
 a display choice and never changes the perspective. Live opponent/coach jobs
 stay parked, and session, scores, recordings and files are untouched.
+
+### Open display (D-68)
+
+`SessionConfig::display` is chosen per series in the new-series dialog:
+`TableDisplay::Closed` (default) or `Open`. It is a display choice only.
+`Session` derives two separate things: `displayed_cards` builds plain
+`OpenCards` for `TableView::open_cards` when `SessionConfig::shows_all_cards`
+holds (open display or God Mode); `coach_known_deal` gives the live coach an
+`OmniscientView` only for `CoachBasis::RealDeal`, which is God Mode alone.
+`OpenCards` is accepted by no analysis, so the display path cannot feed the
+coach or an opponent. `TableView::coach_basis` tells frontends which basis
+applies; the egui status bar and coach panel label "open display: all cards"
+apart from "coach: your cards only" (or "all cards (God Mode)").
+
+With equal seeds, deals and human actions a closed and an open series produce
+identical opponent jobs and moves, coach jobs and results, human views apart
+from `open_cards`, events and score sheets (lockstep tests over levels,
+Goldfish, Mephisto and Neural, every dealer, Hand, Drücken, Ouvert, finished
+and thrown-in games). An opponent's discarded Skat appears only in
+`open_cards`. Mephisto keeps seeing every card as before; the open display
+neither grants nor removes privilege in any mode. In God Mode the display
+field is irrelevant: the table is always open and the coach uses the deal.
+
+Pending work: the display is fixed for a series, so switching display, mode
+or series means a new `Session`. Each `Session` has a unique lineage in
+opponent positions and coach decision keys, so a job of a replaced session,
+including a God Mode analysis, is rejected as stale even at an equal
+position. The frontend also drops its in-flight opponent and coach work when
+it starts a new series.
+
+Format: the field uses a serde default and is omitted when closed, so closed
+recordings keep their exact format-1 bytes and files written before D-68
+read as closed; no format bump. An older build reading an open file ignores
+the unknown field (the session object does not deny unknown fields) and
+shows it closed. Same-deal practice keeps the recorded display and the
+closed-view coach. Open display adds no hindsight pipeline: full-information
+comparison stays the explicit replay hindsight request (D-67).

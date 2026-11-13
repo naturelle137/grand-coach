@@ -203,6 +203,9 @@ Reconstructing the display from the final deal would leak later information.
   decision) and runs `skat_coach::advise_known`. Stages, notes, warnings,
   debriefing and no telling ahead are unchanged; the basis names the
   known deal.
+- Open display (D-68): the table shows every card, but `coach_job` keeps
+  only the human's view (`CoachBasis::OwnView`), exactly as at a closed
+  table; the frontend labels this basis. No new lesson or claim.
 - The coach seed comes from stream 2 of the series seed, mixed with the
   game number and the view; opponents and deals are untouched. Same view,
   seed and budget give the same explanation.

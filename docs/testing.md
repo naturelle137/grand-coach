@@ -276,6 +276,10 @@ wgpu adapter and prefers software ones: lavapipe on Linux (Fedora/Ubuntu
   `replay-none(-en)` show a selected recorded decision before any request,
   its historical and labelled hindsight comments, and an early file without
   a recorded own decision.
+- `open-display-new-series(-en)`, `open-display(-en)`, `open-display-trick`
+  and `open-display-coach` choose the open display in the new-series dialog
+  and show every hand and the Skat on the ordinary table during bidding and
+  card play, with the display and the closed-view coach labelled apart.
 - They support the independent agent review of a frontend change; they do not
   replace looking at the change in a real window.
 
