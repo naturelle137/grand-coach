@@ -12,7 +12,9 @@
 //! texts; frontends translate the structure.
 //!
 //! No telling ahead (D-49): before the move a frontend shows only
-//! [`Hints`], revealed stage by stage and never naming the best option;
+//! [`Hints`], revealed stage by stage and never naming the best option.
+//! Only the explicitly entered [`guided`] dialogue may reveal its shared
+//! Easy rule card after an attempt or deliberate reveal (D-49);
 //! after the move [`review`] judges the chosen action, and at the end of
 //! the game [`moments`] picks zero to three teachable moments, one per
 //! [`Concept`]. The player may choose one concept as focus; the coach
@@ -29,6 +31,8 @@
 //! data. Before card play these are the own hand structure and the legal
 //! game values ([`LessonContent::HandStructure`],
 //! [`LessonContent::GameValue`]), never a preferred bid, game or discard.
+
+pub mod guided;
 
 use skat_analysis::lesson::{catalogue, compare as compare_options, gather};
 use skat_analysis::sampling::World;

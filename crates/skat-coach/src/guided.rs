@@ -1,0 +1,157 @@
+// SPDX-License-Identifier: EUPL-1.2
+
+//! Bounded guided Farbspiel lessons. Exact rule provenance, never search ranking.
+
+use crate::Source;
+pub use skat_analysis::baseline::{Branch, CardRule};
+use skat_analysis::{Knowledge, TrickState, baseline};
+use skat_core::{Card, CardSet, Follow, GameType, Phase, PlayerView, Seat};
+
+/// One current prompt; no later answer is included in a prompt.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Step {
+    /// Identify who is currently winning from the table.
+    Orient,
+    /// Identify the remaining seat, or none in last seat.
+    Check,
+    /// Try a legal card that serves this branch's immediate purpose.
+    Narrow,
+    /// Deliberately revealed worked answer; play any legal card.
+    Act,
+    /// Await the actual resulting card/trick, across automated turns.
+    Waiting,
+    /// Does the actual card prove a void in the led follow class?
+    Observe,
+    /// Feedback is available; return to ordinary play.
+    Complete,
+    /// No supported rule branch; no invented explanation.
+    Unsupported,
+}
+
+/// Structured answers, checked from the frozen permitted input.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Answer {
+    /// Current winner or remaining player (none if no player follows).
+    Seat(Option<Seat>),
+    /// A candidate, without playing it.
+    Card(Card),
+    /// Whether the observed play proves failure to follow the led class.
+    Void(bool),
+}
+
+/// A rule-backed lesson. Never passed to the frontend before disclosure.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Lesson {
+    /// Actual shared Easy outcome.
+    pub rule: CardRule,
+    /// Exact public source for the current winning card.
+    pub source: Source,
+    /// Frozen own/permitted card knowledge, also used by counting aid.
+    pub knowledge: Knowledge,
+    /// Announced contract's rules.
+    pub game: GameType,
+    /// Seat after the learner in this trick; none in last seat.
+    pub remaining: Option<Seat>,
+    /// Learner's seat.
+    pub seat: Seat,
+}
+
+/// Select only two tested branches, with real alternatives and candidates.
+pub fn lesson(view: &PlayerView) -> Option<Lesson> {
+    let game = view.contract?.game;
+    if view.phase != Phase::Spiel || !matches!(game, GameType::Farbe(_)) {
+        return None;
+    }
+    let rule = baseline::rule(view)?;
+    if view.legal_actions.len() < 2
+        || rule.candidates.is_empty()
+        || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
+        || !matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
+    {
+        return None;
+    }
+    let trick = TrickState::of(game, &view.current_trick);
+    let winner = trick.best_seat?;
+    Some(Lesson {
+        source: Source::Trick {
+            index: view.tricks.len() as u8,
+            seat: winner,
+            led: trick.led?,
+            card: trick.best?,
+        },
+        remaining: (!rule.last).then_some(Seat::from_index(view.seat.index() + 1)),
+        rule,
+        game,
+        seat: view.seat,
+        knowledge: Knowledge::from_view(view),
+    })
+}
+
+impl Lesson {
+    /// Checks the immediate factual/policy task, not universal move quality.
+    pub fn check(&self, step: Step, answer: Answer) -> bool {
+        match (step, answer) {
+            (Step::Orient, Answer::Seat(seat)) => seat == self.rule.winner,
+            (Step::Check, Answer::Seat(seat)) => seat == self.remaining,
+            (Step::Narrow, Answer::Card(c)) => self.rule.candidates.contains(&c),
+            _ => false,
+        }
+    }
+
+    /// Card memory categories; no hidden holder is assigned.
+    pub fn memory(&self) -> Memory {
+        Memory {
+            own: self.knowledge.own,
+            skat: self.knowledge.skat,
+            played: self.knowledge.played,
+            unseen: self.knowledge.unseen(),
+            trumpf: skat_analysis::counting::CountingAid::from_knowledge(&self.knowledge).trumpf,
+        }
+    }
+}
+
+/// Optional frozen memory, using M6 count definitions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Memory {
+    /// Own cards.
+    pub own: CardSet,
+    /// Known own Skat, otherwise unknown.
+    pub skat: Option<CardSet>,
+    /// Publicly played cards, including the current trick.
+    pub played: CardSet,
+    /// Unseen cards; no holder or unknown Skat assignment.
+    pub unseen: CardSet,
+    /// Exact Trumpf counts; absent in Null.
+    pub trumpf: Option<skat_analysis::counting::TrumpfCount>,
+}
+
+/// Actual observed card with its public provenance, never a hypothetical line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Observation {
+    /// Public card source including trick, seat, led card and played card.
+    pub source: Source,
+    /// Led follow class; a Bube belongs to Trumpf in Farbspiel.
+    pub follow: Follow,
+    /// Whether the card proves a void in that class at this play.
+    pub proves_void: bool,
+    /// Actual winner of the completed trick, if complete.
+    pub winner: Option<Seat>,
+}
+
+/// Public play supplies the observation; hidden cards are not accepted.
+pub fn observe(game: GameType, source: Source, winner: Option<Seat>) -> Option<Observation> {
+    let Source::Trick { led, card, .. } = source else {
+        return None;
+    };
+    Some(Observation {
+        source,
+        follow: game.follow(led),
+        proves_void: game.follow(card) != game.follow(led),
+        winner,
+    })
+}
