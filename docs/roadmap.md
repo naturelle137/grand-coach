@@ -18,6 +18,18 @@ appeared when the player acted. Platform coverage and release checks are in
 | Training and release (M8) | Foundation of [#13](https://github.com/naturelle137/grand-coach/issues/13): a versioned local [learning history](architecture.md#learning-history-d-70) of counting-question events per series, practice, retry and training attempt, kept across restarts (format 2 with lossless format 1 migration), with a German/English overview of descriptive counts, sample-size notes, confirmed reset and recovery of damaged files. A first [focused counting training](architecture.md#focused-counting-training-d-71) outside a game: remaining Trumpf and proven voids on four fixed legal positions (both roles, Farbspiel and Grand, a void boundary), with help, skip, retry, next and return to the untouched live game. A [release test plan](release-test-plan.md) and [learner protocol](coach-validation.md). | Evidence-backed strategic error classification and trends (#13, #49). Training families beyond counting and varied unaided transfer positions (#50). Let the player choose a theme and practise it across varied positions, with gradually less help and a fresh unaided task. Record which attempts needed assistance. Package the game and notices for Linux and Windows 11, perform learner and platform checks, fix findings and retest. |
 | Second frontend (M9) | Frontend-independent session API. | Add Godot via gdext after the desktop training and release work. |
 
+Release 1.0 also requires [modern egui #134](https://github.com/naturelle137/grand-coach/issues/134)
+to be implemented, independently reviewed, tested and merged through the
+protected PR process. Its full acceptance criteria remain authoritative:
+the responsive coach-left, table-centre and last-trick/series-right layout
+retains the original trick triangle; completed-trick Augen are shown only
+while held, exclude an unknown Skat and remain concealed in accessibility
+labels and tooltips; bilingual named opponent portraits are deterministic,
+fixed to physical seats and use an isolated random stream. The existing M8,
+learner and platform gates remain required. The #131 dialogue is not a
+prerequisite for #134; Godot animation is outside its scope. See the
+[release test plan](release-test-plan.md) for pending checks.
+
 For coach changes, read the [live behaviour](coach.md) and
 [evidence checklist](coach-validation.md). Use the [opponent guide](ai.md)
 for strength calibration and [model guide](learned-models.md) for training.
