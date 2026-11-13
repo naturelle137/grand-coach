@@ -264,6 +264,11 @@ impl GrandCoachApp {
         self.training.active()
     }
 
+    /// The running catalogue task (tests and diagnostics).
+    pub fn focus_view(&self) -> Option<skat_app::FocusView> {
+        self.training.focus_view()
+    }
+
     /// The running training task (tests and diagnostics).
     pub fn training_view(&self) -> Option<skat_app::TrainingView> {
         self.training.view()

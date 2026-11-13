@@ -112,6 +112,22 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("learning-compare-en", learning_compare_en),
     ("learning-damaged", learning_damaged),
     ("learning-damaged-en", learning_damaged_en),
+    ("focus-count", focus_count),
+    ("focus-count-en", focus_count_en),
+    ("focus-changed", focus_changed),
+    ("focus-changed-en", focus_changed_en),
+    ("focus-help", focus_help),
+    ("focus-help-en", focus_help_en),
+    ("focus-mechanism", focus_mechanism),
+    ("focus-mechanism-en", focus_mechanism_en),
+    ("focus-feedback", focus_feedback),
+    ("focus-feedback-en", focus_feedback_en),
+    ("focus-boundary", focus_boundary),
+    ("focus-boundary-en", focus_boundary_en),
+    ("focus-practice", focus_practice),
+    ("focus-practice-en", focus_practice_en),
+    ("focus-void-narrow", focus_void),
+    ("focus-void-en-narrow", focus_void_en),
     ("training-topics", training_topics),
     ("training-topics-en", training_topics_en),
     ("training-trumpf", training_trumpf),
@@ -2205,4 +2221,79 @@ fn guided_figures_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_figures(h);
     h.state_mut().set_language(Language::En);
     h.run_steps(4);
+}
+
+// Catalogue-mode scenarios use real widgets, including settlement before next.
+fn focus_count(h: &mut Harness<'_, GrandCoachApp>) {
+    training_topics(h);
+    let file = learning_file(h, "focus", None);
+    skat_app::LearningHistory::new().save_local(&file).unwrap();
+    h.state_mut().use_learning_file(file);
+    click(h, Role::Button, "Fokus: Verbleibende Trümpfe");
+}
+fn focus_count_en(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_count(h);
+    english(h);
+}
+fn focus_changed(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_count(h);
+    click(h, Role::Button, "Überspringen");
+    click(h, Role::Button, "Nächste Stellung");
+}
+fn focus_changed_en(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_changed(h);
+    english(h);
+}
+fn focus_help(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_changed(h);
+    click(h, Role::Button, "Hilfe einblenden");
+}
+fn focus_help_en(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_help(h);
+    english(h);
+}
+fn focus_mechanism(h: &mut Harness<'_, GrandCoachApp>) {
+    training_topics(h);
+    click(h, Role::Button, "Fokus: Abstich einer vollen Nebenkarte");
+}
+fn focus_mechanism_en(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_mechanism(h);
+    english(h);
+}
+fn focus_feedback(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_mechanism(h);
+    click(h, Role::Button, "Möglich, aber nicht sicher");
+}
+fn focus_feedback_en(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_feedback(h);
+    english(h);
+}
+fn focus_boundary(h: &mut Harness<'_, GrandCoachApp>) {
+    training_topics(h);
+    click(h, Role::Button, "Fokus: Übernehmen durch den Partner");
+    for _ in 0..2 {
+        click(h, Role::Button, "Überspringen");
+        click(h, Role::Button, "Nächste Stellung");
+    }
+    click(h, Role::Button, "Dieser Mechanismus ist nicht vorhanden");
+}
+fn focus_boundary_en(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_boundary(h);
+    english(h);
+}
+fn focus_practice(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_feedback(h);
+    click(h, Role::Button, "Noch einmal");
+}
+fn focus_practice_en(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_practice(h);
+    english(h);
+}
+fn focus_void(h: &mut Harness<'_, GrandCoachApp>) {
+    training_topics(h);
+    click(h, Role::Button, "Fokus: Nachgewiesene Fehlfarben");
+}
+fn focus_void_en(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_void(h);
+    english(h);
 }

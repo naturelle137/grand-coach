@@ -26,6 +26,7 @@ pub(crate) struct TrainingUi {
     assistance: AssistanceLevel,
     /// Number chosen for the answer.
     value: u8,
+    focus_error: bool,
     /// Learning-history attempt of the current presentation.
     attempt: Option<AttemptId>,
     presented: Option<(TrainingFixture, u32)>,
@@ -59,7 +60,14 @@ impl TrainingUi {
     }
 
     pub(crate) fn view(&self) -> Option<TrainingView> {
-        self.session.as_ref().map(TrainingSession::view)
+        self.session
+            .as_ref()
+            .filter(|s| s.focus_view().is_none())
+            .map(TrainingSession::view)
+    }
+
+    pub(crate) fn focus_view(&self) -> Option<skat_app::FocusView> {
+        self.session.as_ref().and_then(TrainingSession::focus_view)
     }
 
     /// Runs `command` and records the resulting events, one learning
@@ -100,6 +108,7 @@ impl TrainingUi {
     ) -> Option<TrainingRequest> {
         let mut request = None;
         let view = self.view();
+        let focus = self.focus_view();
         egui::Panel::top("training_banner")
             .frame(egui::Frame::side_top_panel(ui.style()).fill(Color32::from_rgb(214, 234, 248)))
             .show(ui, |ui| {
@@ -128,14 +137,42 @@ impl TrainingUi {
             });
         let mut command = None;
         egui::CentralPanel::default().show(ui, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| match &view {
-                None => {
-                    if let Some(topic) = self.chooser(ui, i) {
-                        self.start(topic, learning);
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                if let Some(v) = &focus {
+                    if let Some(command) = self.focus_task(ui, i, deck, v)
+                        && let Some(session) = &mut self.session
+                    {
+                        self.focus_error = !learning.run_focus(session, command);
+                        self.value = 0;
                     }
+                    if ui.button(i.t("focus-topics")).clicked() {
+                        self.session = None;
+                    }
+                    if self.focus_error {
+                        ui.label(i.t("focus-unavailable"));
+                    }
+                    return;
                 }
-                Some(v) => {
-                    command = self.task(ui, i, deck, v);
+                match &view {
+                    None => {
+                        for family in FAMILIES {
+                            if ui.button(i.t(family_message(family))).clicked() {
+                                self.session = learning.start_focus(family, self.assistance);
+                                self.focus_error = self.session.is_none();
+                            }
+                        }
+                        if self.focus_error {
+                            ui.label(i.t("focus-unavailable"));
+                        }
+                        ui.label(i.t("focus-limits"));
+                        ui.separator();
+                        if let Some(topic) = self.chooser(ui, i) {
+                            self.start(topic, learning);
+                        }
+                    }
+                    Some(v) => {
+                        command = self.task(ui, i, deck, v);
+                    }
                 }
             });
         });
@@ -426,3 +463,288 @@ fn topic_note(topic: TrainingTopic) -> &'static str {
         TrainingTopic::ProvenVoids => "training-note-voids",
     }
 }
+
+use skat_app::practice_catalogue::{
+    Mechanism, MechanismKind, PracticeFamily, PracticeFeedback, PracticeQuestion,
+};
+use skat_app::{FocusAction, FocusAnswer, FocusCommand, FocusView};
+
+const FAMILIES: [PracticeFamily; 4] = [
+    PracticeFamily::RemainingTrumpf,
+    PracticeFamily::ProvenVoid,
+    PracticeFamily::SideCardVulnerability,
+    PracticeFamily::PartnerOvertaking,
+];
+
+fn family_message(family: PracticeFamily) -> &'static str {
+    match family {
+        PracticeFamily::RemainingTrumpf => "focus-trumpf",
+        PracticeFamily::ProvenVoid => "focus-void",
+        PracticeFamily::SideCardVulnerability => "focus-side",
+        PracticeFamily::PartnerOvertaking => "focus-partner",
+    }
+}
+
+fn answer_message(answer: FocusAnswer) -> &'static str {
+    match answer {
+        FocusAnswer::Count(_) => "focus-count",
+        FocusAnswer::Possible => "focus-possible",
+        FocusAnswer::Certain => "focus-certain",
+        FocusAnswer::Absent => "focus-absent",
+    }
+}
+
+impl TrainingUi {
+    fn focus_task(
+        &mut self,
+        ui: &mut egui::Ui,
+        i: &I18n,
+        deck: Deck,
+        v: &FocusView,
+    ) -> Option<FocusCommand> {
+        let mut command = None;
+        ui.heading(i.t(family_message(v.family)));
+        ui.label(i.tf("focus-position", &[("number", v.number.into())]));
+        ui.label(i.t(if v.entry.eligible && !v.entry.assisted {
+            "focus-unseen"
+        } else {
+            "focus-practice"
+        }));
+        let position = &v.position;
+        if let Some(contract) = position.contract {
+            ui.label(i.tf(
+                "training-contract",
+                &[
+                    ("game", text::contract(i, contract).into()),
+                    ("bid", position.bid.into()),
+                    (
+                        "declarer",
+                        text::seat(i, position.declarer.unwrap_or(position.seat)).into(),
+                    ),
+                ],
+            ));
+        }
+        ui.label(i.tf(
+            if position.declarer == Some(position.seat) {
+                "training-role-declarer"
+            } else {
+                "training-role-defender"
+            },
+            &[
+                ("seat", text::seat(i, position.seat).into()),
+                (
+                    "declarer",
+                    text::seat(i, position.declarer.unwrap_or(position.seat)).into(),
+                ),
+            ],
+        ));
+        for (n, trick) in position.tricks.iter().enumerate() {
+            ui.label(i.tf(
+                "training-trick",
+                &[
+                    ("number", (n + 1).into()),
+                    ("leader", text::seat(i, trick.seat_of(0)).into()),
+                    ("winner", text::seat(i, trick.winner).into()),
+                ],
+            ));
+            crate::recording::card_row(ui, i, deck, trick.cards);
+        }
+        ui.label(RichText::new(i.t("training-table")).strong());
+        if position.current_trick.cards.iter().all(Option::is_none) {
+            ui.label(i.t("training-you-lead"));
+        } else {
+            if let Some(leader) = position.current_trick.leader {
+                ui.label(i.tf("focus-leader", &[("seat", text::seat(i, leader).into())]));
+            }
+            crate::recording::card_row(
+                ui,
+                i,
+                deck,
+                position.current_trick.cards.iter().flatten().copied(),
+            );
+        }
+        ui.label(RichText::new(i.t("training-hand")).strong());
+        crate::recording::card_row(ui, i, deck, position.hand.iter());
+        ui.label(i.t("training-skat-unknown"));
+        ui.separator();
+        ui.label(RichText::new(i.t("training-question")).strong());
+        match v.entry.question {
+            PracticeQuestion::Count(q) => {
+                ui.label(assist::question(i, q));
+            }
+            PracticeQuestion::Consequence {
+                action: skat_app::Action::Play(card),
+                kind,
+            } => {
+                ui.label(i.tf(
+                    match kind {
+                        MechanismKind::Abstich => "focus-question-abstich",
+                        MechanismKind::Overtake => "focus-question-overtake",
+                    },
+                    &[("card", text::card(i, card).into())],
+                ));
+                ui.label(i.t("focus-judgement-note"));
+            }
+            _ => {
+                ui.label(i.t("focus-unavailable"));
+            }
+        }
+        if let Some(feedback) = &v.feedback {
+            ui.label(
+                RichText::new(i.t(if v.settled {
+                    "training-result"
+                } else {
+                    "retrieval-help"
+                }))
+                .strong(),
+            );
+            if v.settled {
+                ui.label(i.t(match &v.entry.action {
+                    FocusAction::Answer { expected: None, .. } => "focus-unscored",
+                    FocusAction::Answer {
+                        given,
+                        expected: Some(expected),
+                        ..
+                    } if given == expected => "focus-correct",
+                    FocusAction::Answer { .. } => "focus-incorrect",
+                    _ => "focus-skipped",
+                }));
+            }
+            if let Some(expected) = skat_app::focus_expected(feedback) {
+                match expected {
+                    FocusAnswer::Count(_) => {}
+                    _ => {
+                        ui.label(i.t(answer_message(expected)));
+                    }
+                }
+            } else {
+                ui.label(i.t("focus-unavailable"));
+            }
+            match feedback {
+                PracticeFeedback::Count(Some(d)) => {
+                    for line in assist::derivation_lines(i, *d) {
+                        ui.label(line);
+                    }
+                    if let Derivation::ProvenVoids { seats, .. } = d {
+                        let names: Vec<_> = Seat::ALL
+                            .into_iter()
+                            .filter(|seat| seats[seat.index()])
+                            .map(|seat| text::seat(i, seat))
+                            .collect();
+                        if !names.is_empty() {
+                            ui.label(
+                                i.tf("training-void-seats", &[("seats", names.join(", ").into())]),
+                            );
+                        }
+                    }
+                }
+                PracticeFeedback::Count(None) => {}
+                PracticeFeedback::Consequences(ms) => {
+                    for m in ms {
+                        match m {
+                            Mechanism::Abstich(a) => {
+                                ui.label(i.tf(
+                                    "focus-abstich-evidence",
+                                    &[
+                                        ("seat", text::seat(i, a.seat).into()),
+                                        ("suit", text::suit(i, a.card.suit()).into()),
+                                        ("cards", a.suit_unseen.len().into()),
+                                        ("trumps", a.trumpf_unseen.len().into()),
+                                    ],
+                                ));
+                            }
+                            Mechanism::Overtake(o) => {
+                                ui.label(
+                                    i.tf(
+                                        "focus-overtake-evidence",
+                                        &[
+                                            ("seat", text::seat(i, o.partner).into()),
+                                            ("cards", o.higher.len().into()),
+                                            (
+                                                "trumping",
+                                                i.t(if o.trumping {
+                                                    "focus-trumping-possible"
+                                                } else {
+                                                    "focus-no-trumping"
+                                                })
+                                                .into(),
+                                            ),
+                                        ],
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                    ui.label(i.t("focus-boundary-note"));
+                }
+            }
+        }
+        if v.entry.assisted {
+            ui.label(i.t("training-was-assisted"));
+        }
+        if v.settled {
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(i.t("training-retry")).clicked() {
+                    command = Some(FocusCommand::Retry);
+                }
+                if ui.button(i.t("training-next")).clicked() {
+                    command = Some(FocusCommand::Next);
+                }
+            });
+        } else {
+            let mut level = v.entry.assistance;
+            ui.horizontal_wrapped(|ui| {
+                for (l, key) in FOCUS_LEVELS {
+                    ui.radio_value(&mut level, l, i.t(key));
+                }
+            });
+            if level != v.entry.assistance {
+                command = Some(FocusCommand::Assistance(level));
+            }
+            ui.horizontal_wrapped(|ui| {
+                match v.entry.question {
+                    PracticeQuestion::Count(_) => {
+                        ui.label(i.tf("quiz-value", &[("value", self.value.into())]));
+                        for (key, delta) in [
+                            ("quiz-minus-ten", -10),
+                            ("quiz-minus-one", -1),
+                            ("quiz-plus-one", 1),
+                            ("quiz-plus-ten", 10),
+                        ] {
+                            if ui.button(i.t(key)).clicked() {
+                                self.value = (i16::from(self.value) + delta).clamp(0, 32) as u8;
+                            }
+                        }
+                        if ui.button(i.t("quiz-submit")).clicked() {
+                            command = Some(FocusCommand::Answer(FocusAnswer::Count(self.value)));
+                        }
+                    }
+                    _ => {
+                        for answer in [
+                            FocusAnswer::Possible,
+                            FocusAnswer::Certain,
+                            FocusAnswer::Absent,
+                        ] {
+                            if ui.button(i.t(answer_message(answer))).clicked() {
+                                command = Some(FocusCommand::Answer(answer));
+                            }
+                        }
+                    }
+                }
+                if ui.button(i.t("retrieval-help")).clicked() {
+                    command = Some(FocusCommand::Help);
+                }
+                if ui.button(i.t("quiz-skip")).clicked() {
+                    command = Some(FocusCommand::Skip);
+                }
+            });
+        }
+        command
+    }
+}
+
+const FOCUS_LEVELS: [(AssistanceLevel, &str); 3] = [
+    (AssistanceLevel::VisibleAid, "focus-visible"),
+    (AssistanceLevel::RevealOnRequest, "focus-request"),
+    (AssistanceLevel::AnswerBeforeReveal, "retrieval-answer"),
+];

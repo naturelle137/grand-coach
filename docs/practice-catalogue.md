@@ -1,7 +1,8 @@
-# Varied practice catalogue (#50, fixture delivery)
+# Varied practice catalogue and focus sessions (#50)
 
-`skat_app::practice_catalogue` is an in-memory source for the later focus
-session. It adds no session, UI, progress format or strategic evaluator.
+`skat_app::practice_catalogue` is the unchanged source for catalogue mode in
+`TrainingSession`. The session uses the existing reconstruction and shared
+analysis; it adds no strategic evaluator.
 All cases are revision 1, closed Hand games: no Ouvert, no known Skat.
 The seed completes an explicitly anchored deal, not `Deal::from_seed(seed)`
 alone. Core validates that deal and every bidding/Hand/announcement/play
@@ -35,8 +36,9 @@ Farbspiel/Grand; in Null they belong to their printed suit.
 
 Each family has an introductory worked candidate, a changed surface/seat
 candidate and a boundary/counterexample. These are candidate roles only.
-Every shown or retried case is practice; a future session must track exposure
-before crediting any held-out candidate. Catalogue membership proves no
+Every previously shown or retried case is practice. Sessions determine unseen
+eligibility before persisting the current presentation, including an unanswered
+presentation. Only changed cases in a complete, available history are eligible. Catalogue membership proves no
 transfer, retention, learner efficacy or strategic certification.
 
 ## Answers, alternatives and information boundary
@@ -54,17 +56,56 @@ fabricated; using these deductions in a live strategic lesson still requires
 the existing reliable-comparison/fallback contract.
 
 `position()` exposes the task and permitted view; `feedback()` is a separate,
-explicit answer operation. A future UI must not reveal feedback, counters or
+explicit answer operation. The UI does not reveal feedback, counters or
 preferred plans ahead of an unaided attempt. IDs, case roles and seeds are
 catalogue metadata, not prompt copy. They must not be used as evidence about
 hidden cards. Changing a deal, prefix, question or answer semantics requires
-raising the revision. There is no persisted variant added to the old
-`TrainingFixture`, `TrainingTopic` or learning-history formats.
+raising the revision. The four old `TrainingFixture` identities and two `TrainingTopic` values remain
+unchanged. Format 4 of the same learning history adds typed catalogue events.
 
 Tests replay prefixes and all legal alternatives through core, compare the
 hand-written reference counts and mechanism conditions, reconstruct alternate
 hidden deals with identical views, and check seed/revision reproduction.
 Positive feasibility has concrete core-legal witness completions; negative
 witnesses establish that possible does not mean certain. These checks certify
-only the bounded claims above. Sessions, assistance/exposure provenance,
-translations, screenshots and actual learner observations remain #50/#54 work.
+only the bounded claims above. Session, assistance/exposure and bilingual widget tests extend these unchanged
+oracles. Actual learner observations remain #50/#54 work.
+
+## Session behaviour and conservative exposure
+
+The existing training entry offers all four families plus the original fixed
+counting training. Each catalogue family presents intro, changed and boundary
+in order; no preview shows a changed case. Tasks contain only the acting
+`PlayerView` and question. Answers, explicit help and skip reveal feedback from
+`PracticePosition::feedback`; no preferred move or strategic optimality is scored.
+Counts require an exact integer. Mechanism responses distinguish possible,
+certain and absent; an empty supported boundary result never means safe/optimal.
+Unsupported counts have no score. Unknown task IDs/revisions are rejected, not
+silently upgraded. Help and visible support are sticky for the opportunity.
+Retry requires settlement and repeats as practice; next cycles three cases.
+Topic choice and exit retain unanswered exposure and leave the live session,
+recording and series untouched.
+
+The one `LearningHistory` writes format 4. Its `focus` transitions carry an
+allocated attempt, immutable task ID/version, question, selected support,
+sticky assistance, pre-presentation eligibility and presented/help/answer/skip.
+Answer and skip transitions retain shared-analysis provenance; answers also
+retain the submitted and expected typed responses. Mechanisms never enter
+numeric deviation categories. The overview lists these observed responses
+separately within the same history window. Bounds, atomic replacement,
+recovery, deduplication and the attempt counter are shared with the old events.
+Formats 1/2/3 keep all supported attempts/events/counters in order and acquire no
+fabricated prior exposure; their next save writes 4. Older builds preserve the
+unsupported format instead of dropping catalogue events.
+
+Eligibility is evaluated before the current exposure is recorded and saved.
+If an atomic write fails, the UI withholds any new position until persistence
+works; a restart cannot then mistake an unrecorded presentation for unseen.
+Only a changed task with no earlier presentation of that ID is eligible, and
+only with complete exposure and available persistence. A missing file, failed
+save, memory-only fallback, corrupt/unsupported history, migration or confirmed
+reset disables novelty; practice remains available. Reset clears the deliberately
+reset history and keeps the attempt counter, but cannot prove never-seen learning.
+The app cannot know exposure in another file, an older installation, screenshots
+or outside the app. Concurrent app writers are not coordinated (last save wins).
+These local observations certify neither efficacy nor human transfer.
