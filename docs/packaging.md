@@ -21,14 +21,16 @@ Mesa and `libxkbcommon-x11-0` are installed for the Ubuntu smoke (Fedora:
 the executable's direct `ldd` dependencies are satisfied.
 Windows Server CI is not interactive Windows 11.
 Its built-in OpenGL 1.1 fails the app's OpenGL 2.0+ requirement. CI therefore
-downloads the MIT-licensed [mesa-dist-win 26.2.6 MSVC build](https://github.com/pal1000/mesa-dist-win/releases/tag/26.2.6),
-checks SHA-256 `b2e00615feaba45942343c265cc8c5f576142ca682c1ac6661922d4b72492877`,
+downloads the [mesa-dist-win 26.2.6 MinGW x64 build](https://github.com/pal1000/mesa-dist-win/releases/tag/26.2.6),
+checks SHA-256 `da0f71d9181b672c1918f3c342f11118c687f6059a46b16502845160733cc388`,
 and passes its x64 DLL directory to `smoke --windows-mesa <directory>`.
 Only the temporary test installation receives `opengl32.dll` and
 `libgallium_wgl.dll`, with `GALLIUM_DRIVER=llvmpipe`. Their hashes are recorded
 in `smoke.json`; they are never added to the application ZIP or distributed
 with its notices. This verifies a declared software-driver prerequisite on
 the server, not native Windows 11 hardware acceleration or a clean OS.
+The upstream release documents a missing-OpenGL regression in its MSVC and
+32-bit MinGW distributions; the inspected x64 MinGW distribution is used.
 An installed runtime may satisfy prerequisites on CI without proving a clean
 machine has them. Record and check these prerequisites on the target machine.
 
