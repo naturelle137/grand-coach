@@ -38,6 +38,7 @@ mod figures;
 mod guided;
 mod learning;
 mod learning_io;
+mod mechanism_responses;
 mod neural;
 mod quiz;
 mod recording;
@@ -71,6 +72,9 @@ pub use learning::{
     ResponseCategory, ResponseCounts, ResponseWindow, RetrievalCounts, TopicComparison,
 };
 pub use learning_io::{LearningFileError, MAX_LEARNING_BYTES};
+pub use mechanism_responses::{
+    MechanismComparison, MechanismCounts, MechanismExposure, MechanismResponse, MechanismRow,
+};
 pub use neural::{neural_model, neural_model_available};
 pub use quiz::{
     AssistSettings, AssistView, AssistanceLevel, CountingState, CountingView, LessonFamily,

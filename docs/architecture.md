@@ -469,3 +469,12 @@ until answer/help/skip. Format 4 adds typed `focus` transitions in the same
 recovery. Mechanism judgements retain shared-analysis provenance and stay out
 of counting deviations. See [catalogue sessions](practice-catalogue.md#session-behaviour-and-conservative-exposure)
 for exposure eligibility, support, migration and conservative limitations.
+
+## Mechanism-response summary (D-74)
+
+The existing immutable format 4 FocusEntry stream derives explicit conditional
+response categories and per-task/version/context/help/exposure/eligibility
+counts. It does not alter counting ResponseCategory or persist a second store.
+Unique opportunities retain unknown/unanswered denominators. No catalogue
+reconstruction occurs in summaries; the frontend caches them until mutation.
+See [supported scope and windows](mechanism-responses.md).
