@@ -183,6 +183,9 @@ pub struct GrandCoachApp {
     /// Learning-history attempt of `session`; assigned on its first
     /// retrieval event, so every series and practice attempt has its own.
     learning_attempt: Option<skat_app::AttemptId>,
+    /// The focused counting training screen (D-71); while open, the live
+    /// table waits undriven and unchanged.
+    training: crate::training::TrainingUi,
 }
 
 impl GrandCoachApp {
@@ -212,7 +215,31 @@ impl GrandCoachApp {
             practice_request: None,
             learning: Default::default(),
             learning_attempt: None,
+            training: Default::default(),
         }
+    }
+
+    /// Opens the focused counting training (topic choice); the live table
+    /// waits unchanged until [`Self::exit_training`].
+    pub fn open_training(&mut self) {
+        if !self.recording.active() && self.new_series.is_none() {
+            self.training.enter();
+        }
+    }
+
+    /// Leaves the training and returns to the waiting live table.
+    pub fn exit_training(&mut self) {
+        self.training.exit();
+    }
+
+    /// Whether the training screen is open.
+    pub fn training_active(&self) -> bool {
+        self.training.active()
+    }
+
+    /// The running training task (tests and diagnostics).
+    pub fn training_view(&self) -> Option<skat_app::TrainingView> {
+        self.training.view()
     }
 
     /// Whether a practice attempt is running.
@@ -664,6 +691,16 @@ impl GrandCoachApp {
                 }
                 if ui.button(self.t("learning-open")).clicked() {
                     self.learning.show();
+                    ui.close();
+                }
+                if ui
+                    .add_enabled(
+                        !self.recording.active() && self.new_series.is_none(),
+                        egui::Button::new(self.t("training-open")),
+                    )
+                    .clicked()
+                {
+                    self.open_training();
                     ui.close();
                 }
                 ui.separator();
@@ -2042,6 +2079,23 @@ impl eframe::App for GrandCoachApp {
             german: self.deck == Deck::German,
             theme: self.theme(),
         };
+        if self.training.active() {
+            // The live table waits: not drawn, driven or changed.
+            let ctx = ui.ctx().clone();
+            match self
+                .training
+                .screen(ui, &self.i18n, self.deck, &mut self.learning)
+            {
+                Some(crate::training::TrainingRequest::Exit) => {
+                    self.training.exit();
+                    ctx.request_repaint();
+                }
+                Some(crate::training::TrainingRequest::History) => self.learning.show(),
+                None => {}
+            }
+            self.learning.window(&ctx, &self.i18n);
+            return;
+        }
         // The opponents wait while the "new series" dialog is open.
         if self.new_series.is_none() && !self.recording.active() {
             self.drive_opponents(ui.ctx(), now);
@@ -2267,7 +2321,8 @@ mod tests {
                     series: 1,
                     game: 1,
                     trick,
-                },
+                }
+                .into(),
                 question: QuestionKind::TrumpfOutside,
                 action: RetrievalAction::Opportunity,
                 assistance: AssistanceLevel::AnswerBeforeReveal,

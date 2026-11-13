@@ -324,7 +324,7 @@ fn damaged_unsupported_and_oversized_files_are_reported_and_kept() {
             LearningFileError::InvalidJson,
         ),
         (
-            edit(&|v| v["format"] = 2.into()),
+            edit(&|v| v["format"] = 3.into()),
             LearningFileError::UnsupportedFormat,
         ),
         (

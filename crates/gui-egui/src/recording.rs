@@ -820,7 +820,7 @@ fn show_lines(ui: &mut egui::Ui, lines: &[Line]) {
     }
 }
 
-fn card_image(ui: &mut egui::Ui, i: &I18n, deck: Deck, card: Card) -> egui::Response {
+pub(crate) fn card_image(ui: &mut egui::Ui, i: &I18n, deck: Deck, card: Card) -> egui::Response {
     ui.add(
         egui::Image::new(cards::image(&cards::face_path(deck, card, i.faces.theme)))
             .fit_to_exact_size(Vec2::new(44.0, 66.0)),
@@ -842,7 +842,12 @@ fn source_label(i: &I18n, dialog: &FileDialog, n: usize) -> String {
     }
 }
 
-fn card_row(ui: &mut egui::Ui, i: &I18n, deck: Deck, cards: impl IntoIterator<Item = Card>) {
+pub(crate) fn card_row(
+    ui: &mut egui::Ui,
+    i: &I18n,
+    deck: Deck,
+    cards: impl IntoIterator<Item = Card>,
+) {
     ui.horizontal_wrapped(|ui| {
         for card in cards {
             card_image(ui, i, deck, card);

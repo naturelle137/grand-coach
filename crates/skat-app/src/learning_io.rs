@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::learning::{LEARNING_FORMAT, LearningError, LearningHistory};
+use crate::learning::{LEARNING_FORMATS_READ, LearningError, LearningHistory};
 
 /// Maximum file size, including whitespace.
 pub const MAX_LEARNING_BYTES: usize = 16 * 1024 * 1024;
@@ -44,7 +44,8 @@ fn io_error(error: std::io::Error) -> LearningFileError {
 
 impl LearningHistory {
     /// Reads at most the byte limit plus one sentinel byte, checks the
-    /// format version before decoding and validates the whole content.
+    /// format version before decoding, migrates a supported older format in
+    /// memory (the file itself is unchanged) and validates the whole content.
     pub fn read_local(reader: impl Read) -> Result<Self, LearningFileError> {
         let mut bytes = Vec::new();
         reader
@@ -57,7 +58,10 @@ impl LearningHistory {
         let value: serde_json::Value =
             serde_json::from_slice(&bytes).map_err(|_| LearningFileError::InvalidJson)?;
         match value.get("format").and_then(serde_json::Value::as_u64) {
-            Some(format) if format == u64::from(LEARNING_FORMAT) => {}
+            Some(format)
+                if LEARNING_FORMATS_READ
+                    .iter()
+                    .any(|&f| u64::from(f) == format) => {}
             Some(_) => return Err(LearningFileError::UnsupportedFormat),
             None => return Err(LearningFileError::InvalidJson),
         }

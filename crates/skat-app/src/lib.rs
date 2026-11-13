@@ -48,6 +48,7 @@ mod session;
 mod sort;
 #[cfg(test)]
 mod tests;
+mod training;
 mod view;
 
 pub use coach::{
@@ -56,15 +57,15 @@ pub use coach::{
 };
 pub use context::DecisionContext;
 pub use learning::{
-    AttemptId, AttemptKind, LEARNING_FORMAT, LIMITED_OBSERVATIONS, LearningAttempt,
-    LearningContext, LearningEntry, LearningError, LearningHistory, LearningRow, LearningSummary,
-    LearningTopic, MAX_LEARNING_ATTEMPTS, MAX_LEARNING_EVENTS, Observations, Recorded,
-    RetrievalCounts,
+    AttemptId, AttemptKind, LEARNING_FORMAT, LEARNING_FORMATS_READ, LIMITED_OBSERVATIONS,
+    LearningAttempt, LearningContext, LearningEntry, LearningError, LearningHistory, LearningRow,
+    LearningSummary, LearningTopic, MAX_LEARNING_ATTEMPTS, MAX_LEARNING_EVENTS, Observations,
+    Recorded, RetrievalCounts,
 };
 pub use learning_io::{LearningFileError, MAX_LEARNING_BYTES};
 pub use neural::{neural_model, neural_model_available};
 pub use quiz::{
-    AssistSettings, AssistView, AssistanceLevel, CountingState, CountingView,
+    AssistSettings, AssistView, AssistanceLevel, CountingState, CountingView, OpportunityId,
     QUESTION_AFTER_TRICKS, QuestionId, QuizFeedback, QuizOutcome, QuizView, RetrievalAction,
     RetrievalEvent,
 };
@@ -93,6 +94,10 @@ pub use skat_analysis::counting::{AugenCount, Derivation, QuestionKind, TrumpfCo
 /// Structured coach explanations (D-13); frontends translate them.
 pub use skat_coach as coach_model;
 pub use sort::sort_hand;
+pub use training::{
+    TrainingCommand, TrainingError, TrainingFixture, TrainingSession, TrainingTask, TrainingTopic,
+    TrainingTrick, TrainingView,
+};
 pub use view::{CoachBasis, OpenCards, PlayedCard, ResultView, SeatInfo, TableView, TrickView};
 
 /// Core data types shown by frontends.

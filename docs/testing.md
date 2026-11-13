@@ -306,11 +306,26 @@ practice and retry attempts with coinciding question IDs, help and visible
 aid never counted as unaided, empty and reset histories with the kept
 attempt counter, and malformed, unsupported, inconsistent and oversized
 files reported, unchanged and set aside without replacing an earlier one.
+`skat-app/tests/training.rs` replays the four training fixtures move by move
+through the rule engine and compares them with facts frozen by hand
+(seat, role, game, tricks, hand, expected count and its parts) and with
+oracles over the full deal and the public tricks; it checks both roles,
+Farbspiel and Grand per family, the void boundary one card earlier, Null
+without a Trumpf question, the answer/help/skip/retry/next/topic contract,
+deterministic replays, training attempts kept apart from series and
+practice with duplicates and context mismatches refused, reset, lossless
+migration of a literal format 1 file and unchanged invalid or newer files.
+A unit test swaps unseen cards of one follow class between the two other
+hands and requires identical views, help, feedback and events.
+`gui-egui/tests/training.rs` runs the training through the real widgets in
+both languages and returns to an identical live table.
 `gui-egui/tests/learning.rs` answers and skips questions through the real
 widgets, restarts on the same file, reads the window, cancels and confirms a
 reset, and keeps a damaged or newer file until it is set aside, in both
 languages. Screenshot scenarios `learning-*` show the empty, recorded,
-reset-confirmation and damaged states.
+reset-confirmation and damaged states; `training-*` show the topic choice,
+both families and roles, help, retry, feedback, the boundary, the learning
+history with training rows, a narrow view and the return to the live table.
 
 ## Screenshots of the frontend
 

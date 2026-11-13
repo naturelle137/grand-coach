@@ -17,6 +17,7 @@ use skat_core::{Card, GameType, PlayerView, Seat};
 use crate::coach::DecisionKey;
 use crate::session::PlayerId;
 use crate::sort::sort_hand;
+use crate::training::TrainingTask;
 
 /// Completed tricks after which the human's next card-play decision
 /// carries a question: after the third and the sixth trick.
@@ -61,7 +62,25 @@ pub struct QuestionId {
     pub trick: u8,
 }
 
-/// Once-only transition. Deduplication key: question ID and variant tag.
+/// Identity of one counting opportunity: a question at a game decision or
+/// a focused-training task (D-71). Serialised without a tag, so format 1
+/// learning histories, which only hold game questions, read unchanged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum OpportunityId {
+    /// A question at a card-play decision of a series or practice game.
+    Game(QuestionId),
+    /// A task of the focused counting training: its fixture and version.
+    Training(TrainingTask),
+}
+
+impl From<QuestionId> for OpportunityId {
+    fn from(id: QuestionId) -> Self {
+        OpportunityId::Game(id)
+    }
+}
+
+/// Once-only transition. Deduplication key: opportunity ID and variant tag.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RetrievalAction {
     /// The frozen question was offered.
@@ -87,7 +106,7 @@ pub enum RetrievalAction {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RetrievalEvent {
     /// Stable opportunity identifier.
-    pub id: QuestionId,
+    pub id: OpportunityId,
     /// Frozen question (never contains its answer before reveal).
     pub question: QuestionKind,
     /// Once-only action within this opportunity.
@@ -251,7 +270,7 @@ impl QuizState {
 
     fn record(&mut self, p: Pending, action: RetrievalAction) {
         self.events.push(RetrievalEvent {
-            id: p.id,
+            id: OpportunityId::Game(p.id),
             question: p.kind,
             action,
             assistance: self.settings.assistance,

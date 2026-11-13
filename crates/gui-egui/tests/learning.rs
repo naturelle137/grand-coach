@@ -267,7 +267,7 @@ fn a_damaged_file_is_kept_until_the_learner_sets_it_aside() {
         assert_eq!(saved.summary().totals.opportunities, 1);
 
         // Unsupported (newer) format: reported as such, also kept.
-        let newer = b"{\"format\": 2}".to_vec();
+        let newer = b"{\"format\": 3}".to_vec();
         fs::write(&file, &newer).unwrap();
         let mut h = app(language, &file);
         open_window(&mut h, en);

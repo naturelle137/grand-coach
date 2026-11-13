@@ -597,7 +597,7 @@ fn focused_support_is_explicit_sticky_and_deduplicated() {
             let help = retrieval_events(&s.execute(Command::RestoreQuizHelp).unwrap());
             assert_eq!(help.len(), usize::from(level != VisibleAid));
             for e in help {
-                assert_eq!(e.id, id);
+                assert_eq!(e.id, id.into());
                 assert_eq!(e.action, RetrievalAction::Help);
                 assert!(e.assisted);
             }
@@ -633,7 +633,7 @@ fn focused_support_is_explicit_sticky_and_deduplicated() {
             let attempts = retrieval_events(&events);
             assert_eq!(attempts.len(), 1);
             let e = attempts[0];
-            assert_eq!(e.id, id);
+            assert_eq!(e.id, id.into());
             assert!(e.assisted);
             let expected = match path {
                 0 => RetrievalAction::Answer {
@@ -808,7 +808,7 @@ fn settings_restore_help_once_and_hiding_it_keeps_the_support_record() {
     assert_eq!(r[0].action, RetrievalAction::Help);
     assert!(r[0].assisted);
     assert_eq!(r[0].assistance, VisibleAid);
-    assert_eq!(Some(r[0].id), before.assist.quiz.id);
+    assert_eq!(Some(r[0].id), before.assist.quiz.id.map(Into::into));
     assert!(
         s.execute(Command::SetAssist(focused(VisibleAid)))
             .unwrap()
