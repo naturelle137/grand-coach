@@ -14,14 +14,21 @@ Missing platform or actual learner/UAT evidence stays pending; agents never
 simulate learner observations. M7 save/load cases apply once implemented;
 current wire serialization tests are not persistence evidence.
 
+Release 1.0 requires [modern egui #134](https://github.com/naturelle137/grand-coach/issues/134)
+implemented, independently reviewed, tested and merged through the protected
+PR process. Its full acceptance criteria govern; #131's dialogue is not a
+prerequisite and Godot animation is outside this scope. The presentation and
+opponent checks below are required and pending until supported by recorded
+evidence. Existing M8, learner and platform gates remain required.
+
 ## Test cases
 
 | Area | Steps | Expected result |
 |------|-------|-----------------|
 | Installation and lifecycle | Install on a clean system; launch, restart, upgrade and uninstall. Check resources, notices and user-data locations. | Packages work with documented prerequisites; upgrades preserve supported data and uninstall follows the documented policy. |
 | Full game and series | Play a complete series and free play; exercise bidding, Hand/Skat, discarding, suit/Grand/Null, Ouvert, Kontra/Re and all-pass handling using reproducible deals. | Legal actions, scores, seat rotation and completion are understandable and consistent. |
-| Presentation | Switch between both languages and all three card faces during play. | Cards and controls remain readable; text is complete and the running game is preserved. |
-| Opponents | Select each strength independently and play Goldfish, Mephisto and God Mode table modes. | Turns complete at usable pacing; table modes and their information rules are clear. |
+| Presentation | Exercise all existing flows and modes in German and English with all three card faces; inspect actual egui screenshots at 1600 × 1000, 1280 × 820 and 960 × 640, including scaled fonts and long names. Hold and release completed-trick Augen with mouse and keyboard; also lose focus and change games while held. Inspect tooltips and accessibility labels while concealed. | The responsive coach-left, table-centre and last-trick/series-right layout preserves the trick triangle; cards and actions remain readable and reachable. Only permitted completed-trick Augen appear while held, excluding an unknown Skat; release, focus loss and game change conceal them immediately, including in tooltips and accessibility labels. The series score list stays visible and independent of the reveal. |
+| Opponents | Select each strength independently and play all existing table modes, including Goldfish, Mephisto, God Mode and open display. Repeat a seeded series and switch German → English → German; compare deals and AI decisions with the same seed. | Turns complete at usable pacing and information rules remain clear. Two distinct named portraits stay paired and at their physical seats as roles rotate; the language roundtrip restores the original pair. Deterministic selection uses an isolated random stream and changes neither deals nor AI decisions. |
 | Live coach | Try off, on request, important decisions and every move; repeat help requests; enable the warning and try proceed/cancel. Change settings while analysis runs. | Ordinary play stays responsive; no stale hints or duplicate actions; warnings and intervention levels behave as described. |
 | Lessons and review | Exercise all six lessons, learning focus and historical decision moments. Compare figures off with explicitly requested figures. | Wording and uncertainty are understandable; historical context is clear; figures follow the opt-in behavior. Use the learner script below. |
 | Counting aid and quiz | Toggle aid/quiz/coach combinations; answer correctly and incorrectly, skip, disable and change language/settings. | Counts and feedback are understandable; assistance does not reveal a pending answer; dismissing a question preserves the turn. |
