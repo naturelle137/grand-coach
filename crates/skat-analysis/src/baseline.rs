@@ -4,9 +4,9 @@
 //! Candidate order is the core legal order. Rust min keeps the first tie;
 //! max keeps the last. A follow-class master does not exclude trumping.
 
-use crate::hand::power;
+use crate::hand::{power, strength, trump_count};
 use crate::{Knowledge, TrickState, policy};
-use skat_core::{Action, Card, GameType, PlayerView};
+use skat_core::{Action, Card, CardSet, GameType, KontraLevel, Phase, PlayerView};
 
 /// The actual selected policy branch, not an inferred search explanation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -168,24 +168,137 @@ fn card_rule(view: &PlayerView, game: GameType, cards: &[Card]) -> CardRule {
     }
 }
 
+/// Which optional call Easy's Kontra/Re rule answers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum KontraCall {
+    /// Defender at a card turn with `Kontra` offered; declining means playing a card.
+    Kontra,
+    /// Declarer answering a Kontra immediately with `Re` or `KeinRe`.
+    Re,
+}
+
+/// Exact inputs and outcome of Easy's Kontra/Re rule for one permitted view.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct KontraRule {
+    /// Actual selected action: Kontra, a card, Re or KeinRe.
+    pub action: Action,
+    /// The call this decision is about; also the role (defender or declarer).
+    pub call: KontraCall,
+    /// Public contract's game (Grand if the view carries no contract).
+    pub game: GameType,
+    /// Public: the contract is Ouvert.
+    pub ouvert: bool,
+    /// Public Kontra/Re level before this decision.
+    pub level: KontraLevel,
+    /// Public: the declarer plays Hand.
+    pub hand_game: bool,
+    /// Own known Skat counted for Re (the discard); empty for a defender or
+    /// in a Hand game, where the Skat stays unknown.
+    pub skat: CardSet,
+    /// Kontra: Trumpf in the own hand. Re: strength of the own hand plus `skat`.
+    pub count: i32,
+    /// Kontra: Trumpf needed. Re: strength needed.
+    pub threshold: i32,
+    /// Null: Easy never says Kontra, whatever the count.
+    pub null: bool,
+    /// The condition holds: Easy says Kontra or Re.
+    pub wants: bool,
+    /// Declining Kontra: Easy's exact card rule for the played card.
+    pub card: Option<CardRule>,
+    /// Every legal action, in core order; all stay free.
+    pub legal: Vec<Action>,
+    /// Easy's wanted action was illegal and the first legal action was taken.
+    pub fallback: bool,
+}
+
+/// Easy's Kontra/Re rule from the permitted view: the defender's own hand,
+/// the declarer's own hand plus its known Skat, and public facts. None
+/// outside card play, without a Kontra/Re offer or in the Ouvert round,
+/// where `KeinKontra` is offered instead.
+pub fn kontra_rule(view: &PlayerView) -> Option<KontraRule> {
+    if view.phase != Phase::Spiel {
+        return None;
+    }
+    kontra_choice(view)
+}
+
+fn kontra_choice(view: &PlayerView) -> Option<KontraRule> {
+    let legal = &view.legal_actions;
+    if legal.contains(&Action::KeinKontra) {
+        return None;
+    }
+    let game = view.contract.map_or(GameType::Grand, |c| c.game);
+    let re = legal.contains(&Action::Re);
+    if !re && !legal.contains(&Action::Kontra) {
+        return None;
+    }
+    let hand_game = view.hand_game == Some(true);
+    let skat = if re {
+        view.own_skat.unwrap_or_default()
+    } else {
+        CardSet::EMPTY
+    };
+    let (call, count, threshold, wants) = if re {
+        let cards = view.hand | skat;
+        (
+            KontraCall::Re,
+            strength(game, cards),
+            policy::RE,
+            policy::wants_re(game, cards),
+        )
+    } else {
+        (
+            KontraCall::Kontra,
+            trump_count(game, view.hand) as i32,
+            policy::KONTRA_TRUMPS as i32,
+            policy::wants_kontra(game, view.hand),
+        )
+    };
+    let cards: Vec<Card> = legal
+        .iter()
+        .filter_map(|a| match a {
+            Action::Play(card) => Some(*card),
+            _ => None,
+        })
+        .collect();
+    let card = (!re && !wants && !cards.is_empty()).then(|| card_rule(view, game, &cards));
+    let wanted = match (call, wants, &card) {
+        (KontraCall::Re, true, _) => Some(Action::Re),
+        (KontraCall::Re, false, _) => Some(Action::KeinRe),
+        (KontraCall::Kontra, true, _) => Some(Action::Kontra),
+        (KontraCall::Kontra, false, rule) => rule.as_ref().map(|r| Action::Play(r.card)),
+    };
+    let action = wanted.filter(|a| legal.contains(a)).unwrap_or(legal[0]);
+    Some(KontraRule {
+        action,
+        call,
+        game,
+        ouvert: view.contract.is_some_and(|c| c.ouvert),
+        level: view.kontra,
+        hand_game,
+        skat,
+        count,
+        threshold,
+        null: game == GameType::Null,
+        wants,
+        card,
+        legal: legal.clone(),
+        fallback: wanted != Some(action),
+    })
+}
+
 /// Legacy Easy play choice, including Kontra/Re priority.
 pub fn play(view: &PlayerView) -> Action {
     let legal = &view.legal_actions;
     if legal.contains(&Action::KeinKontra) {
         return Action::KeinKontra;
     }
+    if let Some(rule) = kontra_choice(view) {
+        return rule.action;
+    }
     let game = view.contract.map_or(GameType::Grand, |c| c.game);
-    if legal.contains(&Action::Re) {
-        let cards = view.hand | view.own_skat.unwrap_or_default();
-        return if policy::wants_re(game, cards) {
-            Action::Re
-        } else {
-            Action::KeinRe
-        };
-    }
-    if legal.contains(&Action::Kontra) && policy::wants_kontra(game, view.hand) {
-        return Action::Kontra;
-    }
     let cards: Vec<Card> = legal
         .iter()
         .filter_map(|a| match a {

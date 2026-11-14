@@ -25,9 +25,9 @@ const NULL_RISKS: usize = 1;
 /// Strength from which the declarer plays Hand instead of picking up.
 const HAND: i32 = 100;
 /// Trumps in a defender's hand from which it says Kontra.
-const KONTRA_TRUMPS: usize = 5;
+pub const KONTRA_TRUMPS: usize = 5;
 /// Strength from which the declarer answers Kontra with Re.
-const RE: i32 = 90;
+pub const RE: i32 = 90;
 
 /// Which branch of [`choose_game`] supplied the candidate game and ceiling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

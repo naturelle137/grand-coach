@@ -413,6 +413,7 @@ mod tests {
                     "threshold",
                     "strength",
                     "length",
+                    "factor",
                 ] {
                     args.set(name, "x");
                 }
