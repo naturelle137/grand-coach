@@ -1,4 +1,4 @@
-# Guided Farbspiel, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155)
+# Guided Farbspiel and Grand card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -24,12 +24,13 @@ separate factual oracles.
   least two legal cards and one losing candidate, Easy takes a loser by
   `(is_trump, Augen, power)`, first exact tie. A nonchosen losing candidate may
   serve the same immediate purpose. This does not secure the partner's trick.
-- **WinLast:** Farbspiel, last seat, opposing party leads, at least two legal
-  cards and a winning candidate. Easy takes a winner by `(is_trump, power)`,
+- **WinLast:** Farbspiel or non-Ouvert Grand (#157, below), last seat,
+  opposing party leads, at least two legal cards and a winning candidate. Easy takes a winner by `(is_trump, power)`,
   first exact tie. Other winning cards still win this trick. No claim about
   their future strategic value or the final game result follows.
 - **Exclusions:** no lead, early winner, partner feeding, arbitrary fallback,
-  single legal action, Grand, Null or Kontra/Re (Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re: see below). If the
+  single legal action, Grand other than `WinLast`, Ouvert Grand, Null or
+  Kontra/Re (Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
   explicitly marked `Fallback` and excluded, rather than explained as staying
   under the partner. In
@@ -99,6 +100,58 @@ in both languages. App tests additionally exercise frozen input, different
 hidden deals, stale/re-entered identities, default/off/automatic settings and
 incomplete optional estimates. These are automated technical checks, not
 observed learner clarity or interactive Windows 11 evidence.
+
+## Grand WinLast card play (#157)
+
+`guided-win-last@1` also covers non-Ouvert Grand when the shared rule selects
+`WinLast`: last seat, the opposing party (declarer for a defender) ahead, at
+least two legal cards and a winning candidate. Prompts, checks, candidates,
+memory and observation are unchanged; Easy's `choose_card`, branch order,
+ties and the frozen hashes are untouched. In Grand only the four Buben are
+Trumpf: a led Bube must be followed with a Bube, and a Bube never follows its
+printed suit. A partner ahead selects the earlier `FeedPartner`/`UnderPartner`
+branch, which stays unsupported in Grand, as do `DrawTrumpf`, `LeadMaster`,
+`WinEarly`, fallback, single legal moves, Ouvert Grand and all Null card play
+(Farbspiel, including Ouvert, keeps its shipped scope). A core-offered Kontra
+keeps its own dialogue first. In last seat the learner's own card completes
+the trick: the observation uses that card and the actual core `TrickWon`,
+also for a losing alternative, without waiting for another seat.
+
+Fixtures in `crates/skat-coach/tests/guided_grand.rs` replay core-accepted
+actions on the deal above (declarer bids 18 or holds, the others pass, Hand).
+Expectations follow by hand from the Grand order (side suits A T K Q 9 8 7)
+and Easy's documented `(is_trump, power)` first minimum:
+
+| Position | Legal | Winners | Easy |
+|----------|-------|---------|------|
+| HH Grand Hand, VH C9, MH C8 | CQ CA (DJ is Trumpf) | CQ CA | CQ |
+| same, VH CK | CQ CA | CA (CQ loses) | CA |
+| VH Grand Hand, VH C9, MH C7, HH defends | CQ CA | CQ CA | CQ |
+| same, VH CK | CQ CA | CA | CA |
+| HH also holds SJ (MH D7), VH HJ, MH C7 | SJ DJ only | SJ | SJ |
+| HH holds CJ instead of D7, VH C9, MH C8 | CQ CA, not CJ | CQ CA | CQ |
+| as above without plain Kreuz in HH | all ten | CJ DJ | DJ |
+
+Swapping VH's unplayed H7 with the unknown Hand Skat's DK leaves HH's view,
+lesson, memory and observations identical. Exclusions: partner ahead (MH CT
+over the declarer's C9: `FeedPartner`), the declarer's lead (`DrawTrumpf`),
+not last (MH: `Fallback`), Grand `UnderPartner`, no winner (HH H8/HA under
+MH's SJ), a single winning CQ, Null Hand, Grand Ouvert and a Kontra-eligible
+defender. App tests drive both roles through every legal card, wrong/retry,
+correct non-Easy attempts, reveal, hidden swap and God Mode parity,
+Kontra precedence, unsupported Grand branches, automatic/off levels, stale
+identities and the next game.
+
+Ordinary app (Kontra/Re off, two Easy opponents): with series seed 19 the
+human passes and plays the first legal card; in the second game it defends
+last in Hinterhand against Mittelhand's Grand (MH's C9 over VH's C7; C8/CT/CA
+legal, CT/CA win, Easy CT), and a later decision of that game shows the honest
+fallback. With seed 2 the human holds or bids up to 30, picks up, puts away
+its first two cards, announces Grand and in the first game plays last over
+Hinterhand's HK (HQ/HA legal, only HA wins). The ignored `guided` widget test
+drives both paths in German and English through real widgets only, plays the
+losing C8 against Easy's CT and Easy's HA as declarer, and checks the actual
+trick winner. This is technical evidence, not learner UAT.
 
 ## Reizen threshold decision (#148)
 
