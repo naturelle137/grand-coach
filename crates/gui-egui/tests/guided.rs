@@ -449,3 +449,230 @@ fn guided_ansage_widgets_hide_answers_until_reveal_and_stay_free_in_de_en() {
         }
     }
 }
+
+fn kontra_app(seed: u64) -> Harness<'static, GrandCoachApp> {
+    let config = SessionConfig {
+        seed,
+        series: SeriesLength::Free,
+        kontra_re: true,
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
+    };
+    Harness::builder()
+        .with_size([1600.0, 1200.0])
+        .build_eframe(move |cc| GrandCoachApp::new(&cc.egui_ctx, config))
+}
+
+/// Ordinary app, real widgets: seed 18 (defender, five Trumpf, Easy says
+/// Kontra) and seed 0 (defender, Easy declines with a card). Wrong factor,
+/// retry, wrong condition, retry, correct attempt; the human then plays a
+/// card (seed 18) or says Kontra (seed 0) and the actual next public step
+/// is shown. Answers never act on the table.
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn guided_kontra_widgets_hide_answers_until_attempt_and_observe_actual_step_in_de_en() {
+    use skat_app::{Action, GuidedKontraObservation};
+    for language in Language::ALL {
+        for (seed, wants) in [(18, true), (0, false)] {
+            let mut h = kontra_app(seed);
+            let i = I18n::new(language);
+            enter_kontra(&mut h, language, false);
+            let before = h.state().session().view();
+            let history_before = h.state().learning_history().clone();
+            let g = h.state().session().guided().unwrap();
+            let k = g.kontra.unwrap();
+            let game = ("game", game_name(&i, k.game).into());
+            assert!(
+                h.query_by_label(&i.tf("guided-kontra-public-kontra", std::slice::from_ref(&game)))
+                    .is_some()
+            );
+            assert!(
+                h.query_by_label(&i.t("guided-kontra-orient-kontra"))
+                    .is_some()
+            );
+            for absent in ["guided-kontra-yes", "guided-memory", "guided-figures"] {
+                assert!(h.query_by_label(&i.t(absent)).is_none(), "{absent}");
+            }
+            assert!(
+                h.query_by_label(&i.t("guided-kontra-caveat-kontra"))
+                    .is_none()
+            );
+            let factor = |f: i32| i.tf("guided-kontra-factor-button", &[("factor", f.into())]);
+            click(&mut h, &factor(4));
+            assert!(h.query_by_label(&i.t("guided-wrong")).is_some());
+            click(&mut h, &i.t("guided-retry"));
+            click(&mut h, &factor(2));
+            let figures = [("factor", 2.into()), ("threshold", 5.into())];
+            assert!(
+                h.query_by_label(&i.tf("guided-kontra-threshold-kontra", &figures))
+                    .is_some()
+            );
+            assert!(h.state().session().guided().unwrap().kontra_rule.is_none());
+            let (right, wrong) = if wants {
+                ("guided-kontra-yes", "guided-kontra-no")
+            } else {
+                ("guided-kontra-no", "guided-kontra-yes")
+            };
+            click(&mut h, &i.t(wrong));
+            assert!(h.query_by_label(&i.t("guided-wrong")).is_some());
+            assert!(h.state().session().guided().unwrap().kontra_rule.is_none());
+            click(&mut h, &i.t("guided-retry"));
+            click(&mut h, &i.t(right));
+            let g = h.state().session().guided().unwrap();
+            assert_eq!(g.step, GuidedStep::Act);
+            let rule = g.kontra_rule.clone().unwrap();
+            assert_eq!(rule.wants, wants);
+            assert_eq!(
+                h.state().session().view().legal_actions,
+                before.legal_actions
+            );
+            assert_eq!(h.state().session().view().hand, before.hand);
+            let shown = coach::action(&i, &before, rule.action);
+            assert!(
+                h.query_by_label(&i.tf("guided-bid-rule", &[("action", shown.into())]))
+                    .is_some()
+            );
+            let count = [
+                ("count", rule.count.into()),
+                ("threshold", rule.threshold.into()),
+            ];
+            let key = if wants {
+                "guided-kontra-count-kontra-yes"
+            } else {
+                "guided-kontra-count-kontra-no"
+            };
+            assert!(h.query_by_label(&i.tf(key, &count)).is_some());
+            assert!(h.query_by_label(&i.t("guided-kontra-act-kontra")).is_some());
+            assert!(
+                h.query_by_label(&i.t("guided-kontra-fact-factor"))
+                    .is_some()
+            );
+            assert!(
+                h.query_by_label(&i.t("guided-kontra-caveat-kontra"))
+                    .is_some()
+            );
+            if let Some(card) = &rule.card {
+                let name = ("card", card_name(&i, card.card).into());
+                assert!(
+                    h.query_by_label(&i.tf("guided-kontra-card", &[name]))
+                        .is_some()
+                );
+            }
+            // The human chooses the other option than Easy, by real widgets.
+            if wants {
+                let card = before
+                    .legal_actions
+                    .iter()
+                    .find_map(|a| match a {
+                        Action::Play(c) => Some(*c),
+                        _ => None,
+                    })
+                    .unwrap();
+                click(&mut h, &card_name(&i, card));
+                let g = h.state().session().guided().unwrap();
+                assert!(matches!(
+                    g.kontra_observation,
+                    Some(GuidedKontraObservation::Declined { card: c, .. }) if c == card
+                ));
+            } else {
+                click(&mut h, &i.t("button-kontra"));
+                settle(&mut h);
+                let g = h.state().session().guided().unwrap();
+                assert_eq!(g.step, GuidedStep::Complete);
+                assert!(matches!(
+                    g.kontra_observation,
+                    Some(GuidedKontraObservation::Reply { .. })
+                ));
+            }
+            assert!(h.query_by_label(&i.t("guided-kontra-complete")).is_some());
+            assert_eq!(h.state().learning_history(), &history_before);
+            click(&mut h, &i.t("guided-return"));
+            assert!(h.state().session().guided().is_none());
+        }
+    }
+}
+
+/// Ordinary app, real widgets, seed 1: the human declares the suit it holds
+/// fewest of, a defender says Kontra and the human answers. Deliberate
+/// reveal, then Re (whatever Easy says); the resumed card play is shown.
+/// Seed 8: a Grand Kontra offer gets the honest exclusion text.
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn guided_re_widgets_reveal_free_reply_resumed_play_and_grand_fallback_in_de_en() {
+    use skat_app::{Action, GuidedKontraObservation, KontraLevel};
+    for language in Language::ALL {
+        let mut h = kontra_app(1);
+        let i = I18n::new(language);
+        enter_kontra(&mut h, language, true);
+        let k = h.state().session().guided().unwrap().kontra.unwrap();
+        let game = ("game", game_name(&i, k.game).into());
+        assert!(
+            h.query_by_label(&i.tf("guided-kontra-public-re", &[game]))
+                .is_some()
+        );
+        assert!(h.query_by_label(&i.t("guided-kontra-orient-re")).is_some());
+        click(
+            &mut h,
+            &i.tf("guided-kontra-factor-button", &[("factor", 4.into())]),
+        );
+        let figures = [("factor", 4.into()), ("threshold", 90.into())];
+        assert!(
+            h.query_by_label(&i.tf("guided-kontra-threshold-re", &figures))
+                .is_some()
+        );
+        click(&mut h, &i.t("guided-reveal"));
+        let rule = h.state().session().guided().unwrap().kontra_rule.unwrap();
+        let key = if rule.wants {
+            "guided-kontra-count-re-yes"
+        } else {
+            "guided-kontra-count-re-no"
+        };
+        let count = [
+            ("count", rule.count.into()),
+            ("threshold", rule.threshold.into()),
+        ];
+        assert!(h.query_by_label(&i.tf(key, &count)).is_some());
+        assert!(
+            h.query_by_label(&i.t("guided-pre-strength-count"))
+                .is_some()
+        );
+        assert!(h.query_by_label(&i.t("guided-kontra-caveat-re")).is_some());
+        assert!(h.query_by_label(&i.t("guided-kontra-act-re")).is_some());
+        click(&mut h, &i.t("button-re"));
+        settle(&mut h);
+        let g = h.state().session().guided().unwrap();
+        assert_eq!(g.step, GuidedStep::Complete);
+        let Some(GuidedKontraObservation::Resumed { seat, card, level }) = g.kontra_observation
+        else {
+            panic!("resumed play expected");
+        };
+        assert_eq!(level, KontraLevel::Re);
+        let line = i.tf(
+            "guided-kontra-resumed",
+            &[
+                ("seat", seat_name(&i, seat).into()),
+                ("card", card_name(&i, card).into()),
+                ("factor", 4.into()),
+            ],
+        );
+        assert!(h.query_by_label(&line).is_some());
+        click(&mut h, &i.t("guided-return"));
+
+        let mut h = kontra_app(8);
+        enter_kontra_in(&mut h, language, false, false);
+        assert!(
+            h.query_by_label(&i.t("guided-unsupported-kontra-grand"))
+                .is_some()
+        );
+        assert!(h.query_by_label(&i.t("guided-kontra-yes")).is_none());
+        assert!(
+            h.state()
+                .session()
+                .view()
+                .legal_actions
+                .contains(&Action::Kontra)
+        );
+        click(&mut h, &i.t("guided-return"));
+        assert!(h.state().session().guided().is_none());
+    }
+}

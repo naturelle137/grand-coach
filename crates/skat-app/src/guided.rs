@@ -5,14 +5,17 @@
 use crate::coach::{CoachResult, DecisionKey};
 use crate::{AppError, CoachLevel, Session};
 use serde::{Deserialize, Serialize};
-use skat_coach::guided::{self, BidLesson, Lesson, Memory, Observation, PreLesson};
+use skat_coach::guided::{
+    self, BidLesson, KontraAwait, KontraLesson, Lesson, Memory, Observation, PreLesson,
+};
 pub use skat_coach::guided::{
     AnnounceCandidate as GuidedAnnounceCandidate, AnnounceRule as GuidedAnnounceRule,
     Answer as GuidedAnswer, BidRule as GuidedBidRule, Branch as GuidedBranch,
-    GameBranch as GuidedGameBranch, Keep as GuidedKeep, PreRule as GuidedPreRule,
-    Step as GuidedStep,
+    GameBranch as GuidedGameBranch, Keep as GuidedKeep, KontraCall as GuidedKontraCall,
+    KontraExclusion as GuidedKontraExclusion, KontraObservation as GuidedKontraObservation,
+    KontraRule as GuidedKontraRule, PreRule as GuidedPreRule, Step as GuidedStep,
 };
-use skat_core::{Action, Event, PlayerView, Seat};
+use skat_core::{Action, Event, KontraLevel, PlayerView, Seat};
 
 /// Unforgeable-in-practice session/decision identity; checked on every response.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -96,6 +99,23 @@ pub struct GuidedPreplay {
     pub hand_game: Option<bool>,
 }
 
+/// Public Kontra/Re context; the factor and threshold only after orientation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GuidedKontra {
+    /// Defender Kontra at a card turn, or the declarer's immediate Re reply.
+    pub call: GuidedKontraCall,
+    /// Public contract's game (a suit game in this lesson).
+    pub game: skat_core::GameType,
+    /// Public: the declarer plays Hand.
+    pub hand_game: bool,
+    /// Public level before the decision.
+    pub level: KontraLevel,
+    /// After orientation: factor on the game points after the call.
+    pub factor: Option<i32>,
+    /// After orientation: Trumpf (Kontra) or strength (Re) Easy needs.
+    pub threshold: Option<i32>,
+}
+
 /// Frontend view: answer-bearing fields withheld until explicitly allowed.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GuidedView {
@@ -135,6 +155,14 @@ pub struct GuidedView {
     pub preplay: Option<GuidedPreplay>,
     /// Easy's Hand/pickup, discard or announcement rule after a correct attempt or reveal.
     pub pre_rule: Option<GuidedPreRule>,
+    /// Kontra/Re dialogue only: public context and, after orientation, factor and threshold.
+    pub kontra: Option<GuidedKontra>,
+    /// Easy's Kontra/Re rule after a correct threshold attempt or deliberate reveal.
+    pub kontra_rule: Option<GuidedKontraRule>,
+    /// Actual next public transition after the learner's own call or card.
+    pub kontra_observation: Option<GuidedKontraObservation>,
+    /// Unsupported Kontra/Re offer: why no lesson exists (honest fallback).
+    pub kontra_exclusion: Option<GuidedKontraExclusion>,
 }
 
 #[derive(Clone, Debug)]
@@ -144,6 +172,12 @@ pub(crate) struct GuidedState {
     lesson: Option<Lesson>,
     bid: Option<BidLesson>,
     pre: Option<PreLesson>,
+    kontra: Option<KontraLesson>,
+    kontra_exclusion: Option<GuidedKontraExclusion>,
+    awaits: Option<KontraAwait>,
+    kontra_observation: Option<GuidedKontraObservation>,
+    level: KontraLevel,
+    trick: u8,
     step: GuidedStep,
     correct: Option<bool>,
     revealed: bool,
@@ -162,7 +196,8 @@ impl GuidedState {
         let lesson = guided::lesson(view);
         let bid = guided::bid_lesson(view);
         let pre = guided::pre_lesson(view);
-        let step = if lesson.is_some() || bid.is_some() || pre.is_some() {
+        let kontra = guided::kontra_lesson(view);
+        let step = if lesson.is_some() || bid.is_some() || pre.is_some() || kontra.is_some() {
             GuidedStep::Orient
         } else {
             GuidedStep::Unsupported
@@ -176,6 +211,12 @@ impl GuidedState {
             lesson,
             bid,
             pre,
+            kontra,
+            kontra_exclusion: guided::kontra_exclusion(view),
+            awaits: None,
+            kontra_observation: None,
+            level: view.kontra,
+            trick: view.tricks.len() as u8,
             step,
             correct: None,
             revealed: false,
@@ -301,6 +342,27 @@ impl GuidedState {
                 }
             }),
             pre_rule: self.revealed.then(|| self.pre.map(|p| p.rule)).flatten(),
+            kontra: self.kontra.as_ref().map(|k| {
+                let oriented = self.revealed || self.step != GuidedStep::Orient;
+                GuidedKontra {
+                    call: k.rule.call,
+                    game: k.rule.game,
+                    hand_game: k.rule.hand_game,
+                    level: k.rule.level,
+                    factor: oriented.then(|| k.factor()),
+                    threshold: oriented.then_some(k.rule.threshold),
+                }
+            }),
+            kontra_rule: self
+                .revealed
+                .then(|| self.kontra.as_ref().map(|k| k.rule.clone()))
+                .flatten(),
+            kontra_observation: (self.step == GuidedStep::Complete)
+                .then_some(self.kontra_observation)
+                .flatten(),
+            kontra_exclusion: (self.step == GuidedStep::Unsupported)
+                .then_some(self.kontra_exclusion)
+                .flatten(),
         }
     }
 
@@ -333,11 +395,19 @@ impl GuidedState {
                         .is_some_and(|l| l.check(self.step, answer))
                         || self.bid.is_some_and(|b| b.check(self.step, answer))
                         || self.pre.is_some_and(|p| p.check(self.step, answer))
+                        || self
+                            .kontra
+                            .as_ref()
+                            .is_some_and(|k| k.check(self.step, answer))
                 };
                 self.correct = Some(correct);
                 if correct {
                     self.step = match self.step {
-                        GuidedStep::Orient if self.bid.is_some() || self.pre.is_some() => {
+                        GuidedStep::Orient
+                            if self.bid.is_some()
+                                || self.pre.is_some()
+                                || self.kontra.is_some() =>
+                        {
                             GuidedStep::Threshold
                         }
                         GuidedStep::Orient => GuidedStep::Check,
@@ -395,15 +465,48 @@ impl GuidedState {
         Ok(false)
     }
 
-    /// Capture only the originating trick. Later automated cards cannot replace it.
+    /// Capture only the originating trick or Kontra/Re transition. Later
+    /// automated actions cannot replace it; the learner's next own action ends it.
     /// Reizen, Skataufnahme, Drücken, Ansage and unsupported dialogues end with any action.
     pub(crate) fn expires_on(&self, before: Option<Seat>) -> bool {
+        if let Some(k) = &self.kontra {
+            return self.awaits.is_some() && Some(k.seat) == before;
+        }
         self.lesson.is_none()
             || (self.chosen.is_some()
                 && self.lesson.as_ref().is_some_and(|l| Some(l.seat) == before))
     }
 
+    /// Kontra/Re: the learner's own action fixes the awaited transition; the
+    /// actual public events of this or a later automated action supply it.
+    fn applied_kontra(&mut self, before: Option<Seat>, action: Action, events: &[Event]) {
+        let Some(k) = &self.kontra else {
+            return;
+        };
+        for event in events {
+            match event {
+                Event::Kontra { .. } => self.level = KontraLevel::Kontra,
+                Event::Re { .. } => self.level = KontraLevel::Re,
+                _ => (),
+            }
+        }
+        if before == Some(k.seat) && self.awaits.is_none() {
+            self.awaits = k.awaits(action);
+            self.step = GuidedStep::Waiting;
+            self.correct = None;
+        }
+        if let (Some(awaits), None) = (self.awaits, self.kontra_observation)
+            && let Some(o) = guided::observe_kontra(awaits, k.seat, events, self.level, self.trick)
+        {
+            self.kontra_observation = Some(o);
+            self.step = GuidedStep::Complete;
+        }
+    }
+
     pub(crate) fn applied(&mut self, before: Option<Seat>, action: Action, events: &[Event]) {
+        if self.kontra.is_some() {
+            return self.applied_kontra(before, action, events);
+        }
         let Some(lesson) = &self.lesson else {
             return;
         };

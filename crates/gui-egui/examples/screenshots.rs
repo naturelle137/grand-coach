@@ -47,7 +47,39 @@ const SEEDS: &[(&str, u64)] = &[
     ("guided-ann-threshold-en", 7),
     ("guided-ann-act-en", 7),
     ("guided-ann-act-narrow", 7),
+    // Kontra/Re on (`kontra_scenario`). Seed 18: the human defends with five
+    // Trumpf and Easy says Kontra; the human declines with a card.
+    ("guided-kontra-orient", 18),
+    ("guided-kontra-threshold", 18),
+    ("guided-kontra-act", 18),
+    ("guided-kontra-declined", 18),
+    ("guided-kontra-orient-en", 18),
+    ("guided-kontra-threshold-en", 18),
+    ("guided-kontra-act-en", 18),
+    ("guided-kontra-declined-en", 18),
+    ("guided-kontra-act-narrow", 18),
+    // Seed 0: Easy would decline; the human says Kontra, the declarer replies.
+    ("guided-kontra-reply", 0),
+    ("guided-kontra-reply-en", 0),
+    // Seed 1: the human declares, a defender says Kontra, the human answers.
+    ("guided-re-orient", 1),
+    ("guided-re-threshold", 1),
+    ("guided-re-act", 1),
+    ("guided-re-resumed", 1),
+    ("guided-re-orient-en", 1),
+    ("guided-re-threshold-en", 1),
+    ("guided-re-act-en", 1),
+    ("guided-re-resumed-en", 1),
+    ("guided-re-act-narrow", 1),
+    // Seed 8: a Grand Kontra offer falls back honestly.
+    ("guided-kontra-fallback", 8),
+    ("guided-kontra-fallback-en", 8),
 ];
+
+/// Scenarios that switch Kontra/Re on (other guided scenarios keep it off).
+fn kontra_scenario(name: &str) -> bool {
+    name.starts_with("guided-kontra") || name.starts_with("guided-re-")
+}
 
 /// Size of the `table-*` scenarios of issue #134 by name suffix; others
 /// use [`SIZE`].
@@ -135,6 +167,28 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("guided-ann-pickup-act", guided_ann_pickup_act),
     ("guided-ann-pickup-act-en", guided_ann_pickup_act_en),
     ("guided-ann-act-narrow", guided_ann_act),
+    ("guided-kontra-orient", guided_kontra_orient),
+    ("guided-kontra-threshold", guided_kontra_threshold),
+    ("guided-kontra-act", guided_kontra_act),
+    ("guided-kontra-declined", guided_kontra_declined),
+    ("guided-kontra-orient-en", guided_kontra_orient_en),
+    ("guided-kontra-threshold-en", guided_kontra_threshold_en),
+    ("guided-kontra-act-en", guided_kontra_act_en),
+    ("guided-kontra-declined-en", guided_kontra_declined_en),
+    ("guided-kontra-act-narrow", guided_kontra_act),
+    ("guided-kontra-reply", guided_kontra_reply),
+    ("guided-kontra-reply-en", guided_kontra_reply_en),
+    ("guided-re-orient", guided_re_orient),
+    ("guided-re-threshold", guided_re_threshold),
+    ("guided-re-act", guided_re_act),
+    ("guided-re-resumed", guided_re_resumed),
+    ("guided-re-orient-en", guided_re_orient_en),
+    ("guided-re-threshold-en", guided_re_threshold_en),
+    ("guided-re-act-en", guided_re_act_en),
+    ("guided-re-resumed-en", guided_re_resumed_en),
+    ("guided-re-act-narrow", guided_re_act),
+    ("guided-kontra-fallback", guided_kontra_fallback),
+    ("guided-kontra-fallback-en", guided_kontra_fallback_en),
     ("launch", launch),
     ("recording", recording),
     ("recording-final", recording_final),
@@ -1434,6 +1488,7 @@ fn main() {
                 opponents,
                 display,
                 name.starts_with("guided-"),
+                kontra_scenario(name),
             )
         };
         if let Some(size) = table_size(name) {
@@ -1463,6 +1518,7 @@ fn harness(
     opponents: Opponents,
     display: TableDisplay,
     guided: bool,
+    kontra: bool,
 ) -> Harness<'static, GrandCoachApp> {
     let config = SessionConfig {
         seed,
@@ -1471,7 +1527,7 @@ fn harness(
         } else {
             SeriesLength::Fixed(2)
         },
-        kontra_re: !guided,
+        kontra_re: !guided || kontra,
         opponents,
         display,
     };
@@ -2446,6 +2502,112 @@ fn guided_ann_pickup_act(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn guided_ann_pickup_act_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_ann_in(h, Language::En, false, 2);
+}
+
+/// Kontra (`re`: false) or Re dialogue in `language` after `steps`: 0
+/// orientation, 1 correct factor, 2 condition attempt (Kontra: the correct
+/// answer; Re: deliberate reveal), 3 the human's free action and the actual
+/// next public step (Kontra: the first legal card, or Kontra with
+/// `say_kontra`; Re: Re).
+fn guided_kontra_in(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    re: bool,
+    steps: u8,
+    say_kontra: bool,
+) {
+    let i = I18n::new(language);
+    guided_support::enter_kontra(h, language, re);
+    if steps == 0 {
+        return;
+    }
+    let factor = if re { 4 } else { 2 };
+    guided_support::click(
+        h,
+        &i.tf("guided-kontra-factor-button", &[("factor", factor.into())]),
+    );
+    if steps == 1 {
+        return;
+    }
+    if re || say_kontra {
+        guided_support::click(h, &i.t("guided-reveal"));
+    } else {
+        // Seed 18: five Trumpf, the condition holds.
+        guided_support::click(h, &i.t("guided-kontra-yes"));
+    }
+    if steps == 2 {
+        return;
+    }
+    let v = view(h);
+    let label = if re {
+        i.t("button-re")
+    } else if say_kontra {
+        i.t("button-kontra")
+    } else {
+        coach::action(&i, &v, v.legal_actions[0])
+    };
+    guided_support::click(h, &label);
+    guided_support::settle(h);
+}
+fn guided_kontra_orient(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::De, false, 0, false);
+}
+fn guided_kontra_threshold(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::De, false, 1, false);
+}
+fn guided_kontra_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::De, false, 2, false);
+}
+fn guided_kontra_declined(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::De, false, 3, false);
+}
+fn guided_kontra_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::En, false, 0, false);
+}
+fn guided_kontra_threshold_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::En, false, 1, false);
+}
+fn guided_kontra_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::En, false, 2, false);
+}
+fn guided_kontra_declined_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::En, false, 3, false);
+}
+fn guided_kontra_reply(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::De, false, 3, true);
+}
+fn guided_kontra_reply_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::En, false, 3, true);
+}
+fn guided_re_orient(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::De, true, 0, false);
+}
+fn guided_re_threshold(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::De, true, 1, false);
+}
+fn guided_re_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::De, true, 2, false);
+}
+fn guided_re_resumed(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::De, true, 3, false);
+}
+fn guided_re_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::En, true, 0, false);
+}
+fn guided_re_threshold_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::En, true, 1, false);
+}
+fn guided_re_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::En, true, 2, false);
+}
+fn guided_re_resumed_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_in(h, Language::En, true, 3, false);
+}
+fn guided_kontra_fallback(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::enter_kontra_in(h, Language::De, false, false);
+}
+fn guided_kontra_fallback_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::enter_kontra_in(h, Language::En, false, false);
 }
 
 // Catalogue-mode scenarios use real widgets, including settlement before next.

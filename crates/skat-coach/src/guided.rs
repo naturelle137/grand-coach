@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Bounded guided Farbspiel, Reizen, Skataufnahme, Drücken and Ansage lessons. Exact
-//! rule provenance, never search ranking.
+//! Bounded guided Farbspiel, Reizen, Skataufnahme, Drücken, Ansage and
+//! Farbspiel Kontra/Re lessons. Exact rule provenance, never search ranking.
 
 use crate::Source;
-pub use skat_analysis::baseline::{Branch, CardRule};
+pub use skat_analysis::baseline::{Branch, CardRule, KontraCall, KontraRule};
 pub use skat_analysis::policy::{
     AnnounceCandidate, AnnounceRule, BidRule, DiscardRule, GameBranch, Keep, PickupRule,
 };
 use skat_analysis::{Knowledge, TrickState, baseline, policy};
-use skat_core::{Card, CardSet, Follow, GameType, Phase, PlayerView, Seat};
+use skat_core::{
+    Action, Card, CardSet, Event, Follow, GameType, KontraLevel, Phase, PlayerView, Seat,
+};
 
 /// One current prompt; no later answer is included in a prompt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -25,6 +27,7 @@ pub enum Step {
     /// Skataufnahme: does the strength reach Easy's Hand threshold?
     /// Drücken: name a card Easy puts away first.
     /// Ansage: does the preferred game's value reach the public bid?
+    /// Kontra/Re: does the own count reach Easy's condition?
     Threshold,
     /// Deliberately revealed worked answer; play any legal card.
     Act,
@@ -53,7 +56,10 @@ pub enum Answer {
     /// Reizen threshold: the value at stake is within the heuristic ceiling.
     /// Skataufnahme threshold: the strength reaches the Hand threshold.
     /// Ansage threshold: the preferred game's value reaches the bid.
+    /// Kontra/Re threshold: the count reaches Easy's Kontra or Re condition.
     Within(bool),
+    /// Kontra/Re orientation: factor on the game points after the call.
+    Factor(i32),
     /// Skataufnahme/Drücken/Ansage orientation: which branch builds the candidate game.
     Game(GameBranch),
 }
@@ -252,6 +258,198 @@ impl PreLesson {
             _ => false,
         }
     }
+}
+
+/// A non-Ouvert Farbspiel Kontra or immediate Re lesson from Easy's shared
+/// rule. Never passed to the frontend before disclosure.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct KontraLesson {
+    /// Actual shared Easy outcome and its inputs.
+    pub rule: KontraRule,
+    /// Learner's seat.
+    pub seat: Seat,
+}
+
+/// Why a core-offered Kontra/Re decision has no guided lesson.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum KontraExclusion {
+    /// The separate Ouvert round before the reveal (`KeinKontra` offered).
+    OuvertRound,
+    /// An Ouvert contract after the reveal.
+    Ouvert,
+    /// Grand: not taught by this lesson.
+    Grand,
+    /// Null: Easy never says Kontra; not taught by this lesson.
+    Null,
+    /// Absent contract or a restricted/inconsistent permitted view.
+    Restricted,
+}
+
+/// Only a core-offered Kontra at a non-Ouvert Farbspiel card turn or the
+/// declarer's immediate Re reply. Uses the own cards, the own known Skat and
+/// public facts only; restricted or inconsistent views get no lesson.
+pub fn kontra_lesson(view: &PlayerView) -> Option<KontraLesson> {
+    kontra_support(view).ok()
+}
+
+/// The exclusion of a Kontra/Re offer without a lesson; none if the view
+/// offers no Kontra, Re or KeinKontra, or if the lesson is supported.
+pub fn kontra_exclusion(view: &PlayerView) -> Option<KontraExclusion> {
+    let offered = view
+        .legal_actions
+        .iter()
+        .any(|a| matches!(a, Action::Kontra | Action::KeinKontra | Action::Re));
+    offered.then(|| kontra_support(view).err()).flatten()
+}
+
+fn kontra_support(view: &PlayerView) -> Result<KontraLesson, KontraExclusion> {
+    if view.legal_actions.contains(&Action::KeinKontra) {
+        return Err(KontraExclusion::OuvertRound);
+    }
+    let contract = view.contract.ok_or(KontraExclusion::Restricted)?;
+    match contract.game {
+        _ if contract.ouvert => return Err(KontraExclusion::Ouvert),
+        GameType::Grand => return Err(KontraExclusion::Grand),
+        GameType::Null => return Err(KontraExclusion::Null),
+        GameType::Farbe(_) => (),
+    }
+    let rule = baseline::kontra_rule(view).ok_or(KontraExclusion::Restricted)?;
+    let declarer = view.declarer.ok_or(KontraExclusion::Restricted)?;
+    let consistent = match rule.call {
+        KontraCall::Kontra => declarer != view.seat && view.kontra == KontraLevel::None,
+        KontraCall::Re => declarer == view.seat && view.kontra == KontraLevel::Kontra,
+    };
+    if !consistent || rule.fallback || view.current_seat != Some(view.seat) {
+        return Err(KontraExclusion::Restricted);
+    }
+    Ok(KontraLesson {
+        rule,
+        seat: view.seat,
+    })
+}
+
+impl KontraLesson {
+    /// Factor on the game points if the learner makes the call.
+    pub fn factor(&self) -> i32 {
+        match self.rule.call {
+            KontraCall::Kontra => KontraLevel::Kontra.factor(),
+            KontraCall::Re => KontraLevel::Re.factor(),
+        }
+    }
+
+    /// Orientation asks for the factor after the call (public rule fact); the
+    /// threshold answer is whether Easy's condition holds.
+    pub fn check(&self, step: Step, answer: Answer) -> bool {
+        match (step, answer) {
+            (Step::Orient, Answer::Factor(f)) => f == self.factor(),
+            (Step::Threshold, Answer::Within(w)) => w == self.rule.wants,
+            _ => false,
+        }
+    }
+
+    /// The learner's own action at the original decision: what the next
+    /// public transition is.
+    pub fn awaits(&self, action: Action) -> Option<KontraAwait> {
+        match (self.rule.call, action) {
+            (KontraCall::Kontra, Action::Kontra) => Some(KontraAwait::Reply),
+            (KontraCall::Kontra, Action::Play(_)) => Some(KontraAwait::Declined),
+            (KontraCall::Re, Action::Re | Action::KeinRe) => Some(KontraAwait::Resumed),
+            _ => None,
+        }
+    }
+}
+
+/// The next public transition the lesson observes after the learner acted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum KontraAwait {
+    /// The learner said Kontra: the declarer's Re or KeinRe.
+    Reply,
+    /// The learner declined Kontra by playing a card: that card itself.
+    Declined,
+    /// The learner answered with Re or KeinRe: the next card played.
+    Resumed,
+}
+
+/// The actual next public transition, never a hypothetical line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum KontraObservation {
+    /// The declarer's actual reply to the learner's Kontra.
+    Reply {
+        /// Declarer.
+        seat: Seat,
+        /// Re (true) or KeinRe.
+        re: bool,
+        /// Resulting public level.
+        level: KontraLevel,
+    },
+    /// Card play resumed after the learner's Re or KeinRe.
+    Resumed {
+        /// Seat that played next.
+        seat: Seat,
+        /// Its actual card.
+        card: Card,
+        /// Public level, unchanged by the card.
+        level: KontraLevel,
+    },
+    /// The learner declined Kontra by playing a card; Kontra is no longer
+    /// offered to it after its first card.
+    Declined {
+        /// Learner's seat.
+        seat: Seat,
+        /// The actual card.
+        card: Card,
+        /// Zero-based trick index.
+        trick: u8,
+        /// Actual trick winner if the card completed the trick.
+        winner: Option<Seat>,
+        /// Public level, unchanged.
+        level: KontraLevel,
+    },
+}
+
+/// The awaited transition in core `events` after one applied action;
+/// `level` is the public level after it and `trick` the index of the trick
+/// the events belong to.
+pub fn observe_kontra(
+    awaits: KontraAwait,
+    seat: Seat,
+    events: &[Event],
+    level: KontraLevel,
+    trick: u8,
+) -> Option<KontraObservation> {
+    let winner = events.iter().find_map(|e| match e {
+        Event::TrickWon { trick } => Some(trick.winner),
+        _ => None,
+    });
+    events.iter().find_map(|&e| match (awaits, e) {
+        (KontraAwait::Reply, Event::Re { seat }) => Some(KontraObservation::Reply {
+            seat,
+            re: true,
+            level,
+        }),
+        (KontraAwait::Reply, Event::KeinRe { seat }) => Some(KontraObservation::Reply {
+            seat,
+            re: false,
+            level,
+        }),
+        (KontraAwait::Resumed, Event::CardPlayed { seat, card }) => {
+            Some(KontraObservation::Resumed { seat, card, level })
+        }
+        (KontraAwait::Declined, Event::CardPlayed { seat: s, card }) if s == seat => {
+            Some(KontraObservation::Declined {
+                seat,
+                card,
+                trick,
+                winner,
+                level,
+            })
+        }
+        _ => None,
+    })
 }
 
 /// Optional frozen memory, using M6 count definitions.

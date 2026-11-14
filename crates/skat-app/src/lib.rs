@@ -121,8 +121,9 @@ pub use skat_core::{
 
 pub use guided::{
     GuidedAction, GuidedAnnounceCandidate, GuidedAnnounceRule, GuidedAnswer, GuidedBidRule,
-    GuidedBranch, GuidedEvent, GuidedGameBranch, GuidedId, GuidedKeep, GuidedPreRule,
-    GuidedPreplay, GuidedReizen, GuidedStep, GuidedView,
+    GuidedBranch, GuidedEvent, GuidedGameBranch, GuidedId, GuidedKeep, GuidedKontra,
+    GuidedKontraCall, GuidedKontraExclusion, GuidedKontraObservation, GuidedKontraRule,
+    GuidedPreRule, GuidedPreplay, GuidedReizen, GuidedStep, GuidedView,
 };
 
 pub use training::{

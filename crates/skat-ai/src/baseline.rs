@@ -302,6 +302,116 @@ mod tests {
         }
     }
 
+    /// Kontra, Re and Ouvert KeinKontra views reached with random legal
+    /// actions (about one in three), so that every contract, eligible and
+    /// ineligible defenders, Hand and pickup occur.
+    fn kontra_views(seeds: std::ops::Range<u64>) -> Vec<skat_core::PlayerView> {
+        let mut rng = ChaCha8Rng::seed_from_u64(153);
+        let mut views = Vec::new();
+        for seed in seeds {
+            let mut game = Game::new(seed, RuleConfig { kontra_re: true });
+            while let Some(seat) = game.current_seat() {
+                let view = game.view(seat);
+                let call = view
+                    .legal_actions
+                    .iter()
+                    .any(|a| matches!(a, Action::Kontra | Action::KeinKontra | Action::Re));
+                let action = if rng.next_u32() % 3 == 0 {
+                    let i = rng.next_u32() as usize % view.legal_actions.len();
+                    view.legal_actions[i]
+                } else {
+                    BaselineOpponent.decide(&view).unwrap()
+                };
+                if call {
+                    views.push(view);
+                }
+                game.apply(action).unwrap();
+            }
+        }
+        views
+    }
+
+    #[test]
+    fn frozen_easy_kontra_re_before_rule_extraction() {
+        // Frozen on origin/main 4d55973 (baseline::play) before extraction.
+        let mut hash = 0xcbf29ce484222325u64;
+        let views = kontra_views(0..3000);
+        for view in &views {
+            let action = BaselineOpponent.decide(view).unwrap();
+            for byte in format!("{action:?}").bytes() {
+                hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+            }
+        }
+        assert_eq!((views.len(), hash), (3605, 13_667_852_288_273_955_558));
+    }
+
+    #[test]
+    fn shared_kontra_rule_is_easys_kontra_re_decision() {
+        use skat_analysis::baseline::{self, KontraCall};
+        let mut seen = std::collections::BTreeMap::new();
+        for view in kontra_views(0..3000) {
+            let action = BaselineOpponent.decide(&view).unwrap();
+            let Some(rule) = baseline::kontra_rule(&view) else {
+                assert_eq!(action, Action::KeinKontra);
+                *seen.entry("ouvert round").or_insert(0) += 1;
+                continue;
+            };
+            assert_eq!(rule.action, action, "{rule:?}");
+            assert!(!rule.fallback && rule.legal == view.legal_actions);
+            assert!(!(rule.null && rule.call == KontraCall::Kontra && rule.wants));
+            let contract = view.contract.unwrap();
+            assert_eq!((rule.game, rule.ouvert), (contract.game, contract.ouvert));
+            assert_eq!(rule.level, view.kontra);
+            match rule.call {
+                KontraCall::Kontra => {
+                    assert_ne!(Some(view.seat), view.declarer);
+                    assert_eq!(rule.level, skat_core::KontraLevel::None);
+                    assert!(rule.skat.is_empty());
+                    assert_eq!(rule.wants, !rule.null && rule.count >= rule.threshold);
+                    match rule.card {
+                        Some(card) => {
+                            assert!(!rule.wants);
+                            assert_eq!(action, Action::Play(card.card));
+                        }
+                        None => assert!(rule.wants && action == Action::Kontra),
+                    }
+                }
+                KontraCall::Re => {
+                    assert_eq!(Some(view.seat), view.declarer);
+                    assert_eq!(rule.level, skat_core::KontraLevel::Kontra);
+                    assert_eq!(rule.skat, view.own_skat.unwrap_or_default());
+                    assert_eq!(rule.wants, rule.count >= rule.threshold);
+                    assert_eq!(rule.wants, action == Action::Re);
+                    assert!(rule.card.is_none());
+                    if rule.hand_game {
+                        *seen.entry("re hand").or_insert(0) += 1;
+                    }
+                }
+            }
+            let game = match contract.game {
+                GameType::Null => "null",
+                GameType::Grand => "grand",
+                GameType::Farbe(_) => "farbe",
+            };
+            let call = format!("{:?} {} {game} {}", rule.call, rule.wants, contract.ouvert);
+            *seen.entry(Box::leak(call.into_boxed_str())).or_insert(0) += 1;
+        }
+        for case in [
+            "Kontra true farbe false",
+            "Kontra false farbe false",
+            "Re true farbe false",
+            "Re false farbe false",
+            // Grand has only four Trumpf: Easy never says Kontra there.
+            "Kontra false grand false",
+            "Re true grand false",
+            "Kontra false null false",
+            "re hand",
+            "ouvert round",
+        ] {
+            assert!(seen.contains_key(case), "{case}: {seen:?}");
+        }
+    }
+
     #[test]
     fn no_decision_without_turn() {
         let game = Game::new(1, RuleConfig::default());

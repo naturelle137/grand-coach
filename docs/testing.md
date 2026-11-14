@@ -427,6 +427,16 @@ use seed 21 with a pickup. The ignored bilingual `guided` Ansage widget test
 covers both seeds: hidden answers, skip/re-entry, wrong/retry, correct attempt
 or reveal, rendered value comparison and candidate, and a free alternative
 announcement actually applied.
+The Kontra/Re scenarios switch Kontra/Re on: `guided-kontra-orient`,
+`guided-kontra-threshold`, `guided-kontra-act` (correct attempt) and
+`guided-kontra-declined` (the human plays a card, Easy said Kontra) use seed
+18, `guided-kontra-reply` seed 0 (the human says Kontra after a reveal, the
+declarer replies), `guided-re-orient`, `guided-re-threshold`, `guided-re-act`
+(reveal) and `guided-re-resumed` (the human says Re, play resumes) seed 1,
+each with `-en` variants, plus `guided-kontra-act-narrow`,
+`guided-re-act-narrow` and the Grand exclusion `guided-kontra-fallback(-en)`
+(seed 8). The ignored bilingual `guided` Kontra and Re widget tests drive the
+same seeds through real widgets.
 These are technical checks, not learner UAT.
 
 ## Platform verification (M2)
