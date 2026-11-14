@@ -5,9 +5,9 @@ use crate::{coach, i18n::I18n, text};
 use eframe::egui;
 use skat_app::coach_model::Source;
 use skat_app::{
-    GuidedAction, GuidedAnnounceRule, GuidedAnswer, GuidedBranch, GuidedGameBranch, GuidedKeep,
-    GuidedKontra, GuidedKontraCall, GuidedKontraExclusion, GuidedKontraObservation, GuidedPreRule,
-    GuidedStep, GuidedView, Phase, Seat, TableView,
+    GameType, GuidedAction, GuidedAnnounceRule, GuidedAnswer, GuidedBranch, GuidedGameBranch,
+    GuidedKeep, GuidedKontra, GuidedKontraCall, GuidedKontraExclusion, GuidedKontraObservation,
+    GuidedPreRule, GuidedStep, GuidedView, Phase, Seat, TableView,
 };
 
 pub(crate) fn panel(
@@ -39,8 +39,6 @@ pub(crate) fn panel(
         GuidedStep::Unsupported => match g.kontra_exclusion {
             Some(GuidedKontraExclusion::OuvertRound) => "guided-unsupported-kontra-ouvert-round",
             Some(GuidedKontraExclusion::Ouvert) => "guided-unsupported-kontra-ouvert",
-            Some(GuidedKontraExclusion::Grand) => "guided-unsupported-kontra-grand",
-            Some(GuidedKontraExclusion::Null) => "guided-unsupported-kontra-null",
             Some(GuidedKontraExclusion::Restricted) => "guided-unsupported-kontra",
             None => "guided-unsupported",
         },
@@ -296,6 +294,21 @@ fn kontra(
         ));
     }
     let pick = |kontra: &'static str, re_key: &'static str| if re { re_key } else { kontra };
+    // Grand: only the four Buben are Trumpf. Null: no Trumpf, so the generic
+    // rule supplies no assessment and no count or threshold is shown.
+    let (grand, null) = (k.game == GameType::Grand, k.game == GameType::Null);
+    let by_game = |farbe: (&'static str, &'static str),
+                   g: (&'static str, &'static str),
+                   n: (&'static str, &'static str)| {
+        let (kontra, re_key) = if null {
+            n
+        } else if grand {
+            g
+        } else {
+            farbe
+        };
+        pick(kontra, re_key)
+    };
     let figures = [
         ("factor", k.factor.unwrap_or_default().into()),
         ("threshold", k.threshold.unwrap_or_default().into()),
@@ -306,9 +319,19 @@ fn kontra(
             "guided-kontra-orient-re",
         )),
         GuidedStep::Threshold => i.tf(
-            pick(
-                "guided-kontra-threshold-kontra",
-                "guided-kontra-threshold-re",
+            by_game(
+                (
+                    "guided-kontra-threshold-kontra",
+                    "guided-kontra-threshold-re",
+                ),
+                (
+                    "guided-kontra-threshold-kontra-grand",
+                    "guided-kontra-threshold-re-grand",
+                ),
+                (
+                    "guided-kontra-threshold-kontra-null",
+                    "guided-kontra-threshold-re-null",
+                ),
             ),
             &figures,
         ),
@@ -333,6 +356,16 @@ fn kontra(
                 )
             })
             .to_vec(),
+        GuidedStep::Threshold if null => vec![
+            (
+                i.t("guided-kontra-applies-yes"),
+                GuidedAnswer::Applies(true),
+            ),
+            (
+                i.t("guided-kontra-applies-no"),
+                GuidedAnswer::Applies(false),
+            ),
+        ],
         GuidedStep::Threshold => vec![
             (i.t("guided-kontra-yes"), GuidedAnswer::Within(true)),
             (i.t("guided-kontra-no"), GuidedAnswer::Within(false)),
@@ -349,7 +382,7 @@ fn kontra(
             "guided-bid-rule",
             &[("action", coach::action(i, table, rule.action).into())],
         ));
-        if re {
+        if re && !null {
             ui.label(match rule.skat.len() {
                 0 => i.t("guided-ann-skat-hand"),
                 _ => {
@@ -362,6 +395,11 @@ fn kontra(
             });
         }
         let key = match (re, rule.wants) {
+            _ if null => pick(
+                "guided-kontra-count-kontra-null",
+                "guided-kontra-count-re-null",
+            ),
+            (false, false) if grand => "guided-kontra-count-kontra-grand",
             (false, true) => "guided-kontra-count-kontra-yes",
             (false, false) => "guided-kontra-count-kontra-no",
             (true, true) => "guided-kontra-count-re-yes",
@@ -380,13 +418,18 @@ fn kontra(
                 &[("card", text::card(i, card.card).into())],
             ));
         }
-        ui.label(i.t(pick(
-            "guided-kontra-fact-factor",
-            "guided-pre-strength-count",
+        ui.label(i.t(by_game(
+            ("guided-kontra-fact-factor", "guided-pre-strength-count"),
+            ("guided-kontra-fact-factor", "guided-pre-strength-count"),
+            ("guided-kontra-fact-factor", "guided-kontra-fact-factor"),
         )));
-        ui.label(i.t(pick(
-            "guided-kontra-caveat-kontra",
-            "guided-kontra-caveat-re",
+        ui.label(i.t(by_game(
+            ("guided-kontra-caveat-kontra", "guided-kontra-caveat-re"),
+            (
+                "guided-kontra-caveat-kontra-grand",
+                "guided-kontra-caveat-re",
+            ),
+            ("guided-kontra-caveat-null", "guided-kontra-caveat-null"),
         )));
     }
     if let Some(o) = g.kontra_observation {

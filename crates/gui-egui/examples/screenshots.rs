@@ -71,9 +71,27 @@ const SEEDS: &[(&str, u64)] = &[
     ("guided-re-act-en", 1),
     ("guided-re-resumed-en", 1),
     ("guided-re-act-narrow", 1),
-    // Seed 8: a Grand Kontra offer falls back honestly.
-    ("guided-kontra-fallback", 8),
-    ("guided-kontra-fallback-en", 8),
+    // Seed 848, first game: Grand, the human defends with Buben below
+    // Easy's five Trumpf; it says Kontra, the declarer replies.
+    ("guided-kontra-grand-threshold", 848),
+    ("guided-kontra-grand-act", 848),
+    ("guided-kontra-grand-reply", 848),
+    ("guided-kontra-grand-threshold-en", 848),
+    ("guided-kontra-grand-act-en", 848),
+    ("guided-kontra-grand-reply-en", 848),
+    ("guided-kontra-grand-act-narrow", 848),
+    // Seed 1282, first game: Null; the generic rule does not apply, the
+    // human declines with a card.
+    ("guided-kontra-null-threshold", 1282),
+    ("guided-kontra-null-act", 1282),
+    ("guided-kontra-null-declined", 1282),
+    ("guided-kontra-null-threshold-en", 1282),
+    ("guided-kontra-null-act-en", 1282),
+    ("guided-kontra-null-declined-en", 1282),
+    ("guided-kontra-null-act-narrow", 1282),
+    // Seed 848, second game: the Null ouvert round falls back honestly.
+    ("guided-kontra-fallback", 848),
+    ("guided-kontra-fallback-en", 848),
 ];
 
 /// Scenarios that switch Kontra/Re on (other guided scenarios keep it off).
@@ -187,6 +205,32 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("guided-re-act-en", guided_re_act_en),
     ("guided-re-resumed-en", guided_re_resumed_en),
     ("guided-re-act-narrow", guided_re_act),
+    (
+        "guided-kontra-grand-threshold",
+        guided_kontra_grand_threshold,
+    ),
+    ("guided-kontra-grand-act", guided_kontra_grand_act),
+    ("guided-kontra-grand-reply", guided_kontra_grand_reply),
+    (
+        "guided-kontra-grand-threshold-en",
+        guided_kontra_grand_threshold_en,
+    ),
+    ("guided-kontra-grand-act-en", guided_kontra_grand_act_en),
+    ("guided-kontra-grand-reply-en", guided_kontra_grand_reply_en),
+    ("guided-kontra-grand-act-narrow", guided_kontra_grand_act),
+    ("guided-kontra-null-threshold", guided_kontra_null_threshold),
+    ("guided-kontra-null-act", guided_kontra_null_act),
+    ("guided-kontra-null-declined", guided_kontra_null_declined),
+    (
+        "guided-kontra-null-threshold-en",
+        guided_kontra_null_threshold_en,
+    ),
+    ("guided-kontra-null-act-en", guided_kontra_null_act_en),
+    (
+        "guided-kontra-null-declined-en",
+        guided_kontra_null_declined_en,
+    ),
+    ("guided-kontra-null-act-narrow", guided_kontra_null_act),
     ("guided-kontra-fallback", guided_kontra_fallback),
     ("guided-kontra-fallback-en", guided_kontra_fallback_en),
     ("launch", launch),
@@ -2604,10 +2648,93 @@ fn guided_re_resumed_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_kontra_in(h, Language::En, true, 3, false);
 }
 fn guided_kontra_fallback(h: &mut Harness<'_, GrandCoachApp>) {
-    guided_support::enter_kontra_in(h, Language::De, false, false);
+    guided_support::enter_kontra_in(h, Language::De, false, guided_support::KontraAt::Ouvert);
 }
 fn guided_kontra_fallback_en(h: &mut Harness<'_, GrandCoachApp>) {
-    guided_support::enter_kontra_in(h, Language::En, false, false);
+    guided_support::enter_kontra_in(h, Language::En, false, guided_support::KontraAt::Ouvert);
+}
+
+/// Grand or Null Kontra dialogue (#155) in `language` after `steps`: 1
+/// correct factor, 2 correct condition (Grand: count not reached; Null: the
+/// rule does not apply), 3 the human's free action and the actual next
+/// public step (Grand: Kontra; Null: the first legal card).
+fn guided_kontra_contract(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    at: guided_support::KontraAt,
+    steps: u8,
+) {
+    let i = I18n::new(language);
+    let grand = at == guided_support::KontraAt::Grand;
+    guided_support::enter_kontra_in(h, language, false, at);
+    guided_support::click(
+        h,
+        &i.tf("guided-kontra-factor-button", &[("factor", 2.into())]),
+    );
+    if steps == 1 {
+        return;
+    }
+    guided_support::click(
+        h,
+        &i.t(if grand {
+            "guided-kontra-no"
+        } else {
+            "guided-kontra-applies-no"
+        }),
+    );
+    if steps == 2 {
+        return;
+    }
+    let v = view(h);
+    let label = if grand {
+        i.t("button-kontra")
+    } else {
+        let card = v
+            .legal_actions
+            .iter()
+            .copied()
+            .find(|a| matches!(a, skat_app::Action::Play(_)))
+            .unwrap();
+        coach::action(&i, &v, card)
+    };
+    guided_support::click(h, &label);
+    guided_support::settle(h);
+}
+fn guided_kontra_grand_threshold(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::De, guided_support::KontraAt::Grand, 1);
+}
+fn guided_kontra_grand_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::De, guided_support::KontraAt::Grand, 2);
+}
+fn guided_kontra_grand_reply(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::De, guided_support::KontraAt::Grand, 3);
+}
+fn guided_kontra_grand_threshold_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::En, guided_support::KontraAt::Grand, 1);
+}
+fn guided_kontra_grand_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::En, guided_support::KontraAt::Grand, 2);
+}
+fn guided_kontra_grand_reply_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::En, guided_support::KontraAt::Grand, 3);
+}
+fn guided_kontra_null_threshold(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::De, guided_support::KontraAt::Null, 1);
+}
+fn guided_kontra_null_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::De, guided_support::KontraAt::Null, 2);
+}
+fn guided_kontra_null_declined(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::De, guided_support::KontraAt::Null, 3);
+}
+fn guided_kontra_null_threshold_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::En, guided_support::KontraAt::Null, 1);
+}
+fn guided_kontra_null_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::En, guided_support::KontraAt::Null, 2);
+}
+fn guided_kontra_null_declined_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_kontra_contract(h, Language::En, guided_support::KontraAt::Null, 3);
 }
 
 // Catalogue-mode scenarios use real widgets, including settlement before next.

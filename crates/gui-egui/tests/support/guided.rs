@@ -222,17 +222,31 @@ pub fn game_name(i: &I18n, game: skat_app::GameType) -> String {
 /// other move is the first legal action.
 #[allow(dead_code)]
 pub fn enter_kontra(h: &mut Harness<'_, GrandCoachApp>, language: Language, re: bool) {
-    enter_kontra_in(h, language, re, true);
+    enter_kontra_in(h, language, re, KontraAt::Farbe);
 }
 
-/// As [`enter_kontra`]; `supported`: false stops at the first Kontra/Re
-/// offer in Grand, Null or Ouvert instead, where the dialogue falls back.
+/// Which contract's first human Kontra/Re offer [`enter_kontra_in`] stops at.
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KontraAt {
+    /// Non-Ouvert Farbspiel (guided).
+    Farbe,
+    /// Non-Ouvert Grand (guided).
+    Grand,
+    /// Non-Ouvert Null (guided).
+    Null,
+    /// Any Ouvert contract, including the round before the reveal (fallback).
+    Ouvert,
+}
+
+/// As [`enter_kontra`], stopping at the first offer in the contract `at`;
+/// Ouvert offers get the honest fallback, the others the dialogue.
 #[allow(dead_code)]
 pub fn enter_kontra_in(
     h: &mut Harness<'_, GrandCoachApp>,
     language: Language,
     re: bool,
-    supported: bool,
+    at: KontraAt,
 ) {
     use skat_app::{Announcement, GameType, Suit};
     let i = I18n::new(language);
@@ -243,13 +257,17 @@ pub fn enter_kontra_in(
     for _ in 0..1500 {
         settle(h);
         let v = h.state().session().view();
-        let farbe = v
-            .contract
-            .is_some_and(|c| matches!(c.game, GameType::Farbe(_)) && !c.ouvert);
-        if v.contract.is_some() && farbe == supported && v.legal_actions.contains(&wanted) {
+        let here = v.contract.is_some_and(|c| match at {
+            _ if c.ouvert => at == KontraAt::Ouvert,
+            KontraAt::Farbe => matches!(c.game, GameType::Farbe(_)),
+            KontraAt::Grand => c.game == GameType::Grand,
+            KontraAt::Null => c.game == GameType::Null,
+            KontraAt::Ouvert => false,
+        });
+        if here && v.legal_actions.contains(&wanted) {
             click(h, &i.t("guided-start"));
             let g = h.state().session().guided().expect("explicit dialogue");
-            if supported {
+            if at != KontraAt::Ouvert {
                 assert_eq!(g.step, GuidedStep::Orient);
                 assert!(g.kontra.is_some(), "Kontra/Re dialogue");
             } else {

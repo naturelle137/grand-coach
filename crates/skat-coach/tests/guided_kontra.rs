@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Core-accepted Kontra/Re fixtures for the guided dialogue (#153, #131
-//! phase 4). Every position is reached by legal core actions from a fixed
+//! Core-accepted Kontra/Re fixtures for the guided dialogue (#153, #155,
+//! #131 phase 4). Every position is reached by legal core actions from a fixed
 //! deal; no PlayerView is hand-made except the labelled restricted views.
 //!
 //! Expected values are worked out by hand, independent of the rule. Easy says
@@ -322,29 +322,8 @@ fn ineligible_bidding_off_setting_first_card_and_existing_kontra_offer_no_lesson
 }
 
 #[test]
-fn grand_null_and_ouvert_get_honest_exclusions_without_hidden_cards() {
+fn ouvert_gets_honest_exclusions_without_hidden_cards() {
     let deal = deal_vh(&vh("H9"), HH, "D8 D9");
-    for (game, exclusion) in [
-        (GameType::Grand, KontraExclusion::Grand),
-        (GameType::Null, KontraExclusion::Null),
-    ] {
-        let g = hand(game, deal);
-        let view = current(&g);
-        assert!(view.legal_actions.contains(&Action::Kontra));
-        assert!(kontra_lesson(&view).is_none());
-        assert_eq!(kontra_exclusion(&view), Some(exclusion));
-        // The shared rule still decides for Easy; Null never says Kontra.
-        let r = skat_analysis::baseline::kontra_rule(&view).unwrap();
-        if game == GameType::Null {
-            assert!(r.null && !r.wants);
-        }
-        // Re after a Kontra is excluded as well.
-        let mut g = g;
-        g.apply(Action::Kontra).unwrap();
-        let view = current(&g);
-        assert_eq!(kontra_exclusion(&view), Some(exclusion));
-        assert!(kontra_lesson(&view).is_none());
-    }
     // Null ouvert: the separate round before the reveal offers KeinKontra;
     // the declarer's cards stay hidden from the defender's view.
     let ouvert = Announcement {
@@ -361,6 +340,213 @@ fn grand_null_and_ouvert_get_honest_exclusions_without_hidden_cards() {
     let view = current(&g);
     assert_eq!(view.legal_actions, vec![Action::Re, Action::KeinRe]);
     assert_eq!(kontra_exclusion(&view), Some(KontraExclusion::Ouvert));
+    assert!(kontra_lesson(&view).is_none());
+}
+
+// Grand and Null (#155). Grand: only the four Buben are Trumpf, so a
+// defender holds at most four and Easy's five-Trumpf Kontra never holds.
+// Null: no Trumpf; Easy never says Kontra and its strength is 0, so it never
+// says Re. The Null threshold asks whether the generic rule applies at all.
+
+/// Grand/Null threshold: Grand checks the count condition; Null checks rule
+/// applicability only and rejects any strength or count comparison.
+fn checks_null(l: &KontraLesson, factor: i32) {
+    assert!(!l.applies());
+    for f in [1, 2, 4, 8] {
+        assert_eq!(l.check(Step::Orient, Answer::Factor(f)), f == factor);
+    }
+    assert!(l.check(Step::Threshold, Answer::Applies(false)));
+    assert!(!l.check(Step::Threshold, Answer::Applies(true)));
+    for w in [true, false] {
+        assert!(!l.check(Step::Threshold, Answer::Within(w)));
+    }
+    assert!(!l.check(Step::Orient, Answer::Applies(false)));
+}
+
+const GRAND: GameType = GameType::Grand;
+const NULL: GameType = GameType::Null;
+/// VH with all four Buben: CJ SJ HJ DJ + SA ST S9 DA D7 D8.
+const VH_FOUR: &str = "CJ SJ HJ DJ SA ST S9 DA D7 D8";
+/// VH without a Bube and a single Ace: CA C7 C8 S7 S8 S9 H7 H8 H9 D7.
+const VH_ZERO: &str = "CA C7 C8 S7 S8 S9 H7 H8 H9 D7";
+const HH_GRAND: &str = "HA HT HK HQ CT C9 SK SQ DK DQ";
+
+#[test]
+fn grand_kontra_with_four_and_zero_buben_declines_with_easys_exact_card() {
+    // Four Buben = all Grand Trumpf, 4 < 5. Leading as a defender, Easy leads
+    // the side master with most Augen, the last on a tie in core legal order:
+    // SA and DA (11 Augen each) → DA. Zero Buben: the only side master is CA.
+    for (vh, count, expected) in [(VH_FOUR, 4, "DA"), (VH_ZERO, 0, "CA")] {
+        let g = hand(GRAND, deal_vh(vh, HH_GRAND, "D9 DT"));
+        let view = current(&g);
+        assert_eq!(view.seat, Seat::Vorhand);
+        assert!(view.legal_actions.contains(&Action::Kontra));
+        all_free(&g, &view);
+        let l = kontra_lesson(&view).expect("Grand Kontra opportunity");
+        assert_eq!(kontra_exclusion(&view), None);
+        let r = &l.rule;
+        assert_eq!(
+            (r.call, r.game, r.level),
+            (KontraCall::Kontra, GRAND, KontraLevel::None)
+        );
+        assert_eq!((r.count, r.threshold, r.wants), (count, 5, false));
+        assert!(l.applies() && !r.null && !r.ouvert && !r.fallback && r.skat.is_empty());
+        let rule = r.card.as_ref().expect("declining card rule");
+        assert_eq!(
+            (rule.card, rule.branch),
+            (card(expected), Branch::LeadMaster)
+        );
+        assert_eq!(r.action, Action::Play(card(expected)));
+        // The same card as Easy's legal card path with Kontra unavailable.
+        let mut plain = view.clone();
+        plain.legal_actions.retain(|a| *a != Action::Kontra);
+        assert_eq!(skat_analysis::baseline::play(&plain), r.action);
+        assert_eq!(skat_analysis::baseline::play(&view), r.action);
+        assert_eq!(l.factor(), 2);
+        checks(&l, 2, false);
+        assert!(!l.check(Step::Threshold, Answer::Applies(false)));
+        assert_eq!(r.legal, view.legal_actions);
+    }
+}
+
+#[test]
+fn null_kontra_never_applies_easys_rule_yet_kontra_stays_free() {
+    // Null has no Trumpf. Leading, Easy plays its lowest card: Augen first,
+    // then the fewest cards beaten in the suit → C7 (S9, H9 beat two).
+    let vh = "C7 CA SA ST S9 H9 DA CJ SJ HJ";
+    let g = hand(NULL, deal_vh(vh, HH_GRAND, "D9 DT"));
+    let view = current(&g);
+    assert!(view.legal_actions.contains(&Action::Kontra));
+    all_free(&g, &view);
+    let l = kontra_lesson(&view).expect("Null Kontra opportunity");
+    let r = &l.rule;
+    assert_eq!((r.call, r.game), (KontraCall::Kontra, NULL));
+    assert!(r.null && !r.wants && !r.fallback);
+    let rule = r.card.as_ref().expect("declining card rule");
+    assert_eq!((rule.card, rule.branch), (card("C7"), Branch::Null));
+    assert_eq!(r.action, Action::Play(card("C7")));
+    checks_null(&l, 2);
+    // Kontra itself is accepted by the core and observed as the reply.
+    let mut taken = g.clone();
+    taken.apply(Action::Kontra).unwrap();
+    assert_eq!(taken.kontra(), KontraLevel::Kontra);
+    assert_eq!(l.awaits(Action::Kontra), Some(KontraAwait::Reply));
+}
+
+/// HH declarer of `game`, `after` (Hand or pickup); VH says Kontra; HH answers.
+fn re_in(game: GameType, deal: Deal, after: &[Action]) -> (Game, KontraLesson) {
+    let mut g = play_phase(deal, ON, after, Announcement::plain(game));
+    g.apply(Action::Kontra).unwrap();
+    let view = current(&g);
+    assert_eq!(view.seat, Seat::Hinterhand);
+    assert_eq!(view.legal_actions, vec![Action::Re, Action::KeinRe]);
+    all_free(&g, &view);
+    let l = kontra_lesson(&view).expect("immediate Re reply");
+    assert_eq!(
+        (l.rule.call, l.rule.level, l.rule.game),
+        (KontraCall::Re, KontraLevel::Kontra, game)
+    );
+    assert_eq!(l.factor(), 4);
+    assert!(!l.rule.fallback && l.rule.card.is_none());
+    (g, l)
+}
+
+/// Grand Hand cards, counted by hand: CJ 18 + DJ 14 = 32; Kreuz {CA} 10;
+/// Pik {SA ST S7} 10 + 6; Herz {HA HT} 10 + 6; Karo {DA DT} 10 + 6 → 90.
+const GRAND_90: &str = "CJ DJ CA SA ST S7 HA HT DA DT";
+/// SJ instead of HA: Buben 46; Kreuz 10; Pik 16; Herz {HT} alone 1;
+/// Karo 16 → 89.
+const GRAND_89: &str = "CJ SJ DJ CA SA ST S7 HT DA DT";
+
+#[test]
+fn grand_hand_re_straddles_the_strength_threshold() {
+    let (_, l) = re_in(GRAND, deal_hh_vh(GRAND_90, "D9 D8"), &[Action::Hand]);
+    let r = &l.rule;
+    assert!(r.hand_game && r.skat.is_empty() && l.applies());
+    assert_eq!(
+        (r.count, r.threshold, r.wants, r.action),
+        (90, 90, true, Action::Re)
+    );
+    checks(&l, 4, true);
+    let (_, l) = re_in(GRAND, deal_hh_vh(GRAND_89, "D9 D8"), &[Action::Hand]);
+    let r = &l.rule;
+    assert_eq!((r.count, r.wants, r.action), (89, false, Action::KeinRe));
+    checks(&l, 4, false);
+    // Unknown Hand Skat and unseen hands: a Skat holding HA or the missing
+    // Bube would raise the count if it were counted; it is not.
+    let base = deal_hh_vh(GRAND_89, "D9 D8");
+    let (_, expected) = re_in(GRAND, base, &[Action::Hand]);
+    for (a, b) in [(card("D9"), card("HA")), (card("D8"), card("HJ"))] {
+        let (_, l) = re_in(GRAND, swap(base, a, b), &[Action::Hand]);
+        assert_eq!(l, expected, "{a:?} {b:?}");
+    }
+}
+
+#[test]
+fn grand_pickup_known_discard_decides_re() {
+    // Held after the discard: CJ 18 + SJ 14; Kreuz {CA CT} 16; Herz
+    // {HA HT H9} 16; Karo {DA DQ} 10; Pik {S8} 0 → 74, below 90 alone.
+    // Discard SA ST: Pik {S8 SA ST} 10 + 6 → 90 → Re.
+    let held = cards("CJ SJ CA CT HA HT H9 DA DQ S8");
+    let (g, l) = re_in(
+        GRAND,
+        deal_hh_vh("CJ SJ CA CT HA HT DA DQ SA ST", "H9 S8"),
+        &[Action::TakeSkat, Action::Discard(cards("SA ST"))],
+    );
+    assert_eq!(current(&g).hand, held);
+    let r = &l.rule;
+    assert!(!r.hand_game);
+    assert_eq!(r.skat, cards("SA ST"));
+    assert_eq!((r.count, r.wants, r.action), (90, true, Action::Re));
+    checks(&l, 4, true);
+    // Discard HJ ST instead: HJ 14; Pik {S8 ST} Ten alone with one card 1 →
+    // 89 → KeinRe.
+    let (g, l) = re_in(
+        GRAND,
+        deal_hh_vh("CJ SJ CA CT HA HT DA DQ HJ ST", "H9 S8"),
+        &[Action::TakeSkat, Action::Discard(cards("HJ ST"))],
+    );
+    assert_eq!(current(&g).hand, held);
+    assert_eq!(
+        (l.rule.skat, l.rule.count, l.rule.wants),
+        (cards("HJ ST"), 89, false)
+    );
+    assert_eq!(l.rule.action, Action::KeinRe);
+    // Unseen defender cards do not change the lesson.
+    let base = deal_hh_vh("CJ SJ CA CT HA HT DA DQ HJ ST", "H9 S8");
+    let rest: Vec<Card> = base.hand(Seat::Vorhand).iter().take(2).collect();
+    let mh = base.hand(Seat::Mittelhand).iter().next().unwrap();
+    let (_, swapped) = re_in(
+        GRAND,
+        swap(base, rest[0], mh),
+        &[Action::TakeSkat, Action::Discard(cards("HJ ST"))],
+    );
+    assert_eq!(swapped, l);
+}
+
+#[test]
+fn null_re_never_applies_easys_rule_whatever_the_cards() {
+    // The same 90-strength Grand cards as Null declarer: Null has no Trumpf
+    // and no strength score, so Easy answers KeinRe; Re stays free.
+    for (after, hh, skat) in [
+        (vec![Action::Hand], GRAND_90, "D9 D8"),
+        (
+            vec![Action::TakeSkat, Action::Discard(cards("SA ST"))],
+            "CJ SJ CA CT HA HT DA DQ SA ST",
+            "H9 S8",
+        ),
+    ] {
+        let (g, l) = re_in(NULL, deal_hh_vh(hh, skat), &after);
+        let r = &l.rule;
+        assert!(r.null && !r.wants);
+        assert_eq!(r.action, Action::KeinRe);
+        checks_null(&l, 4);
+        let mut taken = g.clone();
+        taken.apply(Action::Re).unwrap();
+        assert_eq!(taken.kontra(), KontraLevel::Re);
+        assert_eq!(l.awaits(Action::Re), Some(KontraAwait::Resumed));
+        assert_eq!(l.awaits(Action::KeinRe), Some(KontraAwait::Resumed));
+    }
 }
 
 #[test]
@@ -398,6 +584,20 @@ fn restricted_or_inconsistent_views_fall_back_honestly() {
         ..view.clone()
     };
     assert_eq!(kontra_exclusion(&v), Some(KontraExclusion::Restricted));
+    // Grand and Null: the same restricted lists and inconsistent roles.
+    for game in [GameType::Grand, GameType::Null] {
+        let view = current(&hand(game, deal_vh(&vh("H9"), HH, "D8 D9")));
+        let v = PlayerView {
+            legal_actions: vec![Action::Kontra],
+            ..view.clone()
+        };
+        assert_eq!(kontra_exclusion(&v), Some(KontraExclusion::Restricted));
+        let v = PlayerView {
+            declarer: Some(view.seat),
+            ..view.clone()
+        };
+        assert_eq!(kontra_exclusion(&v), Some(KontraExclusion::Restricted));
+    }
     // No turn: no legal actions, no lesson and no exclusion.
     let waiting = g.view(Seat::Mittelhand);
     assert!(kontra_lesson(&waiting).is_none() && kontra_exclusion(&waiting).is_none());

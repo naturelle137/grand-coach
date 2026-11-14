@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 //! Bounded guided Farbspiel, Reizen, Skataufnahme, Drücken, Ansage and
-//! Farbspiel Kontra/Re lessons. Exact rule provenance, never search ranking.
+//! non-Ouvert Kontra/Re lessons. Exact rule provenance, never search ranking.
 
 use crate::Source;
 pub use skat_analysis::baseline::{Branch, CardRule, KontraCall, KontraRule};
@@ -27,7 +27,8 @@ pub enum Step {
     /// Skataufnahme: does the strength reach Easy's Hand threshold?
     /// Drücken: name a card Easy puts away first.
     /// Ansage: does the preferred game's value reach the public bid?
-    /// Kontra/Re: does the own count reach Easy's condition?
+    /// Kontra/Re: does the own count reach Easy's condition (Farbspiel,
+    /// Grand), or does the generic rule apply at all (Null)?
     Threshold,
     /// Deliberately revealed worked answer; play any legal card.
     Act,
@@ -60,6 +61,9 @@ pub enum Answer {
     Within(bool),
     /// Kontra/Re orientation: factor on the game points after the call.
     Factor(i32),
+    /// Kontra/Re threshold in Null: Easy's Trumpf/strength rule supplies an
+    /// assessment of this contract. Never a strength comparison.
+    Applies(bool),
     /// Skataufnahme/Drücken/Ansage orientation: which branch builds the candidate game.
     Game(GameBranch),
 }
@@ -260,8 +264,8 @@ impl PreLesson {
     }
 }
 
-/// A non-Ouvert Farbspiel Kontra or immediate Re lesson from Easy's shared
-/// rule. Never passed to the frontend before disclosure.
+/// A non-Ouvert Farbspiel, Grand or Null Kontra or immediate Re lesson from
+/// Easy's shared rule. Never passed to the frontend before disclosure.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct KontraLesson {
@@ -279,16 +283,11 @@ pub enum KontraExclusion {
     OuvertRound,
     /// An Ouvert contract after the reveal.
     Ouvert,
-    /// Grand: not taught by this lesson.
-    Grand,
-    /// Null: Easy never says Kontra; not taught by this lesson.
-    Null,
     /// Absent contract or a restricted/inconsistent permitted view.
     Restricted,
 }
 
-/// Only a core-offered Kontra at a non-Ouvert Farbspiel card turn or the
-/// declarer's immediate Re reply. Uses the own cards, the own known Skat and
+/// Only a core-offered Kontra at a non-Ouvert card turn or the declarer's immediate Re reply. Uses the own cards, the own known Skat and
 /// public facts only; restricted or inconsistent views get no lesson.
 pub fn kontra_lesson(view: &PlayerView) -> Option<KontraLesson> {
     kontra_support(view).ok()
@@ -309,11 +308,8 @@ fn kontra_support(view: &PlayerView) -> Result<KontraLesson, KontraExclusion> {
         return Err(KontraExclusion::OuvertRound);
     }
     let contract = view.contract.ok_or(KontraExclusion::Restricted)?;
-    match contract.game {
-        _ if contract.ouvert => return Err(KontraExclusion::Ouvert),
-        GameType::Grand => return Err(KontraExclusion::Grand),
-        GameType::Null => return Err(KontraExclusion::Null),
-        GameType::Farbe(_) => (),
+    if contract.ouvert {
+        return Err(KontraExclusion::Ouvert);
     }
     let rule = baseline::kontra_rule(view).ok_or(KontraExclusion::Restricted)?;
     let declarer = view.declarer.ok_or(KontraExclusion::Restricted)?;
@@ -339,12 +335,20 @@ impl KontraLesson {
         }
     }
 
-    /// Orientation asks for the factor after the call (public rule fact); the
-    /// threshold answer is whether Easy's condition holds.
+    /// Whether Easy's generic Trumpf/strength rule assesses this contract:
+    /// not in Null, which has no Trumpf and no strength score.
+    pub fn applies(&self) -> bool {
+        !self.rule.null
+    }
+
+    /// Orientation asks for the factor after the call (public rule fact). The
+    /// threshold answer is whether Easy's condition holds (Farbspiel, Grand)
+    /// or, in Null, whether the generic rule applies at all.
     pub fn check(&self, step: Step, answer: Answer) -> bool {
         match (step, answer) {
             (Step::Orient, Answer::Factor(f)) => f == self.factor(),
-            (Step::Threshold, Answer::Within(w)) => w == self.rule.wants,
+            (Step::Threshold, Answer::Within(w)) if self.applies() => w == self.rule.wants,
+            (Step::Threshold, Answer::Applies(a)) if !self.applies() => a == self.applies(),
             _ => false,
         }
     }
