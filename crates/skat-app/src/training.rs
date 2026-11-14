@@ -16,6 +16,8 @@
 //! (fixture and version) as their opportunity identity. Fixed fixtures and
 //! retries are practice, never new transfer or mastery.
 
+mod validation;
+pub use validation::*;
 mod focus;
 pub use focus::*;
 

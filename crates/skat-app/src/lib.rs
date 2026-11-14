@@ -124,5 +124,6 @@ pub use guided::{
 };
 
 pub use training::{
-    FocusAction, FocusAnswer, FocusCommand, FocusEntry, FocusTask, FocusView, focus_expected,
+    FocusAction, FocusAnswer, FocusCommand, FocusEntry, FocusTask, FocusView, PriorExposure,
+    ValidationCounts, ValidationEvidence, ValidationResponse, ValidationSummary, focus_expected,
 };

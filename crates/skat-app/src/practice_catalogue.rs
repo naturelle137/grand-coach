@@ -734,8 +734,19 @@ mod tests {
             .find(|&s| s != viewer && s != target)
             .unwrap();
         let mut pool = all.hands[target.index()] | all.hands[other.index()] | all.skat;
-        let led = if case.index == 6 {
-            Card::new(Kreuz, Ass)
+        let overtake = matches!(
+            d.question,
+            PracticeQuestion::Consequence {
+                kind: MechanismKind::Overtake,
+                ..
+            }
+        );
+        let led = if let PracticeQuestion::Consequence {
+            action: Action::Play(card),
+            kind: MechanismKind::Abstich,
+        } = d.question
+        {
+            card
         } else {
             game.view(viewer).current_trick.led().unwrap()
         };
@@ -751,7 +762,7 @@ mod tests {
                     // Exclude Trumpf for the negative witness; always exclude
                     // the led side class for either overtaking witness.
                     (trumping || !d.game.trumps().contains(c))
-                        && (case.index < 9 || d.game.follow(c) != d.game.follow(led))
+                        && (!overtake || d.game.follow(c) != d.game.follow(led))
                 })
                 .take(all.hands[target.index()].len() - required.len())
                 .collect::<CardSet>();
@@ -811,8 +822,17 @@ mod tests {
             (7, vec![Hinterhand]),
             (9, vec![Hinterhand]),
             (10, vec![Mittelhand]),
+            (14, vec![Mittelhand, Hinterhand]),
+            (15, vec![Hinterhand]),
         ] {
-            let case = PRACTICE_CASES[index];
+            let case = PracticeCase { index: index as u8 };
+            let overtake = matches!(
+                case.position().unwrap().question(),
+                PracticeQuestion::Consequence {
+                    kind: MechanismKind::Overtake,
+                    ..
+                }
+            );
             let PracticeQuestion::Consequence { action, .. } = case.position().unwrap().question()
             else {
                 unreachable!()
@@ -820,11 +840,11 @@ mod tests {
             for target in targets {
                 let actual = case.definition().unwrap().replay(case.seed()).unwrap();
                 assert!(
-                    can_complete(actual, action, target, index >= 9),
+                    can_complete(actual, action, target, overtake),
                     "positive witness {}",
                     case.id()
                 );
-                if index >= 9 {
+                if overtake {
                     assert!(
                         can_complete(hidden_witness(case, target, true), action, target, true),
                         "separate core-legal trumping witness {}",
@@ -836,7 +856,7 @@ mod tests {
                         hidden_witness(case, target, false),
                         action,
                         target,
-                        index >= 9
+                        overtake
                     ),
                     "negative witness {}",
                     case.id()

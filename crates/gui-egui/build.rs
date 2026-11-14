@@ -7,6 +7,17 @@ use std::fmt::Write;
 use std::path::Path;
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=GRAND_COACH_BUILD_COMMIT");
+    let build = std::env::var("GRAND_COACH_BUILD_COMMIT").unwrap_or_else(|_| {
+        std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| format!("development:{}", String::from_utf8_lossy(&o.stdout).trim()))
+            .unwrap_or_else(|| "unknown-development-build".into())
+    });
+    println!("cargo:rustc-env=GRAND_COACH_BUILD_COMMIT={build}");
     embed("cards", "CARD_FILES", "card_files.rs");
     embed("portraits", "PORTRAIT_FILES", "portrait_files.rs");
 }

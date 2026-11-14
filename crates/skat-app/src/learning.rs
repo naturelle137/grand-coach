@@ -23,7 +23,8 @@
 //! migrated in memory: counter, attempts, events and their order are kept
 //! exactly, their events stay unversioned and their wrong answers keep an
 //! unknown deviation; format 4 additionally holds typed catalogue transitions
-//! and conservative persisted exposure. The next save writes version 4.
+//! and conservative persisted exposure. Format 5 adds reserved validation
+//! metadata and explicit unclear/stop outcomes; the next save writes version 5.
 //!
 //! Response categories ([`ResponseCategory`]) describe only the observed
 //! counting response against the recorded exact count. They never name a
@@ -39,12 +40,12 @@ use skat_analysis::counting::QuestionKind;
 use crate::quiz::{LessonRevision, OpportunityId, RetrievalAction, RetrievalEvent};
 
 /// Format version of the learning history written by this build. Versions
-/// 1 (series and practice only) and 2 (without provenance) are read and
+/// 1 (series and practice only), 2 (without provenance), 3 and 4 are read and
 /// migrated; see [`LEARNING_FORMATS_READ`].
-pub const LEARNING_FORMAT: u32 = 4;
+pub const LEARNING_FORMAT: u32 = 5;
 
-/// Format versions this build reads: 1, 2, 3 (migrated) and 4.
-pub const LEARNING_FORMATS_READ: [u32; 4] = [1, 2, 3, LEARNING_FORMAT];
+/// Format versions this build reads: 1, 2, 3, 4 (migrated) and 5.
+pub const LEARNING_FORMATS_READ: [u32; 5] = [1, 2, 3, 4, LEARNING_FORMAT];
 
 /// Most events one history holds. Further events are refused, never
 /// replacing older ones; [`LearningSummary::full`] reports it.
@@ -373,7 +374,7 @@ impl LearningHistory {
     /// [`LearningError::InvalidProvenance`]. Format 1 knows no training:
     /// training content in it is [`LearningError::InvalidContext`].
     pub(crate) fn validate(&mut self) -> Result<(), LearningError> {
-        if self.format < LEARNING_FORMAT && (!self.focus.is_empty() || self.exposure_complete) {
+        if self.format < 4 && (!self.focus.is_empty() || self.exposure_complete) {
             return Err(LearningError::InvalidProvenance);
         }
         match self.format {
@@ -404,7 +405,10 @@ impl LearningHistory {
                 }
                 self.format = LEARNING_FORMAT;
             }
-            3 => {
+            3 | 4 => {
+                if self.focus.iter().any(|e| e.validation.is_some()) {
+                    return Err(LearningError::InvalidProvenance);
+                }
                 self.exposure_complete = false;
                 self.format = LEARNING_FORMAT;
             }

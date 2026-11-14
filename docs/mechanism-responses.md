@@ -6,7 +6,7 @@ Only explicit catalogue answers to conditional Abstich or partner Overtake
 questions are classified. Shared analysis proves possible (some permitted
 hidden distributions), certain (all), or absent for a supported legal
 catalogue question. Empty arbitrary analysis output is not evidence of absence.
-The format 4 question, task/version, expected answer and feedback are validated
+The focus-entry question, task/version, expected answer and feedback are validated
 when recorded or reopened. No evaluator or additional storage is introduced.
 The six current mechanism tasks have possible or absent expected answers;
 certain is supported by shared analysis and the complete classifier matrix,

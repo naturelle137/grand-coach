@@ -27,6 +27,11 @@ pub(crate) struct TrainingUi {
     /// Number chosen for the answer.
     value: u8,
     focus_error: bool,
+    validation_chooser: bool,
+    validation_demo: bool,
+    prior_exposure: skat_app::PriorExposure,
+    own_words: String,
+    clarity: String,
     /// Learning-history attempt of the current presentation.
     attempt: Option<AttemptId>,
     presented: Option<(TrainingFixture, u32)>,
@@ -64,6 +69,16 @@ impl TrainingUi {
             .as_ref()
             .filter(|s| s.focus_view().is_none())
             .map(TrainingSession::view)
+    }
+
+    /// Gallery-only shared form on an ordinary public task, never a reserved view.
+    pub(crate) fn preview_validation_controls(&mut self) {
+        if self
+            .focus_view()
+            .is_some_and(|v| v.entry.validation.is_none())
+        {
+            self.validation_demo = true;
+        }
     }
 
     pub(crate) fn focus_view(&self) -> Option<skat_app::FocusView> {
@@ -127,6 +142,17 @@ impl TrainingUi {
                     };
                     ui.label(RichText::new(banner).strong().color(BANNER_TEXT));
                     if ui.button(i.t("training-return")).clicked() {
+                        if let Some(v) = &focus
+                            && v.entry.validation.is_some()
+                            && !v.settled
+                            && !self.focus_error
+                        {
+                            let command =
+                                self.validation_submission(skat_app::ValidationResponse::Stop);
+                            if let Some(session) = &mut self.session {
+                                self.focus_error = !learning.run_focus(session, command);
+                            }
+                        }
                         request = Some(TrainingRequest::Exit);
                     }
                     if ui.button(i.t("learning-open")).clicked() {
@@ -139,13 +165,23 @@ impl TrainingUi {
         egui::CentralPanel::default().show(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 if let Some(v) = &focus {
+                    if self.focus_error && v.entry.validation.is_some() {
+                        ui.label(i.t("validation-save-stop"));
+                        return;
+                    }
                     if let Some(command) = self.focus_task(ui, i, deck, v)
                         && let Some(session) = &mut self.session
                     {
+                        let old = session.focus_view().map(|v| v.entry.attempt);
                         self.focus_error = !learning.run_focus(session, command);
+                        if old != session.focus_view().map(|v| v.entry.attempt) {
+                            self.prior_exposure = skat_app::PriorExposure::Unknown;
+                            self.own_words.clear();
+                            self.clarity.clear();
+                        }
                         self.value = 0;
                     }
-                    if ui.button(i.t("focus-topics")).clicked() {
+                    if v.entry.validation.is_none() && ui.button(i.t("focus-topics")).clicked() {
                         self.session = None;
                     }
                     if self.focus_error {
@@ -155,6 +191,39 @@ impl TrainingUi {
                 }
                 match &view {
                     None => {
+                        if self.validation_chooser {
+                            ui.heading(i.t("validation-title"));
+                            ui.label(i.t("validation-intro"));
+                            ui.label(i.tf(
+                                "validation-build",
+                                &[("build", env!("GRAND_COACH_BUILD_COMMIT").into())],
+                            ));
+                            for (set, key) in [
+                                (
+                                    skat_app::practice_catalogue::ValidationSet::Initial,
+                                    "validation-initial",
+                                ),
+                                (
+                                    skat_app::practice_catalogue::ValidationSet::Delayed,
+                                    "validation-delayed",
+                                ),
+                            ] {
+                                if ui.button(i.t(key)).clicked() {
+                                    self.session = learning.start_validation(set);
+                                    self.focus_error = self.session.is_none();
+                                    self.prior_exposure = skat_app::PriorExposure::Unknown;
+                                    self.own_words.clear();
+                                    self.clarity.clear();
+                                }
+                            }
+                            if self.focus_error {
+                                ui.label(i.t("validation-save-stop"));
+                            }
+                            if ui.button(i.t("focus-topics")).clicked() {
+                                self.validation_chooser = false;
+                            }
+                            return;
+                        }
                         for family in FAMILIES {
                             if ui.button(i.t(family_message(family))).clicked() {
                                 self.session = learning.start_focus(family, self.assistance);
@@ -165,6 +234,9 @@ impl TrainingUi {
                             ui.label(i.t("focus-unavailable"));
                         }
                         ui.label(i.t("focus-limits"));
+                        if ui.button(i.t("validation-entry")).clicked() {
+                            self.validation_chooser = true;
+                        }
                         ui.separator();
                         if let Some(topic) = self.chooser(ui, i) {
                             self.start(topic, learning);
@@ -504,12 +576,36 @@ impl TrainingUi {
     ) -> Option<FocusCommand> {
         let mut command = None;
         ui.heading(i.t(family_message(v.family)));
-        ui.label(i.tf("focus-position", &[("number", v.number.into())]));
-        ui.label(i.t(if v.entry.eligible && !v.entry.assisted {
-            "focus-unseen"
-        } else {
-            "focus-practice"
-        }));
+        if self.validation_demo {
+            ui.label(i.t("validation-demo"));
+        }
+        ui.label(i.tf(
+            if v.entry.validation.is_some() {
+                "validation-position"
+            } else {
+                "focus-position"
+            },
+            &[("number", v.number.into())],
+        ));
+        if let Some(data) = &v.entry.validation {
+            ui.heading(i.t("validation-title"));
+            ui.label(format!("{}@{}", v.entry.task.id, v.entry.task.version));
+            ui.label(i.tf("validation-build", &[("build", data.build.clone().into())]));
+            ui.label(i.t("validation-exposure-note"));
+        }
+        ui.label(i.t(
+            if v.entry.validation.is_some() && v.entry.eligible && !v.entry.assisted {
+                "validation-first"
+            } else if v.entry.validation.is_none() && v.entry.eligible && !v.entry.assisted {
+                "focus-unseen"
+            } else {
+                "focus-practice"
+            },
+        ));
+        if v.entry.validation.is_some() && matches!(v.entry.action, FocusAction::Stopped) {
+            ui.label(i.t("validation-stopped"));
+            return None;
+        }
         let position = &v.position;
         if let Some(contract) = position.contract {
             ui.label(i.tf(
@@ -682,15 +778,62 @@ impl TrainingUi {
         if v.entry.assisted {
             ui.label(i.t("training-was-assisted"));
         }
+        if (v.entry.validation.is_some() || self.validation_demo) && !v.settled {
+            ui.separator();
+            if !self.validation_demo && ui.button(i.t("validation-unexpected-aid")).clicked() {
+                command =
+                    Some(self.validation_submission(skat_app::ValidationResponse::UnexpectedAid));
+            }
+            ui.label(i.t("validation-prior"));
+            ui.horizontal_wrapped(|ui| {
+                for (value, key) in [
+                    (skat_app::PriorExposure::None, "validation-none"),
+                    (skat_app::PriorExposure::Seen, "validation-seen"),
+                    (skat_app::PriorExposure::Unknown, "validation-unknown"),
+                ] {
+                    ui.radio_value(&mut self.prior_exposure, value, i.t(key));
+                }
+            });
+            let label = ui.label(i.t("validation-own-words"));
+            ui.add(
+                egui::TextEdit::multiline(&mut self.own_words)
+                    .char_limit(1024)
+                    .desired_rows(2)
+                    .hint_text(i.t("validation-own-words")),
+            )
+            .labelled_by(label.id);
+            let label = ui.label(i.t("validation-clarity"));
+            ui.add(
+                egui::TextEdit::multiline(&mut self.clarity)
+                    .char_limit(1024)
+                    .desired_rows(2)
+                    .hint_text(i.t("validation-clarity")),
+            )
+            .labelled_by(label.id);
+            if ui
+                .add_enabled(
+                    !self.validation_demo,
+                    egui::Button::new(i.t("validation-unclear")),
+                )
+                .clicked()
+            {
+                command = Some(self.validation_submission(skat_app::ValidationResponse::Unclear));
+            }
+        }
         if v.settled {
             ui.horizontal_wrapped(|ui| {
                 if ui.button(i.t("training-retry")).clicked() {
                     command = Some(FocusCommand::Retry);
                 }
-                if ui.button(i.t("training-next")).clicked() {
+                if (v.entry.validation.is_none() || v.number < 4)
+                    && ui.button(i.t("training-next")).clicked()
+                {
                     command = Some(FocusCommand::Next);
                 }
             });
+            if v.entry.validation.is_some() && v.number == 4 {
+                ui.label(i.t("validation-complete"));
+            }
         } else {
             let mut level = v.entry.assistance;
             ui.horizontal_wrapped(|ui| {
@@ -739,8 +882,35 @@ impl TrainingUi {
                 }
             });
         }
+        if v.entry.validation.is_some() {
+            command = command.map(|c| match c {
+                FocusCommand::Answer(answer) => {
+                    self.validation_submission(skat_app::ValidationResponse::Answer(answer))
+                }
+                FocusCommand::Skip => {
+                    self.validation_submission(skat_app::ValidationResponse::Skip)
+                }
+                other => other,
+            });
+        }
         command
     }
+
+    fn validation_submission(&self, response: skat_app::ValidationResponse) -> FocusCommand {
+        FocusCommand::SubmitValidation {
+            response,
+            exposure: self.prior_exposure,
+            own_words: self.own_words.clone(),
+            clarity: self.clarity.clone(),
+            submitted_at: unix_time(),
+        }
+    }
+}
+
+pub(crate) fn unix_time() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
 }
 
 const FOCUS_LEVELS: [(AssistanceLevel, &str); 3] = [

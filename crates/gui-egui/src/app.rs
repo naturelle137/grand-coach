@@ -264,6 +264,12 @@ impl GrandCoachApp {
         self.training.active()
     }
 
+    /// Preview the validation form with the current *public* practice task.
+    /// Gallery diagnostics must never expose the reserved validation positions.
+    pub fn preview_validation_controls(&mut self) {
+        self.training.preview_validation_controls();
+    }
+
     /// The running catalogue task (tests and diagnostics).
     pub fn focus_view(&self) -> Option<skat_app::FocusView> {
         self.training.focus_view()

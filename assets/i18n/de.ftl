@@ -907,3 +907,29 @@ mechanism-recent = Neueste 10 Abschlüsse: beschreibender Vergleich, kein Nachwe
 
 mechanism-training = Katalogtraining
 mechanism-training-repeat = Katalogtraining, wiederholte Aufgabe
+
+# Reserved learner validation. No task answers or reserved position previews.
+validation-entry = Lernvalidierung vorbereiten
+validation-title = Lernvalidierung · Protokoll 1
+validation-intro = Vier reservierte Aufgaben pro Sitzung. Hilfe, Wiederholungen und Vorbekanntheit werden getrennt erfasst. Überspringen, unklar und Beenden sind jederzeit erlaubt. Stoppe bei Speicherfehlern, falscher Version, fehlerhafter Stellung oder vorzeitig sichtbarer Antwort. Die Folgesitzung ist nach 7–14 Kalendertagen geplant; der tatsächliche Abstand wird aufgezeichnet.
+validation-build = Build: { $build }
+validation-initial = Anfangssitzung bewusst starten
+validation-delayed = Folgesitzung bewusst starten
+validation-prior = Hast du genau diese Stellung schon gesehen, auch außerhalb dieser App?
+validation-none = Noch nie gesehen
+validation-seen = Schon gesehen
+validation-unknown = Unbekannt
+validation-own-words = Eigene Worte (freiwillig)
+validation-clarity = Verständlichkeit / unklare Begriffe (freiwillig)
+validation-unclear = Aufgabe unklar
+validation-save-stop = Validierung gestoppt: Die Aufgabe kann nicht zuverlässig dauerhaft gespeichert werden. Kehre zurück und melde den Fehler. Keine neue Aufgabe öffnen.
+validation-exposure-note = Ein lokaler Verlauf beweist keine externe Neuheit. Unbekannte, fehlende, migrierte oder zurückgesetzte Daten begründen keine neue ungestützte Leistung. Eigene Worte und Verständlichkeit werden getrennt bewertet; dies ist kein Nachweis von Beherrschung oder Lernwirkung.
+validation-complete = Diese vier Aufgaben sind abgeschlossen. Kehre zur Partie zurück. Ein weiterer Versuch ist nur Übung.
+validation-counts = Aufgaben: { $opportunities }; Antworten: { $answers }; gewertet: { $scored }; richtig: { $correct }; falsch: { $wrong }; nicht unterstützt: { $unsupported }; übersprungen: { $skip }; unklar: { $unclear }; ohne Antwort: { $unanswered }.
+validation-support-counts = Aufgaben mit Hilfe: { $help }; mit Unterstützung: { $assisted }; Wiederholungen: { $repeat }; Vorbekanntheit unbekannt: { $unknown }; erste ungestützte gewertete Antworten mit gemeldeter Neuheit: { $eligible }, davon richtig: { $correct }.
+validation-interval = Tatsächlicher Abstand zwischen erstem Anfangs- und Folgetermin: { $seconds } Sekunden. Beide UTC-Zeitstempel stehen im lokalen Verlauf. Das bestätigt keine Einhaltung des geplanten Kalenderabstands.
+validation-demo = Demonstration mit öffentlicher Übungsaufgabe – keine reservierte Stellung, kein Lernergebnis.
+validation-unexpected-aid = Unerwartete weitere Hilfe gesehen – Sitzung stoppen
+validation-stopped = Sitzung ohne Antwort beendet. Bitte zur Partie zurückkehren und den Grund lokal notieren. Nach unerwarteter Hilfe erst nach technischer Klärung fortsetzen.
+validation-position = Aufgabe { $number } von 4
+validation-first = Erste erfasste Präsentation. Nur die erste ungestützte gewertete Antwort mit ausdrücklich gemeldeter fehlender Vorbekanntheit kann berücksichtigt werden. Ein lokaler Verlauf allein belegt keine Neuheit.

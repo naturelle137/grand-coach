@@ -5,9 +5,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{TrainingMode, TrainingSession};
+use super::{PriorExposure, TrainingMode, TrainingSession, ValidationEvidence, ValidationResponse};
 use crate::AssistanceLevel;
 use crate::learning::{AttemptId, AttemptKind, LearningError, LearningHistory};
+use crate::practice_catalogue::RESERVED_CASES;
 use crate::practice_catalogue::{
     CaseRole, Certainty, Mechanism, PRACTICE_CASES, PracticeCase, PracticeFamily, PracticeFeedback,
     PracticePosition, PracticeQuestion,
@@ -67,6 +68,10 @@ pub enum FocusAction {
     },
     /// Skipped tasks reveal feedback and remain practice on subsequent visits.
     Skip(PracticeFeedback),
+    /// Explicit learner report, distinct from skip and unsupported.
+    Unclear,
+    /// Explicit session end without an answer.
+    Stopped,
 }
 
 /// One history entry. The opportunity is (attempt, task ID, task version).
@@ -87,6 +92,9 @@ pub struct FocusEntry {
     /// Eligibility checked before recording this presentation's exposure.
     /// This is only app-local unseen eligibility, never learning efficacy.
     pub eligible: bool,
+    /// Preregistered private evidence; absent for ordinary practice.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validation: Option<ValidationEvidence>,
 }
 
 impl FocusEntry {
@@ -112,13 +120,32 @@ impl FocusEntry {
 
     /// Correct, unaided response to an app-local previously unseen changed task.
     pub fn unseen_correct(&self) -> bool {
-        self.eligible && !self.assisted && self.correct() == Some(true)
+        self.eligible
+            && !self.assisted
+            && self.correct() == Some(true)
+            && self
+                .validation
+                .as_ref()
+                .is_none_or(|v| v.prior_exposure == PriorExposure::None)
     }
 }
 
 /// Commands for catalogue mode, reusing the training's lifecycle.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FocusCommand {
+    /// Reserved submission with explicit private learner evidence.
+    SubmitValidation {
+        /// Answer, skip, unclear or stop, kept distinct.
+        response: ValidationResponse,
+        /// Learner's external exposure report.
+        exposure: PriorExposure,
+        /// Own words, verbatim, not scored as strategy.
+        own_words: String,
+        /// Clarity, verbatim and separate from correctness.
+        clarity: String,
+        /// Actual response time, UTC Unix seconds.
+        submitted_at: u64,
+    },
     /// Submit a count or mechanism judgement.
     Answer(FocusAnswer),
     /// Reveal shared-analysis help.
@@ -241,6 +268,23 @@ impl LearningHistory {
         if position.question() != entry.question {
             return Err(LearningError::InvalidProvenance);
         }
+        let reserved = RESERVED_CASES.contains(&case);
+        if reserved != entry.validation.is_some() {
+            return Err(LearningError::InvalidProvenance);
+        }
+        if let Some(evidence) = &entry.validation
+            && (!evidence.valid()
+                || (evidence.external_aid
+                    && (!entry.assisted || !matches!(entry.action, FocusAction::Stopped)))
+                || !evidence.set.cases().contains(&case)
+                || (entry.tag() == 2) != evidence.submitted_at.is_some()
+                || (entry.tag() != 2
+                    && (evidence.prior_exposure != PriorExposure::Unknown
+                        || !evidence.own_words.is_empty()
+                        || !evidence.clarity.is_empty())))
+        {
+            return Err(LearningError::InvalidProvenance);
+        }
         let valid = match &entry.action {
             FocusAction::Answer {
                 given,
@@ -255,6 +299,7 @@ impl LearningHistory {
             FocusAction::Skip(feedback) => entry.assisted && *feedback == position.feedback(),
             FocusAction::Help => entry.assisted,
             FocusAction::Presented => true,
+            FocusAction::Unclear | FocusAction::Stopped => reserved,
         };
         if !valid || (entry.assistance == AssistanceLevel::VisibleAid && !entry.assisted) {
             return Err(LearningError::InvalidProvenance);
@@ -271,8 +316,16 @@ impl LearningHistory {
         let mut exposed = HashSet::new();
         let mut presented = std::collections::HashMap::new();
         let mut tasks = std::collections::HashMap::new();
+        let mut validation = std::collections::HashMap::new();
         for e in &self.focus {
             self.check_focus(e)?;
+            if let Some(v) = &e.validation {
+                let prior = validation.entry(e.attempt).or_insert(v);
+                if prior.set != v.set || prior.build != v.build || prior.started_at != v.started_at
+                {
+                    return Err(LearningError::InvalidProvenance);
+                }
+            }
             if tasks
                 .insert(e.attempt, &e.task)
                 .is_some_and(|task| task != &e.task)
@@ -314,12 +367,21 @@ impl FocusSession {
         assistance: AssistanceLevel,
         history: &mut LearningHistory,
         reliable: bool,
+        validation: Option<ValidationEvidence>,
     ) -> Result<Self, LearningError> {
-        let case = PRACTICE_CASES
-            .into_iter()
-            .filter(|c| c.family() == Some(family))
-            .nth(index)
-            .ok_or(LearningError::InvalidProvenance)?;
+        let case = if let Some(evidence) = &validation {
+            *evidence
+                .set
+                .cases()
+                .get(index)
+                .ok_or(LearningError::InvalidProvenance)?
+        } else {
+            PRACTICE_CASES
+                .into_iter()
+                .filter(|c| c.family() == Some(family))
+                .nth(index)
+                .ok_or(LearningError::InvalidProvenance)?
+        };
         let task = FocusTask::of(case);
         let eligible = reliable && case.role() == CaseRole::Changed && history.focus_unseen(&task);
         let position = case
@@ -339,14 +401,16 @@ impl FocusSession {
             question: position.question(),
             action: FocusAction::Presented,
             assistance,
-            assisted: assistance == AssistanceLevel::VisibleAid,
+            assisted: assistance == AssistanceLevel::VisibleAid
+                || (validation.is_some() && presentation > 1),
             eligible,
+            validation,
         };
         history.record_focus(&entry)?;
         Ok(Self {
             family,
             index,
-            revealed: entry.assisted,
+            revealed: assistance == AssistanceLevel::VisibleAid,
             entry,
             position,
             settled: false,
@@ -355,6 +419,29 @@ impl FocusSession {
 }
 
 impl TrainingSession {
+    /// Deliberate validation entry. Same reconstruction, session and history;
+    /// reserved positions never enter the ordinary family chooser.
+    pub fn validation(
+        evidence: ValidationEvidence,
+        history: &mut LearningHistory,
+        reliable: bool,
+    ) -> Result<Self, LearningError> {
+        if !reliable || !evidence.valid() || evidence.submitted_at.is_some() {
+            return Err(LearningError::InvalidProvenance);
+        }
+        let focus = FocusSession::present(
+            crate::practice_catalogue::PracticeFamily::RemainingTrumpf,
+            0,
+            AssistanceLevel::AnswerBeforeReveal,
+            history,
+            reliable,
+            Some(evidence),
+        )?;
+        Ok(Self {
+            mode: TrainingMode::Catalogue(focus),
+        })
+    }
+
     /// Enter catalogue mode. Record exposure before giving any task to a frontend.
     /// `reliable` requires a working persistent history, not an in-memory fallback.
     pub fn catalogue(
@@ -363,7 +450,7 @@ impl TrainingSession {
         history: &mut LearningHistory,
         reliable: bool,
     ) -> Result<Self, LearningError> {
-        let focus = FocusSession::present(family, 0, assistance, history, reliable)?;
+        let focus = FocusSession::present(family, 0, assistance, history, reliable, None)?;
         Ok(Self {
             mode: TrainingMode::Catalogue(focus),
         })
@@ -377,9 +464,14 @@ impl TrainingSession {
         Some(FocusView {
             entry: s.entry.clone(),
             position: s.position.view().clone(),
-            family: s.family,
+            family: s
+                .entry
+                .task
+                .resolve()
+                .and_then(|c| c.family())
+                .unwrap_or(s.family),
             number: s.index + 1,
-            feedback: (s.revealed || s.settled).then(|| s.position.feedback()),
+            feedback: s.revealed.then(|| s.position.feedback()),
             settled: s.settled,
         })
     }
@@ -409,17 +501,89 @@ impl TrainingSession {
         let TrainingMode::Catalogue(s) = &mut self.mode else {
             return Err(LearningError::InvalidContext);
         };
+        let mut report = None;
+        let command = if let FocusCommand::SubmitValidation {
+            response,
+            exposure,
+            own_words,
+            clarity,
+            submitted_at,
+        } = command
+        {
+            let mut evidence = s
+                .entry
+                .validation
+                .clone()
+                .ok_or(LearningError::InvalidContext)?;
+            evidence.prior_exposure = exposure;
+            evidence.external_aid = response == ValidationResponse::UnexpectedAid;
+            evidence.own_words = own_words;
+            evidence.clarity = clarity;
+            evidence.submitted_at = Some(submitted_at);
+            if !evidence.valid() {
+                return Err(LearningError::InvalidProvenance);
+            }
+            report = Some(evidence);
+            match response {
+                ValidationResponse::Answer(answer) => FocusCommand::Answer(answer),
+                ValidationResponse::Skip => FocusCommand::Skip,
+                ValidationResponse::Unclear
+                | ValidationResponse::Stop
+                | ValidationResponse::UnexpectedAid => {
+                    if s.settled {
+                        return Err(LearningError::InvalidContext);
+                    }
+                    let mut entry = s.entry.clone();
+                    entry.assisted |= report.as_ref().is_some_and(|v| v.external_aid);
+                    entry.validation = report;
+                    entry.action = if response == ValidationResponse::Unclear {
+                        FocusAction::Unclear
+                    } else {
+                        FocusAction::Stopped
+                    };
+                    history.record_focus(&entry)?;
+                    s.entry = entry;
+                    s.settled = true;
+                    return Ok(());
+                }
+            }
+        } else {
+            if s.entry.validation.is_some()
+                && matches!(command, FocusCommand::Answer(_) | FocusCommand::Skip)
+            {
+                return Err(LearningError::InvalidContext);
+            }
+            command
+        };
         match command {
             FocusCommand::Retry | FocusCommand::Next => {
-                if !s.settled {
+                if !s.settled
+                    || (s.entry.validation.is_some()
+                        && matches!(s.entry.action, FocusAction::Stopped))
+                {
                     return Err(LearningError::InvalidContext);
                 }
                 let index = if command == FocusCommand::Next {
-                    (s.index + 1) % 3
+                    if s.entry.validation.is_some() {
+                        s.index + 1
+                    } else {
+                        (s.index + 1) % 3
+                    }
                 } else {
                     s.index
                 };
-                *s = FocusSession::present(s.family, index, s.entry.assistance, history, reliable)?;
+                let validation = s.entry.validation.as_ref().map(ValidationEvidence::next);
+                if validation.is_some() && index >= 4 {
+                    return Err(LearningError::InvalidContext);
+                }
+                *s = FocusSession::present(
+                    s.family,
+                    index,
+                    s.entry.assistance,
+                    history,
+                    reliable,
+                    validation,
+                )?;
                 return Ok(());
             }
             FocusCommand::Assistance(level) => {
@@ -432,6 +596,9 @@ impl TrainingSession {
             _ => {}
         }
         let mut entry = s.entry.clone();
+        if let Some(report) = report {
+            entry.validation = Some(report);
+        }
         match command {
             FocusCommand::Help | FocusCommand::Assistance(_) => {
                 if s.revealed {

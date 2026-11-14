@@ -2,7 +2,7 @@
 
 //! Real de/en widgets: four families, feedback concealment, persisted exposure,
 //! sticky help, retry/next/exit and an unchanged normal game/series.
-use eframe::egui::Role;
+use eframe::egui::{self, Role};
 use egui_kittest::{Harness, kittest::Queryable};
 use gui_egui::{GrandCoachApp, Language};
 use skat_app::{FocusAction, LearningHistory, Level, Opponents, SessionConfig};
@@ -230,4 +230,150 @@ fn failed_atomic_save_withholds_the_next_position_until_it_is_durable() {
     assert_eq!(after.number, 1);
     assert!(!after.entry.eligible);
     h.get_by_label("Position or history unavailable; no reliable score or novelty credit.");
+}
+
+// No screenshots or debug dumps of reserved task views. These are simulated
+// technical input events, never human UAT records.
+fn validation_widgets(language: Language) {
+    let en = language == Language::En;
+    let t = |de, english| if en { english } else { de };
+    let dir = Temp::new();
+    LearningHistory::new().save_local(dir.file()).unwrap();
+    let mut h = app(dir.file(), language);
+    h.set_size(egui::vec2(1600.0, 1800.0));
+    h.run_steps(3);
+    let live = h.state().live_session().view();
+    button(
+        &mut h,
+        t("Lernvalidierung vorbereiten", "Prepare learner validation"),
+    );
+    assert!(
+        h.state().focus_view().is_none(),
+        "entry chooser cannot expose reserved views"
+    );
+    button(
+        &mut h,
+        t(
+            "Anfangssitzung bewusst starten",
+            "Deliberately start initial session",
+        ),
+    );
+    assert!(h.state().focus_view().unwrap().feedback.is_none());
+    h.get_by_label(t("Aufgabe 1 von 4", "Task 1 of 4"));
+    h.get_by_role_and_label(
+        Role::RadioButton,
+        t("Noch nie gesehen", "Never seen before"),
+    )
+    .click();
+    h.run_steps(2);
+    let words = t("Eigene Worte (freiwillig)", "Own words (optional)");
+    h.get_by_role_and_label(Role::MultilineTextInput, words)
+        .focus();
+    h.run_steps(1);
+    h.get_by_role_and_label(Role::MultilineTextInput, words)
+        .type_text("My unedited observation");
+    h.run_steps(2);
+    button(&mut h, "+ 1");
+    button(&mut h, "+ 1");
+    button(&mut h, t("Antworten", "Answer"));
+    assert_eq!(h.state().focus_view().unwrap().entry.correct(), Some(true));
+    let stored = LearningHistory::open_local(dir.file()).unwrap();
+    assert_eq!(
+        stored
+            .focus_entries()
+            .last()
+            .unwrap()
+            .validation
+            .as_ref()
+            .unwrap()
+            .own_words,
+        "My unedited observation"
+    );
+    button(&mut h, t("Noch einmal", "Try again"));
+    assert!(h.state().focus_view().unwrap().entry.assisted);
+    button(&mut h, t("Hilfe einblenden", "Show help"));
+    assert!(h.state().focus_view().unwrap().feedback.is_some());
+    button(&mut h, t("Aufgabe unklar", "Task unclear"));
+    button(&mut h, t("Nächste Stellung", "Next position"));
+    assert!(h.state().focus_view().unwrap().feedback.is_none());
+    button(&mut h, t("Überspringen", "Skip"));
+    button(&mut h, t("Nächste Stellung", "Next position"));
+    button(&mut h, t("Zurück zur Partie", "Back to the game"));
+    assert_eq!(h.state().live_session().view(), live);
+    let counts = LearningHistory::open_local(dir.file())
+        .unwrap()
+        .validation_summary()
+        .counts;
+    assert_eq!(counts.opportunities, 4);
+    assert_eq!(counts.answers, 1);
+    assert_eq!(counts.unclear, 1);
+    assert_eq!(counts.skipped, 1);
+    assert_eq!(counts.unanswered, 1);
+    assert_eq!(counts.help, 1);
+    assert_eq!(counts.repeats, 1);
+    assert_eq!(counts.eligible_correct, 1);
+}
+
+#[test]
+fn reserved_validation_widgets_de() {
+    validation_widgets(Language::De);
+}
+#[test]
+fn reserved_validation_widgets_en() {
+    validation_widgets(Language::En);
+}
+
+#[test]
+fn validation_failed_save_blocks_feedback_and_advancement() {
+    let dir = Temp::new();
+    LearningHistory::new().save_local(dir.file()).unwrap();
+    let mut h = app(dir.file(), Language::En);
+    h.set_size(egui::vec2(1600.0, 1800.0));
+    h.run_steps(3);
+    button(&mut h, "Prepare learner validation");
+    button(&mut h, "Deliberately start initial session");
+    let before = h.state().focus_view().unwrap().entry.attempt;
+    let backup = dir.0.join("retained.json");
+    fs::rename(dir.file(), &backup).unwrap();
+    fs::create_dir(dir.file()).unwrap();
+    button(&mut h, "Answer");
+    assert_eq!(h.state().focus_view().unwrap().entry.attempt, before);
+    assert!(h.state().focus_view().unwrap().feedback.is_none());
+    assert!(h.state().focus_view().unwrap().entry.correct().is_none());
+    assert!(!h.state().focus_view().unwrap().entry.eligible);
+    h.get_by_label("Validation stopped: this task cannot be reliably saved to durable storage. Return and report the failure. Do not open another task.");
+    assert_eq!(
+        LearningHistory::open_local(backup)
+            .unwrap()
+            .focus_entries()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn unexpected_aid_widget_records_assistance_and_stops_without_feedback() {
+    let dir = Temp::new();
+    LearningHistory::new().save_local(dir.file()).unwrap();
+    let mut h = app(dir.file(), Language::En);
+    h.set_size(egui::vec2(1600.0, 1800.0));
+    h.run_steps(3);
+    button(&mut h, "Prepare learner validation");
+    button(&mut h, "Deliberately start initial session");
+    button(&mut h, "Unexpected additional aid seen – stop session");
+    let view = h.state().focus_view().unwrap();
+    assert!(view.feedback.is_none());
+    assert!(view.entry.assisted);
+    assert!(matches!(view.entry.action, FocusAction::Stopped));
+    let persisted = LearningHistory::open_local(dir.file()).unwrap();
+    assert!(
+        persisted
+            .focus_entries()
+            .last()
+            .unwrap()
+            .validation
+            .as_ref()
+            .unwrap()
+            .external_aid
+    );
 }
