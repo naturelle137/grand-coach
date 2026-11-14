@@ -58,7 +58,7 @@ exposure (including unanswered presentations), sticky assistance and supported
 responses. Only an app-local unseen changed case with an unaided response is
 eligible for that descriptive label; missing, migrated, reset or unreadable
 history cannot establish novelty. Exposure outside this app file is unknown;
-these checks establish no learning efficacy or observed human transfer.
+these checks establish no learning efficacy or observed human transfer. The learning overview separates [explicit mechanism-response patterns](mechanism-responses.md) from numeric counting answers, with task/context samples and descriptive earlier/recent windows; it does not diagnose ordinary-game strategy.
 The [roadmap](roadmap.md)
 covers the next steps from guided play to independent practice.
 

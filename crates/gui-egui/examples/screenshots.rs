@@ -100,6 +100,11 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("recording-en", recording_en),
     ("recording-error", recording_error),
     ("recording-error-en", recording_error_en),
+    ("mechanism-responses", mechanism_responses),
+    ("mechanism-responses-en", mechanism_responses_en),
+    ("mechanism-trends", mechanism_trends),
+    ("mechanism-trends-en", mechanism_trends_en),
+    ("mechanism-trends-narrow", mechanism_trends_narrow),
     ("learning-empty", learning_empty),
     ("learning-empty-en", learning_empty_en),
     ("learning-history", learning_history),
@@ -420,7 +425,11 @@ fn learning_history_en(h: &mut Harness<'_, GrandCoachApp>) {
 /// The confirmation step before deleting the history.
 fn learning_reset(h: &mut Harness<'_, GrandCoachApp>) {
     learning_history(h);
+    h.get_by_role_and_label(Role::Button, "Lernverlauf zurücksetzen …")
+        .scroll_to_me();
+    h.run_steps(4);
     click(h, Role::Button, "Lernverlauf zurücksetzen …");
+    h.get_by_label("Den gesamten Lernverlauf endgültig löschen? Spiele, Aufnahmen und Punkte bleiben unberührt.");
 }
 
 /// A format 2 file as the PR #137 build wrote it: a wrong and an exact
@@ -2296,4 +2305,67 @@ fn focus_void(h: &mut Harness<'_, GrandCoachApp>) {
 fn focus_void_en(h: &mut Harness<'_, GrandCoachApp>) {
     focus_void(h);
     english(h);
+}
+
+/// Explicit conditional responses in the real learning overview (#13).
+fn mechanism_history(h: &mut Harness<'_, GrandCoachApp>, trends: bool) {
+    use skat_app::practice_catalogue::PracticeFamily as F;
+    use skat_app::{
+        AssistanceLevel, FocusAnswer as R, FocusCommand as C, LearningHistory, TrainingSession,
+    };
+    let mut history = LearningHistory::new();
+    let mut s = TrainingSession::catalogue(
+        F::SideCardVulnerability,
+        AssistanceLevel::AnswerBeforeReveal,
+        &mut history,
+        true,
+    )
+    .unwrap();
+    s.execute_focus(C::Answer(R::Certain), &mut history, true)
+        .unwrap();
+    if trends {
+        for n in 0..20 {
+            s.execute_focus(C::Retry, &mut history, true).unwrap();
+            s.execute_focus(
+                C::Answer(if n < 10 { R::Certain } else { R::Possible }),
+                &mut history,
+                true,
+            )
+            .unwrap();
+        }
+    } else {
+        s.execute_focus(C::Next, &mut history, true).unwrap();
+        s.execute_focus(C::Help, &mut history, true).unwrap();
+        s.execute_focus(C::Answer(R::Absent), &mut history, true)
+            .unwrap();
+        s.execute_focus(C::Next, &mut history, true).unwrap(); // unanswered boundary
+    }
+    let file = learning_file(h, "mechanism-responses", None);
+    history.save_local(&file).unwrap();
+    h.state_mut().use_learning_file(file);
+    open_learning(h);
+    h.get_by_label("Mechanismus-Antworten: beobachtete Muster")
+        .scroll_to_me();
+    h.run_steps(4);
+}
+fn mechanism_responses(h: &mut Harness<'_, GrandCoachApp>) {
+    mechanism_history(h, false);
+}
+fn mechanism_responses_en(h: &mut Harness<'_, GrandCoachApp>) {
+    mechanism_responses(h);
+    english(h);
+}
+fn mechanism_trends(h: &mut Harness<'_, GrandCoachApp>) {
+    mechanism_history(h, true);
+}
+fn mechanism_trends_en(h: &mut Harness<'_, GrandCoachApp>) {
+    mechanism_trends(h);
+    english(h);
+}
+
+fn mechanism_trends_narrow(h: &mut Harness<'_, GrandCoachApp>) {
+    mechanism_trends(h);
+    h.get_by_label("Frühere 10 Abschlüsse dieser Aufgabe im selben Kontext")
+        .scroll_to_me();
+    h.run_steps(4);
 }

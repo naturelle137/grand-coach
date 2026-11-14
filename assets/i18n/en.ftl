@@ -715,7 +715,7 @@ learning-open = Learning history …
 learning-title = Learning history
 learning-memory-only = Not saved: no data folder is available, so this history only lasts until the app closes.
 learning-file = Saved locally in: { $path }
-learning-retention = Kept on this computer across restarts until you reset it. Contains counting-question events only, no cards or games.
+learning-retention = Kept on this computer across restarts until you reset it. Contains counting events and bounded catalogue response evidence, no full deals or recordings.
 learning-damaged-kept = The file { $path } was left unchanged. New events are kept only until the app closes and are not saved, so nothing in the file is overwritten.
 learning-set-aside = Rename damaged file and start a new history
 learning-set-aside-done = The previous file was kept as { $path }.
@@ -809,7 +809,7 @@ learning-provenance-unversioned = Saved before versions were stored: { $count } 
 learning-family-quiz = In-game counting quiz
 learning-family-focused = In-game focused counting
 learning-family-training = Counting training
-learning-strategic-separate = Only counting answers are described here. Card play and other decisions are not classified in this history.
+learning-strategic-separate = This section describes counting answers only. Mechanism responses are separate; played-card decisions are not classified.
 
 ## Opponent figures (D-72): names of both pools, shown in their language
 
@@ -885,3 +885,25 @@ focus-unseen-correct = First in this file, correct without help
 focus-history-row = Attempt { $attempt } · { $task } v{ $version } · { $result } · { $support } · { $exposure }
 focus-visible = Analysis visible
 focus-request = Think first, reveal on request
+
+mechanism-title = Mechanism responses: observed patterns
+mechanism-limits = Conditional Abstich / partner overtaking answers only. No strategic mastery or inferred thoughts. Ordinary games and same-deal practice have no such observations. Counting stays separate; outside-app exposure is unknown.
+mechanism-empty = No mechanism responses presented in this history.
+mechanism-abstich = Conditional Abstich
+mechanism-overtake = Partner overtaking
+mechanism-first = First app-local presentation
+mechanism-repeat = Repeated app-local practice
+mechanism-exposure-unknown = Earlier exposure unknown
+mechanism-assisted = Help available
+mechanism-unaided = Without help
+mechanism-eligible = App-local unseen changed case
+mechanism-practice = Practice; no unseen-case eligibility
+mechanism-denominators = Presented { $presented } · answered { $answered } · scored { $scored } · skipped { $skipped } · unknown { $unknown }
+mechanism-patterns = Correct { $correct } · certainty overstated { $overstated } · possibility denied { $denied } · false presence { $false } · certainty understated { $understated }
+mechanism-unscored = Unanswered { $unanswered } · unsupported answers { $unsupported }
+mechanism-sparse = Fewer than 20 settled observations in this exact task/context: no comparison yet.
+mechanism-earlier = Earlier 10 settlements in this task/context
+mechanism-recent = Recent 10 settlements: descriptive comparison, no learning-effect claim
+
+mechanism-training = Catalogue training
+mechanism-training-repeat = Catalogue training, repeated task

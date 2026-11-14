@@ -28,7 +28,8 @@
 //! Response categories ([`ResponseCategory`]) describe only the observed
 //! counting response against the recorded exact count. They never name a
 //! reason, a strategic mistake, mastery or transfer; strategic decision
-//! classification is not part of this history yet.
+//! classification is not part of this history. Explicit catalogue mechanism
+//! answers have a separate derived `mechanism_responses` summary (D-74).
 
 use std::collections::{HashMap, HashSet};
 

@@ -209,8 +209,8 @@ fn history_is_recorded_shown_retained_and_reset_in_both_languages() {
             "Answers by observed result",
         ));
         h.get_by_label_contains(t(
-            "Kartenspiel und andere Entscheidungen werden in diesem Verlauf nicht eingeordnet",
-            "Card play and other decisions are not classified in this history",
+            "Mechanismus-Antworten stehen getrennt; gespielte Karten werden nicht eingeordnet",
+            "Mechanism responses are separate; played-card decisions are not classified",
         ));
         // One row per observed topic in the series context, in the counts
         // grid and again in the answer grid where something was settled.
@@ -427,5 +427,156 @@ fn a_sparse_history_shows_no_windows() {
         );
         // Reading a format 2 file does not rewrite it.
         assert_eq!(fs::read_to_string(&file).unwrap(), FORMAT_2);
+    }
+}
+
+#[test]
+fn bilingual_mechanism_widgets_show_context_denominators_and_descriptive_windows() {
+    use skat_app::practice_catalogue::PracticeFamily as F;
+    use skat_app::{FocusAnswer as R, FocusCommand as C, TrainingSession};
+    for language in Language::ALL {
+        let en = language == Language::En;
+        let t = |de, english| if en { english } else { de };
+        let temp = Temp::new();
+        let file = temp.0.join("history.json");
+        let mut history = LearningHistory::new();
+        let mut s = TrainingSession::catalogue(
+            F::SideCardVulnerability,
+            AssistanceLevel::AnswerBeforeReveal,
+            &mut history,
+            true,
+        )
+        .unwrap();
+        s.execute_focus(C::Answer(R::Possible), &mut history, true)
+            .unwrap();
+        for n in 0..20 {
+            s.execute_focus(C::Retry, &mut history, true).unwrap();
+            s.execute_focus(
+                C::Answer(if n < 10 { R::Certain } else { R::Possible }),
+                &mut history,
+                true,
+            )
+            .unwrap();
+        }
+        history.save_local(&file).unwrap();
+        let mut h = app(language, &file);
+        open_window(&mut h, en);
+        h.get_by_label(t(
+            "Mechanismus-Antworten: beobachtete Muster",
+            "Mechanism responses: observed patterns",
+        ));
+        assert_eq!(
+            h.query_all_by_label_contains(t(
+                "Katalogtraining, wiederholte Aufgabe",
+                "Catalogue training, repeated task"
+            ))
+            .count(),
+            1
+        );
+        assert_eq!(
+            h.query_all_by_label_contains(t(
+                "Wiederholtes Üben in dieser App-Datei",
+                "Repeated app-local practice"
+            ))
+            .count(),
+            1
+        );
+        h.get_by_label(t(
+            "Vorgelegt 20 · beantwortet 20 · gewertet 20 · übersprungen 0 · unbekannt 0",
+            "Presented 20 · answered 20 · scored 20 · skipped 0 · unknown 0",
+        ));
+        h.get_by_label(t(
+            "Frühere 10 Abschlüsse dieser Aufgabe im selben Kontext",
+            "Earlier 10 settlements in this task/context",
+        ));
+        h.get_by_label(t("Richtig 0 · Sicherheit übertrieben 10 · Möglichkeit verneint 0 · Vorliegen fälschlich behauptet 0 · Sicherheit unterschätzt 0", "Correct 0 · certainty overstated 10 · possibility denied 0 · false presence 0 · certainty understated 0"));
+        h.get_by_label(t("Richtig 10 · Sicherheit übertrieben 0 · Möglichkeit verneint 0 · Vorliegen fälschlich behauptet 0 · Sicherheit unterschätzt 0", "Correct 10 · certainty overstated 0 · possibility denied 0 · false presence 0 · certainty understated 0"));
+        assert_eq!(
+            h.state().learning_history().summary().responses,
+            Default::default()
+        );
+        assert_eq!(
+            LearningHistory::open_local(&file)
+                .unwrap()
+                .mechanism_responses(),
+            history.mechanism_responses()
+        );
+        // A visible summary was cached above. Confirmed reset must invalidate it.
+        let reset = t("Lernverlauf zurücksetzen …", "Reset learning history …");
+        h.get_by_role_and_label(Role::Button, reset).scroll_to_me();
+        h.run_steps(4);
+        button(&mut h, reset);
+        button(&mut h, t("Verlauf löschen", "Delete history"));
+        h.get_by_label(t(
+            "In diesem Verlauf wurden keine Mechanismus-Fragen vorgelegt.",
+            "No mechanism responses presented in this history.",
+        ));
+        assert!(
+            h.state()
+                .learning_history()
+                .mechanism_responses()
+                .is_empty()
+        );
+        assert!(
+            LearningHistory::open_local(&file)
+                .unwrap()
+                .mechanism_responses()
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn bilingual_mechanism_empty_unanswered_help_and_skip_widgets() {
+    use skat_app::practice_catalogue::PracticeFamily as F;
+    use skat_app::{FocusCommand as C, TrainingSession};
+    for language in Language::ALL {
+        let en = language == Language::En;
+        let t = |de, english| if en { english } else { de };
+        let temp = Temp::new();
+        let file = temp.0.join("history.json");
+        LearningHistory::new().save_local(&file).unwrap();
+        let mut h = app(language, &file);
+        open_window(&mut h, en);
+        h.get_by_label(t(
+            "In diesem Verlauf wurden keine Mechanismus-Fragen vorgelegt.",
+            "No mechanism responses presented in this history.",
+        ));
+        drop(h);
+        let mut history = LearningHistory::new();
+        let mut s = TrainingSession::catalogue(
+            F::PartnerOvertaking,
+            AssistanceLevel::VisibleAid,
+            &mut history,
+            true,
+        )
+        .unwrap();
+        s.execute_focus(C::Skip, &mut history, true).unwrap();
+        s.execute_focus(C::Next, &mut history, true).unwrap();
+        history.save_local(&file).unwrap();
+        let mut h = app(language, &file);
+        open_window(&mut h, en);
+        h.get_by_label(t(
+            "Vorgelegt 1 · beantwortet 0 · gewertet 0 · übersprungen 1 · unbekannt 0",
+            "Presented 1 · answered 0 · scored 0 · skipped 1 · unknown 0",
+        ));
+        h.get_by_label(t(
+            "Vorgelegt 1 · beantwortet 0 · gewertet 0 · übersprungen 0 · unbekannt 1",
+            "Presented 1 · answered 0 · scored 0 · skipped 0 · unknown 1",
+        ));
+        h.get_by_label(t(
+            "Unbeantwortet 1 · nicht auswertbare Antworten 0",
+            "Unanswered 1 · unsupported answers 0",
+        ));
+        assert!(
+            h.query_all_by_label_contains(t("Hilfe verfügbar", "Help available"))
+                .count()
+                >= 2
+        );
+        assert!(
+            h.query_all_by_label_contains(t("Weniger als 20", "Fewer than 20"))
+                .count()
+                >= 2
+        );
     }
 }

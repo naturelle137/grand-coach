@@ -715,7 +715,7 @@ learning-open = Lernverlauf …
 learning-title = Lernverlauf
 learning-memory-only = Nicht gespeichert: Es steht kein Datenordner zur Verfügung, daher gilt dieser Verlauf nur bis zum Schließen.
 learning-file = Lokal gespeichert in: { $path }
-learning-retention = Bleibt auf diesem Computer über Neustarts erhalten, bis du ihn zurücksetzt. Enthält nur Ereignisse der Zählfragen, keine Karten oder Spiele.
+learning-retention = Bleibt auf diesem Computer über Neustarts erhalten, bis du ihn zurücksetzt. Enthält Zählereignisse und begrenzte Belege zu Katalogantworten, keine vollständigen Verteilungen oder Aufzeichnungen.
 learning-damaged-kept = Die Datei { $path } bleibt unverändert. Neue Ereignisse gelten nur bis zum Schließen und werden nicht gespeichert, damit nichts in der Datei überschrieben wird.
 learning-set-aside = Beschädigte Datei umbenennen und neuen Verlauf beginnen
 learning-set-aside-done = Die bisherige Datei wurde als { $path } aufbewahrt.
@@ -809,7 +809,7 @@ learning-provenance-unversioned = Gespeichert, bevor Versionen erfasst wurden: {
 learning-family-quiz = Zählfragen im Spiel
 learning-family-focused = Gezieltes Zählen im Spiel
 learning-family-training = Zähltraining
-learning-strategic-separate = Hier werden nur Zählantworten beschrieben. Kartenspiel und andere Entscheidungen werden in diesem Verlauf nicht eingeordnet.
+learning-strategic-separate = Dieser Abschnitt beschreibt nur Zählantworten. Mechanismus-Antworten stehen getrennt; gespielte Karten werden nicht eingeordnet.
 
 ## Opponent figures (D-72): names of both pools, shown in their language
 
@@ -885,3 +885,25 @@ focus-unseen-correct = Erstmalig in dieser Datei, richtig ohne Hilfe
 focus-history-row = Versuch { $attempt } · { $task } v{ $version } · { $result } · { $support } · { $exposure }
 focus-visible = Analyse sichtbar
 focus-request = Erst überlegen, auf Wunsch aufdecken
+
+mechanism-title = Mechanismus-Antworten: beobachtete Muster
+mechanism-limits = Nur Antworten zu bedingtem Abstich / Übernehmen des Partners. Keine strategische Beherrschung oder vermuteten Gedanken. Normale Spiele und Üben derselben Verteilung haben keine solchen Beobachtungen. Zählantworten bleiben getrennt; Kontakte außerhalb der App sind unbekannt.
+mechanism-empty = In diesem Verlauf wurden keine Mechanismus-Fragen vorgelegt.
+mechanism-abstich = Bedingter Abstich
+mechanism-overtake = Übernehmen des Partners
+mechanism-first = Erste Vorlage in dieser App-Datei
+mechanism-repeat = Wiederholtes Üben in dieser App-Datei
+mechanism-exposure-unknown = Frühere Kontakte unbekannt
+mechanism-assisted = Hilfe verfügbar
+mechanism-unaided = Ohne Hilfe
+mechanism-eligible = In der App zuvor ungesehener geänderter Fall
+mechanism-practice = Übung; kein Nachweis eines ungesehenen Falls
+mechanism-denominators = Vorgelegt { $presented } · beantwortet { $answered } · gewertet { $scored } · übersprungen { $skipped } · unbekannt { $unknown }
+mechanism-patterns = Richtig { $correct } · Sicherheit übertrieben { $overstated } · Möglichkeit verneint { $denied } · Vorliegen fälschlich behauptet { $false } · Sicherheit unterschätzt { $understated }
+mechanism-unscored = Unbeantwortet { $unanswered } · nicht auswertbare Antworten { $unsupported }
+mechanism-sparse = Weniger als 20 abgeschlossene Beobachtungen dieser Aufgabe im selben Kontext: noch kein Vergleich.
+mechanism-earlier = Frühere 10 Abschlüsse dieser Aufgabe im selben Kontext
+mechanism-recent = Neueste 10 Abschlüsse: beschreibender Vergleich, kein Nachweis eines Lerneffekts
+
+mechanism-training = Katalogtraining
+mechanism-training-repeat = Katalogtraining, wiederholte Aufgabe
