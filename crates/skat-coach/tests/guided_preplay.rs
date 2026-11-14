@@ -14,17 +14,8 @@
 #[allow(dead_code)]
 mod support;
 use skat_coach::guided::*;
-use skat_core::{Action, Card, CardSet, Deal, Game, GameType, Phase, RuleConfig, Seat, Suit};
+use skat_core::{Action, CardSet, Deal, Game, GameType, Phase, RuleConfig, Seat, Suit};
 use support::*;
-
-/// HH holds `hh`, the Skat `skat`; VH and MH get the rest in card order.
-fn deal_hh(hh: &str, skat: &str) -> Deal {
-    let (hh, skat) = (cards(hh), cards(skat));
-    let rest: Vec<Card> = (CardSet::ALL - hh - skat).iter().collect();
-    let vh: CardSet = rest[..10].iter().copied().collect();
-    let mh: CardSet = rest[10..].iter().copied().collect();
-    Deal::new([vh, mh, hh], skat).unwrap()
-}
 
 /// HH wins the bidding at 18 (core-checked), then takes `after` actions.
 fn at(deal: Deal, after: &[Action]) -> (Game, PreLesson) {

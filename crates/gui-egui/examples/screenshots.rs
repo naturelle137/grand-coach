@@ -103,6 +103,17 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("guided-bid-threshold-en", guided_bid_threshold_en),
     ("guided-bid-act-en", guided_bid_act_en),
     ("guided-bid-act-narrow", guided_bid_act),
+    ("guided-pickup-orient", guided_pickup_orient),
+    ("guided-pickup-threshold", guided_pickup_threshold),
+    ("guided-pickup-act", guided_pickup_act),
+    ("guided-pickup-orient-en", guided_pickup_orient_en),
+    ("guided-pickup-threshold-en", guided_pickup_threshold_en),
+    ("guided-pickup-act-en", guided_pickup_act_en),
+    ("guided-discard-threshold", guided_discard_threshold),
+    ("guided-discard-act", guided_discard_act),
+    ("guided-discard-threshold-en", guided_discard_threshold_en),
+    ("guided-discard-act-en", guided_discard_act_en),
+    ("guided-discard-act-narrow", guided_discard_act),
     ("launch", launch),
     ("recording", recording),
     ("recording-final", recording_final),
@@ -2289,6 +2300,67 @@ fn guided_bid_threshold_en(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn guided_bid_act_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_bid_in(h, Language::En, 2);
+}
+
+/// Skataufnahme/Drücken dialogue (#131): real entry, branch answer, reveal.
+fn guided_pre_in(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    phase: skat_app::Phase,
+    steps: u8,
+) {
+    let i = I18n::new(language);
+    guided_support::enter_preplay(h, language, phase);
+    if steps == 0 {
+        return;
+    }
+    // Try the branch buttons until the threshold question opens.
+    for key in [
+        "guided-pre-grand",
+        "guided-pre-suit",
+        "guided-pre-null",
+        "guided-pre-weak",
+    ] {
+        guided_support::click(h, &i.t(key));
+        let g = h.state().session().guided().unwrap();
+        if g.step == skat_app::GuidedStep::Threshold {
+            break;
+        }
+        guided_support::click(h, &i.t("guided-retry"));
+    }
+    if steps > 1 {
+        guided_support::click(h, &i.t("guided-reveal"));
+    }
+}
+fn guided_pickup_orient(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_pre_in(h, Language::De, skat_app::Phase::SkatAufnahme, 0);
+}
+fn guided_pickup_threshold(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_pre_in(h, Language::De, skat_app::Phase::SkatAufnahme, 1);
+}
+fn guided_pickup_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_pre_in(h, Language::De, skat_app::Phase::SkatAufnahme, 2);
+}
+fn guided_pickup_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_pre_in(h, Language::En, skat_app::Phase::SkatAufnahme, 0);
+}
+fn guided_pickup_threshold_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_pre_in(h, Language::En, skat_app::Phase::SkatAufnahme, 1);
+}
+fn guided_pickup_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_pre_in(h, Language::En, skat_app::Phase::SkatAufnahme, 2);
+}
+fn guided_discard_threshold(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_pre_in(h, Language::De, skat_app::Phase::Druecken, 1);
+}
+fn guided_discard_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_pre_in(h, Language::De, skat_app::Phase::Druecken, 2);
+}
+fn guided_discard_threshold_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_pre_in(h, Language::En, skat_app::Phase::Druecken, 1);
+}
+fn guided_discard_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_pre_in(h, Language::En, skat_app::Phase::Druecken, 2);
 }
 
 // Catalogue-mode scenarios use real widgets, including settlement before next.

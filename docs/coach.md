@@ -261,7 +261,7 @@ Farbspiel card play with at least two legal actions and a nonempty branch
 candidate set. The former follows a partner who is not a follow-class master
 with one seat still to play; Easy selects a losing card by nontrump, Augen,
 power, retaining the first exact tie. The latter wins in last seat by nontrump,
-power, retaining the first exact tie. Other branches, Grand, Null and pre-play decisions after Reizen
+power, retaining the first exact tie. Other branches, Grand, Null, Ansage and Kontra/Re
 report unsupported and return to free play. In particular, a side master is
 not safe against trumping: the early `FeedPartner` branch is excluded.
 
@@ -318,6 +318,26 @@ Spitzen. Null and Grand are named as such; their card play gets no dialogue.
 Memory and estimates are unavailable here. All legal calls stay on the table;
 any call, a new game, coach off or replay ends the dialogue, and old
 responses are rejected.
+
+### Guided Skataufnahme and Drücken (#131 phase 4)
+
+The same entry supports the declarer's Hand-or-pickup and discard decisions.
+Evidence is `skat_analysis::policy::pickup_rule` (actual Hand/TakeSkat,
+candidate game and `GameBranch`, strength for that game, Hand threshold 100)
+and `policy::discard_rule` (actual two cards, candidate game for the twelve
+cards, a `Keep` reason per discarded card, every card tied with Easy's second
+discard, fallback flag); Easy calls both. One prompt at a time: first which
+branch builds the candidate (Grand, suit game, Null, none); then, at pickup,
+whether the strength reaches the Hand threshold, or, at Drücken, one card Easy
+puts away first (a card tied with Easy's discard also counts). Prompts show the
+candidate game only after orientation and never the strength, the discard or
+the action. A correct attempt or deliberate reveal shows Easy's action, branch,
+strength comparison and count (pickup) or the keep order and per-card reason
+(Drücken), the disclosed fallback if Easy's action was not legal, and a caveat:
+a conditional rule of thumb from the own cards, the hidden Skat stays unknown,
+no promise to win. Both legal pickup actions and every legal discard stay free;
+any action ends the dialogue. Ansage, Kontra and Re report a phase-specific
+unsupported text. Memory and estimates are unavailable here.
 
 ## Focus and teachable moments (D-58)
 

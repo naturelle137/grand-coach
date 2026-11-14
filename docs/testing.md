@@ -413,6 +413,12 @@ re-enters with a fresh identity. The Reizen scenarios `guided-bid-orient`,
 `guided-bid-act-narrow`) enter the human's first bidding decision with the same
 seed through real widgets; the ignored bilingual `guided` Reizen widget test
 covers wrong/retry, reveal, a free alternative call and skip/re-entry.
+The scenarios `guided-pickup-orient`, `guided-pickup-threshold`,
+`guided-pickup-act`, `guided-discard-threshold`, `guided-discard-act` (plus
+`-en` variants and `guided-discard-act-narrow`) reach the human's Skataufnahme
+and Drücken by holding/bidding with the same seed; the ignored bilingual
+`guided` pre-play widget test covers hidden answers, skip/re-entry, retry,
+reveal and a free alternative Hand/pickup.
 These are technical checks, not learner UAT.
 
 ## Platform verification (M2)
