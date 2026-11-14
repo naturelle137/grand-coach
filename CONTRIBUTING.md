@@ -132,6 +132,26 @@ New Rust
 dependencies must have an [allowed licence](#allowed-third-party-licences)
 and be listed in [docs/third-party.md](docs/third-party.md).
 
+## Private reserved learner kit
+
+Technical agents prepare the [#54 preregistration](docs/validation54.md) from
+the exact clean source commit named by a verified native RC. Inside `skat-dev`,
+prepare a **new private directory**, never the public repo or `docs/uat`:
+
+```sh
+python3 -B scripts/validation54-kit.py --archive PATH --out NEW_PRIVATE_DIR
+python3 -B -m unittest discover -s scripts -p 'validation54_kit_test.py'
+```
+
+The builder verifies the package/source identity and immutable position hashes,
+installs the native payload, binds a blank record to its executable SHA and
+writes a launcher that opens confirmation only (`GRAND_COACH_VALIDATION=1`).
+The learner needs no developer tools. Existing records are never overwritten;
+a missing history stays exposure-incomplete. The key and reserved views are
+excluded from the learner kit. The terminal owner verifies actual launch and
+accepts/sends only finished learner-facing files. Human Initial/Delayed sessions
+and platform/release acceptance remain separate gates.
+
 ## Branching
 
 - `main` is the only long-lived branch.

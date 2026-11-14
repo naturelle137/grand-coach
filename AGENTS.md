@@ -123,6 +123,15 @@ For the Phase 2 seed audit, bounded pilot and HQ evaluation entrypoints,
 see [the evaluation protocol](docs/phase2-evaluation.md). Analysis regression
 fixtures run with `python3 -m unittest discover -s scripts/phase2 -p 'test_*.py'`.
 
+For the reserved #54 learner kit (technical agents only, from the exact clean
+source of a verified native RC), use
+`python3 -B scripts/validation54-kit.py --archive PATH --out NEW_PRIVATE_DIR`.
+It checks build/task hashes and refuses an existing destination. Run its
+failure fixtures with
+`python3 -B -m unittest discover -s scripts -p 'validation54_kit_test.py'`.
+See [the preregistration](docs/validation54.md) for private storage and withheld
+answers; actual learner responses must never be agent-filled.
+
 Run the docs-only gate with `scripts/check.sh full --base origin/main`.
 For focused link checks use `python3 scripts/markdown-links/check.py`; supported
 syntax and fixture commands are in [testing](docs/testing.md#offline-markdown-links).

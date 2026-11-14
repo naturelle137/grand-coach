@@ -160,6 +160,20 @@ new positions. No human efficacy/transfer claim follows. Retry, next, topic choi
 and return reuse the isolated training lifecycle; normal play waits unchanged.
 See [session behaviour and limitations](practice-catalogue.md#session-behaviour-and-conservative-exposure).
 
+### Reserved validation (D-75)
+
+From the training chooser, **Prepare learner validation** leads to a separate
+confirmation screen for Initial or Delayed. Each presents four reserved legal
+positions, one per family; ordinary family practice and galleries never show
+them. Feedback stays hidden until a bounded answer or requested help/skip.
+External prior exposure is explicitly none/seen/unknown; own words and clarity
+are optional verbatim fields. Unclear, skip and exit remain distinct. Help and
+retries are sticky practice; unexpected further aid records assistance and
+stops. Failed durable saving blocks further feedback/tasks. A separate private
+build-linked kit supplies German instructions, hashes and a blank local record.
+The [preregistration](validation54.md) and independent agent key precede human
+results. Neither technical tests nor local exposure prove learning efficacy.
+
 ### Learning history (D-70)
 
 **Game → Learning history …** shows what the local

@@ -400,6 +400,15 @@ mod tests {
                     "understated",
                     "unanswered",
                     "unsupported",
+                    "build",
+                    "opportunities",
+                    "answers",
+                    "wrong",
+                    "skip",
+                    "unclear",
+                    "help",
+                    "repeat",
+                    "seconds",
                 ] {
                     args.set(name, "x");
                 }

@@ -52,7 +52,7 @@ PRs and the focused references (architecture, analysis, AI, coach, testing).
 | D-67 | 2026-11-13 | Coaching a recorded decision is on demand, one human decision and one analysis at a time, through the shared `skat_coach::advise`/`review`. The default perspective is the human's historical permitted view before the action, sampled with a fixed seed derived only from that view. Hindsight (`advise_known` in the recorded deal) is a separate, deliberately requested and persistently labelled model comparison, never proof of a mistake. Replay jobs and results are their own types bound to the opened recording, request generation, decision, perspective, budget and seed; they never enter live coach, opponents or practice. Revealing cards for display never changes the perspective. [Replay comments](architecture.md#historical-and-hindsight-replay-comments-d-67). |
 | D-68 | 2026-11-13 | Open display is an independent series choice, `SessionConfig::display` (`TableDisplay::Closed` by default; serde default, a closed table is not serialised so format-1 recordings keep their bytes and older files read as closed). It only adds `TableView::open_cards`; opponents, seeds, scores and the live coach's analysis input are unchanged, and `TableView::coach_basis` stays `OwnView`. Only God Mode gives the coach the real deal (`RealDeal`) and always shows every card. Display data (`OpenCards`) and the coach's known deal come from separate session paths. Every session has a unique lineage, so results of replaced sessions, including God Mode, are stale. Practice keeps the recorded display. [Open display](architecture.md#open-display-d-68). |
 | D-69 | 2026-11-13 | Reviewing a whole recording is an explicit request for a completed recording only (in-progress files: unavailable). Each recorded human decision with a choice is analysed once, in game order and one at a time, as the historical D-67 job (permitted view before the action, view-derived seed, never hindsight); the unchanged shared `skat_coach::moments` (D-58) then selects zero to three moments with the learner's focus, which is no analysis input. Review jobs/results are their own types bound to opened recording, review generation, decision, budget and seed; results are cached per opened recording until the budget changes and reused only for that identity. Work is bounded by the coach budget per decision, 20 s per decision and 120 s in total; cancel and time limit keep the analysed decisions, and moments of a partial review are labelled as not covering the whole game. While it runs, no single comment starts. [Recording review](architecture.md#bounded-recording-review-d-69). |
-| D-70 | 2026-11-14 | One local versioned learning history in `skat-app` (`LearningHistory`, format 4) stores the session's and the D-71 training's `RetrievalEvent`s per store-assigned attempt (series, practice, practice retry, training, training repeat); attempt IDs come from a persisted counter that survives reset, never from session lineages or seeds. Events are deduplicated by attempt, opportunity ID and action tag, and an opportunity must fit its attempt kind; no full deal, other hands or recording is stored; D-73 retains bounded permitted-view scoring provenance. New events carry their immutable lesson family and rule version (`LessonRevision`), fixed at the opportunity; answers carry the exact count they were scored against, persisted only with the answer. Missing or inconsistent provenance is refused. The GUI keeps it in `learning-history.json` in the platform data directory, saves atomically after new events, and offers descriptive counts per topic and context with sample-size notes, observed answer categories (exact, too high, too low, unrecorded legacy mismatch, skipped) split by support, opportunities per lesson revision, and per topic the 10 settled responses before the last 10 beside the last 10 in persisted order (from 20 on); no mastery, diagnosis, recommendation or strategic classification. D-74 adds separate descriptive mechanism-response patterns and comparisons. A damaged or unsupported file is kept unchanged and only renamed aside on the learner's choice; reset needs confirmation. Format 1/2/3 files migrate losslessly in memory and are written as format 4 on the next save; format 1/2 events stay unversioned without exact counts; format 1 with training content and format 1/2 with provenance are invalid. [Learning history](architecture.md#learning-history-d-70). |
+| D-70 | 2026-11-14 | One local versioned learning history in `skat-app` (`LearningHistory`, format 5) stores the session's and the D-71 training's `RetrievalEvent`s per store-assigned attempt (series, practice, practice retry, training, training repeat); attempt IDs come from a persisted counter that survives reset, never from session lineages or seeds. Events are deduplicated by attempt, opportunity ID and action tag, and an opportunity must fit its attempt kind; no full deal, other hands or recording is stored; D-73 retains bounded permitted-view scoring provenance. New events carry their immutable lesson family and rule version (`LessonRevision`), fixed at the opportunity; answers carry the exact count they were scored against, persisted only with the answer. Missing or inconsistent provenance is refused. The GUI keeps it in `learning-history.json` in the platform data directory, saves atomically after new events, and offers descriptive counts per topic and context with sample-size notes, observed answer categories (exact, too high, too low, unrecorded legacy mismatch, skipped) split by support, opportunities per lesson revision, and per topic the 10 settled responses before the last 10 beside the last 10 in persisted order (from 20 on); no mastery, diagnosis, recommendation or strategic classification. D-74 adds separate descriptive mechanism-response patterns and comparisons. A damaged or unsupported file is kept unchanged and only renamed aside on the learner's choice; reset needs confirmation. Format 1/2/3/4 files migrate losslessly in memory and are written as format 5 on the next save; format 1/2 events stay unversioned without exact counts; format 1 with training content and format 1/2 with provenance are invalid. [Learning history](architecture.md#learning-history-d-70). |
 | D-71 | 2026-11-13 | Focused counting training is plain state in `skat-app` (`TrainingSession`), outside any `Session`: the two focused-retrieval topics, each with versioned fixed fixtures (seeded `Game::new` deal plus a recorded legal action prefix, replayed through `Game::apply`) for declarer and defender. Only the intended seat's `PlayerView` is kept; question, expected answer, help and feedback come from its `Knowledge` through `skat_analysis::counting` as in the quiz, with the existing support levels and sticky assistance. Each presentation is one learning-history attempt (`AttemptKind::Training`), its events identified by `OpportunityId::Training` (fixture and version); retries and repeats are labelled, and no training row is new transfer or mastery. The GUI replaces the table with a training screen; the live table is neither drawn, driven nor changed until return. [Focused counting training](architecture.md#focused-counting-training-d-71). |
 | D-72 | 2026-11-13 | Modern egui table (#134): one light look (`gui-egui` `style.rs`) around the dark table; coach left, table and hand in the centre, last trick, Augen and score sheet right in collapsible scrolling sections. Below 1200 px the hand spans the window and seats, hand and own Skat are compact; hand cards shrink, then wrap, so cards and actions stay reachable at 960 × 640. The trick triangle is unchanged. `TableView::trick_augen` holds each player's Augen from completed tricks only (never a Skat); the GUI groups declarer and defence and shows them only while its button is held with the mouse or Space/Enter in the game where the hold began and while the window has focus; label, tooltip and accessibility text never contain a concealed number. Only the two opponents are named figures: `skat-app` `FIGURES` has twelve per language pool (six female, six male; four old-fashioned names with weight 2 against 3, together 25 %); `SeriesCast::for_seed` draws two different figures per pool from stream 5 of the series seed, bound to physical seats 1 and 2. Changing the language switches name and portrait together; the cast never touches deals or AI decisions. Names (`figure-<key>` in the Fluent files) and portraits (`assets/portraits/<key>.svg`, generated by `tools/portraitgen`, own work CC BY-SA 4.0, checked against the generator like D-33) are presentation resources keyed by the figure id for egui and later Godot; the human stays "Du"/"You" without a portrait. |
 
@@ -212,9 +212,9 @@ Code: `crates/skat-app/src/session.rs`, `series.rs`. Tests:
 
 ## D-73 Catalogue focus sessions and conservative exposure
 
-2026-11-13. Extend `TrainingSession` with catalogue mode and the single D-70
-`LearningHistory` with format 4 typed catalogue transitions. Preserve all four
-old fixture identities and supported format 1/2/3 observations. Reconstruct
+2026-11-14. Extend `TrainingSession` with catalogue mode and the single D-70
+`LearningHistory` with format 5 typed catalogue transitions. Preserve all four
+old fixture identities and supported format 1/2/3/4 observations. Reconstruct
 only through the accepted catalogue; count and mechanism feedback use shared
 analysis, not option optimality or a new strategy evaluator.
 
@@ -225,12 +225,12 @@ help is sticky. Retry, repeat and previously exposed tasks are practice. Missing
 unavailable, migrated, reset, corrupt or unsupported history disables novelty
 credit. Reset keeps the attempt counter and does not prove never-seen learning.
 Outside-file exposure and concurrent writers cannot be established. Record only
-observed supported question correctness, never thoughts, efficacy or human
+observed supported question correctness, never inferred thoughts, efficacy or human
 transfer. See [session contract](practice-catalogue.md#session-behaviour-and-conservative-exposure).
 
 ## D-74 Supported mechanism-response patterns
 
-2026-11-14. Derive a small explicit-answer taxonomy from validated format 4
+2026-11-14. Derive a small explicit-answer taxonomy from validated
 catalogue entries, separate from counting ResponseCategory. Shared conditional
 Abstich/Overtake evidence supports response correctness and certainty
 mismatches, never ordinary-game strategic diagnoses, intentions or mastery.
@@ -240,3 +240,23 @@ app-local exposure and eligibility remain separate. Compare only adjacent
 10-settlement windows within the same stratum, from 20 on. Cache the derived
 GUI summary until history changes; never reconstruct catalogue on frames.
 See [the taxonomy and aggregation contract](mechanism-responses.md).
+
+## D-75 Preregistered reserved learner validation
+
+2026-11-14. Enter Initial/Delayed validation deliberately within existing
+training, using eight new anchored legal positions, shared analysis, FocusTask
+and the one learning history. Exclude reserved cases from ordinary practice,
+previews and galleries. Freeze versioned position hashes and independent facts
+before results; after results, revisions retain original records and use new
+versions. Exact counts/typed bounded responses have correct/wrong equality,
+with separate skip/unclear/unsupported/no-answer outcomes. Explicit prior
+exposure, sticky assistance, first responses and repeats gate descriptive
+eligibility; a local file alone never establishes external novelty. Unexpected
+aid and failed saves stop progression. Format 5 retains private build, set,
+UTC timestamps and verbatim own-words/clarity evidence; formats 1–4 migrate
+without granting novelty. Record actual elapsed time against a 7–14 calendar
+day target, with no mastery threshold. Store actual personal evidence outside
+git in `grand-coach-data/studies/`; prepare a verified executable kit before
+human participation. Technical and platform acceptance remain agent-owned;
+Initial and Delayed execution remain human-owned and pending.
+See [protocol and ownership](validation54.md).

@@ -907,3 +907,30 @@ mechanism-recent = Recent 10 settlements: descriptive comparison, no learning-ef
 
 mechanism-training = Catalogue training
 mechanism-training-repeat = Catalogue training, repeated task
+
+# Reserved learner validation. No task answers or reserved position previews.
+validation-entry = Prepare learner validation
+validation-title = Learner validation · protocol 1
+validation-intro = Four reserved tasks per session. Help, repeats and prior exposure are recorded separately. Skip, unclear and exit are always allowed. Stop on failed saves, wrong versions, broken positions or premature answers. Follow-up is planned after 7–14 calendar days; the actual interval is recorded.
+validation-build = Build: { $build }
+validation-initial = Deliberately start initial session
+validation-delayed = Deliberately start delayed session
+validation-prior = Have you seen this exact position before, including outside this app?
+validation-none = Never seen before
+validation-seen = Seen before
+validation-unknown = Unknown
+validation-own-words = Own words (optional)
+validation-clarity = Clarity / unclear terms (optional)
+validation-unclear = Task unclear
+validation-save-stop = Validation stopped: this task cannot be reliably saved to durable storage. Return and report the failure. Do not open another task.
+validation-exposure-note = Local history cannot establish external novelty. Unknown, missing, migrated or reset data cannot establish new unaided performance. Own words and clarity are assessed separately; these are no mastery or efficacy claims.
+validation-complete = These four tasks are settled. Return to the game. Another attempt is practice only.
+validation-counts = Opportunities: { $opportunities }; answers: { $answers }; scored: { $scored }; correct: { $correct }; wrong: { $wrong }; unsupported: { $unsupported }; skipped: { $skip }; unclear: { $unclear }; unanswered: { $unanswered }.
+validation-support-counts = Opportunities with help: { $help }; assisted: { $assisted }; repeats: { $repeat }; exposure unknown: { $unknown }; first unaided scored answers with reported novelty: { $eligible }, correct: { $correct }.
+validation-interval = Actual interval between first initial and delayed entries: { $seconds } seconds. Both UTC timestamps are in local history. This does not assert compliance with the planned calendar interval.
+validation-demo = Demonstration using a public practice task – no reserved position or learner result.
+validation-unexpected-aid = Unexpected additional aid seen – stop session
+validation-stopped = Session stopped without an answer. Return to the game and record the reason locally. After unexpected aid, continue only after technical triage.
+validation-position = Task { $number } of 4
+validation-first = First recorded presentation. Only the first unaided scored answer with an explicit report of no prior exposure can be considered. Local history alone does not establish novelty.
+validation-unclear-result = Recorded as unclear – not scored.

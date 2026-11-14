@@ -158,7 +158,7 @@ def build(args):
     epoch = int(run("git", "show", "-s", "--format=%ct", "HEAD"))
     version = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
     command = ["cargo", "build", "--locked", "--offline", "--release", "-p", "gui-egui", "--bin", "grand-coach", "--target", target, "--message-format=json-render-diagnostics"]
-    env = dict(os.environ, SOURCE_DATE_EPOCH=str(epoch), CARGO_INCREMENTAL="0")
+    env = dict(os.environ, SOURCE_DATE_EPOCH=str(epoch), CARGO_INCREMENTAL="0", GRAND_COACH_BUILD_COMMIT=sha)
     compiled = subprocess.run(command, cwd=ROOT, env=env, check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8")
     artifacts = [json.loads(line) for line in compiled.stdout.splitlines() if line.startswith("{")]
     app_lib = next(Path(name) for a in artifacts if a.get("reason") == "compiler-artifact" and a["target"]["name"] == "skat_app" for name in a["filenames"] if name.endswith(".rlib"))
@@ -179,7 +179,7 @@ def build(args):
         "binary": binary, "rustc": identity, "cargo": run("cargo", "-V"),
         "os": platform.platform(), "python": platform.python_version(),
         "build_command": command, "features": "default", "models": [],
-        "build_environment": {k: env.get(k, "") for k in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CC", "CXX", "CARGO_INCREMENTAL", "SOURCE_DATE_EPOCH")},
+        "build_environment": {k: env.get(k, "") for k in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CC", "CXX", "CARGO_INCREMENTAL", "SOURCE_DATE_EPOCH", "GRAND_COACH_BUILD_COMMIT")},
         "runner_image": runner_image(env),
         "embedded_resources": names,
         "files": {name: digest(data) for name, data in sorted(files.items())},

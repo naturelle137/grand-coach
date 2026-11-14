@@ -1,0 +1,54 @@
+{
+  "protocol": "validation54@1",
+  "encoding": "SHA-256 of UTF-8 JSON, sorted keys, compact separators, ensure_ascii=False",
+  "tasks": [
+    {
+      "id": "validation54.initial.trumpf",
+      "version": 1,
+      "set": "Initial",
+      "position_sha256": "c9aaf8f1a79cdf7926d458c4a211b45fd1678fd0278e9a6d51dc056b8ff04cf6"
+    },
+    {
+      "id": "validation54.initial.void",
+      "version": 1,
+      "set": "Initial",
+      "position_sha256": "ecf173a626553641d4052b98103d2608e245d37dee8ba7f67b57dd24b6daf8df"
+    },
+    {
+      "id": "validation54.initial.side",
+      "version": 1,
+      "set": "Initial",
+      "position_sha256": "20838527728dcb19e1663dd96daffb49687e27d90eb74bb5a3aa51d3f672525c"
+    },
+    {
+      "id": "validation54.initial.partner",
+      "version": 1,
+      "set": "Initial",
+      "position_sha256": "4782b63d053f3b8383ca70aa1a0e4ce9c8713f4e649730d63effbe75921df4b2"
+    },
+    {
+      "id": "validation54.delayed.trumpf",
+      "version": 1,
+      "set": "Delayed",
+      "position_sha256": "87d60500aee45ef2739bbbbf0417494817fb209798b817e02a33a508bbf75246"
+    },
+    {
+      "id": "validation54.delayed.void",
+      "version": 1,
+      "set": "Delayed",
+      "position_sha256": "1b4588c2d15568b4a67091371a219f4233e94b0c24dd3539fb3d9cc033073719"
+    },
+    {
+      "id": "validation54.delayed.side",
+      "version": 1,
+      "set": "Delayed",
+      "position_sha256": "bac59c9bc1a8b4dada35e158f8f6b46374ca276c783ced91ca609ec2aef5eb4e"
+    },
+    {
+      "id": "validation54.delayed.partner",
+      "version": 1,
+      "set": "Delayed",
+      "position_sha256": "7f30fc8a06a729a3f2c5864d991e0c6efbf03e0586309b0a05e638355d1b6196"
+    }
+  ]
+}

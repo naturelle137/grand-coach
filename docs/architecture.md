@@ -326,7 +326,7 @@ file bytes stay untouched.
 
 `skat_app::LearningHistory` is the single local store for learning
 observations; later decision provenance extends it rather than adding a
-second statistics system. Format 4 holds a persisted attempt counter, the
+second statistics system. Format 5 holds a persisted attempt counter, the
 attempts (`AttemptId`, `AttemptKind::Series`, `Practice { attempt }` or
 `Training { attempt }`, where attempt 2 and higher are intentional retries
 or repeats) and the `RetrievalEvent`s exactly as the session or the
@@ -399,8 +399,8 @@ of this run stay in memory until the learner chooses **Rename damaged file
 and start a new history**, which renames it to the first free
 `learning-history.damaged-<n>.json` and saves.
 
-Migration: this build reads formats 1, 2, 3 and 4 (`LEARNING_FORMATS_READ`)
-and writes 4. Format 1 (PR #133) is decoded unchanged: the untagged
+Migration: this build reads formats 1, 2, 3, 4 and 5 (`LEARNING_FORMATS_READ`)
+and writes 5. Format 1 (PR #133) is decoded unchanged: the untagged
 `OpportunityId::Game` serialises exactly like the former `QuestionId`.
 Formats 1 and 2 (PR #137) are migrated in memory, keeping counter,
 attempts, events and their order, so counts and deduplication are
@@ -408,10 +408,10 @@ identical; their events stay unversioned (`lesson: None`) and their answers
 have no `expected`: no current lesson revision or count is assigned
 retrospectively. Both fields are omitted when absent, so legacy events are
 written back unchanged in shape. Reading never rewrites the file, and the
-next save (after a new event or a reset) writes format 4. A format 1 file
+next save (after a new event or a reset) writes format 5. A format 1 file
 containing training attempts or tasks, and a format 1 or 2 file containing
-provenance fields, is invalid. Any other version (for example 5 from a
-newer build) is reported as unsupported. Older builds report a format 4
+provenance fields, is invalid. Any other version (for example 6 from a
+newer build) is reported as unsupported. Older builds report a format 5
 file as unsupported and keep it, so they never drop its provenance. Two app instances writing the same file are not coordinated; the
 last save wins.
 
@@ -464,7 +464,7 @@ Catalogue mode extends this same `TrainingSession` (D-73), retaining the old
 four-fixture identities. The twelve accepted anchored positions reconstruct
 through `PracticeCase::find(id, 1).position()`, never `Deal::from_seed`.
 The task view contains only the permitted view and question; feedback is separate
-until answer/help/skip. Format 4 adds typed `focus` transitions in the same
+until answer/help/skip. Format 5 retains typed `focus` transitions in the same
 `LearningHistory`, with shared attempt IDs, limits, atomic save, reset and
 recovery. Mechanism judgements retain shared-analysis provenance and stay out
 of counting deviations. See [catalogue sessions](practice-catalogue.md#session-behaviour-and-conservative-exposure)
@@ -472,9 +472,31 @@ for exposure eligibility, support, migration and conservative limitations.
 
 ## Mechanism-response summary (D-74)
 
-The existing immutable format 4 FocusEntry stream derives explicit conditional
+The existing immutable FocusEntry stream derives explicit conditional
 response categories and per-task/version/context/help/exposure/eligibility
 counts. It does not alter counting ResponseCategory or persist a second store.
 Unique opportunities retain unknown/unanswered denominators. No catalogue
 reconstruction occurs in summaries; the frontend caches them until mutation.
 See [supported scope and windows](mechanism-responses.md).
+
+## Reserved learner validation (D-75)
+
+A deliberate entry inside training selects Initial or Delayed, four reserved
+cases each, through the same catalogue reconstruction and FocusSession.
+`PRACTICE_CASES` remains the twelve public positions; only explicit validation
+entry resolves the selected reserved case. Galleries show the chooser and the
+same form on an explicitly labelled public practice case, never reserved views.
+
+Format 5 adds optional `ValidationEvidence` only for reserved identities and
+explicit `Unclear`/`Stopped` settlements. Build, set/protocol version, UTC
+session/submission timestamps, explicit external exposure and verbatim own
+words/clarity share the existing focus stream and atomic file. Unknown or
+inconsistent IDs, revisions, questions, scores and metadata are refused.
+Formats 1–4 migrate without replacing old observations; their exposure is
+conservatively incomplete. Old builds refuse format 5 instead of stripping
+personal evidence. First response, sticky aid, prior exposure and repeats
+remain distinct; unexpected outside aid records assistance and stops the session.
+A failed validation save blocks feedback and advancement. Exact descriptive
+counts and the actual signed elapsed interval are derived from retained events;
+neither a reported absence of exposure nor a local file alone independently
+proves external novelty. See the [preregistration](validation54.md).

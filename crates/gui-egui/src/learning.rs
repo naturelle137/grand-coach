@@ -110,6 +110,26 @@ impl LearningUi {
         Some(session)
     }
 
+    pub(crate) fn start_validation(
+        &mut self,
+        set: skat_app::practice_catalogue::ValidationSet,
+    ) -> Option<skat_app::TrainingSession> {
+        let reliable = self.persistent();
+        let evidence = skat_app::ValidationEvidence::new(
+            set,
+            env!("GRAND_COACH_BUILD_COMMIT").into(),
+            crate::training::unix_time(),
+        );
+        let mut session =
+            skat_app::TrainingSession::validation(evidence, &mut self.history, reliable).ok()?;
+        self.save();
+        if !self.persistent() {
+            session.withhold_focus_credit(&mut self.history);
+            return None;
+        }
+        Some(session)
+    }
+
     pub(crate) fn run_focus(
         &mut self,
         session: &mut skat_app::TrainingSession,
@@ -118,6 +138,13 @@ impl LearningUi {
         let previous = session.clone();
         let prior_attempt = session.focus_view().map(|v| v.entry.attempt);
         let reliable = self.persistent();
+        let validation = session
+            .focus_view()
+            .is_some_and(|v| v.entry.validation.is_some());
+        if validation && !reliable {
+            return false;
+        }
+        let previous_history = validation.then(|| self.history.clone());
         if session
             .execute_focus(command, &mut self.history, reliable)
             .is_err()
@@ -129,11 +156,14 @@ impl LearningUi {
             session.withhold_focus_credit(&mut self.history);
         }
         if self.save_error.is_some()
-            && session.focus_view().map(|v| v.entry.attempt) != prior_attempt
+            && (validation || session.focus_view().map(|v| v.entry.attempt) != prior_attempt)
         {
             // Never expose a new position after a failed durable write: the old
             // file could otherwise label that unseen after an app restart.
             *session = previous;
+            if let Some(history) = previous_history {
+                self.history = history;
+            }
             session.withhold_focus_credit(&mut self.history);
             return false;
         }
@@ -338,6 +368,43 @@ impl LearningUi {
     }
 
     fn overview(&self, ui: &mut egui::Ui, i: &I18n) {
+        let validation = self.history.validation_summary();
+        let counts = &validation.counts;
+        if counts.opportunities > 0 {
+            ui.heading(i.t("validation-title"));
+            ui.label(i.tf(
+                "validation-counts",
+                &[
+                    ("opportunities", counts.opportunities.into()),
+                    ("answers", counts.answers.into()),
+                    ("scored", counts.scored.into()),
+                    ("correct", counts.correct.into()),
+                    ("wrong", counts.wrong.into()),
+                    ("unsupported", counts.unsupported.into()),
+                    ("skip", counts.skipped.into()),
+                    ("unclear", counts.unclear.into()),
+                    ("unanswered", counts.unanswered.into()),
+                ],
+            ));
+            ui.label(i.tf(
+                "validation-support-counts",
+                &[
+                    ("help", counts.help.into()),
+                    ("assisted", counts.assisted.into()),
+                    ("repeat", counts.repeats.into()),
+                    ("unknown", counts.exposure_unknown.into()),
+                    ("eligible", counts.eligible_answers.into()),
+                    ("correct", counts.eligible_correct.into()),
+                ],
+            ));
+            if let Some(seconds) = validation.elapsed_seconds {
+                ui.label(i.tf(
+                    "validation-interval",
+                    &[("seconds", seconds.to_string().into())],
+                ));
+            }
+            ui.label(i.t("validation-exposure-note"));
+        }
         mechanism_responses(
             ui,
             i,

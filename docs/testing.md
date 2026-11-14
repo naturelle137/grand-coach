@@ -454,3 +454,23 @@ The screenshot scenarios `mechanism-responses`, `mechanism-trends`, their
 `learning-empty`/`learning-empty-en` cover its empty state. Both platform CI
 galleries produce individual SHA256SUMS. Actual final platform acceptance and
 human learning evidence remain the terminal owner's responsibility.
+
+## Reserved validation technical checks (#54)
+
+`skat-app --test validation54` exercises both reserved sets without rendering
+or printing their permitted views: first answers, exact equality, external
+exposure, sticky help/repeats, unclear/skip/stop, actual timestamps, format 4
+migration and forged versions/provenance. Catalogue unit tests use handwritten
+facts, independent core positive/negative witnesses and concealed-hand/Skat
+substitutions. These are technical inputs, never learner observations.
+
+`gui-egui --test focus` drives actual de/en entry, hidden feedback, verbatim
+fields, help/retry/skip/unclear/exit and durable history. The only new gallery
+scenarios are `validation-entry[-en]` (no position) and `validation-form[-en]`
+(the same form with an explicitly labelled **public** practice case).
+Never add a reserved position to a gallery. `scripts/validation54_kit_test.py`
+checks source/build mismatch, immutable task hashes, separate blank records,
+withheld key and refusal to overwrite existing personal data. The same RC
+packager verifies the installed executable's notices/resources and hashes.
+Actual human Initial/Delayed sessions, clean platforms and packaged lifecycle
+acceptance remain separately pending; this suite cannot satisfy those gates.

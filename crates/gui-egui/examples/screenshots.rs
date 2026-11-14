@@ -117,6 +117,10 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("learning-compare-en", learning_compare_en),
     ("learning-damaged", learning_damaged),
     ("learning-damaged-en", learning_damaged_en),
+    ("validation-entry", validation_entry),
+    ("validation-entry-en", validation_entry_en),
+    ("validation-form", validation_form),
+    ("validation-form-en", validation_form_en),
     ("focus-count", focus_count),
     ("focus-count-en", focus_count_en),
     ("focus-changed", focus_changed),
@@ -2368,4 +2372,27 @@ fn mechanism_trends_narrow(h: &mut Harness<'_, GrandCoachApp>) {
     h.get_by_label("Frühere 10 Abschlüsse dieser Aufgabe im selben Kontext")
         .scroll_to_me();
     h.run_steps(4);
+}
+
+// Only the chooser and a public practice task may be pictured. Reserved
+// positions are exercised by non-rendering technical tests, never galleries.
+fn validation_entry(h: &mut Harness<'_, GrandCoachApp>) {
+    training_topics(h);
+    click(h, Role::Button, "Lernvalidierung vorbereiten");
+    assert!(h.state().focus_view().is_none());
+}
+fn validation_entry_en(h: &mut Harness<'_, GrandCoachApp>) {
+    validation_entry(h);
+    english(h);
+}
+fn validation_form(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_count(h);
+    h.state_mut().preview_validation_controls();
+    h.set_size(egui::vec2(1280.0, 1100.0));
+    h.run_steps(4);
+    assert!(h.state().focus_view().unwrap().entry.validation.is_none());
+}
+fn validation_form_en(h: &mut Harness<'_, GrandCoachApp>) {
+    validation_form(h);
+    english(h);
 }

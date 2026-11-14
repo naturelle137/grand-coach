@@ -1,0 +1,41 @@
+Grand-Coach: kurze Lernvalidierung
+
+Du nimmst als Lernender teil. Es geht darum, ob Aufgaben und Erklärungen für
+dich verständlich sind. Du musst nichts bestehen. Ein einzelner Durchlauf
+beweist weder Lernwirkung noch Beherrschung von Skat.
+
+1. Öffne die vorbereitete Verknüpfung „Grand-Coach Lernvalidierung“.
+   Die Bestätigungsseite öffnet sich direkt. Vergleiche den angezeigten
+   Build mit deinem lokalen Manifest. Bei Abweichung: beenden und melden.
+2. Wähle beim ersten Termin „Anfangssitzung bewusst starten“.
+   Für den späteren Termin wähle „Folgesitzung bewusst starten“.
+   Geplant sind 7–14 Kalendertage Abstand. Trage beide tatsächlichen
+   Termine samt Zeitzone in die lokale Vorlage ein, auch bei anderem Abstand.
+3. Es erscheinen nacheinander vier Aufgaben. Lies nur deine Hand, die
+   offenen Karten und die Frage. Die verdeckten Hände bleiben unbekannt.
+   Gib vor jeder Antwort an, ob du genau diese Stellung schon gesehen hast:
+   noch nie / schon gesehen / unbekannt. Berücksichtige auch Bilder, andere
+   Installationen und frühere Termine. Bei Zweifel wähle „unbekannt“.
+4. Schreibe, wenn möglich, kurz in eigenen Worten, welche Beobachtung du
+   für deine Antwort benutzt. Notiere unverständliche Wörter oder Darstellung
+   separat im Feld zur Verständlichkeit. Beides wird wörtlich aufbewahrt.
+5. Wähle deine Antwort. Erst die Abgabe zeigt die Auswertung.
+   „Unklar“, „Überspringen“ und „Zurück zur Partie“ sind jederzeit erlaubt.
+   Hilfe darfst du bewusst anfordern. Sie wird für diesen Versuch dauerhaft
+   als Hilfe vermerkt. Ein neuer Versuch derselben Aufgabe ist nur Übung.
+6. Mit „Nächste Stellung“ geht es weiter. Nach Aufgabe vier kehre zur Partie
+   zurück oder beende die Anwendung. Lösche oder setze den Verlauf nicht
+   zurück. Die Folgesitzung verwendet denselben privaten Datenordner.
+
+Beende den Durchlauf bei einer fehlerhaften Stellung, einer vorzeitig sichtbaren
+Antwort, unerwarteter Hilfe, einer Fehlermeldung beim Speichern, falscher
+Aufgaben-/Buildversion oder sonst unzuverlässigen Daten. Notiere den Grund und
+melde ihn dem technischen Ansprechpartner. Wiederhole die Aufgabe bis zur
+Klärung nicht. Keine richtige Antwort ist wichtiger als ein ehrlicher Befund.
+
+Bitte keine weiteren Hilfen, Lösungsdateien oder Quelltexte während der Aufgaben
+öffnen. Falls doch etwas sichtbar wird: offen notieren und stoppen.
+Deine Antworten, eigenen Worte und Hinweise bleiben lokal und privat. Lade
+keinen ausgefüllten Verlauf in ein öffentliches Repository hoch. Nur du als
+Mensch kannst die Anfangs- und Folgesitzung durchführen; technische Tests
+ersetzen deine Beobachtungen nicht.

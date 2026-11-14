@@ -165,7 +165,7 @@ Coach UAT record
 Date:                    Build (commit):         Language: de / en
 Feature / issue:         Lesson IDs + versions:
 Series seed / scenario:  Coach settings:
-Prior exposure to this deal or lesson: none / seen before (describe)
+Prior exposure to this deal or lesson: none / seen before (describe) / unknown
 
 Item | Result (yes / partly / no / unclear / n/a) | Note
 B2.1 Locate          |  |
@@ -182,13 +182,16 @@ Findings (each: severity, issue link):
 Performed by: maintainer (learner)   Status: performed / pending
 ```
 
-Store completed release-session records under `docs/uat/`, with the build,
+Store completed personal release-session records privately under
+`grand-coach-data/studies/`, never public git or `docs/uat/`, with the build,
 date and environment. Findings become issues; fixes are retested with the
 affected items. Use the same template across all shipped lessons.
 
 ## C. Initial and delayed unaided-task protocol
 
 Use this protocol when practice and progress tracking are available.
+The [reserved #54 preregistration](validation54.md) fixes the executable task
+sets, exact scoring, denominators, private storage and stop rules before results.
 
 ### C1. Fixed before collecting results
 
@@ -196,8 +199,8 @@ Use this protocol when practice and progress tracking are available.
   view only), the question and the **expected answer derived by part A**
   (exact set/count, “certain/possible/unknown”, or a checking question
   matched to the lesson). Answers stay out of the learner script.
-- Scoring per task: correct, partly correct (defined per task), wrong,
-  no answer. Strategy is not scored unless the expected answer is backed
+- Scoring per bounded #54 task: exact correct or wrong, no partial credit;
+  skip, unclear, unsupported and no answer remain distinct. Strategy is not scored unless the expected answer is backed
   by part A.
 - Assistance rules: unaided means no coach help, no counting aid, no
   details, and the position not seen before in practice.

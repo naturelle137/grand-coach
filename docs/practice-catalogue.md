@@ -61,7 +61,7 @@ preferred plans ahead of an unaided attempt. IDs, case roles and seeds are
 catalogue metadata, not prompt copy. They must not be used as evidence about
 hidden cards. Changing a deal, prefix, question or answer semantics requires
 raising the revision. The four old `TrainingFixture` identities and two `TrainingTopic` values remain
-unchanged. Format 4 of the same learning history adds typed catalogue events.
+unchanged. Format 5 of the same learning history retains typed catalogue events.
 
 Tests replay prefixes and all legal alternatives through core, compare the
 hand-written reference counts and mechanism conditions, reconstruct alternate
@@ -86,7 +86,7 @@ Retry requires settlement and repeats as practice; next cycles three cases.
 Topic choice and exit retain unanswered exposure and leave the live session,
 recording and series untouched.
 
-The one `LearningHistory` writes format 4. Its `focus` transitions carry an
+The one `LearningHistory` writes format 5. Its `focus` transitions carry an
 allocated attempt, immutable task ID/version, question, selected support,
 sticky assistance, pre-presentation eligibility and presented/help/answer/skip.
 Answer and skip transitions retain shared-analysis provenance; answers also
@@ -94,8 +94,8 @@ retain the submitted and expected typed responses. Mechanisms never enter
 numeric deviation categories. The overview lists these observed responses
 separately within the same history window. Bounds, atomic replacement,
 recovery, deduplication and the attempt counter are shared with the old events.
-Formats 1/2/3 keep all supported attempts/events/counters in order and acquire no
-fabricated prior exposure; their next save writes 4. Older builds preserve the
+Formats 1/2/3/4 keep all supported attempts/events/counters in order and acquire no
+fabricated prior exposure; their next save writes 5. Older builds preserve the
 unsupported format instead of dropping catalogue events.
 
 Eligibility is evaluated before the current exposure is recorded and saved.
@@ -109,3 +109,8 @@ reset history and keeps the attempt counter, but cannot prove never-seen learnin
 The app cannot know exposure in another file, an older installation, screenshots
 or outside the app. Concurrent app writers are not coordinated (last save wins).
 These local observations certify neither efficacy nor human transfer.
+
+The separate [reserved validation](validation54.md) uses eight additional
+identities outside `PRACTICE_CASES`. They never enter these public sequences.
+Format 5 retains their explicit protocol/build/exposure/timestamp and verbatim
+response metadata without granting novelty to migrated history.

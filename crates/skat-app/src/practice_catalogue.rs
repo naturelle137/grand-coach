@@ -4,6 +4,9 @@
 //! See `docs/practice-catalogue.md` for the independent reference contract.
 //! No session or learning-history format is changed by this catalogue.
 
+mod reserved;
+pub use reserved::{RESERVED_CASES, ValidationSet};
+
 use serde::{Deserialize, Serialize};
 use skat_analysis::Knowledge;
 use skat_analysis::counting::{Derivation, QuestionKind, derive};
@@ -131,6 +134,7 @@ impl PracticeCase {
     pub fn find(id: &str, version: u16) -> Option<Self> {
         PRACTICE_CASES
             .into_iter()
+            .chain(RESERVED_CASES)
             .find(|c| c.id() == id && c.version() == version)
     }
 
@@ -150,6 +154,9 @@ impl PracticeCase {
             "partner-overtaking.changed",
             "partner-overtaking.boundary",
         ];
+        if self.index >= 12 {
+            return reserved::id(self.index);
+        }
         IDS.get(usize::from(self.index))
             .copied()
             .unwrap_or("unknown")
@@ -168,6 +175,16 @@ impl PracticeCase {
     /// Family, or None for an invalid catalogue index.
     pub fn family(self) -> Option<PracticeFamily> {
         use PracticeFamily::*;
+        if self.index >= 12 {
+            return [
+                RemainingTrumpf,
+                ProvenVoid,
+                SideCardVulnerability,
+                PartnerOvertaking,
+            ]
+            .get(usize::from((self.index - 12) % 4))
+            .copied();
+        }
         [
             RemainingTrumpf,
             ProvenVoid,
@@ -180,6 +197,9 @@ impl PracticeCase {
 
     /// Intended role, never proof that a learner has not seen the position.
     pub fn role(self) -> CaseRole {
+        if self.index >= 12 {
+            return CaseRole::Changed;
+        }
         [
             CaseRole::Introduction,
             CaseRole::Changed,
@@ -207,6 +227,9 @@ impl PracticeCase {
     }
 
     fn definition(self) -> Result<Definition, CatalogueError> {
+        if self.index >= 12 {
+            return reserved::definition(self.index);
+        }
         use Rank::*;
         use Seat::*;
         use Suit::*;
@@ -652,7 +675,7 @@ mod tests {
 
     #[test]
     fn hidden_hands_and_unknown_skat_substitutions_preserve_all_task_data() {
-        for case in PRACTICE_CASES {
+        for case in PRACTICE_CASES.into_iter().chain(RESERVED_CASES) {
             let d = case.definition().unwrap();
             let deal = d.deal(case.seed()).unwrap();
             let game = d.replay_deal(deal).unwrap();
@@ -711,8 +734,19 @@ mod tests {
             .find(|&s| s != viewer && s != target)
             .unwrap();
         let mut pool = all.hands[target.index()] | all.hands[other.index()] | all.skat;
-        let led = if case.index == 6 {
-            Card::new(Kreuz, Ass)
+        let overtake = matches!(
+            d.question,
+            PracticeQuestion::Consequence {
+                kind: MechanismKind::Overtake,
+                ..
+            }
+        );
+        let led = if let PracticeQuestion::Consequence {
+            action: Action::Play(card),
+            kind: MechanismKind::Abstich,
+        } = d.question
+        {
+            card
         } else {
             game.view(viewer).current_trick.led().unwrap()
         };
@@ -728,7 +762,7 @@ mod tests {
                     // Exclude Trumpf for the negative witness; always exclude
                     // the led side class for either overtaking witness.
                     (trumping || !d.game.trumps().contains(c))
-                        && (case.index < 9 || d.game.follow(c) != d.game.follow(led))
+                        && (!overtake || d.game.follow(c) != d.game.follow(led))
                 })
                 .take(all.hands[target.index()].len() - required.len())
                 .collect::<CardSet>();
@@ -788,8 +822,17 @@ mod tests {
             (7, vec![Hinterhand]),
             (9, vec![Hinterhand]),
             (10, vec![Mittelhand]),
+            (14, vec![Mittelhand, Hinterhand]),
+            (15, vec![Hinterhand]),
         ] {
-            let case = PRACTICE_CASES[index];
+            let case = PracticeCase { index: index as u8 };
+            let overtake = matches!(
+                case.position().unwrap().question(),
+                PracticeQuestion::Consequence {
+                    kind: MechanismKind::Overtake,
+                    ..
+                }
+            );
             let PracticeQuestion::Consequence { action, .. } = case.position().unwrap().question()
             else {
                 unreachable!()
@@ -797,11 +840,11 @@ mod tests {
             for target in targets {
                 let actual = case.definition().unwrap().replay(case.seed()).unwrap();
                 assert!(
-                    can_complete(actual, action, target, index >= 9),
+                    can_complete(actual, action, target, overtake),
                     "positive witness {}",
                     case.id()
                 );
-                if index >= 9 {
+                if overtake {
                     assert!(
                         can_complete(hidden_witness(case, target, true), action, target, true),
                         "separate core-legal trumping witness {}",
@@ -813,7 +856,7 @@ mod tests {
                         hidden_witness(case, target, false),
                         action,
                         target,
-                        index >= 9
+                        overtake
                     ),
                     "negative witness {}",
                     case.id()

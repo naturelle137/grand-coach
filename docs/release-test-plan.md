@@ -52,7 +52,9 @@ learning effectiveness.
 
 ## Results and release
 
-Store completed records under `docs/uat/`. Each record identifies the
+Store completed personal learner records privately under
+`grand-coach-data/studies/`, never public git or `docs/uat/`. Public technical
+platform evidence must omit personal learner data. Each record identifies the
 build/package, date, OS/hardware, seed or scenario, settings, steps,
 expected and observed result, and any finding. Record the actual interval
 and prior exposure for learner follow-up sessions.
