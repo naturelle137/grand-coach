@@ -261,8 +261,9 @@ Farbspiel card play with at least two legal actions and a nonempty branch
 candidate set. The former follows a partner who is not a follow-class master
 with one seat still to play; Easy selects a losing card by nontrump, Augen,
 power, retaining the first exact tie. The latter wins in last seat by nontrump,
-power, retaining the first exact tie. Other branches, Grand and Null report
-unsupported and return to free play; Kontra/Re has its own dialogue below. In particular, a side master is
+power, retaining the first exact tie. Other branches and Grand and Null card
+play report unsupported and return to free play; Kontra/Re has its own
+dialogue below. In particular, a side master is
 not safe against trumping: the early `FeedPartner` branch is excluded.
 
 One active prompt has at most two supporting facts. Rule conditions and
@@ -358,10 +359,10 @@ promise to win, no rating of the announcement). Every legal announcement stays
 free; any action ends the dialogue. Matching Easy says nothing about strategic
 quality.
 
-### Guided Kontra and Re (#153)
+### Guided Kontra and Re (#153, #155)
 
-The same entry supports a core-offered Kontra at a non-Ouvert Farbspiel card
-turn and the declarer's immediate Re reply. Evidence is
+The same entry supports a core-offered Kontra at a non-Ouvert Farbspiel,
+Grand or Null card turn and the declarer's immediate Re reply. Evidence is
 `skat_analysis::baseline::kontra_rule`, the path Easy calls: the call (and so
 the role), contract, public level, the own Trumpf count against 5 (never in
 Null) or the strength of the own hand plus the known own Skat against 90, the
@@ -377,9 +378,20 @@ condition is a heuristic, not proof of a winning defence or a probability.
 Every card and call stays free; declining in card play means playing a card,
 `KeinKontra` exists only in the Ouvert round. After the learner's action the
 dialogue waits for the actual declarer reply, the resumed card or the
-declining card itself, across automated turns. Grand, Null, Ouvert, the
-Ouvert round and restricted views report their own unsupported text. Memory
-is unavailable; estimates stay separately requested.
+declining card itself, across automated turns. Ouvert, the Ouvert round and
+restricted views report their own unsupported text. Memory is unavailable;
+estimates stay separately requested.
+
+Grand uses the same count questions: only the four Buben are Trumpf, so a
+defender holds at most four and Easy's five-Trumpf Kontra condition never
+holds; Re compares the own hand plus known own Skat with 90 as in Farbspiel.
+The worked answer calls this a limit of the rule of thumb, not a Skat rule:
+Kontra stays allowed. Null has no Trumpf and Easy's strength is zero, so the
+threshold step asks only whether the generic rule supplies an assessment of
+a Null game (`Answer::Applies`, correct: no); no count, threshold or
+strength comparison is shown, and the caveat says that Kontra and Re stay
+allowed. Grand and Null card-play tactics, including the tactic of Easy's
+declining card, stay outside the lesson.
 
 ## Focus and teachable moments (D-58)
 

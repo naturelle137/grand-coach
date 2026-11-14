@@ -433,10 +433,18 @@ The Kontra/Re scenarios switch Kontra/Re on: `guided-kontra-orient`,
 18, `guided-kontra-reply` seed 0 (the human says Kontra after a reveal, the
 declarer replies), `guided-re-orient`, `guided-re-threshold`, `guided-re-act`
 (reveal) and `guided-re-resumed` (the human says Re, play resumes) seed 1,
-each with `-en` variants, plus `guided-kontra-act-narrow`,
-`guided-re-act-narrow` and the Grand exclusion `guided-kontra-fallback(-en)`
-(seed 8). The ignored bilingual `guided` Kontra and Re widget tests drive the
-same seeds through real widgets.
+each with `-en` variants, plus `guided-kontra-act-narrow` and
+`guided-re-act-narrow`. Grand and Null (#155): `guided-kontra-grand-threshold`,
+`guided-kontra-grand-act` (correct "no") and `guided-kontra-grand-reply` (the
+human says Kontra, the declarer replies) use seed 848, first game;
+`guided-kontra-null-threshold`, `guided-kontra-null-act` (correct "does not
+apply") and `guided-kontra-null-declined` (the human plays a card) seed 1282,
+first game; each with `-en` variants and `-act-narrow`. The Null ouvert round
+exclusion `guided-kontra-fallback(-en)` uses seed 848, second game. The ignored
+bilingual `guided` Kontra, Re and Grand/Null widget tests drive the same seeds
+through real widgets. No automatic opponent says Kontra in a non-Ouvert Grand
+or Null, so the human's Grand/Null Re reply is covered by core-replayed app
+fixtures only, not by an ordinary-app walkthrough or screenshot.
 These are technical checks, not learner UAT.
 
 ## Platform verification (M2)

@@ -1,4 +1,4 @@
-# Guided Farbspiel, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153)
+# Guided Farbspiel, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -207,7 +207,7 @@ Hand: the branch is Suit (Herz), Herz Hand 30 falls short, Kreuz 36 and Grand
 ## Kontra and immediate Re (#153)
 
 `guided-kontra@1` covers two core-offered decisions in a non-Ouvert
-Farbspiel: a defender's card turn with `Kontra` offered (declining means
+Farbspiel, Grand (#155) or Null (#155): a defender's card turn with `Kontra` offered (declining means
 playing a card) and the declarer's immediate `Re`/`KeinRe` reply. The source
 is `skat_analysis::baseline::kontra_rule`, which `baseline::play` (Easy) now
 calls: call and role, contract, public level, Trumpf count (Kontra) or strength
@@ -236,8 +236,8 @@ after a declining card that card and trick (Kontra is no longer offered after
 the own first card). Automated turns are followed; the learner's next own
 action, a new game, coach off or replay ends the dialogue.
 
-Grand, Null, an Ouvert contract, the Ouvert round before the reveal (no
-declarer card is shown) and restricted or inconsistent views (absent contract,
+An Ouvert contract, the Ouvert round before the reveal (no declarer card is
+shown) and restricted or inconsistent views (absent contract,
 seat or level not matching the call, Easy's choice not legal) report their own
 unsupported text; all calls and cards stay free.
 
@@ -256,9 +256,8 @@ actions: MH bids 18, VH holds, MH passes, HH bids 20, VH passes; HH declares.
 Swapping unseen cards (opponents, unknown Hand Skat) leaves lesson and app
 dialogue identical. Further legal positions: ineligible bidding (MH passes at
 once, VH passes: no offer), the setting off, VH after its first card (no
-offer, while MH may still say Kontra), MH after Kontra and Re/KeinRe, Grand
-and Null (offer with exclusion, also for Re), Null ouvert round and the
-following Re (exclusions). Labelled synthetic views test restricted legal
+offer, while MH may still say Kontra), MH after Kontra and Re/KeinRe, Null
+ouvert round and the following Re (exclusions). Labelled synthetic views test restricted legal
 lists, an absent contract and a declarer offered Kontra. App tests cover
 wrong/retry/reveal, every legal action with the actual observation, the
 exact declining card, Re/KeinRe with the resumed play, stale and replaced
@@ -266,9 +265,53 @@ identities at the same seat and phase, automatic levels, coach off and the
 next game. In the ordinary app with Kontra/Re on, seed 18 brings the human
 (holding/bidding 18 only) to a Pik defence with five Trumpf where Easy says
 Kontra, seed 0 one where Easy declines; with seed 1 the human declares the
-suit it holds fewest of and answers a Kontra (Easy: no Re, strength 47); seed
-8 reaches a Grand Kontra offer with the exclusion text. Easy's Kontra/Re
-choices are reproduced, not improved, and no human learning follows from them.
+suit it holds fewest of and answers a Kontra (Easy: no Re, strength 47).
+Easy's Kontra/Re choices are reproduced, not improved, and no human learning
+follows from them.
+
+### Grand and Null (#155)
+
+The same rule, steps and observations apply; only the threshold question and
+the worked answer depend on the contract. Grand: only the four Buben are
+Trumpf, so the Kontra count can never reach Easy's 5 and Easy always declines
+with its card; the prompt names the four-Buben limit and the caveat calls it
+a limit of the rule of thumb, not a Skat rule. Grand Re compares the own hand
+plus the known own Skat with 90 (Buben 14, Kreuz Bube 18, side Ace 10, side
+Ten 6 with its Ace or two more cards, else 1; no empty-suit bonus in Grand).
+Null: `policy::wants_kontra` excludes Null and `strength` returns 0, so Easy
+never says Kontra or Re. The threshold step asks whether the generic rule
+supplies an assessment of a Null game (`Answer::Applies`; only `false` is
+accepted, `Within` is rejected), and no count, threshold or strength is
+shown. Kontra and Re stay allowed in both; no claim about their strategic
+quality, no probability and no outcome follows. Grand/Null card-play tactics,
+including the tactic of Easy's declining card, remain outside.
+
+| Position (counted by hand) | Count, threshold | Easy |
+|----------------------------|------------------|------|
+| VH CJ SJ HJ DJ SA ST S9 DA D7 D8 vs Grand Hand | 4 < 5 | DA (`LeadMaster`, last of SA/DA) |
+| VH CA C7 C8 S7 S8 S9 H7 H8 H9 D7 vs Grand Hand | 0 < 5 | CA (`LeadMaster`) |
+| VH C7 CA SA ST S9 H9 DA CJ SJ HJ vs Null Hand | rule does not apply | C7 (`Null`, lowest) |
+| HH CJ DJ CA SA ST S7 HA HT DA DT, Grand Hand, after VH's Kontra | 32 + 10 + 16 + 16 + 16 = 90 ≥ 90 | Re |
+| same with SJ for HA | 46 + 10 + 16 + 1 + 16 = 89 < 90 | KeinRe |
+| HH pickup, holds CJ SJ CA CT HA HT H9 DA DQ S8 (74 alone), put away SA ST / HJ ST | 90 / 89 with the known Skat | Re / KeinRe |
+| HH with the Grand 90 cards (Hand) or the pickup 90 cards, Null | rule does not apply | KeinRe |
+
+Swapping unseen cards (opponents, the unknown Hand Skat with a Bube or Ace
+that would count if it were known) leaves lesson and app dialogue identical.
+Every core-offered call and card stays accepted, also Kontra in Null and Re
+after Easy's KeinRe; labelled synthetic Grand/Null views with a restricted
+legal list or a declarer offered Kontra fall back. App tests cover
+wrong/retry (Null: "applies" and any count answer are wrong), every legal
+action with the actual reply or declining card, Re and KeinRe with the
+resumed play for Grand Hand/pickup and Null, the next-game reset with a stale
+identity and God Mode parity. In the ordinary app with Kontra/Re on, seed 848
+(first game) reaches a Grand defence with two Buben where the human says
+Kontra and the declarer's actual reply is shown, seed 1282 (first game) a
+Null defence where the human declines with a card; seed 848's second game
+reaches the Null ouvert round with its exclusion text. No automatic opponent
+says Kontra in a non-Ouvert Grand or Null, so the learner's Grand/Null Re
+reply is reached only by the core-replayed app fixtures above, not in an
+ordinary-app walkthrough or screenshot.
 
 ## Verification and UI evidence
 
