@@ -254,6 +254,13 @@ impl GrandCoachApp {
         }
     }
 
+    /// Prepared validation launch opens confirmation without presenting a task.
+    pub fn prepare_validation(&mut self) {
+        if !self.recording.active() && self.new_series.is_none() {
+            self.training.prepare_validation();
+        }
+    }
+
     /// Leaves the training and returns to the waiting live table.
     pub fn exit_training(&mut self) {
         self.training.exit();

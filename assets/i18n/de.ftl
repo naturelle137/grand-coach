@@ -933,3 +933,4 @@ validation-unexpected-aid = Unerwartete weitere Hilfe gesehen – Sitzung stoppe
 validation-stopped = Sitzung ohne Antwort beendet. Bitte zur Partie zurückkehren und den Grund lokal notieren. Nach unerwarteter Hilfe erst nach technischer Klärung fortsetzen.
 validation-position = Aufgabe { $number } von 4
 validation-first = Erste erfasste Präsentation. Nur die erste ungestützte gewertete Antwort mit ausdrücklich gemeldeter fehlender Vorbekanntheit kann berücksichtigt werden. Ein lokaler Verlauf allein belegt keine Neuheit.
+validation-unclear-result = Als unklar erfasst – keine Wertung.

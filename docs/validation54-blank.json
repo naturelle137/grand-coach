@@ -12,7 +12,7 @@
   "actual_elapsed_days": null,
   "target_calendar_days": [7, 14],
   "opportunities": [],
-  "opportunity_fields": ["task_id", "task_version", "position_sha256", "presented_at", "submitted_at", "prior_exposure_none_seen_unknown", "first_or_repeat", "initially_visible_analysis", "help_details_reveal_aid", "answer_verbatim", "outcome_correct_wrong_skip_unclear_unsupported_no_answer", "own_words_verbatim", "clarity_verbatim", "stop_reason"],
+  "opportunity_fields": ["task_id", "task_version", "position_sha256", "presented_at", "submitted_at", "prior_exposure_none_seen_unknown", "first_or_repeat", "initially_visible_analysis", "help_details_reveal_aid", "unexpected_external_aid", "answer_verbatim", "outcome_correct_wrong_skip_unclear_unsupported_no_answer", "own_words_verbatim", "clarity_verbatim", "stop_reason"],
   "counts": {
     "opportunities": null, "answers": null, "scored": null,
     "correct": null, "wrong": null, "skipped": null, "unclear": null,

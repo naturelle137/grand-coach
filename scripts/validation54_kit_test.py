@@ -55,6 +55,7 @@ class KitTests(unittest.TestCase):
                 self.assertEqual(template["executable_sha256"], package.digest(b"binary"))
                 self.assertEqual(template["task_manifest_sha256"], package.digest((out / "task-manifest.json").read_bytes()))
                 self.assertFalse((out / "private-history/learning-history.json").exists())
+                self.assertIn("GRAND_COACH_VALIDATION=1", (out / "Grand-Coach-Lernvalidierung.sh").read_text())
                 self.assertFalse(any("key" in str(p.name) or p.suffix == ".rs" for p in out.rglob("*")))
                 (out / "private-history/personal.json").write_bytes(b"retain personal data")
                 with self.assertRaisesRegex(ValueError, "destination already exists"):

@@ -5,7 +5,7 @@ dich verständlich sind. Du musst nichts bestehen. Ein einzelner Durchlauf
 beweist weder Lernwirkung noch Beherrschung von Skat.
 
 1. Öffne die vorbereitete Verknüpfung „Grand-Coach Lernvalidierung“.
-   Wähle Spiel → Zähltraining … → Lernvalidierung vorbereiten. Vergleiche den angezeigten
+   Die Bestätigungsseite öffnet sich direkt. Vergleiche den angezeigten
    Build mit deinem lokalen Manifest. Bei Abweichung: beenden und melden.
 2. Wähle beim ersten Termin „Anfangssitzung bewusst starten“.
    Für den späteren Termin wähle „Folgesitzung bewusst starten“.

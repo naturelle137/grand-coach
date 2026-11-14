@@ -225,7 +225,7 @@ help is sticky. Retry, repeat and previously exposed tasks are practice. Missing
 unavailable, migrated, reset, corrupt or unsupported history disables novelty
 credit. Reset keeps the attempt counter and does not prove never-seen learning.
 Outside-file exposure and concurrent writers cannot be established. Record only
-observed supported question correctness, never thoughts, efficacy or human
+observed supported question correctness, never inferred thoughts, efficacy or human
 transfer. See [session contract](practice-catalogue.md#session-behaviour-and-conservative-exposure).
 
 ## D-74 Supported mechanism-response patterns

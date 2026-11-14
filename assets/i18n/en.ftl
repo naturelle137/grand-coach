@@ -933,3 +933,4 @@ validation-unexpected-aid = Unexpected additional aid seen – stop session
 validation-stopped = Session stopped without an answer. Return to the game and record the reason locally. After unexpected aid, continue only after technical triage.
 validation-position = Task { $number } of 4
 validation-first = First recorded presentation. Only the first unaided scored answer with an explicit report of no prior exposure can be considered. Local history alone does not establish novelty.
+validation-unclear-result = Recorded as unclear – not scored.

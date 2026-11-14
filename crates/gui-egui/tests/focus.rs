@@ -294,6 +294,10 @@ fn validation_widgets(language: Language) {
     button(&mut h, t("Hilfe einblenden", "Show help"));
     assert!(h.state().focus_view().unwrap().feedback.is_some());
     button(&mut h, t("Aufgabe unklar", "Task unclear"));
+    h.get_by_label(t(
+        "Als unklar erfasst – keine Wertung.",
+        "Recorded as unclear – not scored.",
+    ));
     button(&mut h, t("Nächste Stellung", "Next position"));
     assert!(h.state().focus_view().unwrap().feedback.is_none());
     button(&mut h, t("Überspringen", "Skip"));
@@ -375,5 +379,27 @@ fn unexpected_aid_widget_records_assistance_and_stops_without_feedback() {
             .as_ref()
             .unwrap()
             .external_aid
+    );
+}
+
+#[test]
+fn prepared_validation_launcher_opens_confirmation_without_a_task_or_new_series() {
+    let dir = Temp::new();
+    LearningHistory::new().save_local(dir.file()).unwrap();
+    let mut h = app(dir.file(), Language::En);
+    h.state_mut().exit_training();
+    let live = h.state().live_session().view();
+    h.state_mut().prepare_validation();
+    h.run_steps(3);
+    assert!(h.state().training_active());
+    assert!(h.state().focus_view().is_none());
+    assert!(!h.state().new_series_open());
+    h.get_by_label("Deliberately start initial session");
+    assert_eq!(h.state().live_session().view(), live);
+    assert!(
+        LearningHistory::open_local(dir.file())
+            .unwrap()
+            .focus_entries()
+            .is_empty()
     );
 }

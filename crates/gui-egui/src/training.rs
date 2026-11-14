@@ -56,6 +56,14 @@ impl TrainingUi {
         self.open = true;
     }
 
+    /// Prepared launcher opens confirmation only, never a reserved view.
+    pub(crate) fn prepare_validation(&mut self) {
+        self.open = true;
+        if self.session.is_none() {
+            self.validation_chooser = true;
+        }
+    }
+
     /// Leaves the training; its state is dropped.
     pub(crate) fn exit(&mut self) {
         *self = TrainingUi {
@@ -703,6 +711,7 @@ impl TrainingUi {
                         ..
                     } if given == expected => "focus-correct",
                     FocusAction::Answer { .. } => "focus-incorrect",
+                    FocusAction::Unclear => "validation-unclear-result",
                     _ => "focus-skipped",
                 }));
             }
@@ -774,6 +783,9 @@ impl TrainingUi {
                     ui.label(i.t("focus-boundary-note"));
                 }
             }
+        }
+        if v.feedback.is_none() && matches!(v.entry.action, FocusAction::Unclear) {
+            ui.label(i.t("validation-unclear-result"));
         }
         if v.entry.assisted {
             ui.label(i.t("training-was-assisted"));

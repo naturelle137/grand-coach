@@ -179,7 +179,7 @@ def build(args):
         "binary": binary, "rustc": identity, "cargo": run("cargo", "-V"),
         "os": platform.platform(), "python": platform.python_version(),
         "build_command": command, "features": "default", "models": [],
-        "build_environment": {k: env.get(k, "") for k in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CC", "CXX", "CARGO_INCREMENTAL", "SOURCE_DATE_EPOCH")},
+        "build_environment": {k: env.get(k, "") for k in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CC", "CXX", "CARGO_INCREMENTAL", "SOURCE_DATE_EPOCH", "GRAND_COACH_BUILD_COMMIT")},
         "runner_image": runner_image(env),
         "embedded_resources": names,
         "files": {name: digest(data) for name, data in sorted(files.items())},

@@ -9,7 +9,8 @@
 //!
 //! The learning history is kept in `learning-history.json` in the data
 //! directory ([`gui_egui::learning::data_dir`]; `GRAND_COACH_DATA`
-//! overrides it).
+//! overrides it). `GRAND_COACH_VALIDATION=1` opens validation confirmation
+//! instead of new-series setup; no reserved task is shown on launch.
 //!
 //! Smoke test: with `GRAND_COACH_SCREENSHOT=<file.ppm>` the window saves a
 //! screenshot after `GRAND_COACH_SCREENSHOT_DELAY` seconds (default 3) and
@@ -90,7 +91,11 @@ fn main() -> eframe::Result {
             if let Some(dir) = gui_egui::learning::data_dir() {
                 app.use_learning_file(dir.join(gui_egui::learning::HISTORY_FILE));
             }
-            app.show_new_series();
+            if std::env::var("GRAND_COACH_VALIDATION").as_deref() == Ok("1") {
+                app.prepare_validation();
+            } else {
+                app.show_new_series();
+            }
             Ok(match std::env::var_os("GRAND_COACH_SCREENSHOT") {
                 Some(path) => Box::new(Screenshot {
                     app,

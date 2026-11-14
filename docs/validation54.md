@@ -57,3 +57,11 @@ originating grand-coach thread 5; never send the key. The maintainer owns real
 Initial and later Delayed responses. Clean OS, interactive Windows 11 and full
 packaged lifecycle acceptance remain separate actual platform gates. No 1.0
 or public release is authorised.
+
+Preparation commands are in [Contributing](../CONTRIBUTING.md#private-reserved-learner-kit).
+The prepared launcher opens the validation confirmation screen directly and
+exposes no reserved position until the learner deliberately chooses a session.
+The [immutable manifest](validation54-tasks.json) contains hashes/identities,
+not answers or views. Its mechanical hashes pin positions; handwritten facts
+and independent legal witnesses supply the correctness oracle. The builder
+refuses a changed hash, dirty/wrong source or an existing destination.
