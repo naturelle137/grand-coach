@@ -22,8 +22,8 @@ impl BaselineOpponent {
         }
         let wanted = match view.phase {
             Phase::Reizen => policy::bid_rule(view)?.action,
-            Phase::SkatAufnahme => policy::hand_or_pickup(view.hand),
-            Phase::Druecken => Action::Discard(policy::discard(view.hand)),
+            Phase::SkatAufnahme => policy::pickup_rule(view)?.action,
+            Phase::Druecken => policy::discard_rule(view)?.action,
             Phase::Ansage => policy::announce(
                 view.hand,
                 view.own_skat.unwrap_or_default(),
@@ -48,7 +48,7 @@ mod tests {
     use rand_chacha::ChaCha8Rng;
     use rand_chacha::rand_core::{Rng, SeedableRng};
     use skat_analysis::policy;
-    use skat_core::{Game, RuleConfig, Seat};
+    use skat_core::{CardSet, Game, RuleConfig, Seat};
 
     /// Plays `seed` with the baseline opponent on every seat.
     fn self_play(seed: u64, kontra_re: bool) -> Game {
@@ -155,6 +155,52 @@ mod tests {
             }
         }
         assert!(holds > 0 && passes > 0 && bids > 0);
+    }
+
+    #[test]
+    fn shared_pickup_and_discard_rules_are_easys_decisions() {
+        let (mut hands, mut pickups, mut ties) = (0, 0, 0);
+        for seed in 0..300 {
+            let mut game = Game::new(seed, RuleConfig::default());
+            while let Some(seat) = game.current_seat() {
+                let view = game.view(seat);
+                let action = BaselineOpponent.decide(&view).unwrap();
+                match view.phase {
+                    Phase::SkatAufnahme => {
+                        let rule = policy::pickup_rule(&view).unwrap();
+                        assert_eq!(rule.action, action);
+                        assert!(!rule.fallback);
+                        assert_eq!(rule.strength >= rule.threshold, action == Action::Hand);
+                        if action == Action::Hand {
+                            hands += 1;
+                        } else {
+                            pickups += 1;
+                        }
+                    }
+                    Phase::Druecken => {
+                        let rule = policy::discard_rule(&view).unwrap();
+                        assert_eq!(rule.action, action);
+                        assert!(!rule.fallback);
+                        let put: CardSet = rule.reasons.iter().map(|r| r.0).collect();
+                        assert_eq!(Action::Discard(put), action);
+                        assert!(put.is_subset(rule.eligible));
+                        ties += usize::from(rule.eligible.len() > 2);
+                    }
+                    _ => {
+                        assert!(policy::pickup_rule(&view).is_none());
+                        assert!(policy::discard_rule(&view).is_none());
+                    }
+                }
+                if game.phase() == Phase::Spiel {
+                    break;
+                }
+                game.apply(action).unwrap();
+            }
+        }
+        assert!(
+            hands > 0 && pickups > 0 && ties > 0,
+            "{hands} {pickups} {ties}"
+        );
     }
 
     #[test]

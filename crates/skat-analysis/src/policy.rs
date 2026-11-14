@@ -156,6 +156,43 @@ pub fn hand_or_pickup(cards: CardSet) -> Action {
     }
 }
 
+/// Exact inputs and outcome of Easy's Hand-or-pickup rule.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PickupRule {
+    /// Actual selected action: Hand or TakeSkat.
+    pub action: Action,
+    /// Candidate game from the own ten cards.
+    pub game: GameType,
+    /// Branch of the game choice.
+    pub branch: GameBranch,
+    /// Strength of the own ten cards for `game` (0 for Null).
+    pub strength: i32,
+    /// Strength from which Easy plays Hand.
+    pub threshold: i32,
+    /// Easy's wanted action was illegal and the first legal action was taken.
+    pub fallback: bool,
+}
+
+/// Easy's Hand-or-pickup rule; none outside Skataufnahme or without a turn.
+pub fn pickup_rule(view: &PlayerView) -> Option<PickupRule> {
+    let legal = &view.legal_actions;
+    if view.phase != Phase::SkatAufnahme || legal.is_empty() {
+        return None;
+    }
+    let (game, _, branch) = choose_game_branch(view.hand);
+    let wanted = hand_or_pickup(view.hand);
+    let fallback = !legal.contains(&wanted);
+    Some(PickupRule {
+        action: if fallback { legal[0] } else { wanted },
+        game,
+        branch,
+        strength: strength(game, view.hand),
+        threshold: HAND,
+        fallback,
+    })
+}
+
 /// Two cards to put away: never Aces or trumps if avoidable; prefer short
 /// suits and unguarded Tens (their Augen count for the declarer).
 pub fn discard(cards: CardSet) -> CardSet {
@@ -163,6 +200,97 @@ pub fn discard(cards: CardSet) -> CardSet {
     let mut ranked: Vec<Card> = cards.iter().collect();
     ranked.sort_by_key(|&card| keep_score(game, cards, card));
     ranked[..2].iter().copied().collect()
+}
+
+/// Why the discard rule ranks a card where it does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Keep {
+    /// Null: the higher the card, the earlier it goes.
+    Null,
+    /// Trumpf: kept before everything else.
+    Trumpf,
+    /// Side Ace: kept.
+    Ass,
+    /// Ten guarded by the Ace of its suit: kept.
+    GuardedTen,
+    /// Other side card; shorter suits and more Augen (loose Tens) go first.
+    Side {
+        /// Cards of this suit (follow class) among the declarer's cards.
+        suit: u8,
+    },
+}
+
+/// Exact inputs and outcome of Easy's discard rule.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct DiscardRule {
+    /// Actual selected action: Discard of two cards.
+    pub action: Action,
+    /// Candidate game for the twelve cards.
+    pub game: GameType,
+    /// Branch of the game choice.
+    pub branch: GameBranch,
+    /// The two cards Easy puts away, with the reason for each.
+    pub reasons: [(Card, Keep); 2],
+    /// Every card ranked no higher than the second discard (ties included):
+    /// naming one of these is a correct answer.
+    pub eligible: CardSet,
+    /// Easy's wanted action was illegal and the first legal action was taken.
+    pub fallback: bool,
+}
+
+/// Easy's discard rule; none outside Drücken or without a turn.
+pub fn discard_rule(view: &PlayerView) -> Option<DiscardRule> {
+    let legal = &view.legal_actions;
+    if view.phase != Phase::Druecken || legal.is_empty() {
+        return None;
+    }
+    let cards = view.hand;
+    let (game, _, branch) = choose_game_branch(cards);
+    let put = discard(cards);
+    let wanted = Action::Discard(put);
+    let fallback = !legal.contains(&wanted);
+    let action = if fallback { legal[0] } else { wanted };
+    let put = match action {
+        Action::Discard(c) => c,
+        _ => put,
+    };
+    let limit = put
+        .iter()
+        .map(|c| keep_score(game, cards, c))
+        .max()
+        .unwrap_or(i32::MIN);
+    let mut it = put.iter().map(|c| (c, keep_class(game, cards, c)));
+    let first = it.next()?;
+    Some(DiscardRule {
+        action,
+        game,
+        branch,
+        reasons: [first, it.next()?],
+        eligible: cards
+            .iter()
+            .filter(|&c| keep_score(game, cards, c) <= limit)
+            .collect(),
+        fallback,
+    })
+}
+
+fn keep_class(game: GameType, cards: CardSet, card: Card) -> Keep {
+    if game == GameType::Null {
+        return Keep::Null;
+    }
+    if game.is_trump(card) {
+        return Keep::Trumpf;
+    }
+    let suit = cards & game.cards_of(game.follow(card));
+    match card.augen() {
+        11 => Keep::Ass,
+        10 if suit.iter().any(|c| c.augen() == 11) => Keep::GuardedTen,
+        _ => Keep::Side {
+            suit: suit.len() as u8,
+        },
+    }
 }
 
 /// Higher means rather keep.

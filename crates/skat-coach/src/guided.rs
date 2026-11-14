@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Bounded guided Farbspiel and Reizen lessons. Exact rule provenance, never
-//! search ranking.
+//! Bounded guided Farbspiel, Reizen, Skataufnahme and Drücken lessons. Exact
+//! rule provenance, never search ranking.
 
 use crate::Source;
 pub use skat_analysis::baseline::{Branch, CardRule};
-pub use skat_analysis::policy::{BidRule, GameBranch};
+pub use skat_analysis::policy::{BidRule, DiscardRule, GameBranch, Keep, PickupRule};
 use skat_analysis::{Knowledge, TrickState, baseline, policy};
 use skat_core::{Card, CardSet, Follow, GameType, Phase, PlayerView, Seat};
 
@@ -20,6 +20,8 @@ pub enum Step {
     /// Try a legal card that serves this branch's immediate purpose.
     Narrow,
     /// Reizen: is the value at stake within Easy's ceiling for the own hand?
+    /// Skataufnahme: does the strength reach Easy's Hand threshold?
+    /// Drücken: name a card Easy puts away first.
     Threshold,
     /// Deliberately revealed worked answer; play any legal card.
     Act,
@@ -46,7 +48,10 @@ pub enum Answer {
     /// Reizen orientation: answer (hold) the current bid, or name a higher one.
     Holds(bool),
     /// Reizen threshold: the value at stake is within the heuristic ceiling.
+    /// Skataufnahme threshold: the strength reaches the Hand threshold.
     Within(bool),
+    /// Skataufnahme/Drücken orientation: which branch builds the candidate game.
+    Game(GameBranch),
 }
 
 /// A rule-backed lesson. Never passed to the frontend before disclosure.
@@ -148,6 +153,89 @@ impl BidLesson {
             (Step::Threshold, Answer::Within(w)) => {
                 w == (self.rule.action != skat_core::Action::Pass)
             }
+            _ => false,
+        }
+    }
+}
+
+/// Easy's shared rule for one declarer decision before the play.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum PreRule {
+    /// Skataufnahme: Hand or pickup.
+    Pickup(PickupRule),
+    /// Drücken: which two cards go into the Skat.
+    Discard(DiscardRule),
+}
+
+impl PreRule {
+    /// Branch of the candidate game choice.
+    pub fn branch(&self) -> GameBranch {
+        match self {
+            Self::Pickup(r) => r.branch,
+            Self::Discard(r) => r.branch,
+        }
+    }
+
+    /// Candidate game behind the rule; conditional, not a contract.
+    pub fn game(&self) -> GameType {
+        match self {
+            Self::Pickup(r) => r.game,
+            Self::Discard(r) => r.game,
+        }
+    }
+
+    /// Actual selected action.
+    pub fn action(&self) -> skat_core::Action {
+        match self {
+            Self::Pickup(r) => r.action,
+            Self::Discard(r) => r.action,
+        }
+    }
+
+    /// Easy's wanted action was not legal; the first legal action is shown.
+    pub fn fallback(&self) -> bool {
+        match self {
+            Self::Pickup(r) => r.fallback,
+            Self::Discard(r) => r.fallback,
+        }
+    }
+}
+
+/// A Skataufnahme or Drücken lesson from Easy's shared rule. Never passed to
+/// the frontend before disclosure.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PreLesson {
+    /// Actual shared Easy outcome and its inputs.
+    pub rule: PreRule,
+    /// Learner's seat.
+    pub seat: Seat,
+}
+
+/// Every declarer Skataufnahme and Drücken decision is supported.
+pub fn pre_lesson(view: &PlayerView) -> Option<PreLesson> {
+    let rule = match view.phase {
+        Phase::SkatAufnahme => PreRule::Pickup(policy::pickup_rule(view)?),
+        Phase::Druecken => PreRule::Discard(policy::discard_rule(view)?),
+        _ => return None,
+    };
+    Some(PreLesson {
+        rule,
+        seat: view.seat,
+    })
+}
+
+impl PreLesson {
+    /// Orientation asks for the candidate branch; the threshold answer is
+    /// Easy's actual choice (a discard tied with Easy's cards also counts).
+    pub fn check(&self, step: Step, answer: Answer) -> bool {
+        match (step, answer, self.rule) {
+            (Step::Orient, Answer::Game(b), rule) => b == rule.branch(),
+            (Step::Threshold, Answer::Within(w), PreRule::Pickup(r)) => {
+                w == (r.action == skat_core::Action::Hand)
+            }
+            (Step::Threshold, Answer::Card(c), PreRule::Discard(r)) => r.eligible.contains(c),
             _ => false,
         }
     }
