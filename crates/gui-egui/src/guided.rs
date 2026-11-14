@@ -5,8 +5,9 @@ use crate::{coach, i18n::I18n, text};
 use eframe::egui;
 use skat_app::coach_model::Source;
 use skat_app::{
-    Action, GuidedAction, GuidedAnnounceRule, GuidedAnswer, GuidedBranch, GuidedGameBranch,
-    GuidedKeep, GuidedPreRule, GuidedStep, GuidedView, Phase, Seat, TableView,
+    GuidedAction, GuidedAnnounceRule, GuidedAnswer, GuidedBranch, GuidedGameBranch, GuidedKeep,
+    GuidedKontra, GuidedKontraCall, GuidedKontraExclusion, GuidedKontraObservation, GuidedPreRule,
+    GuidedStep, GuidedView, Phase, Seat, TableView,
 };
 
 pub(crate) fn panel(
@@ -23,6 +24,9 @@ pub(crate) fn panel(
     if let Some(p) = &g.preplay {
         return preplay(ui, i, table, g, p);
     }
+    if let Some(k) = g.kontra {
+        return kontra(ui, i, table, g, k);
+    }
     let prompt = match g.step {
         GuidedStep::Orient => "guided-orient",
         GuidedStep::Check => "guided-check",
@@ -32,15 +36,14 @@ pub(crate) fn panel(
         GuidedStep::Waiting => "guided-waiting",
         GuidedStep::Observe => "guided-observe",
         GuidedStep::Complete => "guided-complete",
-        GuidedStep::Unsupported
-            if table
-                .legal_actions
-                .iter()
-                .any(|a| matches!(a, Action::Kontra | Action::KeinKontra | Action::Re)) =>
-        {
-            "guided-unsupported-kontra"
-        }
-        GuidedStep::Unsupported => "guided-unsupported",
+        GuidedStep::Unsupported => match g.kontra_exclusion {
+            Some(GuidedKontraExclusion::OuvertRound) => "guided-unsupported-kontra-ouvert-round",
+            Some(GuidedKontraExclusion::Ouvert) => "guided-unsupported-kontra-ouvert",
+            Some(GuidedKontraExclusion::Grand) => "guided-unsupported-kontra-grand",
+            Some(GuidedKontraExclusion::Null) => "guided-unsupported-kontra-null",
+            Some(GuidedKontraExclusion::Restricted) => "guided-unsupported-kontra",
+            None => "guided-unsupported",
+        },
     };
     ui.label(i.t(prompt));
     if g.correct == Some(false) {
@@ -160,36 +163,7 @@ pub(crate) fn panel(
     {
         action = Some(GuidedAction::Figures);
     }
-    if g.figures_requested {
-        ui.separator();
-        ui.strong(i.t("guided-model-title"));
-        egui::ScrollArea::vertical()
-            .id_salt("guided-model")
-            .max_height(220.0)
-            .show(ui, |ui| {
-                if let Some(h) = &g.figures {
-                    ui.label(i.tf(
-                        "guided-budget",
-                        &[
-                            ("samples", g.budget.map_or(0, |b| b.samples).into()),
-                            ("nodes", g.budget.map_or(0, |b| b.nodes_per_task).into()),
-                            ("game", g.id.game.into()),
-                            ("actions", g.id.actions.into()),
-                        ],
-                    ));
-                    ui.label(i.t(if g.basis == skat_app::CoachBasis::RealDeal {
-                        "coach-basis-real-deal"
-                    } else {
-                        "guided-basis-own"
-                    }));
-                    for line in coach::hints(i, table, h, true) {
-                        ui.label(line.text);
-                    }
-                } else {
-                    ui.label(i.t("guided-model-unavailable"));
-                }
-            });
-    }
+    figures_panel(ui, i, table, g);
     if ui.button(i.t("guided-return")).clicked() {
         action = Some(GuidedAction::Return);
     }
@@ -295,6 +269,218 @@ fn reizen(
         action = Some(GuidedAction::Return);
     }
     action
+}
+
+/// Kontra/Re: public contract and factor, factor orientation, Easy's
+/// condition attempt, then its actual call and the actual next public step.
+fn kontra(
+    ui: &mut egui::Ui,
+    i: &I18n,
+    table: &TableView,
+    g: &GuidedView,
+    k: GuidedKontra,
+) -> Option<GuidedAction> {
+    let mut action = None;
+    let re = k.call == GuidedKontraCall::Re;
+    let game = ("game", text::game_type(i, k.game).into());
+    ui.label(i.tf(
+        if re {
+            "guided-kontra-public-re"
+        } else {
+            "guided-kontra-public-kontra"
+        },
+        &[game],
+    ));
+    let pick = |kontra: &'static str, re_key: &'static str| if re { re_key } else { kontra };
+    let figures = [
+        ("factor", k.factor.unwrap_or_default().into()),
+        ("threshold", k.threshold.unwrap_or_default().into()),
+    ];
+    let prompt = match g.step {
+        GuidedStep::Orient => i.t(pick(
+            "guided-kontra-orient-kontra",
+            "guided-kontra-orient-re",
+        )),
+        GuidedStep::Threshold => i.tf(
+            pick(
+                "guided-kontra-threshold-kontra",
+                "guided-kontra-threshold-re",
+            ),
+            &figures,
+        ),
+        GuidedStep::Act => i.t(pick("guided-kontra-act-kontra", "guided-kontra-act-re")),
+        GuidedStep::Waiting => i.t("guided-kontra-waiting"),
+        GuidedStep::Complete => i.t("guided-kontra-complete"),
+        _ => i.t("guided-unsupported-kontra"),
+    };
+    ui.label(prompt);
+    if g.correct == Some(false) {
+        ui.label(i.t("guided-wrong"));
+        if ui.button(i.t("guided-retry")).clicked() {
+            action = Some(GuidedAction::Retry);
+        }
+    }
+    let answers: Vec<(String, GuidedAnswer)> = match g.step {
+        GuidedStep::Orient => [1, 2, 4]
+            .map(|f| {
+                (
+                    i.tf("guided-kontra-factor-button", &[("factor", f.into())]),
+                    GuidedAnswer::Factor(f),
+                )
+            })
+            .to_vec(),
+        GuidedStep::Threshold => vec![
+            (i.t("guided-kontra-yes"), GuidedAnswer::Within(true)),
+            (i.t("guided-kontra-no"), GuidedAnswer::Within(false)),
+        ],
+        _ => vec![],
+    };
+    for (label, answer) in answers {
+        if ui.button(label).clicked() {
+            action = Some(GuidedAction::Answer(answer));
+        }
+    }
+    if let Some(rule) = &g.kontra_rule {
+        ui.strong(i.tf(
+            "guided-bid-rule",
+            &[("action", coach::action(i, table, rule.action).into())],
+        ));
+        if re {
+            ui.label(match rule.skat.len() {
+                0 => i.t("guided-ann-skat-hand"),
+                _ => {
+                    let cards: Vec<_> = rule.skat.iter().map(|c| text::card(i, c)).collect();
+                    i.tf(
+                        "guided-ann-skat-known",
+                        &[("cards", cards.join(", ").into())],
+                    )
+                }
+            });
+        }
+        let key = match (re, rule.wants) {
+            (false, true) => "guided-kontra-count-kontra-yes",
+            (false, false) => "guided-kontra-count-kontra-no",
+            (true, true) => "guided-kontra-count-re-yes",
+            (true, false) => "guided-kontra-count-re-no",
+        };
+        ui.label(i.tf(
+            key,
+            &[
+                ("count", rule.count.into()),
+                ("threshold", rule.threshold.into()),
+            ],
+        ));
+        if let Some(card) = &rule.card {
+            ui.label(i.tf(
+                "guided-kontra-card",
+                &[("card", text::card(i, card.card).into())],
+            ));
+        }
+        ui.label(i.t(pick(
+            "guided-kontra-fact-factor",
+            "guided-pre-strength-count",
+        )));
+        ui.label(i.t(pick(
+            "guided-kontra-caveat-kontra",
+            "guided-kontra-caveat-re",
+        )));
+    }
+    if let Some(o) = g.kontra_observation {
+        ui.label(observation_line(i, o));
+        if let GuidedKontraObservation::Declined {
+            winner: Some(seat), ..
+        } = o
+        {
+            ui.label(i.tf("guided-winner", &[("seat", text::seat(i, seat).into())]));
+        }
+    }
+    if matches!(g.step, GuidedStep::Orient | GuidedStep::Threshold) {
+        if ui.button(i.t("guided-unknown")).clicked() {
+            action = Some(GuidedAction::Reveal);
+        }
+        if ui.button(i.t("guided-reveal")).clicked() {
+            action = Some(GuidedAction::Reveal);
+        }
+    }
+    if g.step == GuidedStep::Complete
+        && table.coach.settings.show_figures
+        && ui.button(i.t("guided-figures")).clicked()
+    {
+        action = Some(GuidedAction::Figures);
+    }
+    figures_panel(ui, i, table, g);
+    if ui.button(i.t("guided-return")).clicked() {
+        action = Some(GuidedAction::Return);
+    }
+    action
+}
+
+/// Separately requested model comparison of the original decision.
+fn figures_panel(ui: &mut egui::Ui, i: &I18n, table: &TableView, g: &GuidedView) {
+    if g.figures_requested {
+        ui.separator();
+        ui.strong(i.t("guided-model-title"));
+        egui::ScrollArea::vertical()
+            .id_salt("guided-model")
+            .max_height(220.0)
+            .show(ui, |ui| {
+                if let Some(h) = &g.figures {
+                    ui.label(i.tf(
+                        "guided-budget",
+                        &[
+                            ("samples", g.budget.map_or(0, |b| b.samples).into()),
+                            ("nodes", g.budget.map_or(0, |b| b.nodes_per_task).into()),
+                            ("game", g.id.game.into()),
+                            ("actions", g.id.actions.into()),
+                        ],
+                    ));
+                    ui.label(i.t(if g.basis == skat_app::CoachBasis::RealDeal {
+                        "coach-basis-real-deal"
+                    } else {
+                        "guided-basis-own"
+                    }));
+                    for line in coach::hints(i, table, h, true) {
+                        ui.label(line.text);
+                    }
+                } else {
+                    ui.label(i.t("guided-model-unavailable"));
+                }
+            });
+    }
+}
+
+fn observation_line(i: &I18n, o: GuidedKontraObservation) -> String {
+    match o {
+        GuidedKontraObservation::Reply { seat, re, level } => i.tf(
+            if re {
+                "guided-kontra-reply-re"
+            } else {
+                "guided-kontra-reply-kein-re"
+            },
+            &[
+                ("seat", text::seat(i, seat).into()),
+                ("factor", level.factor().into()),
+            ],
+        ),
+        GuidedKontraObservation::Resumed { seat, card, level } => i.tf(
+            "guided-kontra-resumed",
+            &[
+                ("seat", text::seat(i, seat).into()),
+                ("card", text::card(i, card).into()),
+                ("factor", level.factor().into()),
+            ],
+        ),
+        GuidedKontraObservation::Declined {
+            card, trick, level, ..
+        } => i.tf(
+            "guided-kontra-declined",
+            &[
+                ("card", text::card(i, card).into()),
+                ("trick", (trick + 1).into()),
+                ("factor", level.factor().into()),
+            ],
+        ),
+    }
 }
 
 /// Skataufnahme/Drücken/Ansage: candidate branch, threshold, card or value
@@ -581,7 +767,7 @@ mod tests {
     use super::*;
     use crate::i18n::Language;
     use egui_kittest::{Harness, kittest::Queryable};
-    use skat_app::{Announcement, CardSet, GameType, GuidedAnnounceCandidate, Suit};
+    use skat_app::{Action, Announcement, CardSet, GameType, GuidedAnnounceCandidate, Suit};
 
     /// Review #152: the revealed no-fit answer (Herz Hand cards at bid 77,
     /// see `guided_announce.rs`) names only the known-card comparison and the
