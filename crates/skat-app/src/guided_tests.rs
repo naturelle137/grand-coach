@@ -1209,3 +1209,33 @@ fn grand_null_ouvert_and_off_kontra_offers_get_honest_fallbacks() {
         }
     }
 }
+
+#[test]
+fn god_mode_does_not_broaden_the_kontra_lesson_input() {
+    // God Mode shows every card and analyses the real deal, but the guided
+    // Kontra/Re lesson still uses the closed permitted view.
+    let walk = |god: bool| {
+        let mut s = kontra_session(
+            Seat::Vorhand,
+            kontra_deal(KONTRA_VH, KONTRA_HH, "D8 D9"),
+            herz(),
+        );
+        if god {
+            s.config.opponents = Opponents::GodMode;
+            assert!(s.view().open_cards.is_some());
+        }
+        s.execute(Command::StartGuided).unwrap();
+        let mut views = vec![s.guided().unwrap()];
+        respond(&mut s, G::Answer(A::Factor(2))).unwrap();
+        views.push(s.guided().unwrap());
+        respond(&mut s, G::Reveal).unwrap();
+        views.push(s.guided().unwrap());
+        views
+    };
+    let closed = walk(false);
+    for (mut god, closed) in walk(true).into_iter().zip(closed) {
+        god.id = closed.id;
+        god.basis = closed.basis;
+        assert_eq!(god, closed);
+    }
+}
