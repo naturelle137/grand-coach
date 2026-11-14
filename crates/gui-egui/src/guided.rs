@@ -4,7 +4,10 @@
 use crate::{coach, i18n::I18n, text};
 use eframe::egui;
 use skat_app::coach_model::Source;
-use skat_app::{GuidedAction, GuidedAnswer, GuidedBranch, GuidedStep, GuidedView, Seat, TableView};
+use skat_app::{
+    GuidedAction, GuidedAnswer, GuidedBranch, GuidedGameBranch, GuidedStep, GuidedView, Seat,
+    TableView,
+};
 
 pub(crate) fn panel(
     ui: &mut egui::Ui,
@@ -14,11 +17,14 @@ pub(crate) fn panel(
 ) -> Option<GuidedAction> {
     let mut action = None;
     ui.heading(i.t("guided-title"));
+    if let Some(r) = g.reizen {
+        return reizen(ui, i, table, g, r);
+    }
     let prompt = match g.step {
         GuidedStep::Orient => "guided-orient",
         GuidedStep::Check => "guided-check",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::UnderPartner) => "guided-under",
-        GuidedStep::Narrow => "guided-win",
+        GuidedStep::Narrow | GuidedStep::Threshold => "guided-win",
         GuidedStep::Act => "guided-act",
         GuidedStep::Waiting => "guided-waiting",
         GuidedStep::Observe => "guided-observe",
@@ -172,6 +178,107 @@ pub(crate) fn panel(
                     ui.label(i.t("guided-model-unavailable"));
                 }
             });
+    }
+    if ui.button(i.t("guided-return")).clicked() {
+        action = Some(GuidedAction::Return);
+    }
+    action
+}
+
+/// Reizen: public bid, role, threshold attempt, then Easy's actual call.
+fn reizen(
+    ui: &mut egui::Ui,
+    i: &I18n,
+    table: &TableView,
+    g: &GuidedView,
+    r: skat_app::GuidedReizen,
+) -> Option<GuidedAction> {
+    let mut action = None;
+    ui.label(if r.current == 0 {
+        i.t("guided-bid-current-none")
+    } else {
+        i.tf("guided-bid-current", &[("bid", r.current.into())])
+    });
+    let prompt = match (g.step, r.holds, r.stake) {
+        (GuidedStep::Orient, ..) => i.t("guided-bid-orient"),
+        (GuidedStep::Threshold, Some(true), Some(v)) => {
+            i.tf("guided-bid-threshold-hold", &[("value", v.into())])
+        }
+        (GuidedStep::Threshold, _, Some(v)) => {
+            i.tf("guided-bid-threshold-ask", &[("value", v.into())])
+        }
+        (GuidedStep::Threshold, ..) => {
+            i.tf("guided-bid-threshold-none", &[("bid", r.current.into())])
+        }
+        (GuidedStep::Act, ..) => i.t("guided-bid-act"),
+        _ => i.t("guided-unsupported"),
+    };
+    ui.label(prompt);
+    if g.correct == Some(false) {
+        ui.label(i.t("guided-wrong"));
+        if ui.button(i.t("guided-retry")).clicked() {
+            action = Some(GuidedAction::Retry);
+        }
+    }
+    let answers: &[(&str, GuidedAnswer)] = match g.step {
+        GuidedStep::Orient => &[
+            ("guided-bid-holds", GuidedAnswer::Holds(true)),
+            ("guided-bid-asks", GuidedAnswer::Holds(false)),
+        ],
+        GuidedStep::Threshold => &[
+            ("guided-bid-within-yes", GuidedAnswer::Within(true)),
+            ("guided-bid-within-no", GuidedAnswer::Within(false)),
+        ],
+        _ => &[],
+    };
+    for &(key, answer) in answers {
+        if ui.button(i.t(key)).clicked() {
+            action = Some(GuidedAction::Answer(answer));
+        }
+    }
+    if let Some(rule) = &g.bid_rule {
+        ui.strong(i.tf(
+            "guided-bid-rule",
+            &[("action", coach::action(i, table, rule.action).into())],
+        ));
+        let branch = match rule.branch {
+            GuidedGameBranch::Suit => Some("guided-bid-branch-suit"),
+            GuidedGameBranch::Grand => Some("guided-bid-branch-grand"),
+            GuidedGameBranch::Null => Some("guided-bid-branch-null"),
+            GuidedGameBranch::Weak => None,
+        };
+        if let Some(key) = branch {
+            ui.label(i.tf(
+                "guided-bid-game",
+                &[
+                    ("game", text::game_type(i, rule.game).into()),
+                    ("ceiling", rule.ceiling.into()),
+                ],
+            ));
+            ui.label(i.t(key));
+        } else {
+            ui.label(i.t("guided-bid-weak"));
+        }
+        ui.label(match rule.stake {
+            Some(v) => i.tf(
+                if v <= rule.ceiling {
+                    "guided-bid-within"
+                } else {
+                    "guided-bid-above"
+                },
+                &[("value", v.into()), ("ceiling", rule.ceiling.into())],
+            ),
+            None => i.t("guided-bid-no-value"),
+        });
+        ui.label(i.t("guided-bid-caveat"));
+    }
+    if matches!(g.step, GuidedStep::Orient | GuidedStep::Threshold) {
+        if ui.button(i.t("guided-unknown")).clicked() {
+            action = Some(GuidedAction::Reveal);
+        }
+        if ui.button(i.t("guided-reveal")).clicked() {
+            action = Some(GuidedAction::Reveal);
+        }
     }
     if ui.button(i.t("guided-return")).clicked() {
         action = Some(GuidedAction::Return);

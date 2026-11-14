@@ -96,6 +96,13 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("guided-observe-en", guided_observe_en),
     ("guided-complete-en", guided_complete_en),
     ("guided-orient-narrow", guided_orient),
+    ("guided-bid-orient", guided_bid_orient),
+    ("guided-bid-threshold", guided_bid_threshold),
+    ("guided-bid-act", guided_bid_act),
+    ("guided-bid-orient-en", guided_bid_orient_en),
+    ("guided-bid-threshold-en", guided_bid_threshold_en),
+    ("guided-bid-act-en", guided_bid_act_en),
+    ("guided-bid-act-narrow", guided_bid_act),
     ("launch", launch),
     ("recording", recording),
     ("recording-final", recording_final),
@@ -2243,6 +2250,45 @@ fn guided_figures_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_figures(h);
     h.state_mut().set_language(Language::En);
     h.run_steps(4);
+}
+
+/// Reizen threshold dialogue (#148): real entry, orientation, reveal.
+fn guided_bid_in(h: &mut Harness<'_, GrandCoachApp>, language: Language, steps: u8) {
+    let i = I18n::new(language);
+    guided_support::enter_reizen(h, language);
+    if steps == 0 {
+        return;
+    }
+    let holds = view(h).legal_actions.contains(&Action::Hold);
+    guided_support::click(
+        h,
+        &i.t(if holds {
+            "guided-bid-holds"
+        } else {
+            "guided-bid-asks"
+        }),
+    );
+    if steps > 1 {
+        guided_support::click(h, &i.t("guided-reveal"));
+    }
+}
+fn guided_bid_orient(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_bid_in(h, Language::De, 0);
+}
+fn guided_bid_threshold(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_bid_in(h, Language::De, 1);
+}
+fn guided_bid_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_bid_in(h, Language::De, 2);
+}
+fn guided_bid_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_bid_in(h, Language::En, 0);
+}
+fn guided_bid_threshold_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_bid_in(h, Language::En, 1);
+}
+fn guided_bid_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_bid_in(h, Language::En, 2);
 }
 
 // Catalogue-mode scenarios use real widgets, including settlement before next.

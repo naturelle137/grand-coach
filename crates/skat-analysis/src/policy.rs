@@ -10,7 +10,9 @@
 //! AI and coach share one strategic computation. Every rule only looks at
 //! the deciding seat's own cards (and public facts such as the bid).
 
-use skat_core::{Action, Announcement, Card, CardSet, Contract, GameType, reizwerte};
+use skat_core::{
+    Action, Announcement, Card, CardSet, Contract, GameType, Phase, PlayerView, reizwerte,
+};
 
 use crate::hand::{TRUMP_GAMES, game_value, null_risks, power, strength, trump_count};
 
@@ -27,13 +29,33 @@ const KONTRA_TRUMPS: usize = 5;
 /// Strength from which the declarer answers Kontra with Re.
 const RE: i32 = 90;
 
+/// Which branch of [`choose_game`] supplied the candidate game and ceiling.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum GameBranch {
+    /// At least two Buben and Grand strength; value from own Spitzen.
+    Grand,
+    /// Strongest suit reaches the suit threshold; value from own Spitzen.
+    Suit,
+    /// No suit game, at most one unsafe Null suit; fixed value 23.
+    Null,
+    /// Nothing reaches a threshold: ceiling 0, the seat passes.
+    Weak,
+}
+
 /// Best game for `cards` and the highest bid the policy goes to (0: pass).
 pub fn choose_game(cards: CardSet) -> (GameType, u16) {
+    let (game, limit, _) = choose_game_branch(cards);
+    (game, limit)
+}
+
+/// [`choose_game`] plus the branch that produced it.
+pub fn choose_game_branch(cards: CardSet) -> (GameType, u16, GameBranch) {
     let grand_ok =
         (cards & GameType::BUBEN).len() >= 2 && strength(GameType::Grand, cards) >= GRAND;
     if grand_ok {
         let value = game_value(GameType::Grand, cards, false).unwrap_or(0);
-        return (GameType::Grand, value);
+        return (GameType::Grand, value, GameBranch::Grand);
     }
     let best = TRUMP_GAMES
         .into_iter()
@@ -41,11 +63,15 @@ pub fn choose_game(cards: CardSet) -> (GameType, u16) {
         .max_by_key(|&g| (strength(g, cards), trump_count(g, cards)))
         .expect("four suit games");
     if strength(best, cards) >= SUIT_GAME {
-        (best, game_value(best, cards, false).unwrap_or(0))
+        (
+            best,
+            game_value(best, cards, false).unwrap_or(0),
+            GameBranch::Suit,
+        )
     } else if null_risks(cards) <= NULL_RISKS {
-        (GameType::Null, 23)
+        (GameType::Null, 23, GameBranch::Null)
     } else {
-        (best, 0)
+        (best, 0, GameBranch::Weak)
     }
 }
 
@@ -59,11 +85,65 @@ pub fn bid(limit: u16, current: u16, legal: &[Action]) -> Action {
             Action::Pass
         };
     }
-    let next = reizwerte().into_iter().find(|&v| v > current);
-    match next {
+    match next_bid(current) {
         Some(value) if value <= limit && legal.contains(&Action::Bid(value)) => Action::Bid(value),
         _ => Action::Pass,
     }
+}
+
+/// Next standard bid value above `current`, if any.
+pub fn next_bid(current: u16) -> Option<u16> {
+    reizwerte().into_iter().find(|&v| v > current)
+}
+
+/// Exact inputs and outcome of Easy's bidding rule for one permitted view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BidRule {
+    /// Actual selected action: Hold, Bid(value) or Pass.
+    pub action: Action,
+    /// Public current bid (0: nothing bid yet).
+    pub current: u16,
+    /// Whether this seat answers (holds) the current bid rather than naming one.
+    pub holds: bool,
+    /// Value this decision is about: the current bid when holding, otherwise
+    /// the next standard value (none above the highest value).
+    pub stake: Option<u16>,
+    /// Heuristic ceiling from the own ten cards only (0: pass).
+    pub ceiling: u16,
+    /// Candidate game behind the ceiling; conditional, not a contract.
+    pub game: GameType,
+    /// Branch of the game choice.
+    pub branch: GameBranch,
+    /// Easy's wanted action was illegal and the first legal action was taken.
+    pub fallback: bool,
+}
+
+/// Easy's bidding rule for a Reizen decision; none in other phases or
+/// without a turn.
+pub fn bid_rule(view: &PlayerView) -> Option<BidRule> {
+    let legal = &view.legal_actions;
+    if view.phase != Phase::Reizen || legal.is_empty() {
+        return None;
+    }
+    let (game, ceiling, branch) = choose_game_branch(view.hand);
+    let wanted = bid(ceiling, view.bid, legal);
+    let fallback = !legal.contains(&wanted);
+    let holds = legal.contains(&Action::Hold);
+    Some(BidRule {
+        action: if fallback { legal[0] } else { wanted },
+        current: view.bid,
+        holds,
+        stake: if holds {
+            Some(view.bid)
+        } else {
+            next_bid(view.bid)
+        },
+        ceiling,
+        game,
+        branch,
+        fallback,
+    })
 }
 
 /// Hand or pickup for the declarer's ten cards.

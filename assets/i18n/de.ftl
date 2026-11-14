@@ -710,6 +710,27 @@ guided-budget = Spiel { $game }, Entscheidung nach { $actions } Aktionen. Arbeit
 guided-model-unavailable = Für diese Entscheidung liegt kein verwendbarer Modellvergleich vor. Die Regelantwort benötigt keine Schätzung.
 guided-basis-own = Grundlage: eingefrorene eigene Sicht, kein späteres Kartenwissen.
 guided-consider = Karte erwägen: { $card }
+guided-bid-current = Aktuelles öffentliches Gebot: { $bid }.
+guided-bid-current-none = Bisher wurde nichts gereizt.
+guided-bid-orient = Hörst du das aktuelle Gebot (halten), oder musst du selbst einen Wert sagen?
+guided-bid-holds = Ich höre: halten
+guided-bid-asks = Ich sage einen Wert
+guided-bid-threshold-hold = Du entscheidest, ob du { $value } hältst. Reicht Easys Obergrenze für deine eigenen zehn Karten bis { $value }?
+guided-bid-threshold-ask = Der nächste Reizwert ist { $value }. Reicht Easys Obergrenze für deine eigenen zehn Karten bis { $value }?
+guided-bid-threshold-none = Über { $bid } gibt es keinen Reizwert mehr. Kann Easys Regel noch reizen?
+guided-bid-within-yes = Ja, innerhalb der Obergrenze
+guided-bid-within-no = Nein, über der Obergrenze
+guided-bid-rule = Easys Regel: { $action }.
+guided-bid-game = Kandidat aus deinen eigenen zehn Karten: { $game }, Obergrenze { $ceiling }.
+guided-bid-weak = Kein Spiel erreicht die Schwellen der Regel: Obergrenze 0, Easy passt.
+guided-bid-branch-suit = Farbspiel: stärkste Farbe nach Easys Stärkezählung; Wert = Grundwert × (Spitzen + 1).
+guided-bid-branch-grand = Grand: mindestens zwei Buben und genug Stärke; Wert = 24 × (Spitzen + 1).
+guided-bid-branch-null = Null: höchstens eine unsichere Farbe; fester Wert 23.
+guided-bid-within = Wert der Entscheidung { $value } ≤ Obergrenze { $ceiling }.
+guided-bid-above = Wert der Entscheidung { $value } > Obergrenze { $ceiling }.
+guided-bid-no-value = Es gibt keinen höheren Reizwert; nur Passen ist möglich.
+guided-bid-caveat = Die Obergrenze ist eine bedingte Faustregel aus deinen eigenen zehn Karten, kein garantierter Spielwert und kein Gewinnversprechen. Spitzen zählen nur aus deiner Hand; auf fehlende aus dem verdeckten Skat ist kein Verlass.
+guided-bid-act = Wähle jetzt eine beliebige legale Reizaktion.
 # Lernverlauf (M8-Grundlage, D-70)
 learning-open = Lernverlauf …
 learning-title = Lernverlauf

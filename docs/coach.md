@@ -261,7 +261,7 @@ Farbspiel card play with at least two legal actions and a nonempty branch
 candidate set. The former follows a partner who is not a follow-class master
 with one seat still to play; Easy selects a losing card by nontrump, Augen,
 power, retaining the first exact tie. The latter wins in last seat by nontrump,
-power, retaining the first exact tie. Other branches, Grand, Null and pre-play
+power, retaining the first exact tie. Other branches, Grand, Null and pre-play decisions after Reizen
 report unsupported and return to free play. In particular, a side master is
 not safe against trumping: the early `FeedPartner` branch is excluded.
 
@@ -297,6 +297,27 @@ the frozen rule explanation. God Mode's statistics explicitly retain their
 privileged basis, while the rule dialogue still uses the closed permitted view.
 The [walkthrough and fixture contract](guided-dialogue.md) records technical
 evidence and remaining learner work.
+
+### Guided Reizen threshold (#148)
+
+The same entry also supports every learner Reizen decision. Its evidence is
+`skat_analysis::policy::bid_rule`, the exact path Easy now uses: actual
+Hold/Bid/Pass, public current bid, whether the seat holds, the value at stake
+(current bid when holding, otherwise the next standard value or none), the
+heuristic ceiling, candidate game and `GameBranch` (`Suit`, `Grand`, `Null`,
+`Weak`). The coach only checks answers against it and depends on neither
+`skat-ai` nor search. One prompt at a time: first the public current bid
+(never a pre-jump value) and whether this seat holds or names a bid; then
+whether the value at stake is within Easy's ceiling for the own ten cards.
+Prompts reveal neither ceiling, game nor action. A correct threshold attempt
+or deliberate reveal shows Easy's action, the candidate game and ceiling, the
+branch formula, the stake comparison and a caveat: the ceiling is a
+conditional, approximate rule of thumb from the own hand, not a guaranteed
+contract value or winning promise, and the hidden Skat cannot supply missing
+Spitzen. Null and Grand are named as such; their card play gets no dialogue.
+Memory and estimates are unavailable here. All legal calls stay on the table;
+any call, a new game, coach off or replay ends the dialogue, and old
+responses are rejected.
 
 ## Focus and teachable moments (D-58)
 
