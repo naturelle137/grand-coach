@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::{GuidedAction as G, GuidedAnswer as A, GuidedStep as S};
+use skat_core::KontraLevel;
 #[path = "../../skat-coach/tests/support/guided.rs"]
 mod fixture;
 
@@ -849,4 +850,362 @@ fn announce_views_depend_only_on_the_permitted_view() {
         rule.action,
         Action::Announce(skat_core::Announcement::plain(skat_core::GameType::Grand))
     );
+}
+
+/// Core-checked Kontra/Re position (see `skat-coach/tests/guided_kontra.rs`):
+/// MH bids 18, VH holds, MH passes, HH bids 20, VH passes, HH plays `game`
+/// Hand; the human sits on `human`. Kontra/Re is switched on.
+fn kontra_session(human: Seat, deal: skat_core::Deal, game: skat_core::Announcement) -> Session {
+    let mut s = Session::new(SessionConfig {
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        series: SeriesLength::Free,
+        kontra_re: true,
+        ..SessionConfig::default()
+    });
+    s.dealer = (0..3)
+        .map(PlayerId)
+        .find(|&d| PlayerId::HUMAN.seat(d) == human)
+        .unwrap();
+    s.game = Game::from_deal(deal, RuleConfig { kontra_re: true });
+    s.recording.deal = deal;
+    for a in [
+        Action::Bid(18),
+        Action::Hold,
+        Action::Pass,
+        Action::Bid(20),
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(game),
+    ] {
+        s.apply(a).unwrap();
+    }
+    s
+}
+
+/// VH holds `vh`, HH `hh`, Skat `skat`; MH the rest.
+fn kontra_deal(vh: &str, hh: &str, skat: &str) -> skat_core::Deal {
+    let (vh, hh, skat) = (fixture::cards(vh), fixture::cards(hh), fixture::cards(skat));
+    skat_core::Deal::new([vh, skat_core::CardSet::ALL - vh - hh - skat, hh], skat).unwrap()
+}
+
+/// VH: five Herz Trumpf (CJ HA H7 H8 H9) → Easy says Kontra.
+const KONTRA_VH: &str = "CJ HA H7 H8 H9 SA ST S9 DA D7";
+/// VH: four Herz Trumpf (S8 for H9) → Easy plays DA.
+const NO_KONTRA_VH: &str = "CJ HA H7 H8 S8 SA ST S9 DA D7";
+const KONTRA_HH: &str = "SJ HJ DJ HT HK HQ CA CT C9 C8";
+/// Herz Hand strength 90 (Re) and 89 with C7 for CT (no Re).
+const RE_90: &str = "CJ SJ HJ HA HT H9 SA CT D7 D8";
+const RE_89: &str = "CJ SJ HJ HA HT H9 SA C7 D7 D8";
+
+fn herz() -> skat_core::Announcement {
+    skat_core::Announcement::plain(HERZ)
+}
+
+fn kontra_rule(g: &crate::GuidedView) -> crate::GuidedKontraRule {
+    g.kontra_rule.clone().expect("revealed Kontra/Re rule")
+}
+
+fn run(s: &mut Session) {
+    while s.opponent_to_move() {
+        s.execute(Command::AdvanceOpponent).unwrap();
+    }
+}
+
+#[test]
+fn kontra_wrong_retry_attempt_reveal_and_every_legal_action_never_autoplay() {
+    let s = kontra_session(
+        Seat::Vorhand,
+        kontra_deal(KONTRA_VH, KONTRA_HH, "D8 D9"),
+        herz(),
+    );
+    let before = s.view();
+    assert!(before.legal_actions.contains(&Action::Kontra));
+    let mut s = s.clone();
+    s.execute(Command::StartGuided).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!(g.step, S::Orient);
+    // Orientation: public call, contract and level only; no factor, threshold or rule.
+    let k = g.kontra.unwrap();
+    assert_eq!(
+        (k.call, k.game, k.level, k.hand_game),
+        (
+            crate::GuidedKontraCall::Kontra,
+            HERZ,
+            KontraLevel::None,
+            true
+        )
+    );
+    assert_eq!((k.factor, k.threshold), (None, None));
+    assert!(g.kontra_rule.is_none() && g.kontra_observation.is_none() && g.rule.is_none());
+    assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
+    respond(&mut s, G::Answer(A::Factor(4))).unwrap();
+    assert_eq!(s.guided().unwrap().correct, Some(false));
+    assert_eq!(s.guided().unwrap().kontra.unwrap().factor, None);
+    respond(&mut s, G::Retry).unwrap();
+    respond(&mut s, G::Answer(A::Factor(2))).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!((g.step, g.correct), (S::Threshold, None));
+    let k = g.kontra.unwrap();
+    assert_eq!((k.factor, k.threshold), (Some(2), Some(5)));
+    assert!(g.kontra_rule.is_none());
+    // Five Trumpf: "no" is wrong and reveals nothing; "yes" reveals the rule.
+    respond(&mut s, G::Answer(A::Within(false))).unwrap();
+    assert_eq!(s.guided().unwrap().correct, Some(false));
+    assert!(s.guided().unwrap().kontra_rule.is_none());
+    respond(&mut s, G::Retry).unwrap();
+    respond(&mut s, G::Answer(A::Within(true))).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!((g.step, g.correct), (S::Act, Some(true)));
+    let rule = kontra_rule(&g);
+    assert_eq!(
+        (rule.action, rule.count, rule.threshold),
+        (Action::Kontra, 5, 5)
+    );
+    assert_eq!(rule.legal, before.legal_actions);
+    assert_eq!(s.view().legal_actions, before.legal_actions);
+    assert_eq!(s.view().hand, before.hand);
+    assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
+    let id = g.id;
+    // Every legal action, including every card that declines Kontra, is
+    // applied as chosen; the actual next public transition is observed.
+    for &chosen in &before.legal_actions {
+        let mut s = s.clone();
+        s.execute(Command::Act(chosen)).unwrap();
+        let g = s.guided().unwrap();
+        match chosen {
+            Action::Kontra => {
+                assert_eq!(s.game.kontra(), KontraLevel::Kontra);
+                assert_eq!(g.step, S::Waiting);
+                assert!(g.kontra_observation.is_none());
+                assert_eq!(respond(&mut s, G::Reveal), Err(AppError::NoQuestion));
+                assert_eq!(
+                    respond(&mut s, G::Answer(A::Within(true))),
+                    Err(AppError::NoQuestion)
+                );
+                // The automated declarer replies; nothing else is played.
+                s.execute(Command::AdvanceOpponent).unwrap();
+                let g = s.guided().unwrap();
+                assert_eq!(g.step, S::Complete);
+                let re = s.game.kontra() == KontraLevel::Re;
+                assert_eq!(
+                    g.kontra_observation,
+                    Some(crate::GuidedKontraObservation::Reply {
+                        seat: Seat::Hinterhand,
+                        re,
+                        level: s.game.kontra(),
+                    })
+                );
+            }
+            Action::Play(card) => {
+                assert_eq!(g.step, S::Complete);
+                assert_eq!(
+                    g.kontra_observation,
+                    Some(crate::GuidedKontraObservation::Declined {
+                        seat: Seat::Vorhand,
+                        card,
+                        trick: 0,
+                        winner: None,
+                        level: KontraLevel::None,
+                    })
+                );
+            }
+            _ => panic!("unexpected legal action"),
+        }
+        assert_eq!(g.id, id);
+        run(&mut s);
+        // The learner's next own action ends the frozen observation.
+        if s.game.current_seat() == Some(Seat::Vorhand) {
+            let next = s.view().legal_actions[0];
+            s.execute(Command::Act(next)).unwrap();
+            assert!(s.guided().is_none());
+            assert_eq!(
+                s.execute(Command::Guided(id, G::Reveal)),
+                Err(AppError::StaleGuided)
+            );
+        }
+    }
+}
+
+#[test]
+fn kontra_decline_reveal_shows_easys_exact_card_and_returns() {
+    let mut s = kontra_session(
+        Seat::Vorhand,
+        kontra_deal(NO_KONTRA_VH, KONTRA_HH, "D8 D9"),
+        herz(),
+    );
+    let before = s.view();
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!(g.step, S::Act);
+    let rule = kontra_rule(&g);
+    assert_eq!((rule.count, rule.wants), (4, false));
+    assert_eq!(rule.action, Action::Play(fixture::card("DA")));
+    assert_eq!(rule.card.unwrap().card, fixture::card("DA"));
+    let k = g.kontra.unwrap();
+    assert_eq!((k.factor, k.threshold), (Some(2), Some(5)));
+    respond(&mut s, G::Return).unwrap();
+    assert!(s.guided().is_none());
+    assert_eq!(s.view(), before);
+}
+
+#[test]
+fn re_reply_observes_resumed_play_and_unseen_cards_keep_the_dialogue() {
+    let walk = |s: &mut Session| {
+        s.execute(Command::StartGuided).unwrap();
+        let mut views = vec![s.guided().unwrap()];
+        respond(s, G::Answer(A::Factor(4))).unwrap();
+        views.push(s.guided().unwrap());
+        respond(s, G::Reveal).unwrap();
+        views.push(s.guided().unwrap());
+        views
+    };
+    let re_session = |hh: &str, skat: &str| {
+        let deal = fixture::deal_hh(hh, skat);
+        let mut s = kontra_session(Seat::Hinterhand, deal, herz());
+        // VH (an automated seat) says Kontra as a legal fixture action.
+        s.apply(Action::Kontra).unwrap();
+        assert_eq!(s.view().legal_actions, vec![Action::Re, Action::KeinRe]);
+        s
+    };
+    for (hh, wants) in [(RE_90, true), (RE_89, false)] {
+        let mut s = re_session(hh, "D9 DT");
+        let mut a = walk(&mut s);
+        let k = a[0].kontra.unwrap();
+        assert_eq!(
+            (k.call, k.level, k.factor),
+            (crate::GuidedKontraCall::Re, KontraLevel::Kontra, None)
+        );
+        assert_eq!(a[1].kontra.unwrap().threshold, Some(90));
+        let rule = kontra_rule(&a[2]);
+        assert_eq!(rule.wants, wants);
+        assert_eq!(rule.action, if wants { Action::Re } else { Action::KeinRe });
+        assert!(rule.skat.is_empty() && rule.hand_game);
+        // A different unknown Skat and unseen hands: equal dialogue.
+        let b = walk(&mut re_session(hh, "ST CA"));
+        for (a, b) in a.iter_mut().zip(&b) {
+            a.id = b.id;
+            assert_eq!(a, b);
+        }
+        for reply in [Action::Re, Action::KeinRe] {
+            let mut s = s.clone();
+            s.execute(Command::Act(reply)).unwrap();
+            assert_eq!(s.guided().unwrap().step, S::Waiting);
+            s.execute(Command::AdvanceOpponent).unwrap();
+            let g = s.guided().unwrap();
+            assert_eq!(g.step, S::Complete);
+            let Some(crate::GuidedKontraObservation::Resumed { seat, card, level }) =
+                g.kontra_observation
+            else {
+                panic!("resumed card play expected: {g:?}");
+            };
+            assert_eq!(seat, Seat::Vorhand);
+            assert_eq!(
+                s.game.view(Seat::Vorhand).current_trick.cards[0],
+                Some(card)
+            );
+            let expected = if reply == Action::Re {
+                KontraLevel::Re
+            } else {
+                KontraLevel::Kontra
+            };
+            assert_eq!((level, s.game.kontra()), (expected, expected));
+        }
+    }
+}
+
+#[test]
+fn kontra_same_phase_replacement_stale_off_and_next_game_boundaries() {
+    let mut s = kontra_session(
+        Seat::Vorhand,
+        kontra_deal(KONTRA_VH, KONTRA_HH, "D8 D9"),
+        herz(),
+    );
+    for level in [
+        crate::CoachLevel::Important,
+        crate::CoachLevel::EveryMove,
+        crate::CoachLevel::OnRequest,
+    ] {
+        s.execute(Command::SetCoach(CoachSettings {
+            level,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        assert!(s.guided().is_none());
+    }
+    s.execute(Command::StartGuided).unwrap();
+    let old = s.guided().unwrap().id;
+    s.execute(Command::Act(Action::Kontra)).unwrap();
+    s.execute(Command::AdvanceOpponent).unwrap();
+    assert_eq!(s.guided().unwrap().step, S::Complete);
+    // Same seat, same card-play phase, new decision after the reply: a new
+    // entry gets a new identity; the Kontra decision is gone and old answers
+    // are stale.
+    assert_eq!(s.game.current_seat(), Some(Seat::Vorhand));
+    assert!(!s.view().legal_actions.contains(&Action::Kontra));
+    s.execute(Command::StartGuided).unwrap();
+    let g = s.guided().unwrap();
+    assert_ne!(g.id, old);
+    assert!(g.kontra.is_none() && g.kontra_exclusion.is_none());
+    assert_eq!(
+        s.execute(Command::Guided(old, G::Reveal)),
+        Err(AppError::StaleGuided)
+    );
+    s.execute(Command::SetCoach(CoachSettings {
+        level: crate::CoachLevel::Off,
+        ..CoachSettings::default()
+    }))
+    .unwrap();
+    assert!(s.guided().is_none());
+    assert_eq!(s.execute(Command::StartGuided), Err(AppError::CoachOff));
+    s.execute(Command::SetCoach(CoachSettings::default()))
+        .unwrap();
+    s.execute(Command::StartGuided).unwrap();
+    while s.game.current_seat().is_some() {
+        s.apply(s.game.legal_actions()[0]).unwrap();
+    }
+    s.execute(Command::NextGame).unwrap();
+    assert!(s.guided().is_none());
+}
+
+#[test]
+fn grand_null_ouvert_and_off_kontra_offers_get_honest_fallbacks() {
+    use crate::GuidedKontraExclusion as X;
+    let deal = kontra_deal(KONTRA_VH, KONTRA_HH, "D8 D9");
+    let ouvert = skat_core::Announcement {
+        ouvert: true,
+        ..skat_core::Announcement::plain(skat_core::GameType::Null)
+    };
+    for (game, exclusion) in [
+        (
+            skat_core::Announcement::plain(skat_core::GameType::Grand),
+            X::Grand,
+        ),
+        (
+            skat_core::Announcement::plain(skat_core::GameType::Null),
+            X::Null,
+        ),
+        (ouvert, X::OuvertRound),
+    ] {
+        let mut s = kontra_session(Seat::Vorhand, deal, game);
+        let before = s.view();
+        s.execute(Command::StartGuided).unwrap();
+        let g = s.guided().unwrap();
+        assert_eq!(
+            (g.step, g.kontra_exclusion),
+            (S::Unsupported, Some(exclusion))
+        );
+        assert!(g.kontra.is_none() && g.kontra_rule.is_none());
+        assert_eq!(respond(&mut s, G::Reveal), Err(AppError::NoQuestion));
+        // All legal calls and cards stay usable.
+        for &a in &before.legal_actions {
+            s.clone().execute(Command::Act(a)).unwrap();
+        }
+        if exclusion == X::OuvertRound {
+            // Before the reveal, no declarer card reaches the view.
+            assert!(before.open_cards.is_none());
+            s.execute(Command::Act(Action::Kontra)).unwrap();
+            assert!(s.guided().is_none());
+        }
+    }
 }
