@@ -112,7 +112,9 @@ It reuses one `Analysis`; it runs no search of its own.
   the value range of each contract still possible (`GameValues`: with
   pickup, Hand, Null Ouvert, Hand Ouvert) and the value the game must
   reach (`Commitment`: the bid, or the lowest value an own Bid or Hold
-  commits to). An unknown Skat counts for the Spitzen, so ranges run over
+  commits to). This is the pre-decision minimum, not the chosen jump bid;
+  post-move lessons retain that snapshot and label its temporal context.
+  An unknown Skat counts for the Spitzen, so ranges run over
   every pair of unseen cards (at most 231); after pickup the twelve cards,
   and after Drücken the own Skat, fix them. Values leave out Schneider and
   Schwarz made in play; `Reach` says whether a contract reaches the

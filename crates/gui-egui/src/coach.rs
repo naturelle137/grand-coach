@@ -3119,7 +3119,7 @@ mod tests {
             texts(&text)[..5],
             [
                 "Was sicher feststeht",
-                "Gereizt ist 48. Ein Spiel, das weniger wert ist, ist überreizt und verloren (ISkO), egal wie viele Augen du bekommst.",
+                "Gereizt ist 48. Ein Spiel unter dem tatsächlich gereizten Wert ist überreizt und verloren (ISkO), egal wie viele Augen du bekommst.",
                 "Herz: mit Skataufnahme 20–80 (nur mit passendem Skat) · Hand 30–90 (nur mit passendem Skat)",
                 "Grand: mit Skataufnahme 48–120 (reicht)",
                 "Null: mit Skataufnahme 23 (reicht nie) · Hand Ouvert 59 (reicht)",

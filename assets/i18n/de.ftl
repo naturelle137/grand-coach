@@ -432,9 +432,9 @@ coach-lesson-hand-structure-exception = Achtung: Diese Zählung beschreibt deine
 coach-lesson-hand-structure-transfer = Beim nächsten Blatt: Welche Buben und wie viele Trumpf hast du für jede Farbe und für Grand – und mit oder ohne wie viele?
 coach-lesson-game-value-question = Was ist jedes deiner möglichen Spiele mit deinen Karten wert – und was kann der unbekannte Skat noch ändern?
 coach-lesson-game-value-bid = { $case ->
-        [call] Wer hier reizt oder hält, legt sich auf mindestens { $value } fest.
+        [call] Rückblick auf die Lage vor deiner Entscheidung: Das niedrigste mögliche Reizen oder Halten band an { $value }. Bei einem höheren Reizsprung gilt dessen Wert.
        *[declarer] Gereizt ist { $value }.
-    } Ein Spiel, das weniger wert ist, ist überreizt und verloren (ISkO), egal wie viele Augen du bekommst.
+    } Ein Spiel unter dem tatsächlich gereizten Wert ist überreizt und verloren (ISkO), egal wie viele Augen du bekommst.
 coach-lesson-game-value-game = { $game }: { $value }
 coach-lesson-game-value-entry = { $kind ->
         [plain] mit Skataufnahme
