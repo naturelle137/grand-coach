@@ -5,10 +5,11 @@
 use crate::coach::{CoachResult, DecisionKey};
 use crate::{AppError, CoachLevel, Session};
 use serde::{Deserialize, Serialize};
-use skat_coach::guided::{self, BidLesson, Lesson, Memory, Observation};
+use skat_coach::guided::{self, BidLesson, Lesson, Memory, Observation, PreLesson};
 pub use skat_coach::guided::{
     Answer as GuidedAnswer, BidRule as GuidedBidRule, Branch as GuidedBranch,
-    GameBranch as GuidedGameBranch, Step as GuidedStep,
+    GameBranch as GuidedGameBranch, Keep as GuidedKeep, PreRule as GuidedPreRule,
+    Step as GuidedStep,
 };
 use skat_core::{Action, Event, PlayerView, Seat};
 
@@ -77,6 +78,19 @@ pub struct GuidedReizen {
     pub stake: Option<u16>,
 }
 
+/// Skataufnahme/Drücken context; the candidate game only after orientation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GuidedPreplay {
+    /// Skataufnahme or Drücken.
+    pub phase: skat_core::Phase,
+    /// After orientation: the candidate game of Easy's rule.
+    pub game: Option<skat_core::GameType>,
+    /// Skataufnahme after orientation: the strength Easy needs for Hand.
+    pub threshold: Option<i32>,
+    /// Drücken: the own twelve cards as neutral answer controls.
+    pub cards: Vec<skat_core::Card>,
+}
+
 /// Frontend view: answer-bearing fields withheld until explicitly allowed.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GuidedView {
@@ -112,6 +126,10 @@ pub struct GuidedView {
     pub reizen: Option<GuidedReizen>,
     /// Easy's bidding rule after a correct threshold attempt or deliberate reveal.
     pub bid_rule: Option<GuidedBidRule>,
+    /// Skataufnahme/Drücken dialogue only: phase and, after orientation, the game.
+    pub preplay: Option<GuidedPreplay>,
+    /// Easy's Hand/pickup or discard rule after a correct attempt or reveal.
+    pub pre_rule: Option<GuidedPreRule>,
 }
 
 #[derive(Clone, Debug)]
@@ -120,6 +138,7 @@ pub(crate) struct GuidedState {
     id: GuidedId,
     lesson: Option<Lesson>,
     bid: Option<BidLesson>,
+    pre: Option<PreLesson>,
     step: GuidedStep,
     correct: Option<bool>,
     revealed: bool,
@@ -130,13 +149,15 @@ pub(crate) struct GuidedState {
     figures: bool,
     sequence: u32,
     legal_cards: Vec<skat_core::Card>,
+    hand: Vec<skat_core::Card>,
 }
 
 impl GuidedState {
     pub(crate) fn new(key: DecisionKey, view: &PlayerView, result: Option<CoachResult>) -> Self {
         let lesson = guided::lesson(view);
         let bid = guided::bid_lesson(view);
-        let step = if lesson.is_some() || bid.is_some() {
+        let pre = guided::pre_lesson(view);
+        let step = if lesson.is_some() || bid.is_some() || pre.is_some() {
             GuidedStep::Orient
         } else {
             GuidedStep::Unsupported
@@ -149,6 +170,7 @@ impl GuidedState {
             id,
             lesson,
             bid,
+            pre,
             step,
             correct: None,
             revealed: false,
@@ -169,6 +191,7 @@ impl GuidedState {
                     }
                 })
                 .collect(),
+            hand: view.hand.iter().collect(),
         }
     }
 
@@ -244,6 +267,24 @@ impl GuidedState {
                 }
             }),
             bid_rule: self.revealed.then(|| self.bid.map(|b| b.rule)).flatten(),
+            preplay: self.pre.map(|p| {
+                let oriented = self.revealed || self.step != GuidedStep::Orient;
+                let (phase, threshold, cards) = match p.rule {
+                    GuidedPreRule::Pickup(r) => {
+                        (skat_core::Phase::SkatAufnahme, Some(r.threshold), vec![])
+                    }
+                    GuidedPreRule::Discard(_) => {
+                        (skat_core::Phase::Druecken, None, self.hand.clone())
+                    }
+                };
+                GuidedPreplay {
+                    phase,
+                    game: oriented.then(|| p.rule.game()),
+                    threshold: threshold.filter(|_| oriented),
+                    cards,
+                }
+            }),
+            pre_rule: self.revealed.then(|| self.pre.map(|p| p.rule)).flatten(),
         }
     }
 
@@ -275,11 +316,14 @@ impl GuidedState {
                         .as_ref()
                         .is_some_and(|l| l.check(self.step, answer))
                         || self.bid.is_some_and(|b| b.check(self.step, answer))
+                        || self.pre.is_some_and(|p| p.check(self.step, answer))
                 };
                 self.correct = Some(correct);
                 if correct {
                     self.step = match self.step {
-                        GuidedStep::Orient if self.bid.is_some() => GuidedStep::Threshold,
+                        GuidedStep::Orient if self.bid.is_some() || self.pre.is_some() => {
+                            GuidedStep::Threshold
+                        }
                         GuidedStep::Orient => GuidedStep::Check,
                         GuidedStep::Check => GuidedStep::Narrow,
                         GuidedStep::Narrow | GuidedStep::Threshold => {
@@ -336,7 +380,7 @@ impl GuidedState {
     }
 
     /// Capture only the originating trick. Later automated cards cannot replace it.
-    /// Reizen and unsupported dialogues end with any action.
+    /// Reizen, Skataufnahme, Drücken and unsupported dialogues end with any action.
     pub(crate) fn expires_on(&self, before: Option<Seat>) -> bool {
         self.lesson.is_none()
             || (self.chosen.is_some()

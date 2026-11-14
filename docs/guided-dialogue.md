@@ -1,4 +1,4 @@
-# Guided Farbspiel and Reizen pilot (#131, #148)
+# Guided Farbspiel, Reizen, Skataufnahme and Drücken pilot (#131, #148)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -29,7 +29,7 @@ separate factual oracles.
   first exact tie. Other winning cards still win this trick. No claim about
   their future strategic value or the final game result follows.
 - **Exclusions:** no lead, early winner, partner feeding, arbitrary fallback,
-  single legal action, Kontra/Re, Grand, Null or other pre-play decisions (Reizen: see below). If the
+  single legal action, Kontra/Re, Grand, Null, Ansage or Kontra/Re (Reizen, Skataufnahme and Drücken: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
   explicitly marked `Fallback` and excluded, rather than explained as staying
   under the partner. In
@@ -68,7 +68,7 @@ As declarer in Hinterhand after C9/C8, CQ and CA both win; the cheaper winner
 is CQ. All legal alternatives replay through the core. Moving CA into the
 defender's own hand makes CK a follow-class master and selects excluded
 `FeedPartner`; this is not narrated as safe against Trumpf. Forced last-trick
-moves and pre-play decisions after Reizen are unsupported. Hand has unknown Skat even for declarer;
+moves, Ansage and Kontra/Re are unsupported. Hand has unknown Skat even for declarer;
 known own discards and Ouvert use the same existing `Knowledge` definitions.
 
 ## Reproducible ordinary-app walkthrough
@@ -133,6 +133,34 @@ leaves Hinterhand's view and rule unchanged: the ceiling counts Spitzen from
 the own ten cards only. In the ordinary app with seed 21, the human's first
 decision is to answer 18 with a `Weak` hand; the threshold answer is “no” and
 Easy passes. The learner may still hold.
+
+## Skataufnahme and Drücken (#131 phase 4)
+
+`guided-preplay@1` applies the same steps to Easy's Hand-or-pickup and discard
+rules: orientation asks the candidate branch (`Grand`, `Suit`, `Null`,
+`Weak`), the threshold asks whether the strength reaches 100 (pickup) or for
+one card Easy puts away (Drücken; ties with Easy's second card count). The
+worked answer follows a correct attempt or reveal. `pickup_rule` and
+`discard_rule` are the exact paths `BaselineOpponent` uses; the frozen
+200-game hash is unchanged and a 300-game test checks equality with Easy, no
+fallback, `strength >= threshold` ⇔ Hand and the discard within the tie set.
+
+Fixtures in `crates/skat-coach/tests/guided_preplay.rs` replay core-accepted
+actions with Hinterhand declarer at 18; expected strengths are counted by hand:
+
+| Hinterhand's cards | Decision | Easy |
+|--------------------|----------|------|
+| CJ HA HT HK HQ H9 H8 H7 CA SA | Herz, strength 106 | Hand |
+| same with S7 for SA (changed condition) | Herz, 96 | pickup |
+| CJ SJ HJ DJ CA CT CK SA ST HA | Grand, 102 | Hand |
+| CJ SJ HJ DJ HA HT HK HQ H9 CA | Grand, 86 | pickup; Drücken S7 D7 |
+| CJ HA HT HK HQ H9 H8 CA CT S7 + ST D8 | Herz, 94 | pickup; Drücken D8 ST, keeps Trumpf, CA, guarded CT |
+| C7 C8 C9 S7 S8 S9 H7 H8 H9 D7 + DA HK | Null, 0 | pickup; Drücken DA HK |
+
+A different hidden Skat leaves the Hand decision unchanged. A view whose
+wanted action is unavailable discloses `fallback`; Ansage has no lesson and
+shows the phase-specific unsupported text. In the ordinary app with seed 21
+the human reaches both decisions by holding and bidding.
 
 ## Verification and UI evidence
 

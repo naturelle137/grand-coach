@@ -560,3 +560,134 @@ fn reizen_skip_stale_off_and_automatic_boundaries() {
     s.execute(Command::NextGame).unwrap();
     assert!(s.guided().is_none());
 }
+
+/// Human on Hinterhand wins the bidding at 18 with `hh`, then takes `after`.
+fn preplay(hh: &str, skat: &str, after: &[Action]) -> Session {
+    let mut s = Session::new(SessionConfig {
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        series: SeriesLength::Free,
+        ..SessionConfig::default()
+    });
+    s.dealer = PlayerId(0);
+    let deal = fixture::deal_hh(hh, skat);
+    s.game = Game::from_deal(deal, RuleConfig::default());
+    s.recording.deal = deal;
+    for &a in [Action::Pass, Action::Bid(18), Action::Pass]
+        .iter()
+        .chain(after)
+    {
+        s.apply(a).unwrap();
+    }
+    assert_eq!(s.game.current_seat(), Some(Seat::Hinterhand));
+    assert!(s.human_decision().is_some());
+    s
+}
+
+/// Herz Hand from the own ten cards: strength 106 (skat-coach fixtures).
+const SUIT_HAND: &str = "CJ HA HT HK HQ H9 H8 H7 CA SA";
+
+#[test]
+fn pickup_wrong_retry_reveal_and_both_legal_actions_never_autoplay() {
+    let s = preplay(SUIT_HAND, "DQ DK", &[]);
+    assert_eq!(s.game.phase(), Phase::SkatAufnahme);
+    for chosen in [Action::Hand, Action::TakeSkat] {
+        let mut s = s.clone();
+        let before = s.view();
+        s.execute(Command::StartGuided).unwrap();
+        let g = s.guided().unwrap();
+        assert_eq!(g.step, S::Orient);
+        // Initial prompt: phase only; no game, threshold, strength or rule.
+        let p = g.preplay.clone().unwrap();
+        assert_eq!(p.phase, Phase::SkatAufnahme);
+        assert_eq!((p.game, p.threshold), (None, None));
+        assert!(p.cards.is_empty());
+        assert!(g.pre_rule.is_none() && g.bid_rule.is_none() && g.reizen.is_none());
+        respond(&mut s, G::Answer(A::Game(crate::GuidedGameBranch::Grand))).unwrap();
+        assert_eq!(s.guided().unwrap().correct, Some(false));
+        assert_eq!(s.guided().unwrap().preplay.unwrap().game, None);
+        respond(&mut s, G::Retry).unwrap();
+        respond(&mut s, G::Answer(A::Game(crate::GuidedGameBranch::Suit))).unwrap();
+        let g = s.guided().unwrap();
+        assert_eq!((g.step, g.correct), (S::Threshold, None));
+        let p = g.preplay.unwrap();
+        let herz = skat_core::GameType::Farbe(skat_core::Suit::Herz);
+        assert_eq!((p.game, p.threshold), (Some(herz), Some(100)));
+        assert!(g.pre_rule.is_none());
+        respond(&mut s, G::Answer(A::Within(false))).unwrap();
+        assert_eq!(s.guided().unwrap().correct, Some(false));
+        assert!(s.guided().unwrap().pre_rule.is_none());
+        respond(&mut s, G::Reveal).unwrap();
+        let g = s.guided().unwrap();
+        assert_eq!(g.step, S::Act);
+        let crate::GuidedPreRule::Pickup(rule) = g.pre_rule.unwrap() else {
+            panic!("pickup rule");
+        };
+        assert_eq!(
+            (rule.action, rule.strength, rule.fallback),
+            (Action::Hand, 106, false)
+        );
+        assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
+        assert_eq!(s.view().legal_actions, before.legal_actions);
+        assert_eq!(s.view().hand, before.hand);
+        let id = g.id;
+        // Either action, also the one the rule would not take, ends the dialogue.
+        s.execute(Command::Act(chosen)).unwrap();
+        assert!(s.guided().is_none());
+        assert_eq!(s.view().hand_game, Some(chosen == Action::Hand));
+        assert_eq!(
+            s.execute(Command::Guided(id, G::Reveal)),
+            Err(AppError::StaleGuided)
+        );
+    }
+}
+
+#[test]
+fn discard_correct_card_reveals_rule_any_legal_discard_stays_free() {
+    let mut s = preplay(
+        "CJ HA HT HK HQ H9 H8 CA CT S7",
+        "ST D8",
+        &[Action::TakeSkat],
+    );
+    assert_eq!(s.game.phase(), Phase::Druecken);
+    let before = s.view();
+    s.execute(Command::StartGuided).unwrap();
+    let g = s.guided().unwrap();
+    let p = g.preplay.unwrap();
+    assert_eq!(p.phase, Phase::Druecken);
+    assert_eq!(p.cards.len(), 12);
+    assert_eq!((p.game, p.threshold), (None, None));
+    respond(&mut s, G::Answer(A::Game(crate::GuidedGameBranch::Suit))).unwrap();
+    assert_eq!(s.guided().unwrap().step, S::Threshold);
+    // A kept Trumpf is wrong; the singleton D8 is one of Easy's two cards.
+    respond(&mut s, G::Answer(A::Card(fixture::card("CJ")))).unwrap();
+    assert_eq!(s.guided().unwrap().correct, Some(false));
+    assert!(s.guided().unwrap().pre_rule.is_none());
+    respond(&mut s, G::Retry).unwrap();
+    respond(&mut s, G::Answer(A::Card(fixture::card("D8")))).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!((g.step, g.correct), (S::Act, Some(true)));
+    let crate::GuidedPreRule::Discard(rule) = g.pre_rule.unwrap() else {
+        panic!("discard rule");
+    };
+    assert_eq!(rule.action, Action::Discard(fixture::cards("D8 ST")));
+    assert_eq!(s.view().legal_actions, before.legal_actions);
+    // Put away two trumps instead: legal, applied, and the dialogue ends.
+    let mine = Action::Discard(fixture::cards("CJ HA"));
+    s.execute(Command::Act(mine)).unwrap();
+    assert!(s.guided().is_none());
+    assert_eq!(s.game.phase(), Phase::Ansage);
+    assert!(!s.view().hand.contains(&fixture::card("CJ")));
+}
+
+#[test]
+fn ansage_after_pickup_is_disclosed_unsupported_without_rule() {
+    let mut s = preplay(SUIT_HAND, "DQ DK", &[Action::Hand]);
+    assert_eq!(s.game.phase(), Phase::Ansage);
+    s.execute(Command::StartGuided).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!(g.step, S::Unsupported);
+    assert!(g.preplay.is_none() && g.pre_rule.is_none() && g.rule.is_none());
+    assert_eq!(respond(&mut s, G::Reveal), Err(AppError::NoQuestion));
+    respond(&mut s, G::Return).unwrap();
+    assert!(s.guided().is_none());
+}

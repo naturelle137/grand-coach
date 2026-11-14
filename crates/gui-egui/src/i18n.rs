@@ -410,6 +410,9 @@ mod tests {
                     "repeat",
                     "seconds",
                     "ceiling",
+                    "threshold",
+                    "strength",
+                    "length",
                 ] {
                     args.set(name, "x");
                 }

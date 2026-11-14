@@ -5,8 +5,8 @@ use crate::{coach, i18n::I18n, text};
 use eframe::egui;
 use skat_app::coach_model::Source;
 use skat_app::{
-    GuidedAction, GuidedAnswer, GuidedBranch, GuidedGameBranch, GuidedStep, GuidedView, Seat,
-    TableView,
+    Action, GuidedAction, GuidedAnswer, GuidedBranch, GuidedGameBranch, GuidedKeep, GuidedPreRule,
+    GuidedStep, GuidedView, Phase, Seat, TableView,
 };
 
 pub(crate) fn panel(
@@ -20,6 +20,9 @@ pub(crate) fn panel(
     if let Some(r) = g.reizen {
         return reizen(ui, i, table, g, r);
     }
+    if let Some(p) = &g.preplay {
+        return preplay(ui, i, table, g, p);
+    }
     let prompt = match g.step {
         GuidedStep::Orient => "guided-orient",
         GuidedStep::Check => "guided-check",
@@ -29,6 +32,15 @@ pub(crate) fn panel(
         GuidedStep::Waiting => "guided-waiting",
         GuidedStep::Observe => "guided-observe",
         GuidedStep::Complete => "guided-complete",
+        GuidedStep::Unsupported
+            if table.phase == Phase::Ansage
+                || table
+                    .legal_actions
+                    .iter()
+                    .any(|a| matches!(a, Action::Kontra | Action::KeinKontra | Action::Re)) =>
+        {
+            "guided-unsupported-ansage"
+        }
         GuidedStep::Unsupported => "guided-unsupported",
     };
     ui.label(i.t(prompt));
@@ -271,6 +283,158 @@ fn reizen(
             None => i.t("guided-bid-no-value"),
         });
         ui.label(i.t("guided-bid-caveat"));
+    }
+    if matches!(g.step, GuidedStep::Orient | GuidedStep::Threshold) {
+        if ui.button(i.t("guided-unknown")).clicked() {
+            action = Some(GuidedAction::Reveal);
+        }
+        if ui.button(i.t("guided-reveal")).clicked() {
+            action = Some(GuidedAction::Reveal);
+        }
+    }
+    if ui.button(i.t("guided-return")).clicked() {
+        action = Some(GuidedAction::Return);
+    }
+    action
+}
+
+/// Skataufnahme/Drücken: candidate branch, threshold or card attempt, then
+/// Easy's actual Hand/pickup or discard.
+fn preplay(
+    ui: &mut egui::Ui,
+    i: &I18n,
+    table: &TableView,
+    g: &GuidedView,
+    p: &skat_app::GuidedPreplay,
+) -> Option<GuidedAction> {
+    let mut action = None;
+    let pickup = p.phase == Phase::SkatAufnahme;
+    let game = p.game.map(|game| text::game_type(i, game));
+    let prompt = match (g.step, &game) {
+        (GuidedStep::Orient, _) if pickup => i.t("guided-pre-orient-pickup"),
+        (GuidedStep::Orient, _) => i.t("guided-pre-orient-discard"),
+        (GuidedStep::Threshold, Some(game)) if pickup => i.tf(
+            "guided-pre-threshold-pickup",
+            &[
+                ("game", game.clone().into()),
+                ("threshold", p.threshold.unwrap_or_default().into()),
+            ],
+        ),
+        (GuidedStep::Threshold, Some(game)) => i.tf(
+            "guided-pre-threshold-discard",
+            &[("game", game.clone().into())],
+        ),
+        (GuidedStep::Act, _) if pickup => i.t("guided-pre-act-pickup"),
+        (GuidedStep::Act, _) => i.t("guided-pre-act-discard"),
+        _ => i.t("guided-unsupported"),
+    };
+    ui.label(prompt);
+    if g.correct == Some(false) {
+        ui.label(i.t("guided-wrong"));
+        if ui.button(i.t("guided-retry")).clicked() {
+            action = Some(GuidedAction::Retry);
+        }
+    }
+    let answers: Vec<(String, GuidedAnswer)> = match g.step {
+        GuidedStep::Orient => [
+            ("guided-pre-grand", GuidedGameBranch::Grand),
+            ("guided-pre-suit", GuidedGameBranch::Suit),
+            ("guided-pre-null", GuidedGameBranch::Null),
+            ("guided-pre-weak", GuidedGameBranch::Weak),
+        ]
+        .map(|(key, b)| (i.t(key), GuidedAnswer::Game(b)))
+        .to_vec(),
+        GuidedStep::Threshold if pickup => vec![
+            (i.t("guided-pre-hand-yes"), GuidedAnswer::Within(true)),
+            (i.t("guided-pre-hand-no"), GuidedAnswer::Within(false)),
+        ],
+        GuidedStep::Threshold => p
+            .cards
+            .iter()
+            .map(|&c| {
+                (
+                    i.tf("guided-pre-consider", &[("card", text::card(i, c).into())]),
+                    GuidedAnswer::Card(c),
+                )
+            })
+            .collect(),
+        _ => vec![],
+    };
+    for (label, answer) in answers {
+        if ui.button(label).clicked() {
+            action = Some(GuidedAction::Answer(answer));
+        }
+    }
+    if let Some(rule) = &g.pre_rule {
+        ui.strong(i.tf(
+            "guided-bid-rule",
+            &[("action", coach::action(i, table, rule.action()).into())],
+        ));
+        if rule.fallback() {
+            ui.label(i.t("guided-pre-fallback"));
+        }
+        ui.label(i.tf(
+            "guided-pre-game",
+            &[("game", text::game_type(i, rule.game()).into())],
+        ));
+        ui.label(i.t(match rule.branch() {
+            GuidedGameBranch::Grand => "guided-pre-branch-grand",
+            GuidedGameBranch::Suit => "guided-pre-branch-suit",
+            GuidedGameBranch::Null => "guided-pre-branch-null",
+            GuidedGameBranch::Weak => "guided-pre-branch-weak",
+        }));
+        match rule {
+            GuidedPreRule::Pickup(r) if r.branch == GuidedGameBranch::Null => {
+                ui.label(i.t("guided-pre-strength-null"));
+            }
+            GuidedPreRule::Pickup(r) => {
+                ui.label(i.tf(
+                    if r.strength >= r.threshold {
+                        "guided-pre-strength-hand"
+                    } else {
+                        "guided-pre-strength-pickup"
+                    },
+                    &[
+                        ("strength", r.strength.into()),
+                        ("threshold", r.threshold.into()),
+                    ],
+                ));
+                ui.label(i.t("guided-pre-strength-count"));
+            }
+            GuidedPreRule::Discard(r) => {
+                ui.label(i.t(if r.branch == GuidedGameBranch::Null {
+                    "guided-pre-keeps-null"
+                } else {
+                    "guided-pre-keeps"
+                }));
+                let mut put = skat_app::CardSet::EMPTY;
+                for (card, keep) in r.reasons {
+                    put.insert(card);
+                    let name = ("card", text::card(i, card).into());
+                    ui.label(match keep {
+                        GuidedKeep::Side { suit } => {
+                            i.tf("guided-pre-keep-side", &[name, ("length", suit.into())])
+                        }
+                        GuidedKeep::Null => i.tf("guided-pre-keep-null", &[name]),
+                        GuidedKeep::Trumpf => i.tf("guided-pre-keep-trumpf", &[name]),
+                        GuidedKeep::Ass => i.tf("guided-pre-keep-ass", &[name]),
+                        GuidedKeep::GuardedTen => i.tf("guided-pre-keep-ten", &[name]),
+                    });
+                }
+                let ties: Vec<_> = (r.eligible - put)
+                    .iter()
+                    .map(|c| text::card(i, c))
+                    .collect();
+                if !ties.is_empty() {
+                    ui.label(i.tf("guided-pre-tie", &[("cards", ties.join(", ").into())]));
+                }
+            }
+        }
+        ui.label(i.t(if pickup {
+            "guided-pre-caveat-pickup"
+        } else {
+            "guided-pre-caveat-discard"
+        }));
     }
     if matches!(g.step, GuidedStep::Orient | GuidedStep::Threshold) {
         if ui.button(i.t("guided-unknown")).clicked() {

@@ -211,3 +211,102 @@ fn guided_reizen_widgets_allow_wrong_retry_reveal_free_call_skip_and_stale_in_de
         assert_eq!(h.state().learning_history(), &history_before);
     }
 }
+
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn guided_pickup_and_discard_widgets_hide_answers_until_reveal_and_stay_free_in_de_en() {
+    use skat_app::{Action, GuidedPreRule, Phase};
+    for language in Language::ALL {
+        for phase in [Phase::SkatAufnahme, Phase::Druecken] {
+            let config = SessionConfig {
+                seed: 21,
+                series: SeriesLength::Free,
+                opponents: Opponents::Levels([Level::Easy; 2]),
+                ..SessionConfig::default()
+            };
+            let mut h = Harness::builder()
+                .with_size([1600.0, 1200.0])
+                .build_eframe(move |cc| GrandCoachApp::new(&cc.egui_ctx, config));
+            let i = I18n::new(language);
+            enter_preplay(&mut h, language, phase);
+            let before = h.state().session().view();
+            let history_before = h.state().learning_history().clone();
+            // Initial prompt: only the branch question; no game, threshold or rule.
+            let g = h.state().session().guided().unwrap();
+            let p = g.preplay.clone().unwrap();
+            assert_eq!((p.game, p.threshold, g.pre_rule), (None, None, None));
+            for absent in [
+                "guided-pre-hand-yes",
+                "guided-pre-strength-count",
+                "guided-memory",
+                "guided-figures",
+            ] {
+                assert!(
+                    h.query_by_role_and_label(Role::Button, &i.t(absent))
+                        .is_none()
+                );
+            }
+            // Skip, then re-enter with a new identity; the table is unchanged.
+            click(&mut h, &i.t("guided-return"));
+            assert!(h.state().session().guided().is_none());
+            let after = h.state().session().view();
+            assert_eq!(
+                (&after.legal_actions, &after.hand),
+                (&before.legal_actions, &before.hand)
+            );
+            click(&mut h, &i.t("guided-start"));
+            assert_ne!(h.state().session().guided().unwrap().id, g.id);
+            // Wrong branch, retry, then the deliberate reveal.
+            let branches = [
+                "guided-pre-grand",
+                "guided-pre-suit",
+                "guided-pre-null",
+                "guided-pre-weak",
+            ];
+            click(&mut h, &i.t(branches[0]));
+            let mut right = h.state().session().guided().unwrap().correct == Some(true)
+                || h.state().session().guided().unwrap().step == GuidedStep::Threshold;
+            for key in &branches[1..] {
+                if right {
+                    break;
+                }
+                click(&mut h, &i.t("guided-retry"));
+                click(&mut h, &i.t(key));
+                right = h.state().session().guided().unwrap().step == GuidedStep::Threshold;
+            }
+            assert!(right, "one branch is Easy's");
+            let g = h.state().session().guided().unwrap();
+            assert!(g.preplay.unwrap().game.is_some() && g.pre_rule.is_none());
+            click(&mut h, &i.t("guided-reveal"));
+            let g = h.state().session().guided().unwrap();
+            assert_eq!(g.step, GuidedStep::Act);
+            let rule = g.pre_rule.unwrap();
+            assert_eq!(
+                h.state().session().view().legal_actions,
+                before.legal_actions
+            );
+            // Choose freely: a different legal action than the rule's.
+            match rule {
+                GuidedPreRule::Pickup(r) => {
+                    let (other, key) = if r.action == Action::Hand {
+                        (Action::TakeSkat, "button-take-skat")
+                    } else {
+                        (Action::Hand, "button-hand")
+                    };
+                    click(&mut h, &i.t(key));
+                    assert!(h.state().session().guided().is_none());
+                    assert_eq!(
+                        h.state().session().view().hand_game,
+                        Some(other == Action::Hand)
+                    );
+                }
+                GuidedPreRule::Discard(_) => {
+                    click(&mut h, &i.t("guided-return"));
+                    assert!(h.state().session().guided().is_none());
+                    assert_eq!(h.state().session().view().phase, Phase::Druecken);
+                }
+            }
+            assert_eq!(h.state().learning_history(), &history_before);
+        }
+    }
+}

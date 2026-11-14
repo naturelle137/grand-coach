@@ -42,6 +42,16 @@ pub fn deal() -> Deal {
     .unwrap()
 }
 
+/// HH holds `hh`, the Skat `skat`; VH and MH get the rest in card order.
+#[allow(dead_code)]
+pub fn deal_hh(hh: &str, skat: &str) -> Deal {
+    let (hh, skat) = (cards(hh), cards(skat));
+    let rest: Vec<Card> = (CardSet::ALL - hh - skat).iter().collect();
+    let vh: CardSet = rest[..10].iter().copied().collect();
+    let mh: CardSet = rest[10..].iter().copied().collect();
+    Deal::new([vh, mh, hh], skat).unwrap()
+}
+
 pub fn swap(deal: Deal, a: Card, b: Card) -> Deal {
     let swap = |mut set: CardSet| {
         if set.contains(a) != set.contains(b) {
