@@ -379,10 +379,12 @@ fn guidance_events_keep_entry_identity_sequence_and_assistance() {
 
 #[test]
 fn unsupported_and_single_choice_have_no_rule_and_final_series_allows_observation_exit() {
+    // The first ordinary decision is Reizen, now a supported threshold dialogue.
     let mut s = Session::new(SessionConfig::default());
     s.run_opponents();
     s.execute(Command::StartGuided).unwrap();
-    assert_eq!(s.guided().unwrap().step, S::Unsupported);
+    assert_eq!(s.guided().unwrap().step, S::Orient);
+    assert!(s.guided().unwrap().reizen.is_some());
     assert!(s.guided().unwrap().rule.is_none());
     respond(&mut s, G::Return).unwrap();
     let mut s = session(true);
@@ -398,5 +400,163 @@ fn unsupported_and_single_choice_have_no_rule_and_final_series_allows_observatio
     // A final-series boundary must still allow putting a visible dialogue away.
     s.finished = true;
     respond(&mut s, G::Return).unwrap();
+    assert!(s.guided().is_none());
+}
+
+/// Human on `seat` at a Reizen decision after core-accepted `calls`.
+fn reizen(seat: Seat, calls: &[Action]) -> Session {
+    let mut s = Session::new(SessionConfig {
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        series: SeriesLength::Free,
+        ..SessionConfig::default()
+    });
+    s.dealer = PlayerId(match seat {
+        Seat::Hinterhand => 0,
+        Seat::Mittelhand => 1,
+        Seat::Vorhand => 2,
+    });
+    s.game = Game::from_deal(fixture::deal(), RuleConfig::default());
+    s.recording.deal = fixture::deal();
+    for &a in calls {
+        s.apply(a).unwrap();
+    }
+    assert_eq!(
+        s.human_decision().map(|_| s.game.current_seat()),
+        Some(Some(seat))
+    );
+    s
+}
+
+#[test]
+fn reizen_wrong_retry_reveal_and_every_legal_action_never_autoplay() {
+    // MH asks at 0 (rule bids 18 within 22); VH holds above its ceiling 20.
+    for (seat, calls, holds, stake, action) in [
+        (Seat::Mittelhand, vec![], false, Some(18), Action::Bid(18)),
+        (
+            Seat::Vorhand,
+            vec![Action::Bid(22)],
+            true,
+            Some(22),
+            Action::Pass,
+        ),
+    ] {
+        let s = reizen(seat, &calls);
+        let legal = s.view().legal_actions;
+        // First calls (incl. jumps) and Pass; all are free alternatives.
+        let mut choices: Vec<_> = legal.iter().copied().take(3).collect();
+        choices.push(*legal.last().unwrap());
+        for chosen in choices {
+            let mut s = s.clone();
+            let before = s.view();
+            s.execute(Command::StartGuided).unwrap();
+            let g = s.guided().unwrap();
+            assert_eq!(g.step, S::Orient);
+            // Initial prompt: only the public bid, no stake, role or rule.
+            let r = g.reizen.unwrap();
+            assert_eq!(r.current, before.bid);
+            assert_eq!((r.holds, r.stake), (None, None));
+            assert!(g.bid_rule.is_none() && g.rule.is_none() && g.legal_cards.is_empty());
+            assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
+            respond(&mut s, G::Answer(A::Holds(!holds))).unwrap();
+            assert_eq!(s.guided().unwrap().correct, Some(false));
+            assert_eq!(s.guided().unwrap().step, S::Orient);
+            respond(&mut s, G::Retry).unwrap();
+            respond(&mut s, G::Answer(A::Holds(holds))).unwrap();
+            let g = s.guided().unwrap();
+            assert_eq!((g.step, g.correct), (S::Threshold, None));
+            assert_eq!(g.reizen.unwrap().holds, Some(holds));
+            assert_eq!(g.reizen.unwrap().stake, stake);
+            assert!(g.bid_rule.is_none());
+            respond(&mut s, G::Answer(A::Within(action == Action::Pass))).unwrap();
+            assert_eq!(s.guided().unwrap().correct, Some(false));
+            assert!(s.guided().unwrap().bid_rule.is_none());
+            respond(&mut s, G::Reveal).unwrap();
+            let g = s.guided().unwrap();
+            assert_eq!(g.step, S::Act);
+            let rule = g.bid_rule.unwrap();
+            assert_eq!(rule.action, action);
+            assert_eq!(rule.current, before.bid);
+            assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
+            assert_eq!(respond(&mut s, G::Figures), Err(AppError::NoQuestion));
+            assert_eq!(s.view().legal_actions, before.legal_actions);
+            assert_eq!(s.view().hand, before.hand);
+            let id = g.id;
+            // Any legal call, including ones the rule would not make, ends the dialogue.
+            s.execute(Command::Act(chosen)).unwrap();
+            assert!(s.guided().is_none());
+            assert_eq!(
+                s.execute(Command::Guided(id, G::Reveal)),
+                Err(AppError::StaleGuided)
+            );
+        }
+    }
+}
+
+#[test]
+fn reizen_correct_attempt_reveals_rule_and_jump_context_stays_public() {
+    // HH after MH jumps to 35: next standard value 36 is exactly its ceiling.
+    let mut s = reizen(Seat::Hinterhand, &[Action::Bid(35), Action::Pass]);
+    s.execute(Command::StartGuided).unwrap();
+    assert_eq!(s.guided().unwrap().reizen.unwrap().current, 35);
+    respond(&mut s, G::Answer(A::Holds(false))).unwrap();
+    assert_eq!(s.guided().unwrap().reizen.unwrap().stake, Some(36));
+    respond(&mut s, G::Answer(A::Within(true))).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!((g.step, g.correct), (S::Act, Some(true)));
+    let rule = g.bid_rule.unwrap();
+    assert_eq!((rule.action, rule.ceiling), (Action::Bid(36), 36));
+    assert_eq!(rule.branch, crate::GuidedGameBranch::Suit);
+    // Deliberate reveal straight from orientation also shows the stake.
+    let mut s = reizen(Seat::Hinterhand, &[Action::Bid(35), Action::Pass]);
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!(g.reizen.unwrap().stake, Some(36));
+    assert_eq!(g.bid_rule.unwrap().action, Action::Bid(36));
+}
+
+#[test]
+fn reizen_skip_stale_off_and_automatic_boundaries() {
+    let mut s = reizen(Seat::Mittelhand, &[]);
+    let before = s.view();
+    for level in [
+        crate::CoachLevel::Important,
+        crate::CoachLevel::EveryMove,
+        crate::CoachLevel::OnRequest,
+    ] {
+        s.execute(Command::SetCoach(CoachSettings {
+            level,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        // Automatic coach levels never enter or expose the dialogue.
+        assert!(s.guided().is_none());
+    }
+    s.execute(Command::StartGuided).unwrap();
+    let old = s.guided().unwrap().id;
+    respond(&mut s, G::Return).unwrap();
+    assert!(s.guided().is_none());
+    assert_eq!(s.view(), before);
+    assert_eq!(
+        s.execute(Command::Guided(old, G::Reveal)),
+        Err(AppError::StaleGuided)
+    );
+    s.execute(Command::StartGuided).unwrap();
+    assert_ne!(s.guided().unwrap().id, old);
+    s.execute(Command::SetCoach(CoachSettings {
+        level: crate::CoachLevel::Off,
+        ..CoachSettings::default()
+    }))
+    .unwrap();
+    assert!(s.guided().is_none());
+    assert_eq!(s.execute(Command::StartGuided), Err(AppError::CoachOff));
+    // A new game drops the dialogue as well.
+    s.execute(Command::SetCoach(CoachSettings::default()))
+        .unwrap();
+    s.execute(Command::StartGuided).unwrap();
+    while s.game.current_seat().is_some() {
+        s.apply(s.game.legal_actions()[0]).unwrap();
+    }
+    s.execute(Command::NextGame).unwrap();
     assert!(s.guided().is_none());
 }

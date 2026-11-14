@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Bounded guided Farbspiel lessons. Exact rule provenance, never search ranking.
+//! Bounded guided Farbspiel and Reizen lessons. Exact rule provenance, never
+//! search ranking.
 
 use crate::Source;
 pub use skat_analysis::baseline::{Branch, CardRule};
-use skat_analysis::{Knowledge, TrickState, baseline};
+pub use skat_analysis::policy::{BidRule, GameBranch};
+use skat_analysis::{Knowledge, TrickState, baseline, policy};
 use skat_core::{Card, CardSet, Follow, GameType, Phase, PlayerView, Seat};
 
 /// One current prompt; no later answer is included in a prompt.
@@ -17,6 +19,8 @@ pub enum Step {
     Check,
     /// Try a legal card that serves this branch's immediate purpose.
     Narrow,
+    /// Reizen: is the value at stake within Easy's ceiling for the own hand?
+    Threshold,
     /// Deliberately revealed worked answer; play any legal card.
     Act,
     /// Await the actual resulting card/trick, across automated turns.
@@ -39,6 +43,10 @@ pub enum Answer {
     Card(Card),
     /// Whether the observed play proves failure to follow the led class.
     Void(bool),
+    /// Reizen orientation: answer (hold) the current bid, or name a higher one.
+    Holds(bool),
+    /// Reizen threshold: the value at stake is within the heuristic ceiling.
+    Within(bool),
 }
 
 /// A rule-backed lesson. Never passed to the frontend before disclosure.
@@ -109,6 +117,38 @@ impl Lesson {
             played: self.knowledge.played,
             unseen: self.knowledge.unseen(),
             trumpf: skat_analysis::counting::CountingAid::from_knowledge(&self.knowledge).trumpf,
+        }
+    }
+}
+
+/// A Reizen lesson from Easy's shared bidding rule. Never passed to the
+/// frontend before disclosure.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BidLesson {
+    /// Actual shared Easy outcome and its inputs.
+    pub rule: BidRule,
+    /// Learner's seat.
+    pub seat: Seat,
+}
+
+/// Every Reizen decision of the learner is supported, including forced Pass.
+pub fn bid_lesson(view: &PlayerView) -> Option<BidLesson> {
+    Some(BidLesson {
+        rule: policy::bid_rule(view)?,
+        seat: view.seat,
+    })
+}
+
+impl BidLesson {
+    /// Orientation is public; the threshold answer is Easy's actual choice.
+    pub fn check(&self, step: Step, answer: Answer) -> bool {
+        match (step, answer) {
+            (Step::Orient, Answer::Holds(h)) => h == self.rule.holds,
+            (Step::Threshold, Answer::Within(w)) => {
+                w == (self.rule.action != skat_core::Action::Pass)
+            }
+            _ => false,
         }
     }
 }

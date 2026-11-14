@@ -409,6 +409,7 @@ mod tests {
                     "help",
                     "repeat",
                     "seconds",
+                    "ceiling",
                 ] {
                     args.set(name, "x");
                 }

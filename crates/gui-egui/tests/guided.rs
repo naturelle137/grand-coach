@@ -123,3 +123,91 @@ fn guided_widgets_allow_wrong_retry_reveal_memory_any_card_observation_and_retur
         assert_eq!(h.state().learning_history(), &history_before);
     }
 }
+
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn guided_reizen_widgets_allow_wrong_retry_reveal_free_call_skip_and_stale_in_de_en() {
+    for language in Language::ALL {
+        let config = SessionConfig {
+            seed: 21,
+            series: SeriesLength::Free,
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
+        };
+        let mut h = Harness::builder()
+            .with_size([1600.0, 1200.0])
+            .build_eframe(move |cc| GrandCoachApp::new(&cc.egui_ctx, config));
+        let i = I18n::new(language);
+        enter_reizen(&mut h, language);
+        let before = h.state().session().view();
+        let history_before = h.state().learning_history().clone();
+        // Initial prompt: public bid and the role question only.
+        let first = h.state().session().guided().unwrap();
+        assert!(first.bid_rule.is_none());
+        assert_eq!(first.reizen.unwrap().current, before.bid);
+        assert_eq!(first.reizen.unwrap().holds, None);
+        for absent in ["guided-bid-within-yes", "guided-memory", "guided-figures"] {
+            assert!(
+                h.query_by_role_and_label(Role::Button, &i.t(absent))
+                    .is_none()
+            );
+        }
+        // Skip, then re-enter with a new identity.
+        click(&mut h, &i.t("guided-return"));
+        assert!(h.state().session().guided().is_none());
+        let after = h.state().session().view();
+        assert_eq!(
+            (&after.bidding, &after.legal_actions, &after.hand),
+            (&before.bidding, &before.legal_actions, &before.hand)
+        );
+        click(&mut h, &i.t("guided-start"));
+        let g = h.state().session().guided().unwrap();
+        assert_ne!(g.id, first.id);
+        let holds = before.legal_actions.contains(&skat_app::Action::Hold);
+        let (wrong, right) = if holds {
+            ("guided-bid-asks", "guided-bid-holds")
+        } else {
+            ("guided-bid-holds", "guided-bid-asks")
+        };
+        click(&mut h, &i.t(wrong));
+        assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+        click(&mut h, &i.t("guided-retry"));
+        click(&mut h, &i.t(right));
+        let g = h.state().session().guided().unwrap();
+        assert_eq!(g.step, GuidedStep::Threshold);
+        assert_eq!(g.reizen.unwrap().holds, Some(holds));
+        assert!(g.bid_rule.is_none());
+        click(&mut h, &i.t("guided-unknown"));
+        let g = h.state().session().guided().unwrap();
+        assert_eq!(g.step, GuidedStep::Act);
+        let rule = g.bid_rule.unwrap();
+        assert_eq!(
+            h.state().session().view().legal_actions,
+            before.legal_actions
+        );
+        // Choose freely: a different legal call than the rule's.
+        let other = if rule.action == skat_app::Action::Pass {
+            before.legal_actions[0]
+        } else {
+            skat_app::Action::Pass
+        };
+        let label = match other {
+            skat_app::Action::Hold => i.tf("button-hold", &[("value", before.bid.into())]),
+            skat_app::Action::Bid(value) => i.tf("button-bid", &[("value", value.into())]),
+            _ => i.t("button-pass"),
+        };
+        click(&mut h, &label);
+        assert!(h.state().session().guided().is_none());
+        // The free call was actually played; the old dialogue is gone.
+        let human = before.players[0].player;
+        let calls = h.state().session().view().bidding;
+        assert!(calls.len() > before.bidding.len());
+        let expected = match other {
+            skat_app::Action::Hold => skat_app::Call::Hold(before.bid),
+            skat_app::Action::Bid(value) => skat_app::Call::Bid(value),
+            _ => skat_app::Call::Pass,
+        };
+        assert_eq!(calls[before.bidding.len()], (human, expected));
+        assert_eq!(h.state().learning_history(), &history_before);
+    }
+}

@@ -21,10 +21,7 @@ impl BaselineOpponent {
             return None;
         }
         let wanted = match view.phase {
-            Phase::Reizen => {
-                let (_, limit) = policy::choose_game(view.hand);
-                policy::bid(limit, view.bid, legal)
-            }
+            Phase::Reizen => policy::bid_rule(view)?.action,
             Phase::SkatAufnahme => policy::hand_or_pickup(view.hand),
             Phase::Druecken => Action::Discard(policy::discard(view.hand)),
             Phase::Ansage => policy::announce(
@@ -50,6 +47,7 @@ mod tests {
     use super::*;
     use rand_chacha::ChaCha8Rng;
     use rand_chacha::rand_core::{Rng, SeedableRng};
+    use skat_analysis::policy;
     use skat_core::{Game, RuleConfig, Seat};
 
     /// Plays `seed` with the baseline opponent on every seat.
@@ -121,6 +119,42 @@ mod tests {
             }
         }
         assert_eq!(hash, 12_969_225_982_751_591_822);
+    }
+
+    #[test]
+    fn shared_bid_rule_is_easys_reizen_decision_with_public_stake() {
+        let mut rng = ChaCha8Rng::seed_from_u64(148);
+        let (mut holds, mut passes, mut bids) = (0, 0, 0);
+        for seed in 0..500 {
+            let mut game = Game::new(seed, RuleConfig { kontra_re: true });
+            while game.phase() == Phase::Reizen {
+                let view = game.view(game.current_seat().unwrap());
+                let rule = policy::bid_rule(&view).unwrap();
+                assert_eq!(BaselineOpponent.decide(&view), Some(rule.action));
+                assert!(!rule.fallback && view.legal_actions.contains(&rule.action));
+                assert_eq!(rule.current, view.bid);
+                assert_eq!(rule.holds, view.legal_actions.contains(&Action::Hold));
+                let within = rule.stake.is_some_and(|v| v <= rule.ceiling);
+                assert_eq!(within, rule.action != Action::Pass, "{rule:?}");
+                match rule.action {
+                    Action::Hold => holds += 1,
+                    Action::Bid(v) => {
+                        assert_eq!(Some(v), rule.stake);
+                        bids += 1;
+                    }
+                    _ => passes += 1,
+                }
+                // Random legal calls reach jumps and higher current bids.
+                let action = if rng.next_u32() % 3 == 0 {
+                    let i = rng.next_u32() as usize % view.legal_actions.len();
+                    view.legal_actions[i]
+                } else {
+                    rule.action
+                };
+                game.apply(action).unwrap();
+            }
+        }
+        assert!(holds > 0 && passes > 0 && bids > 0);
     }
 
     #[test]

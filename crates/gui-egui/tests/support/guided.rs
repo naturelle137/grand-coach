@@ -53,3 +53,33 @@ pub fn enter(h: &mut Harness<'_, GrandCoachApp>) {
     }
     panic!("seeded ordinary app did not reach a supported guided branch");
 }
+
+/// Ordinary app up to the human's next Reizen decision; enters the dialogue
+/// by its real button in `language`.
+#[allow(dead_code)]
+pub fn enter_reizen(h: &mut Harness<'_, GrandCoachApp>, language: Language) {
+    let i = I18n::new(language);
+    h.state_mut().set_language(language);
+    h.state_mut().opponent_delay = 0.0;
+    for _ in 0..300 {
+        settle(h);
+        let v = h.state().session().view();
+        if v.phase == Phase::Reizen && !v.legal_actions.is_empty() {
+            click(h, &i.t("guided-start"));
+            let g = h.state().session().guided().expect("explicit dialogue");
+            assert_eq!(g.step, GuidedStep::Orient);
+            assert!(g.reizen.is_some());
+            return;
+        }
+        assert!(!v.series_finished, "guided walkthrough needs free play");
+        let label = if v.can_next_game {
+            i.t("button-next-game")
+        } else if v.legal_actions.contains(&Action::Pass) {
+            i.t("button-pass")
+        } else {
+            coach::action(&i, &v, v.legal_actions[0])
+        };
+        click(h, &label);
+    }
+    panic!("seeded ordinary app did not reach a human Reizen decision");
+}

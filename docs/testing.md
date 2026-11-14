@@ -408,7 +408,12 @@ The guided-dialogue scenarios `guided-orient`, `guided-act`, `guided-memory`,
 and `guided-orient-narrow`) use seed 21, free play and two Easy opponents without
 Kontra/Re. They enter through real widgets. The ignored bilingual `guided`
 widget test also opens/closes a real recording, cancels the old dialogue and
-re-enters with a fresh identity. These are technical checks, not learner UAT.
+re-enters with a fresh identity. The Reizen scenarios `guided-bid-orient`,
+`guided-bid-threshold`, `guided-bid-act` (plus `-en` variants and
+`guided-bid-act-narrow`) enter the human's first bidding decision with the same
+seed through real widgets; the ignored bilingual `guided` Reizen widget test
+covers wrong/retry, reveal, a free alternative call and skip/re-entry.
+These are technical checks, not learner UAT.
 
 ## Platform verification (M2)
 

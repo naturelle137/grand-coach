@@ -1,4 +1,4 @@
-# Guided Farbspiel pilot (#131)
+# Guided Farbspiel and Reizen pilot (#131, #148)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -29,7 +29,7 @@ separate factual oracles.
   first exact tie. Other winning cards still win this trick. No claim about
   their future strategic value or the final game result follows.
 - **Exclusions:** no lead, early winner, partner feeding, arbitrary fallback,
-  single legal action, Kontra/Re, Grand, Null or pre-play dialogue. If the
+  single legal action, Kontra/Re, Grand, Null or other pre-play decisions (Reizen: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
   explicitly marked `Fallback` and excluded, rather than explained as staying
   under the partner. In
@@ -68,7 +68,7 @@ As declarer in Hinterhand after C9/C8, CQ and CA both win; the cheaper winner
 is CQ. All legal alternatives replay through the core. Moving CA into the
 defender's own hand makes CK a follow-class master and selects excluded
 `FeedPartner`; this is not narrated as safe against Trumpf. Forced last-trick
-moves and pre-play are unsupported. Hand has unknown Skat even for declarer;
+moves and pre-play decisions after Reizen are unsupported. Hand has unknown Skat even for declarer;
 known own discards and Ouvert use the same existing `Knowledge` definitions.
 
 ## Reproducible ordinary-app walkthrough
@@ -99,6 +99,40 @@ in both languages. App tests additionally exercise frozen input, different
 hidden deals, stale/re-entered identities, default/off/automatic settings and
 incomplete optional estimates. These are automated technical checks, not
 observed learner clarity or interactive Windows 11 evidence.
+
+## Reizen threshold decision (#148)
+
+`guided-reizen@1` is a bounded heuristic dialogue over Easy's bidding rule,
+not a solver statement. `skat_analysis::policy::bid_rule` returns the actual
+action plus its inputs; `BaselineOpponent` calls the same function, so the
+frozen 200-game hash `12969225982751591822` is unchanged, and a 500-game test
+with random legal calls checks equality with Easy, no fallback and
+`stake <= ceiling` ⇔ action ≠ Pass. Steps: orientation (public current bid;
+hold or name a bid?), threshold (is the stake within the ceiling?), then the
+worked answer after a correct attempt or reveal. Wrong answers stay with
+retry; skip/return and stale identities follow the card dialogue.
+
+Fixtures in `crates/skat-coach/tests/guided_reizen.rs` replay only
+core-accepted calls on the deal above. Vorhand's ceiling is Herz 20 (mit 1),
+Mittelhand's Pik 22 (ohne 1) and Hinterhand's Karo 36 (ohne 3):
+
+| Learner decision | Stake | Easy action |
+|------------------|-------|-------------|
+| MH opens at 0 | 18 | Bid 18 (below) |
+| MH after VH held 20 | 22 | Bid 22 (at) |
+| MH after a forced Hold at 22 | 23 | Pass (above) |
+| VH answers 18 / 20 / 22 | same | Hold / Hold / Pass |
+| VH after MH jumps to 35 | 35 | Pass (never labelled 22) |
+| HH after the jump to 35 and VH pass | 36 | Bid 36 (at) |
+
+Further deals name a `Weak` hand (ceiling 0, Pass at 18), a `Null` hand
+(23: Hold 23, Pass 24; Vorhand alone names 18), a `Grand` hand (mit 4: 120)
+and the unavailable next value at 264 (only Pass legal). Moving Mittelhand's
+Pik-Bube into the hidden Skat or swapping hidden cards between opponents
+leaves Hinterhand's view and rule unchanged: the ceiling counts Spitzen from
+the own ten cards only. In the ordinary app with seed 21, the human's first
+decision is to answer 18 with a `Weak` hand; the threshold answer is “no” and
+Easy passes. The learner may still hold.
 
 ## Verification and UI evidence
 

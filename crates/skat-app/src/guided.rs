@@ -5,8 +5,11 @@
 use crate::coach::{CoachResult, DecisionKey};
 use crate::{AppError, CoachLevel, Session};
 use serde::{Deserialize, Serialize};
-use skat_coach::guided::{self, Lesson, Memory, Observation};
-pub use skat_coach::guided::{Answer as GuidedAnswer, Branch as GuidedBranch, Step as GuidedStep};
+use skat_coach::guided::{self, BidLesson, Lesson, Memory, Observation};
+pub use skat_coach::guided::{
+    Answer as GuidedAnswer, BidRule as GuidedBidRule, Branch as GuidedBranch,
+    GameBranch as GuidedGameBranch, Step as GuidedStep,
+};
 use skat_core::{Action, Event, PlayerView, Seat};
 
 /// Unforgeable-in-practice session/decision identity; checked on every response.
@@ -63,6 +66,17 @@ pub struct GuidedEvent {
     pub assisted: bool,
 }
 
+/// Public Reizen context, plus the orientation answer once given or revealed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GuidedReizen {
+    /// Public current bid (0: nothing bid yet), never a pre-jump value.
+    pub current: u16,
+    /// After orientation: whether this seat holds rather than names a bid.
+    pub holds: Option<bool>,
+    /// After orientation: the value at stake (none above the highest value).
+    pub stake: Option<u16>,
+}
+
 /// Frontend view: answer-bearing fields withheld until explicitly allowed.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GuidedView {
@@ -94,6 +108,10 @@ pub struct GuidedView {
     pub basis: crate::CoachBasis,
     /// Frozen original permitted view for neutral card-answer controls.
     pub legal_cards: Vec<skat_core::Card>,
+    /// Reizen dialogue only: public bid and, after orientation, the stake.
+    pub reizen: Option<GuidedReizen>,
+    /// Easy's bidding rule after a correct threshold attempt or deliberate reveal.
+    pub bid_rule: Option<GuidedBidRule>,
 }
 
 #[derive(Clone, Debug)]
@@ -101,6 +119,7 @@ pub(crate) struct GuidedState {
     key: DecisionKey,
     id: GuidedId,
     lesson: Option<Lesson>,
+    bid: Option<BidLesson>,
     step: GuidedStep,
     correct: Option<bool>,
     revealed: bool,
@@ -116,7 +135,8 @@ pub(crate) struct GuidedState {
 impl GuidedState {
     pub(crate) fn new(key: DecisionKey, view: &PlayerView, result: Option<CoachResult>) -> Self {
         let lesson = guided::lesson(view);
-        let step = if lesson.is_some() {
+        let bid = guided::bid_lesson(view);
+        let step = if lesson.is_some() || bid.is_some() {
             GuidedStep::Orient
         } else {
             GuidedStep::Unsupported
@@ -128,6 +148,7 @@ impl GuidedState {
             key,
             id,
             lesson,
+            bid,
             step,
             correct: None,
             revealed: false,
@@ -214,6 +235,15 @@ impl GuidedState {
             basis,
             figures_requested: self.figures && figures_enabled,
             legal_cards: self.legal_cards.clone(),
+            reizen: self.bid.map(|b| {
+                let oriented = self.revealed || self.step != GuidedStep::Orient;
+                GuidedReizen {
+                    current: b.rule.current,
+                    holds: oriented.then_some(b.rule.holds),
+                    stake: b.rule.stake.filter(|_| oriented),
+                }
+            }),
+            bid_rule: self.revealed.then(|| self.bid.map(|b| b.rule)).flatten(),
         }
     }
 
@@ -234,20 +264,25 @@ impl GuidedState {
                 } else {
                     if !matches!(
                         self.step,
-                        GuidedStep::Orient | GuidedStep::Check | GuidedStep::Narrow
+                        GuidedStep::Orient
+                            | GuidedStep::Check
+                            | GuidedStep::Narrow
+                            | GuidedStep::Threshold
                     ) {
                         return Err(AppError::NoQuestion);
                     }
                     self.lesson
                         .as_ref()
                         .is_some_and(|l| l.check(self.step, answer))
+                        || self.bid.is_some_and(|b| b.check(self.step, answer))
                 };
                 self.correct = Some(correct);
                 if correct {
                     self.step = match self.step {
+                        GuidedStep::Orient if self.bid.is_some() => GuidedStep::Threshold,
                         GuidedStep::Orient => GuidedStep::Check,
                         GuidedStep::Check => GuidedStep::Narrow,
-                        GuidedStep::Narrow => {
+                        GuidedStep::Narrow | GuidedStep::Threshold => {
                             self.revealed = true;
                             GuidedStep::Act
                         }
@@ -255,7 +290,10 @@ impl GuidedState {
                         step => step,
                     };
                     // Feedback of the previous question must not disclose the next one.
-                    if matches!(self.step, GuidedStep::Check | GuidedStep::Narrow) {
+                    if matches!(
+                        self.step,
+                        GuidedStep::Check | GuidedStep::Narrow | GuidedStep::Threshold
+                    ) {
                         self.correct = None;
                     }
                 }
@@ -266,7 +304,11 @@ impl GuidedState {
                     self.step = GuidedStep::Complete;
                 } else if matches!(
                     self.step,
-                    GuidedStep::Orient | GuidedStep::Check | GuidedStep::Narrow | GuidedStep::Act
+                    GuidedStep::Orient
+                        | GuidedStep::Check
+                        | GuidedStep::Narrow
+                        | GuidedStep::Threshold
+                        | GuidedStep::Act
                 ) {
                     self.revealed = true;
                     self.step = GuidedStep::Act;
@@ -275,7 +317,9 @@ impl GuidedState {
                 }
             }
             GuidedAction::Memory(open) => {
-                if !self.revealed || matches!(self.step, GuidedStep::Waiting | GuidedStep::Observe)
+                if !self.revealed
+                    || self.lesson.is_none()
+                    || matches!(self.step, GuidedStep::Waiting | GuidedStep::Observe)
                 {
                     return Err(AppError::NoQuestion);
                 }
@@ -292,6 +336,7 @@ impl GuidedState {
     }
 
     /// Capture only the originating trick. Later automated cards cannot replace it.
+    /// Reizen and unsupported dialogues end with any action.
     pub(crate) fn expires_on(&self, before: Option<Seat>) -> bool {
         self.lesson.is_none()
             || (self.chosen.is_some()

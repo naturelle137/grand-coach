@@ -710,6 +710,27 @@ guided-budget = Game { $game }, decision after { $actions } actions. Work budget
 guided-model-unavailable = No usable model comparison is available for this decision. The rule answer needs no estimate.
 guided-basis-own = Basis: frozen own view, no later card knowledge.
 guided-consider = Consider card: { $card }
+guided-bid-current = Current public bid: { $bid }.
+guided-bid-current-none = No bid has been made yet.
+guided-bid-orient = Do you answer the current bid (hold), or must you name a bid yourself?
+guided-bid-holds = I answer: hold
+guided-bid-asks = I name a bid
+guided-bid-threshold-hold = You decide whether to hold { $value }. Does Easy's ceiling for your own ten cards reach { $value }?
+guided-bid-threshold-ask = The next standard bid is { $value }. Does Easy's ceiling for your own ten cards reach { $value }?
+guided-bid-threshold-none = No standard bid above { $bid } exists. Can Easy's rule still bid?
+guided-bid-within-yes = Yes, within the ceiling
+guided-bid-within-no = No, above the ceiling
+guided-bid-rule = Easy's rule: { $action }.
+guided-bid-game = Candidate from your own ten cards: { $game }, ceiling { $ceiling }.
+guided-bid-weak = No game reaches the rule's thresholds: ceiling 0, so Easy passes.
+guided-bid-branch-suit = Suit game: the strongest suit by Easy's strength count; value = base value × (Spitzen + 1).
+guided-bid-branch-grand = Grand: at least two Buben and enough strength; value = 24 × (Spitzen + 1).
+guided-bid-branch-null = Null: at most one unsafe suit; fixed value 23.
+guided-bid-within = Value at stake { $value } ≤ ceiling { $ceiling }.
+guided-bid-above = Value at stake { $value } > ceiling { $ceiling }.
+guided-bid-no-value = No higher standard value exists; only Pass is possible.
+guided-bid-caveat = The ceiling is a conditional rule of thumb from your own ten cards, not a guaranteed contract value or a promise to win. Spitzen count from your hand only; the hidden Skat cannot be relied on to supply missing ones.
+guided-bid-act = Now choose any legal bidding action.
 # Learning history (M8 foundation, D-70)
 learning-open = Learning history …
 learning-title = Learning history
