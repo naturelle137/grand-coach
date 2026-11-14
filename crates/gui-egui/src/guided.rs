@@ -575,3 +575,58 @@ fn source_line(i: &I18n, source: Source) -> String {
         _ => String::new(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::Language;
+    use egui_kittest::{Harness, kittest::Queryable};
+    use skat_app::{Announcement, CardSet, GameType, GuidedAnnounceCandidate, Suit};
+
+    /// Review #152: the revealed no-fit answer (Herz Hand cards at bid 77,
+    /// see `guided_announce.rs`) names only the known-card comparison and the
+    /// Grand fallback; a hidden Skat with SJ makes the actual Grand 96.
+    #[test]
+    fn no_fit_answer_does_not_claim_a_certain_overbid_in_de_en() {
+        let candidate = |game, value, strength| GuidedAnnounceCandidate {
+            game,
+            value,
+            strength,
+            fits: false,
+        };
+        let rule = GuidedAnnounceRule {
+            action: Action::Announce(Announcement::plain(GameType::Grand)),
+            bid: 77,
+            hand_game: true,
+            skat: CardSet::EMPTY,
+            preferred: GameType::Farbe(Suit::Herz),
+            branch: GuidedGameBranch::Suit,
+            value: 30,
+            fits: false,
+            candidates: [
+                candidate(GameType::Farbe(Suit::Kreuz), 36, 61),
+                candidate(GameType::Farbe(Suit::Pik), 33, 61),
+                candidate(GameType::Farbe(Suit::Herz), 30, 106),
+                candidate(GameType::Farbe(Suit::Karo), 27, 57),
+                candidate(GameType::Grand, 72, 54),
+            ],
+            game: GameType::Grand,
+            null_risks: None,
+            ouvert: false,
+            no_fit: true,
+            plain: false,
+            fallback: false,
+        };
+        for language in Language::ALL {
+            let i = I18n::new(language);
+            let text = i.tf("guided-ann-no-fit", &[("bid", 77.into())]);
+            let ui_i = I18n::new(language);
+            let h = Harness::new_ui(move |ui| announce_answer(ui, &ui_i, &rule));
+            assert!(h.query_by_label(&text).is_some(), "{language:?}");
+            for certain in ["ist überreizt", "is overbid"] {
+                assert!(!text.contains(certain), "{language:?}: {text}");
+            }
+            assert!(text.contains("77") && text.contains("Grand"), "{text}");
+        }
+    }
+}

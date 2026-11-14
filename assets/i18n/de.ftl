@@ -781,7 +781,7 @@ guided-ann-candidates = Farbspiele und Grand, deren Wert das Gebot erreicht: { $
 guided-ann-candidate = { $game } { $value } (Stärke { $strength })
 guided-ann-strongest = Easy nimmt davon das stärkste: { $game }.
 guided-ann-tie = Gleich stark: { $games }. Easy nimmt das spätere in der Reihenfolge Kreuz, Pik, Herz, Karo, Grand: { $game }.
-guided-ann-no-fit = Kein Spiel erreicht das Gebot { $bid }: Easy sagt ersatzweise Grand an und ist überreizt.
+guided-ann-no-fit = Keiner von Easys Kandidaten erreicht mit dem einfachen Wert deiner bekannten Karten das Gebot { $bid }: Easy sagt ersatzweise Grand an. Der tatsächliche Spielwert steht damit noch nicht fest, also auch nicht, ob das Spiel überreizt ist: Spitzen im unbekannten Skat und erreichte Stufen wie Schneider können ihn erhöhen.
 guided-ann-ouvert = Null ohne unsichere Farbe in deinen zehn Karten: Easy spielt ouvert.
 guided-ann-null-plain = Null mit { $count ->
         [one] einer unsicheren Farbe

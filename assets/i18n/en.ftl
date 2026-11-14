@@ -781,7 +781,7 @@ guided-ann-candidates = Suit games and Grand whose value reaches the bid: { $gam
 guided-ann-candidate = { $game } { $value } (strength { $strength })
 guided-ann-strongest = Easy takes the strongest of them: { $game }.
 guided-ann-tie = Equally strong: { $games }. Easy takes the later one in the order Kreuz, Pik, Herz, Karo, Grand: { $game }.
-guided-ann-no-fit = No game reaches the bid { $bid }: Easy falls back to Grand and is overbid.
+guided-ann-no-fit = None of Easy's candidates reaches the bid { $bid } with the plain value of your known cards: Easy falls back to Grand. The actual game value, and so whether the game ends up overbid, is still unknown: Spitzen in an unknown Skat and earned levels such as Schneider can raise it.
 guided-ann-ouvert = Null without an unsafe suit in your ten cards: Easy plays ouvert.
 guided-ann-null-plain = Null with { $count ->
         [one] one unsafe suit

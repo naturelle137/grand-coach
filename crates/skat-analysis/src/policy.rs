@@ -355,7 +355,9 @@ pub struct AnnounceRule {
     pub null_risks: Option<u8>,
     /// Easy wants Null ouvert (Null without an unsafe suit).
     pub ouvert: bool,
-    /// No game reaches the bid: Easy falls back to Grand (overbid).
+    /// No candidate's plain value from the known cards reaches the bid: Easy
+    /// falls back to Grand. The actual game value stays unknown here (Spitzen
+    /// in a hidden Hand Skat, earned levels), so this is not an overbid claim.
     pub no_fit: bool,
     /// Wanted Null ouvert was not legal: plain Null instead.
     pub plain: bool,

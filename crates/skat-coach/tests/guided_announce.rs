@@ -125,6 +125,37 @@ fn higher_bid_switches_to_the_strongest_fitting_candidate_with_tie() {
 }
 
 #[test]
+fn no_fit_grand_is_not_a_certain_overbid_with_a_hidden_skat() {
+    use skat_core::{CardSet, GameOutcome, KontraLevel, settle, spitzen};
+    // Review #152: the hidden Hand Skat SJ DQ yields the identical lesson
+    // (known Grand Hand mit 1 = 72 < 77, nothing fits, Grand), yet SJ in the
+    // Skat makes the actual Grand Hand mit 2 = 24 × 4 = 96 ≥ 77.
+    let (_, _, known) = at(deal_hh(SUIT_HAND, "DQ DK"), 77, &[Action::Hand]);
+    let (mut g, l, r) = at(deal_hh(SUIT_HAND, "SJ DQ"), 77, &[Action::Hand]);
+    assert_eq!(r, known);
+    assert!(r.no_fit && r.skat.is_empty());
+    assert_eq!(candidate(&r, GameType::Grand), (72, 54, false));
+    checks(&l, GameBranch::Suit, false);
+    // The core accepts Easy's Grand Hand; the hidden Skat counts for Spitzen.
+    g.apply(r.action).unwrap();
+    assert_eq!(g.phase(), Phase::Spiel);
+    let skat: CardSet = cards("SJ DQ");
+    let actual = spitzen(GameType::Grand, cards(SUIT_HAND) | skat).unwrap();
+    assert_eq!((actual.mit, actual.count), (true, 2));
+    let result = settle(&GameOutcome {
+        declarer: Seat::Hinterhand,
+        contract: g.view(Seat::Hinterhand).contract.unwrap(),
+        bid: 77,
+        spitzen: Some(actual),
+        declarer_augen: 61,
+        declarer_tricks: 6,
+        tricks_played: 10,
+        kontra: KontraLevel::None,
+    });
+    assert_eq!((result.game_value, result.ueberreizt), (96, false));
+}
+
+#[test]
 fn changed_hand_condition_makes_the_preferred_game_fit() {
     // HJ instead of CJ: Herz ohne 2 (no CJ, no SJ) Hand = 10 × 4 = 40 ≥ 33;
     // strength HJ 14 + 22 + 40, CA SA 20, two empty suits 6 → 102, still Herz.

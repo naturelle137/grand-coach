@@ -185,7 +185,7 @@ actions with Hinterhand declarer; values are worked out by hand:
 | CJ HA HT HK HQ H9 H8 H7 CA SA, Hand | 18 | Herz: Hand mit 1 = 30 fits |
 | same | 33 | Herz 30 short; Kreuz 36 and Pik 33 tie at strength 61, Grand 54: Pik |
 | same | 36 | Kreuz 61 over Grand 54 |
-| same | 77 | nothing fits: Grand (overbid) |
+| same | 77 | no known-card plain value fits: Grand; overbid stays open |
 | HJ for CJ (changed hand), Hand | 33 | Herz ohne 2 Hand = 40 fits |
 | CJ SJ HJ DJ HA HT HK HQ H9 CA, pickup S7 D7, both put away | 18 | Grand mit 4 = 120, known Skat counted |
 | C7 C8 C9 S7 S8 S9 H7 H8 H9 D7, Hand | 18 | Null Hand 35, no unsafe suit: Null ouvert |
@@ -193,7 +193,9 @@ actions with Hinterhand declarer; values are worked out by hand:
 | same | 24 | Null short; Herz (strength 45) over Kreuz and Pik (37) |
 
 Different hidden Skat (Hand) or swapped opponent cards leave the lesson
-identical. Restricted views disclose the plain-Null fallback and the
+identical. The no-fit answer therefore claims no overbid: with hidden Skat
+SJ DQ at bid 77 the lesson is the same, yet the core settles Grand Hand mit 2
+at 61 Augen as 96, not überreizt; earned levels can raise the value as well. Restricted views disclose the plain-Null fallback and the
 first-legal fallback separately; a no-fit Grand is a supported rule fallback,
 whereas Spiel has no Ansage rule. App tests cover wrong/retry, reveal, a correct
 attempt, skip/re-entry, every legal announcement, stale identities, automatic

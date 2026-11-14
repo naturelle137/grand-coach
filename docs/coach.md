@@ -349,7 +349,7 @@ public bid, the suit games and Grand with value, strength and fit, the
 announced game (preferred if it fits, else the strongest fitting candidate, the
 later in the order Kreuz, Pik, Herz, Karo, Grand on ties, else Grand), the Null
 unsafe-suit count and ouvert wish, and three disclosed fallbacks: no game fits
-(Grand, overbid), Null ouvert unavailable (plain Null) and the rule's
+(Grand; the actual value and an overbid stay unknown), Null ouvert unavailable (plain Null) and the rule's
 announcement not legal (first legal action). Before the reveal only the public
 bid and Hand state are shown; orientation asks the branch, then, with the
 preferred game named, whether its value reaches the bid. A correct attempt or
