@@ -432,9 +432,9 @@ coach-lesson-hand-structure-exception = Note: these counts describe your cards. 
 coach-lesson-hand-structure-transfer = With your next hand: for each suit and for Grand, which Jacks and how many trumps do you hold – and with or without how many?
 coach-lesson-game-value-question = What is each of your possible games worth with your cards – and what can the unknown Skat still change?
 coach-lesson-game-value-bid = { $case ->
-        [call] Bidding or holding here commits you to at least { $value }.
+        [call] Looking back at the position before your decision: the lowest available bid or hold committed you to { $value }. A higher jump bid commits you to its value.
        *[declarer] The bid is { $value }.
-    } A game worth less than that is lost as overbid (ISkO), however many points you take.
+    } A game worth less than the actual bid is lost as overbid (ISkO), however many points you take.
 coach-lesson-game-value-game = { $game }: { $value }
 coach-lesson-game-value-entry = { $kind ->
         [plain] with pickup

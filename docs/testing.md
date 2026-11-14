@@ -351,6 +351,11 @@ result, …) to `OUT_DIR/<name>.png` without a display (D-45). It needs a
 wgpu adapter and prefers software ones: lavapipe on Linux (Fedora/Ubuntu
 `mesa-vulkan-drivers`), WARP on Windows.
 
+The `coach-jump-context` and `coach-jump-context-en` scenarios reproduce
+seed 1020, game 2, the human call 20 followed by a jump to 35. The shared
+`qa146` widget regression checks that the lesson labels the historical
+pre-decision floor 22 in both languages while the actual bid/action is 35.
+
 - CI job `screenshots` (Linux and Windows) runs all scenarios when
   `crates/gui-egui/` or `assets/` changed and keeps the PNGs as run
   artifacts `screenshots-Linux` and `screenshots-Windows`. It is

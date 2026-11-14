@@ -82,6 +82,8 @@ const OPEN_DISPLAY: &[&str] = &[
 ];
 
 const SCENARIOS: &[(&str, Scenario)] = &[
+    ("coach-jump-context", coach_jump_context),
+    ("coach-jump-context-en", coach_jump_context_en),
     ("guided-orient", guided_orient),
     ("guided-act", guided_act),
     ("guided-memory", guided_memory),
@@ -1381,13 +1383,20 @@ fn main() {
             TableDisplay::Closed
         };
         let launch = *name == "launch" || name.starts_with("open-display-new-series");
-        let mut harness = harness(
-            launch,
-            seed,
-            opponents,
-            display,
-            name.starts_with("guided-"),
-        );
+        let mut harness = if name.starts_with("coach-jump-context") {
+            Harness::builder()
+                .with_size([1440.0, 1000.0])
+                .wgpu()
+                .build_eframe(|cc| GrandCoachApp::new(&cc.egui_ctx, qa146::config()))
+        } else {
+            harness(
+                launch,
+                seed,
+                opponents,
+                display,
+                name.starts_with("guided-"),
+            )
+        };
         if let Some(size) = table_size(name) {
             harness.set_size(size.into());
             harness.run_steps(2);
@@ -2395,4 +2404,17 @@ fn validation_form(h: &mut Harness<'_, GrandCoachApp>) {
 fn validation_form_en(h: &mut Harness<'_, GrandCoachApp>) {
     validation_form(h);
     english(h);
+}
+
+#[path = "../tests/support/qa146.rs"]
+mod qa146;
+
+fn coach_jump_context(h: &mut Harness<'_, GrandCoachApp>) {
+    qa146::jump(h);
+    qa146::assert_copy(h, Language::De);
+}
+
+fn coach_jump_context_en(h: &mut Harness<'_, GrandCoachApp>) {
+    qa146::jump(h);
+    qa146::assert_copy(h, Language::En);
 }

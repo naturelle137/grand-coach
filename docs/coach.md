@@ -27,7 +27,10 @@ player's intention or the cause of a score difference.
 own call or at Drücken. `game-value` compares the bid commitment with
 legal values at later calls, pickup and announcement. Unknown Skat cards
 can change Spitzen even in Hand games. Game value and the chance of
-winning are separate quantities.
+winning are separate quantities. The post-move bidding lesson explicitly labels
+its minimum commitment as belonging to the position before the decision;
+a higher jump commits to its actual bid, not that historical minimum.
+The lesson reuses the original shared analysis without another evaluation.
 
 ## Counting aid and quiz (D-64)
 
