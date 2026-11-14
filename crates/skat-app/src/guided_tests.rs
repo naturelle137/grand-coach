@@ -1128,11 +1128,20 @@ fn re_reply_observes_resumed_play_and_unseen_cards_keep_the_dialogue() {
 
 #[test]
 fn kontra_same_phase_replacement_stale_off_and_next_game_boundaries() {
-    let mut s = kontra_session(
-        Seat::Vorhand,
-        kontra_deal(KONTRA_VH, KONTRA_HH, "D8 D9"),
-        herz(),
-    );
+    for (vh, hh, skat, game) in [
+        (KONTRA_VH, KONTRA_HH, "D8 D9", HERZ),
+        (GRAND_VH, GRAND_HH, "D9 DT", GRAND),
+        (NULL_VH, GRAND_HH, "D9 DT", NULL),
+    ] {
+        kontra_boundaries(kontra_session(
+            Seat::Vorhand,
+            kontra_deal(vh, hh, skat),
+            skat_core::Announcement::plain(game),
+        ));
+    }
+}
+
+fn kontra_boundaries(mut s: Session) {
     for level in [
         crate::CoachLevel::Important,
         crate::CoachLevel::EveryMove,
