@@ -302,6 +302,49 @@ mod tests {
         }
     }
 
+    /// Kontra, Re and Ouvert KeinKontra views reached with random legal
+    /// actions (about one in three), so that every contract, eligible and
+    /// ineligible defenders, Hand and pickup occur.
+    fn kontra_views(seeds: std::ops::Range<u64>) -> Vec<skat_core::PlayerView> {
+        let mut rng = ChaCha8Rng::seed_from_u64(153);
+        let mut views = Vec::new();
+        for seed in seeds {
+            let mut game = Game::new(seed, RuleConfig { kontra_re: true });
+            while let Some(seat) = game.current_seat() {
+                let view = game.view(seat);
+                let call = view
+                    .legal_actions
+                    .iter()
+                    .any(|a| matches!(a, Action::Kontra | Action::KeinKontra | Action::Re));
+                let action = if rng.next_u32() % 3 == 0 {
+                    let i = rng.next_u32() as usize % view.legal_actions.len();
+                    view.legal_actions[i]
+                } else {
+                    BaselineOpponent.decide(&view).unwrap()
+                };
+                if call {
+                    views.push(view);
+                }
+                game.apply(action).unwrap();
+            }
+        }
+        views
+    }
+
+    #[test]
+    fn frozen_easy_kontra_re_before_rule_extraction() {
+        // Frozen on origin/main 4d55973 (baseline::play) before extraction.
+        let mut hash = 0xcbf29ce484222325u64;
+        let views = kontra_views(0..3000);
+        for view in &views {
+            let action = BaselineOpponent.decide(view).unwrap();
+            for byte in format!("{action:?}").bytes() {
+                hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+            }
+        }
+        assert_eq!((views.len(), hash), (3605, 13_667_852_288_273_955_558));
+    }
+
     #[test]
     fn no_decision_without_turn() {
         let game = Game::new(1, RuleConfig::default());
