@@ -563,6 +563,11 @@ fn reizen_skip_stale_off_and_automatic_boundaries() {
 
 /// Human on Hinterhand wins the bidding at 18 with `hh`, then takes `after`.
 fn preplay(hh: &str, skat: &str, after: &[Action]) -> Session {
+    preplay_at(18, hh, skat, after)
+}
+
+/// Human on Hinterhand wins the bidding at `bid` with `hh`, then takes `after`.
+fn preplay_at(bid: u16, hh: &str, skat: &str, after: &[Action]) -> Session {
     let mut s = Session::new(SessionConfig {
         opponents: Opponents::Levels([Level::Easy; 2]),
         series: SeriesLength::Free,
@@ -572,7 +577,7 @@ fn preplay(hh: &str, skat: &str, after: &[Action]) -> Session {
     let deal = fixture::deal_hh(hh, skat);
     s.game = Game::from_deal(deal, RuleConfig::default());
     s.recording.deal = deal;
-    for &a in [Action::Pass, Action::Bid(18), Action::Pass]
+    for &a in [Action::Pass, Action::Bid(bid), Action::Pass]
         .iter()
         .chain(after)
     {
@@ -679,15 +684,169 @@ fn discard_correct_card_reveals_rule_any_legal_discard_stays_free() {
     assert!(!s.view().hand.contains(&fixture::card("CJ")));
 }
 
+fn announce_rule(g: &crate::GuidedView) -> crate::GuidedAnnounceRule {
+    match g.pre_rule {
+        Some(crate::GuidedPreRule::Announce(r)) => r,
+        _ => panic!("announce rule expected"),
+    }
+}
+
+const HERZ: skat_core::GameType = skat_core::GameType::Farbe(skat_core::Suit::Herz);
+const PIK: skat_core::GameType = skat_core::GameType::Farbe(skat_core::Suit::Pik);
+
 #[test]
-fn ansage_after_pickup_is_disclosed_unsupported_without_rule() {
-    let mut s = preplay(SUIT_HAND, "DQ DK", &[Action::Hand]);
+fn announce_wrong_retry_reveal_and_every_legal_announcement_never_autoplays() {
+    // Bid 33 above Herz Hand 30: Easy announces Pik (tie with Kreuz at 61).
+    let s = preplay_at(33, SUIT_HAND, "DQ DK", &[Action::Hand]);
     assert_eq!(s.game.phase(), Phase::Ansage);
+    let mut s = s.clone();
+    let before = s.view();
     s.execute(Command::StartGuided).unwrap();
     let g = s.guided().unwrap();
-    assert_eq!(g.step, S::Unsupported);
-    assert!(g.preplay.is_none() && g.pre_rule.is_none() && g.rule.is_none());
-    assert_eq!(respond(&mut s, G::Reveal), Err(AppError::NoQuestion));
+    assert_eq!(g.step, S::Orient);
+    // Initial prompt: public bid and Hand state only; no game, value or rule.
+    let p = g.preplay.clone().unwrap();
+    assert_eq!(p.phase, Phase::Ansage);
+    assert_eq!((p.bid, p.hand_game), (Some(33), Some(true)));
+    assert_eq!((p.game, p.threshold), (None, None));
+    assert!(p.cards.is_empty());
+    assert!(g.pre_rule.is_none() && g.bid_rule.is_none() && g.rule.is_none());
+    respond(&mut s, G::Answer(A::Game(crate::GuidedGameBranch::Null))).unwrap();
+    assert_eq!(s.guided().unwrap().correct, Some(false));
+    assert_eq!(s.guided().unwrap().preplay.unwrap().game, None);
+    respond(&mut s, G::Retry).unwrap();
+    respond(&mut s, G::Answer(A::Game(crate::GuidedGameBranch::Suit))).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!((g.step, g.correct), (S::Threshold, None));
+    assert_eq!(g.preplay.unwrap().game, Some(HERZ));
+    assert!(g.pre_rule.is_none());
+    // Herz Hand is worth 30 < 33: "reaches" is wrong and reveals nothing.
+    respond(&mut s, G::Answer(A::Within(true))).unwrap();
+    assert_eq!(s.guided().unwrap().correct, Some(false));
+    assert!(s.guided().unwrap().pre_rule.is_none());
+    respond(&mut s, G::Reveal).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!(g.step, S::Act);
+    let rule = announce_rule(&g);
+    assert_eq!(
+        (rule.action, rule.value, rule.fits, rule.fallback),
+        (
+            Action::Announce(skat_core::Announcement::plain(PIK)),
+            30,
+            false,
+            false
+        )
+    );
+    assert_eq!(rule.tied().len(), 2);
+    assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
+    assert_eq!(s.view().legal_actions, before.legal_actions);
+    assert_eq!(s.view().hand, before.hand);
+    let id = g.id;
+    // Every legal announcement, also those the rule would not take, is applied
+    // as chosen and ends the dialogue.
+    assert!(before.legal_actions.len() > 5);
+    for &chosen in &before.legal_actions {
+        let mut s = s.clone();
+        s.execute(Command::Act(chosen)).unwrap();
+        assert!(s.guided().is_none());
+        let Action::Announce(a) = chosen else {
+            panic!("announcement expected");
+        };
+        assert_eq!(s.game.contract().unwrap().game, a.game);
+        assert_eq!(
+            s.execute(Command::Guided(id, G::Reveal)),
+            Err(AppError::StaleGuided)
+        );
+    }
+}
+
+#[test]
+fn announce_correct_attempt_skip_reenter_off_and_next_game_boundaries() {
+    let mut s = preplay(SUIT_HAND, "DQ DK", &[Action::Hand]);
+    let before = s.view();
+    for level in [
+        crate::CoachLevel::Important,
+        crate::CoachLevel::EveryMove,
+        crate::CoachLevel::OnRequest,
+    ] {
+        s.execute(Command::SetCoach(CoachSettings {
+            level,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        // Automatic coach levels never enter or expose the dialogue.
+        assert!(s.guided().is_none());
+    }
+    s.execute(Command::StartGuided).unwrap();
+    let old = s.guided().unwrap().id;
     respond(&mut s, G::Return).unwrap();
     assert!(s.guided().is_none());
+    assert_eq!(s.view(), before);
+    assert_eq!(
+        s.execute(Command::Guided(old, G::Reveal)),
+        Err(AppError::StaleGuided)
+    );
+    s.execute(Command::StartGuided).unwrap();
+    assert_ne!(s.guided().unwrap().id, old);
+    respond(&mut s, G::Answer(A::Game(crate::GuidedGameBranch::Suit))).unwrap();
+    // Herz Hand 30 reaches 18: a correct attempt reveals the rule.
+    respond(&mut s, G::Answer(A::Within(true))).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!((g.step, g.correct), (S::Act, Some(true)));
+    let rule = announce_rule(&g);
+    assert_eq!(
+        rule.action,
+        Action::Announce(skat_core::Announcement::plain(HERZ))
+    );
+    assert!(rule.fits && rule.skat.is_empty() && rule.tied().is_empty());
+    s.execute(Command::SetCoach(CoachSettings {
+        level: crate::CoachLevel::Off,
+        ..CoachSettings::default()
+    }))
+    .unwrap();
+    assert!(s.guided().is_none());
+    assert_eq!(s.execute(Command::StartGuided), Err(AppError::CoachOff));
+    s.execute(Command::SetCoach(CoachSettings::default()))
+        .unwrap();
+    s.execute(Command::StartGuided).unwrap();
+    while s.game.current_seat().is_some() {
+        s.apply(s.game.legal_actions()[0]).unwrap();
+    }
+    s.execute(Command::NextGame).unwrap();
+    assert!(s.guided().is_none());
+}
+
+#[test]
+fn announce_views_depend_only_on_the_permitted_view() {
+    // Hand: different unknown Skat. Pickup: the known own Skat is shown.
+    let walk = |s: &mut Session| {
+        s.execute(Command::StartGuided).unwrap();
+        let mut views = vec![s.guided().unwrap()];
+        respond(s, G::Answer(A::Game(crate::GuidedGameBranch::Suit))).unwrap();
+        views.push(s.guided().unwrap());
+        respond(s, G::Reveal).unwrap();
+        views.push(s.guided().unwrap());
+        views
+    };
+    let mut a = walk(&mut preplay_at(33, SUIT_HAND, "DQ DK", &[Action::Hand]));
+    let b = walk(&mut preplay_at(33, SUIT_HAND, "CK SK", &[Action::Hand]));
+    for (a, b) in a.iter_mut().zip(&b) {
+        a.id = b.id;
+        assert_eq!(a, b);
+    }
+    let mut s = preplay(
+        "CJ SJ HJ DJ HA HT HK HQ H9 CA",
+        "S7 D7",
+        &[Action::TakeSkat, Action::Discard(fixture::cards("S7 D7"))],
+    );
+    s.execute(Command::StartGuided).unwrap();
+    let p = s.guided().unwrap().preplay.unwrap();
+    assert_eq!((p.bid, p.hand_game, p.game), (Some(18), Some(false), None));
+    respond(&mut s, G::Reveal).unwrap();
+    let rule = announce_rule(&s.guided().unwrap());
+    assert_eq!(rule.skat, fixture::cards("S7 D7"));
+    assert_eq!(
+        rule.action,
+        Action::Announce(skat_core::Announcement::plain(skat_core::GameType::Grand))
+    );
 }

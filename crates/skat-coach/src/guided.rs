@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Bounded guided Farbspiel, Reizen, Skataufnahme and Drücken lessons. Exact
+//! Bounded guided Farbspiel, Reizen, Skataufnahme, Drücken and Ansage lessons. Exact
 //! rule provenance, never search ranking.
 
 use crate::Source;
 pub use skat_analysis::baseline::{Branch, CardRule};
-pub use skat_analysis::policy::{BidRule, DiscardRule, GameBranch, Keep, PickupRule};
+pub use skat_analysis::policy::{
+    AnnounceCandidate, AnnounceRule, BidRule, DiscardRule, GameBranch, Keep, PickupRule,
+};
 use skat_analysis::{Knowledge, TrickState, baseline, policy};
 use skat_core::{Card, CardSet, Follow, GameType, Phase, PlayerView, Seat};
 
@@ -22,6 +24,7 @@ pub enum Step {
     /// Reizen: is the value at stake within Easy's ceiling for the own hand?
     /// Skataufnahme: does the strength reach Easy's Hand threshold?
     /// Drücken: name a card Easy puts away first.
+    /// Ansage: does the preferred game's value reach the public bid?
     Threshold,
     /// Deliberately revealed worked answer; play any legal card.
     Act,
@@ -49,8 +52,9 @@ pub enum Answer {
     Holds(bool),
     /// Reizen threshold: the value at stake is within the heuristic ceiling.
     /// Skataufnahme threshold: the strength reaches the Hand threshold.
+    /// Ansage threshold: the preferred game's value reaches the bid.
     Within(bool),
-    /// Skataufnahme/Drücken orientation: which branch builds the candidate game.
+    /// Skataufnahme/Drücken/Ansage orientation: which branch builds the candidate game.
     Game(GameBranch),
 }
 
@@ -166,6 +170,8 @@ pub enum PreRule {
     Pickup(PickupRule),
     /// Drücken: which two cards go into the Skat.
     Discard(DiscardRule),
+    /// Ansage: which game is announced.
+    Announce(AnnounceRule),
 }
 
 impl PreRule {
@@ -174,14 +180,17 @@ impl PreRule {
         match self {
             Self::Pickup(r) => r.branch,
             Self::Discard(r) => r.branch,
+            Self::Announce(r) => r.branch,
         }
     }
 
-    /// Candidate game behind the rule; conditional, not a contract.
+    /// Candidate game behind the rule; conditional, not a contract (Ansage:
+    /// the preferred game, which the bid may still rule out).
     pub fn game(&self) -> GameType {
         match self {
             Self::Pickup(r) => r.game,
             Self::Discard(r) => r.game,
+            Self::Announce(r) => r.preferred,
         }
     }
 
@@ -190,6 +199,7 @@ impl PreRule {
         match self {
             Self::Pickup(r) => r.action,
             Self::Discard(r) => r.action,
+            Self::Announce(r) => r.action,
         }
     }
 
@@ -198,11 +208,12 @@ impl PreRule {
         match self {
             Self::Pickup(r) => r.fallback,
             Self::Discard(r) => r.fallback,
+            Self::Announce(r) => r.fallback,
         }
     }
 }
 
-/// A Skataufnahme or Drücken lesson from Easy's shared rule. Never passed to
+/// A Skataufnahme, Drücken or Ansage lesson from Easy's shared rule. Never passed to
 /// the frontend before disclosure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -213,11 +224,12 @@ pub struct PreLesson {
     pub seat: Seat,
 }
 
-/// Every declarer Skataufnahme and Drücken decision is supported.
+/// Every declarer Skataufnahme, Drücken and Ansage decision is supported.
 pub fn pre_lesson(view: &PlayerView) -> Option<PreLesson> {
     let rule = match view.phase {
         Phase::SkatAufnahme => PreRule::Pickup(policy::pickup_rule(view)?),
         Phase::Druecken => PreRule::Discard(policy::discard_rule(view)?),
+        Phase::Ansage => PreRule::Announce(policy::announce_rule(view)?),
         _ => return None,
     };
     Some(PreLesson {
@@ -236,6 +248,7 @@ impl PreLesson {
                 w == (r.action == skat_core::Action::Hand)
             }
             (Step::Threshold, Answer::Card(c), PreRule::Discard(r)) => r.eligible.contains(c),
+            (Step::Threshold, Answer::Within(w), PreRule::Announce(r)) => w == r.fits,
             _ => false,
         }
     }

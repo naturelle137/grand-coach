@@ -419,6 +419,14 @@ The scenarios `guided-pickup-orient`, `guided-pickup-threshold`,
 and Drücken by holding/bidding with the same seed; the ignored bilingual
 `guided` pre-play widget test covers hidden answers, skip/re-entry, retry,
 reveal and a free alternative Hand/pickup.
+The Ansage scenarios `guided-ann-orient`, `guided-ann-threshold` (a wrong
+value attempt), `guided-ann-act`, `guided-ann-alternative` (Grand announced
+instead of Easy's Kreuz), the `-en` variants and `guided-ann-act-narrow` use
+seed 7: the human holds/bids to 36 and plays Hand; `guided-ann-pickup-act(-en)`
+use seed 21 with a pickup. The ignored bilingual `guided` Ansage widget test
+covers both seeds: hidden answers, skip/re-entry, wrong/retry, correct attempt
+or reveal, rendered value comparison and candidate, and a free alternative
+announcement actually applied.
 These are technical checks, not learner UAT.
 
 ## Platform verification (M2)

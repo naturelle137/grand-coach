@@ -24,13 +24,7 @@ impl BaselineOpponent {
             Phase::Reizen => policy::bid_rule(view)?.action,
             Phase::SkatAufnahme => policy::pickup_rule(view)?.action,
             Phase::Druecken => policy::discard_rule(view)?.action,
-            Phase::Ansage => policy::announce(
-                view.hand,
-                view.own_skat.unwrap_or_default(),
-                view.bid,
-                view.hand_game == Some(true),
-                legal,
-            ),
+            Phase::Ansage => policy::announce_rule(view)?.action,
             Phase::Spiel => baseline::play(view),
             Phase::Beendet | Phase::Eingepasst => return None,
         };
@@ -48,7 +42,7 @@ mod tests {
     use rand_chacha::ChaCha8Rng;
     use rand_chacha::rand_core::{Rng, SeedableRng};
     use skat_analysis::policy;
-    use skat_core::{CardSet, Game, RuleConfig, Seat};
+    use skat_core::{CardSet, Game, GameType, RuleConfig, Seat};
 
     /// Plays `seed` with the baseline opponent on every seat.
     fn self_play(seed: u64, kontra_re: bool) -> Game {
@@ -201,6 +195,111 @@ mod tests {
             hands > 0 && pickups > 0 && ties > 0,
             "{hands} {pickups} {ties}"
         );
+    }
+
+    /// Ansage views reached with random legal bids, pickups and discards, so
+    /// that public bids above the preferred game, Hand and Null occur.
+    fn announce_views(seeds: std::ops::Range<u64>) -> Vec<skat_core::PlayerView> {
+        let mut rng = ChaCha8Rng::seed_from_u64(151);
+        let mut views = Vec::new();
+        for seed in seeds {
+            let mut game = Game::new(seed, RuleConfig::default());
+            while let Some(seat) = game.current_seat() {
+                let view = game.view(seat);
+                if view.phase == Phase::Ansage {
+                    views.push(view);
+                    break;
+                }
+                let action = if rng.next_u32() % 3 == 0 {
+                    let i = rng.next_u32() as usize % view.legal_actions.len();
+                    view.legal_actions[i]
+                } else {
+                    BaselineOpponent.decide(&view).unwrap()
+                };
+                game.apply(action).unwrap();
+            }
+        }
+        views
+    }
+
+    #[test]
+    fn frozen_easy_announcements_before_rule_extraction() {
+        // Frozen on origin/main 16c0414 (policy::announce) before extraction.
+        let mut hash = 0xcbf29ce484222325u64;
+        let views = announce_views(0..2000);
+        for view in &views {
+            let action = policy::announce(
+                view.hand,
+                view.own_skat.unwrap_or_default(),
+                view.bid,
+                view.hand_game == Some(true),
+                &view.legal_actions,
+            );
+            assert_eq!(BaselineOpponent.decide(view), Some(action));
+            for byte in format!("{action:?}").bytes() {
+                hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+            }
+        }
+        assert_eq!((views.len(), hash), (1988, 5_977_450_191_475_415_708));
+    }
+
+    #[test]
+    fn shared_announce_rule_is_easys_ansage_decision() {
+        let mut seen = std::collections::BTreeMap::new();
+        for view in announce_views(0..2000) {
+            let rule = policy::announce_rule(&view).unwrap();
+            assert_eq!(BaselineOpponent.decide(&view), Some(rule.action));
+            assert!(!rule.fallback && !rule.plain, "{rule:?}");
+            assert_eq!(
+                (rule.bid, rule.hand_game),
+                (view.bid, view.hand_game == Some(true))
+            );
+            assert_eq!(rule.skat, view.own_skat.unwrap_or_default());
+            assert_eq!(rule.fits, rule.value >= rule.bid);
+            let fitting = rule.candidates.iter().filter(|c| c.fits);
+            let top = fitting.clone().map(|c| c.strength).max();
+            let case = if rule.fits {
+                assert_eq!(rule.game, rule.preferred);
+                "preferred"
+            } else if let Some(top) = top {
+                let chosen = rule
+                    .candidates
+                    .iter()
+                    .find(|c| c.game == rule.game)
+                    .unwrap();
+                assert!(chosen.fits && chosen.strength == top);
+                // Tie order: no later fitting candidate has the same strength.
+                let later = rule.candidates.iter().skip_while(|c| c.game != rule.game);
+                assert_eq!(later.filter(|c| c.fits && c.strength == top).count(), 1);
+                if rule.tied().is_empty() {
+                    "candidate"
+                } else {
+                    "tie"
+                }
+            } else {
+                assert!(rule.no_fit);
+                assert_eq!(rule.game, GameType::Grand);
+                "no fit"
+            };
+            assert_eq!(rule.ouvert, rule.null_risks == Some(0));
+            assert_eq!(rule.null_risks.is_some(), rule.game == GameType::Null);
+            let skat_core::Action::Announce(a) = rule.action else {
+                panic!("announcement expected");
+            };
+            assert_eq!((a.game, a.ouvert), (rule.game, rule.ouvert));
+            *seen.entry(case).or_insert(0) += 1;
+            if rule.hand_game {
+                assert!(rule.skat.is_empty());
+                *seen.entry("hand").or_insert(0) += 1;
+            }
+            if rule.game == GameType::Null {
+                *seen.entry("null").or_insert(0) += 1;
+            }
+        }
+        // Null is rare in dealt games; core-derived fixtures in skat-coach cover it.
+        for case in ["preferred", "candidate", "tie", "no fit", "hand"] {
+            assert!(seen.contains_key(case), "{case}: {seen:?}");
+        }
     }
 
     #[test]

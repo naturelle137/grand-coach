@@ -5,8 +5,8 @@ use crate::{coach, i18n::I18n, text};
 use eframe::egui;
 use skat_app::coach_model::Source;
 use skat_app::{
-    Action, GuidedAction, GuidedAnswer, GuidedBranch, GuidedGameBranch, GuidedKeep, GuidedPreRule,
-    GuidedStep, GuidedView, Phase, Seat, TableView,
+    Action, GuidedAction, GuidedAnnounceRule, GuidedAnswer, GuidedBranch, GuidedGameBranch,
+    GuidedKeep, GuidedPreRule, GuidedStep, GuidedView, Phase, Seat, TableView,
 };
 
 pub(crate) fn panel(
@@ -33,13 +33,12 @@ pub(crate) fn panel(
         GuidedStep::Observe => "guided-observe",
         GuidedStep::Complete => "guided-complete",
         GuidedStep::Unsupported
-            if table.phase == Phase::Ansage
-                || table
-                    .legal_actions
-                    .iter()
-                    .any(|a| matches!(a, Action::Kontra | Action::KeinKontra | Action::Re)) =>
+            if table
+                .legal_actions
+                .iter()
+                .any(|a| matches!(a, Action::Kontra | Action::KeinKontra | Action::Re)) =>
         {
-            "guided-unsupported-ansage"
+            "guided-unsupported-kontra"
         }
         GuidedStep::Unsupported => "guided-unsupported",
     };
@@ -298,8 +297,8 @@ fn reizen(
     action
 }
 
-/// Skataufnahme/Drücken: candidate branch, threshold or card attempt, then
-/// Easy's actual Hand/pickup or discard.
+/// Skataufnahme/Drücken/Ansage: candidate branch, threshold, card or value
+/// attempt, then Easy's actual Hand/pickup, discard or announcement.
 fn preplay(
     ui: &mut egui::Ui,
     i: &I18n,
@@ -309,8 +308,29 @@ fn preplay(
 ) -> Option<GuidedAction> {
     let mut action = None;
     let pickup = p.phase == Phase::SkatAufnahme;
+    let ansage = p.phase == Phase::Ansage;
+    if let Some(bid) = p.bid {
+        // Public facts only: the bid and whether the Skat is known.
+        ui.label(i.tf(
+            if p.hand_game == Some(true) {
+                "guided-ann-public-hand"
+            } else {
+                "guided-ann-public-pickup"
+            },
+            &[("bid", bid.into())],
+        ));
+    }
     let game = p.game.map(|game| text::game_type(i, game));
     let prompt = match (g.step, &game) {
+        (GuidedStep::Orient, _) if ansage => i.t("guided-ann-orient"),
+        (GuidedStep::Threshold, Some(game)) if ansage => i.tf(
+            "guided-ann-threshold",
+            &[
+                ("game", game.clone().into()),
+                ("bid", p.bid.unwrap_or_default().into()),
+            ],
+        ),
+        (GuidedStep::Act, _) if ansage => i.t("guided-ann-act"),
         (GuidedStep::Orient, _) if pickup => i.t("guided-pre-orient-pickup"),
         (GuidedStep::Orient, _) => i.t("guided-pre-orient-discard"),
         (GuidedStep::Threshold, Some(game)) if pickup => i.tf(
@@ -348,6 +368,10 @@ fn preplay(
             (i.t("guided-pre-hand-yes"), GuidedAnswer::Within(true)),
             (i.t("guided-pre-hand-no"), GuidedAnswer::Within(false)),
         ],
+        GuidedStep::Threshold if ansage => vec![
+            (i.t("guided-ann-fits-yes"), GuidedAnswer::Within(true)),
+            (i.t("guided-ann-fits-no"), GuidedAnswer::Within(false)),
+        ],
         GuidedStep::Threshold => p
             .cards
             .iter()
@@ -374,7 +398,11 @@ fn preplay(
             ui.label(i.t("guided-pre-fallback"));
         }
         ui.label(i.tf(
-            "guided-pre-game",
+            if ansage {
+                "guided-ann-preferred"
+            } else {
+                "guided-pre-game"
+            },
             &[("game", text::game_type(i, rule.game()).into())],
         ));
         ui.label(i.t(match rule.branch() {
@@ -429,9 +457,12 @@ fn preplay(
                     ui.label(i.tf("guided-pre-tie", &[("cards", ties.join(", ").into())]));
                 }
             }
+            GuidedPreRule::Announce(r) => announce_answer(ui, i, r),
         }
         ui.label(i.t(if pickup {
             "guided-pre-caveat-pickup"
+        } else if ansage {
+            "guided-ann-caveat"
         } else {
             "guided-pre-caveat-discard"
         }));
@@ -450,6 +481,85 @@ fn preplay(
     action
 }
 
+/// Easy's announcement: preferred value against the bid, then the fitting
+/// candidates with the strength tie-break, the Null ouvert condition and
+/// every fallback, all from the shared rule.
+fn announce_answer(ui: &mut egui::Ui, i: &I18n, r: &GuidedAnnounceRule) {
+    ui.label(match r.skat.len() {
+        0 => i.t("guided-ann-skat-hand"),
+        _ => {
+            let cards: Vec<_> = r.skat.iter().map(|c| text::card(i, c)).collect();
+            i.tf(
+                "guided-ann-skat-known",
+                &[("cards", cards.join(", ").into())],
+            )
+        }
+    });
+    let values = [("value", r.value.into()), ("bid", r.bid.into())];
+    ui.label(i.tf(
+        if r.fits {
+            "guided-ann-fits"
+        } else {
+            "guided-ann-short"
+        },
+        &values,
+    ));
+    if r.no_fit {
+        ui.label(i.tf("guided-ann-no-fit", &[("bid", r.bid.into())]));
+    } else if !r.fits {
+        let fitting: Vec<_> = r
+            .candidates
+            .iter()
+            .filter(|c| c.fits)
+            .map(|c| {
+                i.tf(
+                    "guided-ann-candidate",
+                    &[
+                        ("game", text::game_type(i, c.game).into()),
+                        ("value", c.value.into()),
+                        ("strength", c.strength.into()),
+                    ],
+                )
+            })
+            .collect();
+        ui.label(i.tf(
+            "guided-ann-candidates",
+            &[("games", fitting.join(", ").into())],
+        ));
+        let tied: Vec<_> = r
+            .tied()
+            .into_iter()
+            .map(|g| text::game_type(i, g))
+            .collect();
+        ui.label(if tied.is_empty() {
+            i.tf(
+                "guided-ann-strongest",
+                &[("game", text::game_type(i, r.game).into())],
+            )
+        } else {
+            i.tf(
+                "guided-ann-tie",
+                &[
+                    ("games", tied.join(", ").into()),
+                    ("game", text::game_type(i, r.game).into()),
+                ],
+            )
+        });
+    }
+    match r.null_risks {
+        Some(0) => {
+            ui.label(i.t("guided-ann-ouvert"));
+        }
+        Some(n) => {
+            ui.label(i.tf("guided-ann-null-plain", &[("count", n.into())]));
+        }
+        None => (),
+    }
+    if r.plain {
+        ui.label(i.t("guided-ann-plain"));
+    }
+}
+
 fn source_line(i: &I18n, source: Source) -> String {
     match source {
         Source::Trick {
@@ -463,5 +573,60 @@ fn source_line(i: &I18n, source: Source) -> String {
             ],
         ),
         _ => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::Language;
+    use egui_kittest::{Harness, kittest::Queryable};
+    use skat_app::{Announcement, CardSet, GameType, GuidedAnnounceCandidate, Suit};
+
+    /// Review #152: the revealed no-fit answer (Herz Hand cards at bid 77,
+    /// see `guided_announce.rs`) names only the known-card comparison and the
+    /// Grand fallback; a hidden Skat with SJ makes the actual Grand 96.
+    #[test]
+    fn no_fit_answer_does_not_claim_a_certain_overbid_in_de_en() {
+        let candidate = |game, value, strength| GuidedAnnounceCandidate {
+            game,
+            value,
+            strength,
+            fits: false,
+        };
+        let rule = GuidedAnnounceRule {
+            action: Action::Announce(Announcement::plain(GameType::Grand)),
+            bid: 77,
+            hand_game: true,
+            skat: CardSet::EMPTY,
+            preferred: GameType::Farbe(Suit::Herz),
+            branch: GuidedGameBranch::Suit,
+            value: 30,
+            fits: false,
+            candidates: [
+                candidate(GameType::Farbe(Suit::Kreuz), 36, 61),
+                candidate(GameType::Farbe(Suit::Pik), 33, 61),
+                candidate(GameType::Farbe(Suit::Herz), 30, 106),
+                candidate(GameType::Farbe(Suit::Karo), 27, 57),
+                candidate(GameType::Grand, 72, 54),
+            ],
+            game: GameType::Grand,
+            null_risks: None,
+            ouvert: false,
+            no_fit: true,
+            plain: false,
+            fallback: false,
+        };
+        for language in Language::ALL {
+            let i = I18n::new(language);
+            let text = i.tf("guided-ann-no-fit", &[("bid", 77.into())]);
+            let ui_i = I18n::new(language);
+            let h = Harness::new_ui(move |ui| announce_answer(ui, &ui_i, &rule));
+            assert!(h.query_by_label(&text).is_some(), "{language:?}");
+            for certain in ["ist überreizt", "is overbid"] {
+                assert!(!text.contains(certain), "{language:?}: {text}");
+            }
+            assert!(text.contains("77") && text.contains("Grand"), "{text}");
+        }
     }
 }

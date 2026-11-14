@@ -42,14 +42,14 @@ fn at(deal: Deal, after: &[Action]) -> (Game, PreLesson) {
 fn pickup(l: &PreLesson) -> PickupRule {
     match l.rule {
         PreRule::Pickup(r) => r,
-        PreRule::Discard(_) => panic!("pickup expected"),
+        _ => panic!("pickup expected"),
     }
 }
 
 fn discard(l: &PreLesson) -> DiscardRule {
     match l.rule {
         PreRule::Discard(r) => r,
-        PreRule::Pickup(_) => panic!("discard expected"),
+        _ => panic!("discard expected"),
     }
 }
 
@@ -208,8 +208,11 @@ fn unavailable_wanted_action_is_disclosed_as_fallback() {
     let l = pre_lesson(&view).unwrap();
     assert!(l.rule.fallback());
     assert_eq!(l.rule.action(), Action::TakeSkat);
-    // Other phases: no pre-play lesson, the dialogue stays unsupported.
+    // Ansage has its own lesson (guided_announce.rs).
     g.apply(Action::Hand).unwrap();
     assert_eq!(g.phase(), Phase::Ansage);
-    assert!(pre_lesson(&g.view(Seat::Hinterhand)).is_none());
+    assert!(matches!(
+        pre_lesson(&g.view(Seat::Hinterhand)).unwrap().rule,
+        PreRule::Announce(_)
+    ));
 }

@@ -764,7 +764,31 @@ guided-pre-caveat-pickup = A conditional rule of thumb from your own ten cards, 
 guided-pre-caveat-discard = A conditional rule of thumb; the discarded Augen count for you. Not a promise to win.
 guided-pre-act-pickup = Now choose freely: Hand or pick up the Skat.
 guided-pre-act-discard = Now put away any two cards.
-guided-unsupported-ansage = No guided dialogue exists yet for the announcement or for Kontra and Re. Continue free play.
+guided-unsupported-kontra = No guided dialogue exists yet for Kontra and Re. Continue free play.
+guided-ann-public-hand = Public: bid { $bid }, Hand – the Skat stays unknown.
+guided-ann-public-pickup = Public: bid { $bid }, Skat picked up – you know your two discarded cards.
+guided-ann-orient = Announcement: which branch supplies Easy's preferred game for your cards (after a pickup including your discarded cards)?
+guided-ann-threshold = Preferred: { $game }. Does its plain game value (Spitzen from your known cards, plus Hand when playing Hand) reach the bid { $bid }?
+guided-ann-fits-yes = Yes: the value is enough
+guided-ann-fits-no = No: the value falls short
+guided-ann-act = Now freely choose any legal announcement.
+guided-ann-preferred = Preferred game: { $game }.
+guided-ann-skat-hand = Hand: the Skat stays unknown and is not counted.
+guided-ann-skat-known = Counted as well: your discarded cards { $cards }.
+guided-ann-fits = Plain value { $value } ≥ bid { $bid }: Easy announces the preferred game.
+guided-ann-short = Plain value { $value } < bid { $bid }: the preferred game falls short.
+guided-ann-candidates = Suit games and Grand whose value reaches the bid: { $games }.
+guided-ann-candidate = { $game } { $value } (strength { $strength })
+guided-ann-strongest = Easy takes the strongest of them: { $game }.
+guided-ann-tie = Equally strong: { $games }. Easy takes the later one in the order Kreuz, Pik, Herz, Karo, Grand: { $game }.
+guided-ann-no-fit = None of Easy's candidates reaches the bid { $bid } with the plain value of your known cards: Easy falls back to Grand. The actual game value, and so whether the game ends up overbid, is still unknown: Spitzen in an unknown Skat and earned levels such as Schneider can raise it.
+guided-ann-ouvert = Null without an unsafe suit in your ten cards: Easy plays ouvert.
+guided-ann-null-plain = Null with { $count ->
+        [one] one unsafe suit
+       *[other] { $count } unsafe suits
+    } in your ten cards: Easy plays plain Null.
+guided-ann-plain = Null ouvert is not available here; plain Null is shown.
+guided-ann-caveat = A conditional rule of thumb of Easy from your known cards and the public bid, not a promise to win and not a rating of the announcement.
 # Learning history (M8 foundation, D-70)
 learning-open = Learning history …
 learning-title = Learning history
