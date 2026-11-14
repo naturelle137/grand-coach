@@ -36,7 +36,18 @@ const SEED: u64 = 21;
 
 /// Scenarios whose state needs another series seed: with seed 21 the
 /// human never plays second to the declarer's lead in the two games.
-const SEEDS: &[(&str, u64)] = &[("coach-lesson-overtake", 1)];
+const SEEDS: &[(&str, u64)] = &[
+    ("coach-lesson-overtake", 1),
+    // The human plays Hand at bid 36: Herz falls short, Kreuz is announced.
+    ("guided-ann-orient", 7),
+    ("guided-ann-threshold", 7),
+    ("guided-ann-act", 7),
+    ("guided-ann-alternative", 7),
+    ("guided-ann-orient-en", 7),
+    ("guided-ann-threshold-en", 7),
+    ("guided-ann-act-en", 7),
+    ("guided-ann-act-narrow", 7),
+];
 
 /// Size of the `table-*` scenarios of issue #134 by name suffix; others
 /// use [`SIZE`].
@@ -114,6 +125,16 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("guided-discard-threshold-en", guided_discard_threshold_en),
     ("guided-discard-act-en", guided_discard_act_en),
     ("guided-discard-act-narrow", guided_discard_act),
+    ("guided-ann-orient", guided_ann_orient),
+    ("guided-ann-threshold", guided_ann_threshold),
+    ("guided-ann-act", guided_ann_act),
+    ("guided-ann-alternative", guided_ann_alternative),
+    ("guided-ann-orient-en", guided_ann_orient_en),
+    ("guided-ann-threshold-en", guided_ann_threshold_en),
+    ("guided-ann-act-en", guided_ann_act_en),
+    ("guided-ann-pickup-act", guided_ann_pickup_act),
+    ("guided-ann-pickup-act-en", guided_ann_pickup_act_en),
+    ("guided-ann-act-narrow", guided_ann_act),
     ("launch", launch),
     ("recording", recording),
     ("recording-final", recording_final),
@@ -2361,6 +2382,70 @@ fn guided_discard_threshold_en(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn guided_discard_act_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_pre_in(h, Language::En, skat_app::Phase::Druecken, 2);
+}
+
+/// Ansage dialogue (#151): real entry after Hand or pickup, branch answer,
+/// a wrong value attempt (`steps` 1), then the reveal (`steps` 2).
+fn guided_ann_in(h: &mut Harness<'_, GrandCoachApp>, language: Language, hand: bool, steps: u8) {
+    let i = I18n::new(language);
+    guided_support::enter_ansage(h, language, hand);
+    if steps == 0 {
+        return;
+    }
+    for key in [
+        "guided-pre-grand",
+        "guided-pre-suit",
+        "guided-pre-null",
+        "guided-pre-weak",
+    ] {
+        guided_support::click(h, &i.t(key));
+        let g = h.state().session().guided().unwrap();
+        if g.step == skat_app::GuidedStep::Threshold {
+            break;
+        }
+        guided_support::click(h, &i.t("guided-retry"));
+    }
+    if steps == 1 {
+        guided_support::click(h, &i.t("guided-ann-fits-yes"));
+    } else {
+        guided_support::click(h, &i.t("guided-reveal"));
+    }
+}
+fn guided_ann_orient(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_ann_in(h, Language::De, true, 0);
+}
+fn guided_ann_threshold(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_ann_in(h, Language::De, true, 1);
+}
+fn guided_ann_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_ann_in(h, Language::De, true, 2);
+}
+/// After the reveal the human announces Grand instead of Easy's Kreuz.
+fn guided_ann_alternative(h: &mut Harness<'_, GrandCoachApp>) {
+    let i = I18n::new(Language::De);
+    guided_ann_in(h, Language::De, true, 2);
+    h.get_by_role_and_label(
+        Role::RadioButton,
+        &guided_support::game_name(&i, skat_app::GameType::Grand),
+    )
+    .click();
+    h.run_steps(4);
+    guided_support::click(h, &i.t("button-announce"));
+}
+fn guided_ann_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_ann_in(h, Language::En, true, 0);
+}
+fn guided_ann_threshold_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_ann_in(h, Language::En, true, 1);
+}
+fn guided_ann_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_ann_in(h, Language::En, true, 2);
+}
+fn guided_ann_pickup_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_ann_in(h, Language::De, false, 2);
+}
+fn guided_ann_pickup_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_ann_in(h, Language::En, false, 2);
 }
 
 // Catalogue-mode scenarios use real widgets, including settlement before next.

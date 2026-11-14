@@ -7,6 +7,7 @@ use crate::{AppError, CoachLevel, Session};
 use serde::{Deserialize, Serialize};
 use skat_coach::guided::{self, BidLesson, Lesson, Memory, Observation, PreLesson};
 pub use skat_coach::guided::{
+    AnnounceCandidate as GuidedAnnounceCandidate, AnnounceRule as GuidedAnnounceRule,
     Answer as GuidedAnswer, BidRule as GuidedBidRule, Branch as GuidedBranch,
     GameBranch as GuidedGameBranch, Keep as GuidedKeep, PreRule as GuidedPreRule,
     Step as GuidedStep,
@@ -78,17 +79,21 @@ pub struct GuidedReizen {
     pub stake: Option<u16>,
 }
 
-/// Skataufnahme/Drücken context; the candidate game only after orientation.
+/// Skataufnahme/Drücken/Ansage context; the candidate game only after orientation.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GuidedPreplay {
-    /// Skataufnahme or Drücken.
+    /// Skataufnahme, Drücken or Ansage.
     pub phase: skat_core::Phase,
-    /// After orientation: the candidate game of Easy's rule.
+    /// After orientation: the candidate (Ansage: preferred) game of Easy's rule.
     pub game: Option<skat_core::GameType>,
     /// Skataufnahme after orientation: the strength Easy needs for Hand.
     pub threshold: Option<i32>,
     /// Drücken: the own twelve cards as neutral answer controls.
     pub cards: Vec<skat_core::Card>,
+    /// Ansage: public bid the announced game has to reach.
+    pub bid: Option<u16>,
+    /// Ansage: public Hand state (Hand: the Skat stays unknown).
+    pub hand_game: Option<bool>,
 }
 
 /// Frontend view: answer-bearing fields withheld until explicitly allowed.
@@ -126,9 +131,9 @@ pub struct GuidedView {
     pub reizen: Option<GuidedReizen>,
     /// Easy's bidding rule after a correct threshold attempt or deliberate reveal.
     pub bid_rule: Option<GuidedBidRule>,
-    /// Skataufnahme/Drücken dialogue only: phase and, after orientation, the game.
+    /// Skataufnahme/Drücken/Ansage dialogue only: phase and, after orientation, the game.
     pub preplay: Option<GuidedPreplay>,
-    /// Easy's Hand/pickup or discard rule after a correct attempt or reveal.
+    /// Easy's Hand/pickup, discard or announcement rule after a correct attempt or reveal.
     pub pre_rule: Option<GuidedPreRule>,
 }
 
@@ -269,19 +274,30 @@ impl GuidedState {
             bid_rule: self.revealed.then(|| self.bid.map(|b| b.rule)).flatten(),
             preplay: self.pre.map(|p| {
                 let oriented = self.revealed || self.step != GuidedStep::Orient;
-                let (phase, threshold, cards) = match p.rule {
-                    GuidedPreRule::Pickup(r) => {
-                        (skat_core::Phase::SkatAufnahme, Some(r.threshold), vec![])
-                    }
+                let (phase, threshold, cards, ansage) = match p.rule {
+                    GuidedPreRule::Pickup(r) => (
+                        skat_core::Phase::SkatAufnahme,
+                        Some(r.threshold),
+                        vec![],
+                        None,
+                    ),
                     GuidedPreRule::Discard(_) => {
-                        (skat_core::Phase::Druecken, None, self.hand.clone())
+                        (skat_core::Phase::Druecken, None, self.hand.clone(), None)
                     }
+                    GuidedPreRule::Announce(r) => (
+                        skat_core::Phase::Ansage,
+                        None,
+                        vec![],
+                        Some((r.bid, r.hand_game)),
+                    ),
                 };
                 GuidedPreplay {
                     phase,
                     game: oriented.then(|| p.rule.game()),
                     threshold: threshold.filter(|_| oriented),
                     cards,
+                    bid: ansage.map(|a| a.0),
+                    hand_game: ansage.map(|a| a.1),
                 }
             }),
             pre_rule: self.revealed.then(|| self.pre.map(|p| p.rule)).flatten(),
@@ -380,7 +396,7 @@ impl GuidedState {
     }
 
     /// Capture only the originating trick. Later automated cards cannot replace it.
-    /// Reizen, Skataufnahme, Drücken and unsupported dialogues end with any action.
+    /// Reizen, Skataufnahme, Drücken, Ansage and unsupported dialogues end with any action.
     pub(crate) fn expires_on(&self, before: Option<Seat>) -> bool {
         self.lesson.is_none()
             || (self.chosen.is_some()

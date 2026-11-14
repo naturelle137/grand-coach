@@ -764,7 +764,31 @@ guided-pre-caveat-pickup = Bedingte Faustregel aus deinen eigenen zehn Karten, k
 guided-pre-caveat-discard = Bedingte Faustregel; die gedrückten Augen zählen für dich. Kein Gewinnversprechen.
 guided-pre-act-pickup = Wähle jetzt frei: Hand oder Skat aufnehmen.
 guided-pre-act-discard = Wähle jetzt beliebige zwei Karten zum Drücken.
-guided-unsupported-ansage = Für Ansage sowie Kontra und Re gibt es noch keinen geführten Dialog. Spiele frei weiter.
+guided-unsupported-kontra = Für Kontra und Re gibt es noch keinen geführten Dialog. Spiele frei weiter.
+guided-ann-public-hand = Öffentlich: Gebot { $bid }, Hand – der Skat bleibt unbekannt.
+guided-ann-public-pickup = Öffentlich: Gebot { $bid }, Skat aufgenommen – deine zwei gedrückten Karten kennst du.
+guided-ann-orient = Ansage: Aus welchem Zweig kommt Easys bevorzugtes Spiel für deine Karten (bei aufgenommenem Skat mit deinen gedrückten Karten)?
+guided-ann-threshold = Bevorzugt: { $game }. Erreicht sein einfacher Spielwert (Spitzen aus deinen bekannten Karten, bei Hand plus Hand) das Gebot { $bid }?
+guided-ann-fits-yes = Ja: der Wert reicht
+guided-ann-fits-no = Nein: der Wert reicht nicht
+guided-ann-act = Wähle jetzt frei eine beliebige legale Ansage.
+guided-ann-preferred = Bevorzugtes Spiel: { $game }.
+guided-ann-skat-hand = Hand: Der Skat bleibt unbekannt und zählt nicht mit.
+guided-ann-skat-known = Mitgezählt: deine gedrückten Karten { $cards }.
+guided-ann-fits = Einfacher Wert { $value } ≥ Gebot { $bid }: Easy sagt das bevorzugte Spiel an.
+guided-ann-short = Einfacher Wert { $value } < Gebot { $bid }: das bevorzugte Spiel reicht nicht.
+guided-ann-candidates = Farbspiele und Grand, deren Wert das Gebot erreicht: { $games }.
+guided-ann-candidate = { $game } { $value } (Stärke { $strength })
+guided-ann-strongest = Easy nimmt davon das stärkste: { $game }.
+guided-ann-tie = Gleich stark: { $games }. Easy nimmt das spätere in der Reihenfolge Kreuz, Pik, Herz, Karo, Grand: { $game }.
+guided-ann-no-fit = Kein Spiel erreicht das Gebot { $bid }: Easy sagt ersatzweise Grand an und ist überreizt.
+guided-ann-ouvert = Null ohne unsichere Farbe in deinen zehn Karten: Easy spielt ouvert.
+guided-ann-null-plain = Null mit { $count ->
+        [one] einer unsicheren Farbe
+       *[other] { $count } unsicheren Farben
+    } in deinen zehn Karten: Easy spielt einfachen Null.
+guided-ann-plain = Null ouvert ist hier nicht wählbar; gezeigt ist der einfache Null.
+guided-ann-caveat = Bedingte Faustregel von Easy aus deinen bekannten Karten und dem öffentlichen Gebot, kein Gewinnversprechen und keine Bewertung der Ansage.
 # Lernverlauf (M8-Grundlage, D-70)
 learning-open = Lernverlauf …
 learning-title = Lernverlauf

@@ -310,6 +310,146 @@ fn keep_score(game: GameType, cards: CardSet, card: Card) -> i32 {
     }
 }
 
+/// One game of Easy's fallback candidate group (suit games and Grand).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AnnounceCandidate {
+    /// Suit game or Grand.
+    pub game: GameType,
+    /// Plain value with Spitzen from the declarer's known cards (Hand level
+    /// included in a Hand game).
+    pub value: u16,
+    /// Strength of the declarer's known cards for `game`.
+    pub strength: i32,
+    /// The value reaches the public bid.
+    pub fits: bool,
+}
+
+/// Exact inputs and outcome of Easy's announcement rule.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AnnounceRule {
+    /// Actual selected action: an announcement out of the legal actions.
+    pub action: Action,
+    /// Public bid the game must reach.
+    pub bid: u16,
+    /// Public: the declarer plays Hand.
+    pub hand_game: bool,
+    /// Own known Skat counted with the ten cards (the discard); empty in a
+    /// Hand game, where the Skat stays unknown.
+    pub skat: CardSet,
+    /// Preferred game of [`choose_game`] for the ten cards plus `skat`.
+    pub preferred: GameType,
+    /// Branch of the preferred game choice.
+    pub branch: GameBranch,
+    /// Plain value of the preferred game (Null: 23, Null Hand 35).
+    pub value: u16,
+    /// The preferred game's value reaches the bid; then it is announced.
+    pub fits: bool,
+    /// Otherwise: suit games and Grand in tie order; the fitting one with the
+    /// highest strength is announced, the later one on equal strength.
+    pub candidates: [AnnounceCandidate; 5],
+    /// Game of the announcement.
+    pub game: GameType,
+    /// Null: unsafe suits among the ten cards; none means Null ouvert.
+    pub null_risks: Option<u8>,
+    /// Easy wants Null ouvert (Null without an unsafe suit).
+    pub ouvert: bool,
+    /// No game reaches the bid: Easy falls back to Grand (overbid).
+    pub no_fit: bool,
+    /// Wanted Null ouvert was not legal: plain Null instead.
+    pub plain: bool,
+    /// The rule's announcement was not legal; the first legal action is taken.
+    pub fallback: bool,
+}
+
+impl AnnounceRule {
+    /// Fitting candidates sharing the announced game's strength when the
+    /// preferred game did not fit (the tie-break picks the last one).
+    pub fn tied(&self) -> Vec<GameType> {
+        if self.fits || self.no_fit {
+            return Vec::new();
+        }
+        let top = self.candidates.iter().find(|c| c.game == self.game);
+        let tied: Vec<_> = self
+            .candidates
+            .iter()
+            .filter(|c| c.fits && top.is_some_and(|t| t.strength == c.strength))
+            .map(|c| c.game)
+            .collect();
+        if tied.len() > 1 { tied } else { Vec::new() }
+    }
+}
+
+fn plain_value(game: GameType, cards: CardSet, hand_game: bool) -> u16 {
+    Contract::new(Announcement::plain(game), hand_game)
+        .null_value()
+        .or_else(|| game_value(game, cards, hand_game))
+        .unwrap_or(0)
+}
+
+/// Easy's announcement rule for the declarer's ten cards `hand` plus the
+/// Skat it knows (`skat`: the discard, empty in a Hand game). `action` is the
+/// rule's choice before the legal-action fallback.
+fn announce_choice(
+    hand: CardSet,
+    skat: CardSet,
+    bid: u16,
+    hand_game: bool,
+    legal: &[Action],
+) -> AnnounceRule {
+    let cards = hand | skat;
+    let (preferred, _, branch) = choose_game_branch(cards);
+    let value = plain_value(preferred, cards, hand_game);
+    let fits = value >= bid;
+    let candidates = TRUMP_GAMES.map(|game| {
+        let value = plain_value(game, cards, hand_game);
+        AnnounceCandidate {
+            game,
+            value,
+            strength: strength(game, cards),
+            fits: value >= bid,
+        }
+    });
+    let best = candidates
+        .iter()
+        .filter(|c| c.fits)
+        .max_by_key(|c| c.strength)
+        .map(|c| c.game);
+    let no_fit = !fits && best.is_none();
+    let game = if fits {
+        preferred
+    } else {
+        best.unwrap_or(GameType::Grand)
+    };
+    let null_risks = (game == GameType::Null).then(|| null_risks(hand) as u8);
+    // A Null hand without any unsafe suit is played open.
+    let ouvert = null_risks == Some(0);
+    let plain = Action::Announce(Announcement::plain(game));
+    let wanted = Action::Announce(Announcement {
+        ouvert,
+        ..Announcement::plain(game)
+    });
+    let unavailable = ouvert && !legal.contains(&wanted);
+    AnnounceRule {
+        action: if unavailable { plain } else { wanted },
+        bid,
+        hand_game,
+        skat,
+        preferred,
+        branch,
+        value,
+        fits,
+        candidates,
+        game,
+        null_risks,
+        ouvert,
+        no_fit,
+        plain: unavailable,
+        fallback: false,
+    }
+}
+
 /// Announcement for the declarer's ten cards `hand` plus the Skat it knows
 /// (`skat`: the discard, empty in a Hand game), out of `legal`.
 pub fn announce(
@@ -319,39 +459,28 @@ pub fn announce(
     hand_game: bool,
     legal: &[Action],
 ) -> Action {
-    let cards = hand | skat;
-    let (preferred, _) = choose_game(cards);
-    let fits = |game: GameType| {
-        let contract = Contract::new(Announcement::plain(game), hand_game);
-        contract
-            .null_value()
-            .or_else(|| game_value(game, cards, hand_game))
-            .is_some_and(|v| v >= bid)
-    };
-    let game = if fits(preferred) {
-        preferred
-    } else {
-        TRUMP_GAMES
-            .into_iter()
-            .filter(|&g| fits(g))
-            .max_by_key(|&g| strength(g, cards))
-            .unwrap_or(GameType::Grand)
-    };
-    // A Null hand without any unsafe suit is played open.
-    let ouvert = Announcement {
-        ouvert: true,
-        ..Announcement::plain(GameType::Null)
-    };
-    let wanted = if game == GameType::Null && null_risks(hand) == 0 {
-        Action::Announce(ouvert)
-    } else {
-        Action::Announce(Announcement::plain(game))
-    };
-    if legal.contains(&wanted) {
-        wanted
-    } else {
-        Action::Announce(Announcement::plain(game))
+    announce_choice(hand, skat, bid, hand_game, legal).action
+}
+
+/// Easy's announcement rule from the permitted view (own cards, own known
+/// Skat, public bid and Hand state); none outside Ansage or without a turn.
+pub fn announce_rule(view: &PlayerView) -> Option<AnnounceRule> {
+    let legal = &view.legal_actions;
+    if view.phase != Phase::Ansage || legal.is_empty() {
+        return None;
     }
+    let mut rule = announce_choice(
+        view.hand,
+        view.own_skat.unwrap_or_default(),
+        view.bid,
+        view.hand_game == Some(true),
+        legal,
+    );
+    if !legal.contains(&rule.action) {
+        rule.action = legal[0];
+        rule.fallback = true;
+    }
+    Some(rule)
 }
 
 /// Whether a defender holding `hand` says Kontra against `game`.

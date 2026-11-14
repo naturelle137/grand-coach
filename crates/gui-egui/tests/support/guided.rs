@@ -123,3 +123,90 @@ pub fn enter_preplay(h: &mut Harness<'_, GrandCoachApp>, language: Language, pha
     }
     panic!("seeded ordinary app did not reach a human {phase:?} decision");
 }
+
+/// Ordinary app: the human holds or bids until declarer, plays Hand
+/// (`hand`) or picks up and puts away its first two cards, and enters the
+/// Ansage dialogue by its real button.
+#[allow(dead_code)]
+pub fn enter_ansage(h: &mut Harness<'_, GrandCoachApp>, language: Language, hand: bool) {
+    let i = I18n::new(language);
+    h.state_mut().set_language(language);
+    h.state_mut().opponent_delay = 0.0;
+    for _ in 0..600 {
+        settle(h);
+        let v = h.state().session().view();
+        if v.phase == Phase::Ansage && !v.legal_actions.is_empty() {
+            click(h, &i.t("guided-start"));
+            let g = h.state().session().guided().expect("explicit dialogue");
+            assert_eq!(g.step, GuidedStep::Orient);
+            assert_eq!(g.preplay.expect("pre-play dialogue").phase, Phase::Ansage);
+            return;
+        }
+        assert!(!v.series_finished, "guided walkthrough needs free play");
+        if v.phase == Phase::Druecken && !v.legal_actions.is_empty() {
+            for &card in &v.hand[..2] {
+                click(h, &card_name(&i, card));
+            }
+            click(h, &i.t("button-discard"));
+            continue;
+        }
+        let bid = v.legal_actions.iter().find_map(|a| match a {
+            Action::Bid(value) => Some(*value),
+            _ => None,
+        });
+        let label = if v.can_next_game {
+            i.t("button-next-game")
+        } else if v.legal_actions.contains(&Action::Hold) {
+            i.tf("button-hold", &[("value", v.bid.into())])
+        } else if let Some(value) = bid {
+            i.tf("button-bid", &[("value", value.into())])
+        } else if v.legal_actions.contains(&Action::TakeSkat) {
+            i.t(if hand {
+                "button-hand"
+            } else {
+                "button-take-skat"
+            })
+        } else if v.legal_actions.contains(&Action::Pass) {
+            i.t("button-pass")
+        } else {
+            coach::action(&i, &v, v.legal_actions[0])
+        };
+        click(h, &label);
+    }
+    panic!("seeded ordinary app did not reach a human Ansage decision");
+}
+
+/// Card button label on the default French faces.
+#[allow(dead_code)]
+pub fn card_name(i: &I18n, card: skat_app::Card) -> String {
+    let suit =
+        ["suit-kreuz", "suit-pik", "suit-herz", "suit-karo"][usize::from(card.suit().index())];
+    let rank = [
+        "rank-sieben",
+        "rank-acht",
+        "rank-neun",
+        "rank-zehn",
+        "rank-bube",
+        "rank-dame",
+        "rank-koenig",
+        "rank-ass",
+    ][usize::from(card.rank().index())];
+    i.tf(
+        "card-name",
+        &[("suit", i.t(suit).into()), ("rank", i.t(rank).into())],
+    )
+}
+
+/// Announcement radio label on the default French faces.
+#[allow(dead_code)]
+pub fn game_name(i: &I18n, game: skat_app::GameType) -> String {
+    use skat_app::{GameType, Suit};
+    i.t(match game {
+        GameType::Farbe(Suit::Kreuz) => "suit-kreuz",
+        GameType::Farbe(Suit::Pik) => "suit-pik",
+        GameType::Farbe(Suit::Herz) => "suit-herz",
+        GameType::Farbe(Suit::Karo) => "suit-karo",
+        GameType::Grand => "game-grand",
+        GameType::Null => "game-null",
+    })
+}

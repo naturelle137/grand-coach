@@ -1,4 +1,4 @@
-# Guided Farbspiel, Reizen, Skataufnahme and Drücken pilot (#131, #148)
+# Guided Farbspiel, Reizen, Skataufnahme, Drücken and Ansage pilot (#131, #148, #151)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -29,7 +29,7 @@ separate factual oracles.
   first exact tie. Other winning cards still win this trick. No claim about
   their future strategic value or the final game result follows.
 - **Exclusions:** no lead, early winner, partner feeding, arbitrary fallback,
-  single legal action, Kontra/Re, Grand, Null, Ansage or Kontra/Re (Reizen, Skataufnahme and Drücken: see below). If the
+  single legal action, Grand, Null or Kontra/Re (Reizen, Skataufnahme, Drücken and Ansage: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
   explicitly marked `Fallback` and excluded, rather than explained as staying
   under the partner. In
@@ -68,7 +68,7 @@ As declarer in Hinterhand after C9/C8, CQ and CA both win; the cheaper winner
 is CQ. All legal alternatives replay through the core. Moving CA into the
 defender's own hand makes CK a follow-class master and selects excluded
 `FeedPartner`; this is not narrated as safe against Trumpf. Forced last-trick
-moves, Ansage and Kontra/Re are unsupported. Hand has unknown Skat even for declarer;
+moves and Kontra/Re are unsupported. Hand has unknown Skat even for declarer;
 known own discards and Ouvert use the same existing `Knowledge` definitions.
 
 ## Reproducible ordinary-app walkthrough
@@ -158,9 +158,49 @@ actions with Hinterhand declarer at 18; expected strengths are counted by hand:
 | C7 C8 C9 S7 S8 S9 H7 H8 H9 D7 + DA HK | Null, 0 | pickup; Drücken DA HK |
 
 A different hidden Skat leaves the Hand decision unchanged. A view whose
-wanted action is unavailable discloses `fallback`; Ansage has no lesson and
-shows the phase-specific unsupported text. In the ordinary app with seed 21
-the human reaches both decisions by holding and bidding.
+wanted action is unavailable discloses `fallback`. In the ordinary app with
+seed 21 the human reaches both decisions by holding and bidding.
+
+## Ansage (#151)
+
+`guided-announce@1` uses the same steps for Easy's announcement: orientation
+asks the branch of the preferred game, the threshold asks whether its plain
+value reaches the public bid (`Answer::Within`). `announce_rule` replaces the
+inline `announce` body; `announce` and `BaselineOpponent` call it. The frozen
+200-game hash is unchanged, and a second hash frozen on `16c0414` before the
+extraction covers 1988 Ansage decisions reached with random legal bids,
+pickups and discards (`5977450191475415708`). Over the same views a test
+checks the rule against Easy: preferred if it fits, else the strongest fitting
+candidate with the last-in-order tie, else Grand; ouvert exactly for Null
+without an unsafe suit; no fallback. Null rarely occurs in dealt games and is
+covered by fixtures. No baseline inconsistency was found; the existing quirks
+stay as they are: the strength behind the preferred game counts the two
+discarded cards, and the Null ouvert check uses only the ten cards.
+
+Fixtures in `crates/skat-coach/tests/guided_announce.rs` replay core-accepted
+actions with Hinterhand declarer; values are worked out by hand:
+
+| Hinterhand's cards, Skat handling | Bid | Easy |
+|-----------------------------------|-----|------|
+| CJ HA HT HK HQ H9 H8 H7 CA SA, Hand | 18 | Herz: Hand mit 1 = 30 fits |
+| same | 33 | Herz 30 short; Kreuz 36 and Pik 33 tie at strength 61, Grand 54: Pik |
+| same | 36 | Kreuz 61 over Grand 54 |
+| same | 77 | nothing fits: Grand (overbid) |
+| HJ for CJ (changed hand), Hand | 33 | Herz ohne 2 Hand = 40 fits |
+| CJ SJ HJ DJ HA HT HK HQ H9 CA, pickup S7 D7, both put away | 18 | Grand mit 4 = 120, known Skat counted |
+| C7 C8 C9 S7 S8 S9 H7 H8 H9 D7, Hand | 18 | Null Hand 35, no unsafe suit: Null ouvert |
+| same, pickup DA HK, put away HK C9 | 18 | Null 23, Karo unsafe: plain Null |
+| same | 24 | Null short; Herz (strength 45) over Kreuz and Pik (37) |
+
+Different hidden Skat (Hand) or swapped opponent cards leave the lesson
+identical. Restricted views disclose the plain-Null fallback and the
+first-legal fallback separately; a no-fit Grand is a supported rule fallback,
+whereas Spiel has no Ansage rule. App tests cover wrong/retry, reveal, a correct
+attempt, skip/re-entry, every legal announcement, stale identities, automatic
+levels, coach off and the next game; the app views of different hidden deals
+are identical. In the ordinary app with seed 7 the human bids to 36 and plays
+Hand: the branch is Suit (Herz), Herz Hand 30 falls short, Kreuz 36 and Grand
+72 fit, and Easy announces Kreuz Hand; the learner may still announce Grand.
 
 ## Verification and UI evidence
 

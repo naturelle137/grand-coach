@@ -300,12 +300,151 @@ fn guided_pickup_and_discard_widgets_hide_answers_until_reveal_and_stay_free_in_
                         Some(other == Action::Hand)
                     );
                 }
-                GuidedPreRule::Discard(_) => {
+                GuidedPreRule::Discard(_) | GuidedPreRule::Announce(_) => {
                     click(&mut h, &i.t("guided-return"));
                     assert!(h.state().session().guided().is_none());
                     assert_eq!(h.state().session().view().phase, Phase::Druecken);
                 }
             }
+            assert_eq!(h.state().learning_history(), &history_before);
+        }
+    }
+}
+
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn guided_ansage_widgets_hide_answers_until_reveal_and_stay_free_in_de_en() {
+    use skat_app::{Action, Announcement, GameType, GuidedPreRule, Phase, Suit};
+    // Seed 21: the preferred game reaches bid 22 (Hand and pickup); seed 7:
+    // Hand at bid 36, Herz falls short and Kreuz is announced.
+    for language in Language::ALL {
+        for (seed, hand) in [(21, true), (21, false), (7, true)] {
+            let config = SessionConfig {
+                seed,
+                series: SeriesLength::Free,
+                opponents: Opponents::Levels([Level::Easy; 2]),
+                ..SessionConfig::default()
+            };
+            let mut h = Harness::builder()
+                .with_size([1600.0, 1200.0])
+                .build_eframe(move |cc| GrandCoachApp::new(&cc.egui_ctx, config));
+            let i = I18n::new(language);
+            enter_ansage(&mut h, language, hand);
+            let before = h.state().session().view();
+            let history_before = h.state().learning_history().clone();
+            // Initial prompt: public bid and Hand state only; no game or rule.
+            let g = h.state().session().guided().unwrap();
+            let p = g.preplay.clone().unwrap();
+            assert_eq!((p.game, g.pre_rule), (None, None));
+            assert_eq!((p.bid, p.hand_game), (Some(before.bid), Some(hand)));
+            let public = if hand {
+                "guided-ann-public-hand"
+            } else {
+                "guided-ann-public-pickup"
+            };
+            assert!(
+                h.query_by_label(&i.tf(public, &[("bid", before.bid.into())]))
+                    .is_some()
+            );
+            for absent in ["guided-ann-fits-yes", "guided-memory", "guided-figures"] {
+                assert!(
+                    h.query_by_role_and_label(Role::Button, &i.t(absent))
+                        .is_none()
+                );
+            }
+            assert!(h.query_by_label(&i.t("guided-ann-caveat")).is_none());
+            // Skip, then re-enter with a new identity; the table is unchanged.
+            click(&mut h, &i.t("guided-return"));
+            assert!(h.state().session().guided().is_none());
+            assert_eq!(
+                h.state().session().view().legal_actions,
+                before.legal_actions
+            );
+            click(&mut h, &i.t("guided-start"));
+            assert_ne!(h.state().session().guided().unwrap().id, g.id);
+            // Wrong branch, retry, until Easy's branch.
+            let branches = [
+                "guided-pre-grand",
+                "guided-pre-suit",
+                "guided-pre-null",
+                "guided-pre-weak",
+            ];
+            let mut right = false;
+            for (n, key) in branches.iter().enumerate() {
+                if n > 0 {
+                    click(&mut h, &i.t("guided-retry"));
+                }
+                click(&mut h, &i.t(key));
+                right = h.state().session().guided().unwrap().step == GuidedStep::Threshold;
+                if right {
+                    break;
+                }
+            }
+            assert!(right, "one branch is Easy's");
+            let g = h.state().session().guided().unwrap();
+            assert!(g.preplay.unwrap().game.is_some() && g.pre_rule.is_none());
+            if hand {
+                // Value attempt: a wrong answer can be retried; the right one reveals.
+                click(&mut h, &i.t("guided-ann-fits-yes"));
+                let g = h.state().session().guided().unwrap();
+                if g.step != GuidedStep::Act {
+                    assert_eq!(g.correct, Some(false));
+                    assert!(g.pre_rule.is_none());
+                    click(&mut h, &i.t("guided-retry"));
+                    click(&mut h, &i.t("guided-ann-fits-no"));
+                }
+                assert_eq!(h.state().session().guided().unwrap().correct, Some(true));
+            } else {
+                click(&mut h, &i.t("guided-unknown"));
+            }
+            let g = h.state().session().guided().unwrap();
+            assert_eq!(g.step, GuidedStep::Act);
+            let Some(GuidedPreRule::Announce(rule)) = g.pre_rule else {
+                panic!("announce rule");
+            };
+            assert_eq!(rule.hand_game, hand);
+            assert_eq!(
+                rule.action,
+                Action::Announce(Announcement {
+                    ouvert: rule.ouvert,
+                    ..Announcement::plain(rule.game)
+                })
+            );
+            assert!(h.query_by_label(&i.t("guided-ann-caveat")).is_some());
+            // Rendered comparison: value against the bid, then the candidate.
+            let values = [("value", rule.value.into()), ("bid", rule.bid.into())];
+            let fit = if rule.fits {
+                "guided-ann-fits"
+            } else {
+                "guided-ann-short"
+            };
+            assert!(h.query_by_label(&i.tf(fit, &values)).is_some());
+            assert_eq!(rule.fits, seed == 21);
+            if !rule.fits {
+                let game = [("game", game_name(&i, rule.game).into())];
+                assert!(
+                    h.query_by_label(&i.tf("guided-ann-strongest", &game))
+                        .is_some()
+                );
+            }
+            assert_eq!(
+                h.state().session().view().legal_actions,
+                before.legal_actions
+            );
+            // Choose freely: a different legal trump game than the rule's.
+            let other = if rule.game == GameType::Grand {
+                GameType::Farbe(Suit::Kreuz)
+            } else {
+                GameType::Grand
+            };
+            h.get_by_role_and_label(Role::RadioButton, &game_name(&i, other))
+                .click();
+            h.run_steps(4);
+            click(&mut h, &i.t("button-announce"));
+            assert!(h.state().session().guided().is_none());
+            let v = h.state().session().view();
+            assert_eq!(v.phase, Phase::Spiel);
+            assert_eq!(v.contract.unwrap().game, other);
             assert_eq!(h.state().learning_history(), &history_before);
         }
     }

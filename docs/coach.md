@@ -261,7 +261,7 @@ Farbspiel card play with at least two legal actions and a nonempty branch
 candidate set. The former follows a partner who is not a follow-class master
 with one seat still to play; Easy selects a losing card by nontrump, Augen,
 power, retaining the first exact tie. The latter wins in last seat by nontrump,
-power, retaining the first exact tie. Other branches, Grand, Null, Ansage and Kontra/Re
+power, retaining the first exact tie. Other branches, Grand, Null and Kontra/Re
 report unsupported and return to free play. In particular, a side master is
 not safe against trumping: the early `FeedPartner` branch is excluded.
 
@@ -336,8 +336,28 @@ strength comparison and count (pickup) or the keep order and per-card reason
 (Drücken), the disclosed fallback if Easy's action was not legal, and a caveat:
 a conditional rule of thumb from the own cards, the hidden Skat stays unknown,
 no promise to win. Both legal pickup actions and every legal discard stay free;
-any action ends the dialogue. Ansage, Kontra and Re report a phase-specific
+any action ends the dialogue. Kontra and Re report a phase-specific
 unsupported text. Memory and estimates are unavailable here.
+
+### Guided Ansage (#151)
+
+The same entry supports the declarer's announcement. Evidence is
+`skat_analysis::policy::announce_rule`, the path Easy calls: the preferred game
+and `GameBranch` of `choose_game` for the ten cards plus the own known Skat
+(empty for Hand; the hidden Skat is never used), its plain value against the
+public bid, the suit games and Grand with value, strength and fit, the
+announced game (preferred if it fits, else the strongest fitting candidate, the
+later in the order Kreuz, Pik, Herz, Karo, Grand on ties, else Grand), the Null
+unsafe-suit count and ouvert wish, and three disclosed fallbacks: no game fits
+(Grand, overbid), Null ouvert unavailable (plain Null) and the rule's
+announcement not legal (first legal action). Before the reveal only the public
+bid and Hand state are shown; orientation asks the branch, then, with the
+preferred game named, whether its value reaches the bid. A correct attempt or
+deliberate reveal shows Easy's announcement, the counted Skat, the comparison,
+the candidates and tie or fallback, and a caveat (conditional rule of thumb, no
+promise to win, no rating of the announcement). Every legal announcement stays
+free; any action ends the dialogue. Matching Easy says nothing about strategic
+quality.
 
 ## Focus and teachable moments (D-58)
 
