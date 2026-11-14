@@ -1,4 +1,4 @@
-# Guided Farbspiel, Reizen, Skataufnahme, Drücken and Ansage pilot (#131, #148, #151)
+# Guided Farbspiel, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -29,7 +29,7 @@ separate factual oracles.
   first exact tie. Other winning cards still win this trick. No claim about
   their future strategic value or the final game result follows.
 - **Exclusions:** no lead, early winner, partner feeding, arbitrary fallback,
-  single legal action, Grand, Null or Kontra/Re (Reizen, Skataufnahme, Drücken and Ansage: see below). If the
+  single legal action, Grand, Null or Kontra/Re (Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
   explicitly marked `Fallback` and excluded, rather than explained as staying
   under the partner. In
@@ -204,6 +204,72 @@ are identical. In the ordinary app with seed 7 the human bids to 36 and plays
 Hand: the branch is Suit (Herz), Herz Hand 30 falls short, Kreuz 36 and Grand
 72 fit, and Easy announces Kreuz Hand; the learner may still announce Grand.
 
+## Kontra and immediate Re (#153)
+
+`guided-kontra@1` covers two core-offered decisions in a non-Ouvert
+Farbspiel: a defender's card turn with `Kontra` offered (declining means
+playing a card) and the declarer's immediate `Re`/`KeinRe` reply. The source
+is `skat_analysis::baseline::kontra_rule`, which `baseline::play` (Easy) now
+calls: call and role, contract, public level, Trumpf count (Kontra) or strength
+of the own hand plus the known own Skat (Re; none in a Hand game), threshold
+(5 Trumpf, never in Null; strength 90), the exact card rule Easy plays when it
+declines, the legal actions and the fallback flag. Order, thresholds and
+`policy::wants_kontra`/`wants_re` are unchanged; the Ouvert round still
+returns `KeinKontra` first and has no rule. Before the extraction a hash over
+3605 Kontra, Re and Ouvert `KeinKontra` decisions reached with random legal
+actions was frozen on `4d55973` (`13667852288273955558`); it and the 200-game
+hash are unchanged, and a test checks every such view against Easy.
+
+Steps: the public contract and level; orientation asks the factor on the game
+points after the call (Kontra ×2, Re ×4, `Answer::Factor`); then, with factor
+and threshold named, whether the own count reaches Easy's condition
+(`Answer::Within`). A correct attempt or deliberate reveal shows Easy's action,
+the counted Skat (Re), the comparison, Easy's declining card without
+explaining its tactic, and two facts: Kontra/Re multiply the written game
+points and do not change whether the bid is reached (Re: the strength count),
+and the condition is a rule of thumb, not proof of a winning defence or a
+probability; the outcome stays unknown. Memory stays unavailable, estimates
+stay separately requested after the observation. The learner's own action
+fixes the observed transition: after Kontra the declarer's actual Re/KeinRe
+and the resulting factor; after Re/KeinRe the actual next card and factor;
+after a declining card that card and trick (Kontra is no longer offered after
+the own first card). Automated turns are followed; the learner's next own
+action, a new game, coach off or replay ends the dialogue.
+
+Grand, Null, an Ouvert contract, the Ouvert round before the reveal (no
+declarer card is shown) and restricted or inconsistent views (absent contract,
+seat or level not matching the call, Easy's choice not legal) report their own
+unsupported text; all calls and cards stay free.
+
+Fixtures in `crates/skat-coach/tests/guided_kontra.rs` replay core-accepted
+actions: MH bids 18, VH holds, MH passes, HH bids 20, VH passes; HH declares.
+
+| Position | Count, threshold | Easy |
+|----------|------------------|------|
+| VH CJ HA H7 H8 H9 SA ST S9 DA D7 vs Herz Hand | 5 Trumpf ≥ 5 | Kontra |
+| same with S8 for H9 | 4 < 5 | DA (`LeadMaster`, last of SA/DA) |
+| VH CJ SJ C7 C8 C9 SA ST S9 DA D7 vs Kreuz / Herz | 5 / 2 | Kontra / card |
+| HH CJ SJ HJ HA HT H9 SA CT D7 D8, Herz Hand, after VH's Kontra | strength 90 ≥ 90 | Re |
+| same with C7 for CT | 89 < 90 | KeinRe |
+| HH pickup, holds the 89 hand, put away CT D9 / C8 D9 | 90 / 89 with the known Skat | Re / KeinRe |
+
+Swapping unseen cards (opponents, unknown Hand Skat) leaves lesson and app
+dialogue identical. Further legal positions: ineligible bidding (MH passes at
+once, VH passes: no offer), the setting off, VH after its first card (no
+offer, while MH may still say Kontra), MH after Kontra and Re/KeinRe, Grand
+and Null (offer with exclusion, also for Re), Null ouvert round and the
+following Re (exclusions). Labelled synthetic views test restricted legal
+lists, an absent contract and a declarer offered Kontra. App tests cover
+wrong/retry/reveal, every legal action with the actual observation, the
+exact declining card, Re/KeinRe with the resumed play, stale and replaced
+identities at the same seat and phase, automatic levels, coach off and the
+next game. In the ordinary app with Kontra/Re on, seed 18 brings the human
+(holding/bidding 18 only) to a Pik defence with five Trumpf where Easy says
+Kontra, seed 0 one where Easy declines; with seed 1 the human declares the
+suit it holds fewest of and answers a Kontra (Easy: no Re, strength 47); seed
+8 reaches a Grand Kontra offer with the exclusion text. Easy's Kontra/Re
+choices are reproduced, not improved, and no human learning follows from them.
+
 ## Verification and UI evidence
 
 Use the existing `scripts/check.sh push --base origin/main` in `skat-dev`, plus
@@ -211,5 +277,6 @@ relevant ignored app/GUI integration suites. The existing screenshots example
 adds `guided-orient`, `guided-act`, `guided-memory`, `guided-observe`,
 `guided-complete`, English orientation/action/observation/completion, separately requested
 `guided-figures` / `guided-figures-en`, and
-`guided-orient-narrow`. Each reaches the real app by widget clicks. Rendered
+`guided-orient-narrow`, and the Kontra/Re scenarios listed in
+[testing](testing.md#screenshots-of-the-frontend). Each reaches the real app by widget clicks. Rendered
 PNG hashes and individual visual inspections belong to the PR evidence.

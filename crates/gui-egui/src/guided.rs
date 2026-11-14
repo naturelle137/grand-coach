@@ -282,15 +282,19 @@ fn kontra(
 ) -> Option<GuidedAction> {
     let mut action = None;
     let re = k.call == GuidedKontraCall::Re;
-    let game = ("game", text::game_type(i, k.game).into());
-    ui.label(i.tf(
-        if re {
-            "guided-kontra-public-re"
-        } else {
-            "guided-kontra-public-kontra"
-        },
-        &[game],
-    ));
+    // The original decision's public context; after the learner acted the
+    // actual next step replaces it, so a stale level is never shown.
+    if !matches!(g.step, GuidedStep::Waiting | GuidedStep::Complete) {
+        let game = ("game", text::game_type(i, k.game).into());
+        ui.label(i.tf(
+            if re {
+                "guided-kontra-public-re"
+            } else {
+                "guided-kontra-public-kontra"
+            },
+            &[game],
+        ));
+    }
     let pick = |kontra: &'static str, re_key: &'static str| if re { re_key } else { kontra };
     let figures = [
         ("factor", k.factor.unwrap_or_default().into()),

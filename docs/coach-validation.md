@@ -42,7 +42,10 @@ default/off/automatic and unaided protections remain binding. Check every
 legal alternative, wrong answer/retry, unknown/reveal, skip, hidden memory,
 stale/re-entered identities and the actual public observation across automated
 turns. Estimates are optional and separately requested; incomplete/disagreeing
-search must not change the rule. Actual de/en widget and inspected PNG evidence
+search must not change the rule. Kontra/Re lessons additionally distinguish
+the core's factual eligibility, Easy's heuristic condition and the unknown
+outcome, observe the actual next public transition and name Grand, Null and
+Ouvert exclusions. Actual de/en widget and inspected PNG evidence
 is technical validation, never learner UAT, retention or transfer evidence.
 
 ## A. Evidence checklist per lesson
