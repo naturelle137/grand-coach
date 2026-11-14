@@ -44,8 +44,9 @@ stale/re-entered identities and the actual public observation across automated
 turns. Estimates are optional and separately requested; incomplete/disagreeing
 search must not change the rule. Kontra/Re lessons additionally distinguish
 the core's factual eligibility, Easy's heuristic condition and the unknown
-outcome, observe the actual next public transition and name Grand, Null and
-Ouvert exclusions. Actual de/en widget and inspected PNG evidence
+outcome, observe the actual next public transition and name Ouvert
+exclusions; Grand states the four-Buben limit and Null only the rule's
+inapplicability, never a Null strength. Actual de/en widget and inspected PNG evidence
 is technical validation, never learner UAT, retention or transfer evidence.
 
 ## A. Evidence checklist per lesson

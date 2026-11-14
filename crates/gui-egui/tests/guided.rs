@@ -595,10 +595,10 @@ fn guided_kontra_widgets_hide_answers_until_attempt_and_observe_actual_step_in_d
 /// Ordinary app, real widgets, seed 1: the human declares the suit it holds
 /// fewest of, a defender says Kontra and the human answers. Deliberate
 /// reveal, then Re (whatever Easy says); the resumed card play is shown.
-/// Seed 8: a Grand Kontra offer gets the honest exclusion text.
+/// Seed 848, second game: the Null ouvert round gets the honest exclusion text.
 #[test]
 #[ignore = "slow: CI only (docs/testing.md)"]
-fn guided_re_widgets_reveal_free_reply_resumed_play_and_grand_fallback_in_de_en() {
+fn guided_re_widgets_reveal_free_reply_resumed_play_and_ouvert_fallback_in_de_en() {
     use skat_app::{Action, GuidedKontraObservation, KontraLevel};
     for language in Language::ALL {
         let mut h = kontra_app(1);
@@ -658,10 +658,10 @@ fn guided_re_widgets_reveal_free_reply_resumed_play_and_grand_fallback_in_de_en(
         assert!(h.query_by_label(&line).is_some());
         click(&mut h, &i.t("guided-return"));
 
-        let mut h = kontra_app(8);
-        enter_kontra_in(&mut h, language, false, false);
+        let mut h = kontra_app(848);
+        enter_kontra_in(&mut h, language, false, KontraAt::Ouvert);
         assert!(
-            h.query_by_label(&i.t("guided-unsupported-kontra-grand"))
+            h.query_by_label(&i.t("guided-unsupported-kontra-ouvert-round"))
                 .is_some()
         );
         assert!(h.query_by_label(&i.t("guided-kontra-yes")).is_none());
@@ -674,5 +674,156 @@ fn guided_re_widgets_reveal_free_reply_resumed_play_and_grand_fallback_in_de_en(
         );
         click(&mut h, &i.t("guided-return"));
         assert!(h.state().session().guided().is_none());
+    }
+}
+
+/// Ordinary app, real widgets (#155). Seed 848, first game: Grand, the human
+/// defends below Easy's five Trumpf (at most the four Buben); wrong "yes",
+/// retry, correct "no", then the human says Kontra anyway and the actual
+/// declarer reply is shown. Seed 1282, first game: Null; the applicability
+/// question shows no count or threshold, "applies" is wrong, then the human
+/// declines with a card and that actual card is shown. Answers never act on
+/// the table.
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn guided_grand_and_null_kontra_widgets_explain_rule_limits_and_observe_actual_step_in_de_en() {
+    use skat_app::{Action, GameType, GuidedKontraObservation};
+    for language in Language::ALL {
+        for (seed, at) in [(848, KontraAt::Grand), (1282, KontraAt::Null)] {
+            let grand = at == KontraAt::Grand;
+            let mut h = kontra_app(seed);
+            let i = I18n::new(language);
+            enter_kontra_in(&mut h, language, false, at);
+            let before = h.state().session().view();
+            let history_before = h.state().learning_history().clone();
+            let k = h.state().session().guided().unwrap().kontra.unwrap();
+            assert_eq!(
+                k.game,
+                if grand {
+                    GameType::Grand
+                } else {
+                    GameType::Null
+                }
+            );
+            let game = ("game", game_name(&i, k.game).into());
+            assert!(
+                h.query_by_label(&i.tf("guided-kontra-public-kontra", &[game]))
+                    .is_some()
+            );
+            click(
+                &mut h,
+                &i.tf("guided-kontra-factor-button", &[("factor", 2.into())]),
+            );
+            let k = h.state().session().guided().unwrap().kontra.unwrap();
+            let (prompt, right, wrong) = if grand {
+                assert_eq!(k.threshold, Some(5));
+                (
+                    "guided-kontra-threshold-kontra-grand",
+                    "guided-kontra-no",
+                    "guided-kontra-yes",
+                )
+            } else {
+                assert_eq!(k.threshold, None);
+                assert!(h.query_by_label(&i.t("guided-kontra-yes")).is_none());
+                (
+                    "guided-kontra-threshold-kontra-null",
+                    "guided-kontra-applies-no",
+                    "guided-kontra-applies-yes",
+                )
+            };
+            let figures = [
+                ("factor", 2.into()),
+                ("threshold", k.threshold.unwrap_or_default().into()),
+            ];
+            assert!(h.query_by_label(&i.tf(prompt, &figures)).is_some());
+            click(&mut h, &i.t(wrong));
+            assert!(h.query_by_label(&i.t("guided-wrong")).is_some());
+            assert!(h.state().session().guided().unwrap().kontra_rule.is_none());
+            click(&mut h, &i.t("guided-retry"));
+            click(&mut h, &i.t(right));
+            let g = h.state().session().guided().unwrap();
+            assert_eq!(g.step, GuidedStep::Act);
+            let rule = g.kontra_rule.clone().unwrap();
+            assert!(!rule.wants && rule.null != grand);
+            assert_eq!(
+                h.state().session().view().legal_actions,
+                before.legal_actions
+            );
+            let shown = coach::action(&i, &before, rule.action);
+            assert!(
+                h.query_by_label(&i.tf("guided-bid-rule", &[("action", shown.into())]))
+                    .is_some()
+            );
+            let count = [
+                ("count", rule.count.into()),
+                ("threshold", rule.threshold.into()),
+            ];
+            if grand {
+                assert!(rule.count <= 4);
+                assert!(
+                    h.query_by_label(&i.tf("guided-kontra-count-kontra-grand", &count))
+                        .is_some()
+                );
+                assert!(
+                    h.query_by_label(&i.t("guided-kontra-caveat-kontra-grand"))
+                        .is_some()
+                );
+            } else {
+                assert!(
+                    h.query_by_label(&i.t("guided-kontra-count-kontra-null"))
+                        .is_some()
+                );
+                assert!(
+                    h.query_by_label(&i.t("guided-kontra-caveat-null"))
+                        .is_some()
+                );
+                // No Trumpf count or strength comparison is presented in Null.
+                assert!(
+                    h.query_by_label(&i.tf("guided-kontra-count-kontra-no", &count))
+                        .is_none()
+                );
+            }
+            assert!(
+                h.query_by_label(&i.t("guided-kontra-fact-factor"))
+                    .is_some()
+            );
+            let card = rule.card.as_ref().unwrap().card;
+            assert!(
+                h.query_by_label(&i.tf(
+                    "guided-kontra-card",
+                    &[("card", card_name(&i, card).into())]
+                ))
+                .is_some()
+            );
+            if grand {
+                click(&mut h, &i.t("button-kontra"));
+                settle(&mut h);
+                let g = h.state().session().guided().unwrap();
+                assert_eq!(g.step, GuidedStep::Complete);
+                assert!(matches!(
+                    g.kontra_observation,
+                    Some(GuidedKontraObservation::Reply { .. })
+                ));
+            } else {
+                let played = before
+                    .legal_actions
+                    .iter()
+                    .find_map(|a| match a {
+                        Action::Play(c) => Some(*c),
+                        _ => None,
+                    })
+                    .unwrap();
+                click(&mut h, &card_name(&i, played));
+                let g = h.state().session().guided().unwrap();
+                assert!(matches!(
+                    g.kontra_observation,
+                    Some(GuidedKontraObservation::Declined { card: c, .. }) if c == played
+                ));
+            }
+            assert!(h.query_by_label(&i.t("guided-kontra-complete")).is_some());
+            assert_eq!(h.state().learning_history(), &history_before);
+            click(&mut h, &i.t("guided-return"));
+            assert!(h.state().session().guided().is_none());
+        }
     }
 }

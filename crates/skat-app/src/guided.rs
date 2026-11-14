@@ -104,7 +104,7 @@ pub struct GuidedPreplay {
 pub struct GuidedKontra {
     /// Defender Kontra at a card turn, or the declarer's immediate Re reply.
     pub call: GuidedKontraCall,
-    /// Public contract's game (a suit game in this lesson).
+    /// Public contract's game: a suit game, Grand or Null (never Ouvert).
     pub game: skat_core::GameType,
     /// Public: the declarer plays Hand.
     pub hand_game: bool,
@@ -112,7 +112,8 @@ pub struct GuidedKontra {
     pub level: KontraLevel,
     /// After orientation: factor on the game points after the call.
     pub factor: Option<i32>,
-    /// After orientation: Trumpf (Kontra) or strength (Re) Easy needs.
+    /// After orientation: Trumpf (Kontra) or strength (Re) Easy needs; none in
+    /// Null, where the generic rule supplies no assessment.
     pub threshold: Option<i32>,
 }
 
@@ -350,7 +351,7 @@ impl GuidedState {
                     hand_game: k.rule.hand_game,
                     level: k.rule.level,
                     factor: oriented.then(|| k.factor()),
-                    threshold: oriented.then_some(k.rule.threshold),
+                    threshold: oriented.then_some(k.rule.threshold).filter(|_| k.applies()),
                 }
             }),
             kontra_rule: self
