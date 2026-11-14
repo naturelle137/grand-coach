@@ -23,6 +23,10 @@ evidence. Existing M8, learner and platform gates remain required.
 
 ## Test cases
 
+Use the [private RC packaging procedure](packaging.md) to build and identify
+the exact archives, prerequisites, lifecycle policy and automated smoke limits.
+Attach archive SHA-256, source commit and packaging workflow run to each record.
+
 | Area | Steps | Expected result |
 |------|-------|-----------------|
 | Installation and lifecycle | Install on a clean system; launch, restart, upgrade and uninstall. Check resources, notices and user-data locations. | Packages work with documented prerequisites; upgrades preserve supported data and uninstall follows the documented policy. |
