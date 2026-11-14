@@ -1523,3 +1523,257 @@ fn god_mode_keeps_the_grand_and_null_kontra_lesson_input() {
         }
     }
 }
+
+/// Human on `human` after core-accepted `actions` (see
+/// `skat-coach/tests/guided_grand.rs` for the hand-derived expectations).
+fn grand_session(
+    human: Seat,
+    deal: skat_core::Deal,
+    kontra_re: bool,
+    actions: &[Action],
+) -> Session {
+    let mut s = Session::new(SessionConfig {
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        series: SeriesLength::Free,
+        kontra_re,
+        ..SessionConfig::default()
+    });
+    s.dealer = (0..3)
+        .map(PlayerId)
+        .find(|&d| PlayerId::HUMAN.seat(d) == human)
+        .unwrap();
+    s.game = Game::from_deal(deal, RuleConfig { kontra_re });
+    s.recording.deal = deal;
+    for &a in actions {
+        s.apply(a).unwrap();
+    }
+    s
+}
+
+/// Grand Hand by `declarer`, then `plays`; the human sits last in Hinterhand.
+fn grand_last(declarer: Seat, deal: skat_core::Deal, plays: &[&str]) -> Session {
+    let game = fixture::hand_game(GRAND, false);
+    let actions = fixture::contract_actions(deal, declarer, game, plays);
+    grand_session(Seat::Hinterhand, deal, false, &actions)
+}
+
+#[test]
+fn grand_win_last_both_roles_attempt_reveal_every_legal_card_and_actual_trick() {
+    use fixture::card as c;
+    // (declarer, lead, partner/opponent card, Easy's card, winning cards)
+    for (declarer, led, second, easy, winning) in [
+        (Seat::Hinterhand, "C9", "C8", "CQ", vec!["CQ", "CA"]),
+        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"]),
+        (Seat::Vorhand, "C9", "C7", "CQ", vec!["CQ", "CA"]),
+        (Seat::Vorhand, "CK", "C7", "CA", vec!["CA"]),
+    ] {
+        let s = grand_last(declarer, fixture::deal(), &[led, second]);
+        let legal = s.view().legal_actions;
+        assert_eq!(
+            legal,
+            vec![Action::Play(c("CQ")), Action::Play(c("CA"))],
+            "free legal choice"
+        );
+        for (n, &action) in legal.iter().enumerate() {
+            let mut s = s.clone();
+            let before = s.view();
+            s.execute(Command::StartGuided).unwrap();
+            let g = s.guided().unwrap();
+            assert_eq!(g.step, S::Orient);
+            assert!(g.rule.is_none() && g.task.is_none() && g.memory.is_none());
+            assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
+            respond(&mut s, G::Answer(A::Seat(Some(Seat::Hinterhand)))).unwrap();
+            assert_eq!(s.guided().unwrap().correct, Some(false));
+            respond(&mut s, G::Retry).unwrap();
+            respond(&mut s, G::Answer(A::Seat(Some(Seat::Vorhand)))).unwrap();
+            let g = s.guided().unwrap();
+            assert_eq!((g.step, g.correct), (S::Check, None));
+            // Last seat: nobody follows; a named seat is wrong.
+            respond(&mut s, G::Answer(A::Seat(Some(Seat::Mittelhand)))).unwrap();
+            assert_eq!(s.guided().unwrap().correct, Some(false));
+            respond(&mut s, G::Answer(A::Seat(None))).unwrap();
+            let g = s.guided().unwrap();
+            assert_eq!(
+                (g.step, g.task),
+                (S::Narrow, Some(crate::GuidedBranch::WinLast))
+            );
+            assert!(g.rule.is_none(), "no early card or key");
+            if winning.len() == 1 {
+                respond(&mut s, G::Answer(A::Card(c("CQ")))).unwrap();
+                assert_eq!(s.guided().unwrap().correct, Some(false));
+            }
+            if n == 0 {
+                // Any winning card is a correct attempt, not only Easy's.
+                let attempt = winning[winning.len() - 1];
+                respond(&mut s, G::Answer(A::Card(c(attempt)))).unwrap();
+            } else {
+                respond(&mut s, G::Reveal).unwrap();
+            }
+            let g = s.guided().unwrap();
+            assert_eq!(g.step, S::Act);
+            let rule = g.rule.unwrap();
+            assert_eq!(
+                (rule.card, rule.branch),
+                (c(easy), crate::GuidedBranch::WinLast)
+            );
+            let expected: Vec<_> = winning.iter().map(|w| c(w)).collect();
+            assert_eq!(rule.candidates, expected);
+            respond(&mut s, G::Memory(true)).unwrap();
+            assert_eq!(s.guided().unwrap().memory.unwrap().skat, None);
+            assert_eq!(s.view().legal_actions, before.legal_actions);
+            assert_eq!(s.view().hand, before.hand);
+            // The learner's own last card completes the trick: no remaining seat to await.
+            s.execute(Command::Act(action)).unwrap();
+            let g = s.guided().unwrap();
+            assert_eq!(g.step, S::Observe);
+            assert!(g.memory.is_none());
+            respond(&mut s, G::Answer(A::Void(true))).unwrap();
+            assert_eq!(s.guided().unwrap().correct, Some(false));
+            respond(&mut s, G::Answer(A::Void(false))).unwrap();
+            let o = s.guided().unwrap().observation.unwrap();
+            let Action::Play(played) = action else {
+                panic!("card");
+            };
+            assert_eq!(
+                o.source,
+                skat_coach::Source::Trick {
+                    index: 0,
+                    seat: Seat::Hinterhand,
+                    led: c(led),
+                    card: played
+                }
+            );
+            let actual = s.game.view(Seat::Hinterhand).tricks[0];
+            assert_eq!(actual.cards, [c(led), c(second), played]);
+            assert_eq!(o.winner, Some(actual.winner));
+            let wins = winning.iter().any(|w| c(w) == played);
+            assert_eq!(
+                actual.winner,
+                if wins {
+                    Seat::Hinterhand
+                } else {
+                    Seat::Vorhand
+                }
+            );
+            assert!(!o.proves_void);
+            respond(&mut s, G::Return).unwrap();
+            assert!(s.guided().is_none());
+        }
+    }
+}
+
+#[test]
+fn grand_win_last_hidden_swap_and_god_mode_keep_the_permitted_lesson() {
+    let walk = |deal: skat_core::Deal, god: bool| {
+        let mut s = grand_last(Seat::Hinterhand, deal, &["C9", "C8"]);
+        if god {
+            s.config.opponents = Opponents::GodMode;
+            assert!(s.view().open_cards.is_some());
+        }
+        s.execute(Command::StartGuided).unwrap();
+        let mut views = vec![s.guided().unwrap()];
+        for action in [
+            G::Answer(A::Seat(Some(Seat::Vorhand))),
+            G::Answer(A::Seat(None)),
+            G::Answer(A::Card(fixture::card("CQ"))),
+            G::Memory(true),
+        ] {
+            respond(&mut s, action).unwrap();
+            views.push(s.guided().unwrap());
+        }
+        s.execute(Command::Act(Action::Play(fixture::card("CA"))))
+            .unwrap();
+        views.push(s.guided().unwrap());
+        respond(&mut s, G::Reveal).unwrap();
+        views.push(s.guided().unwrap());
+        views
+    };
+    let base = walk(fixture::deal(), false);
+    let swapped = fixture::swap(fixture::deal(), fixture::card("H7"), fixture::card("DK"));
+    for other in [walk(swapped, false), walk(fixture::deal(), true)] {
+        assert_eq!(other.len(), base.len());
+        for (mut v, b) in other.into_iter().zip(&base) {
+            v.id = b.id;
+            v.basis = b.basis;
+            assert_eq!(&v, b);
+        }
+    }
+    assert_eq!(base.last().unwrap().step, S::Complete);
+}
+
+#[test]
+fn grand_kontra_precedence_exclusions_and_lifecycle_boundaries() {
+    // Kontra-eligible defender (HH bid 18): the Kontra dialogue wins.
+    let actions = [
+        Action::Pass,
+        Action::Bid(18),
+        Action::Hold,
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(fixture::hand_game(GRAND, false)),
+        Action::Play(fixture::card("C9")),
+        Action::Play(fixture::card("C7")),
+    ];
+    let mut s = grand_session(Seat::Hinterhand, fixture::deal(), true, &actions);
+    s.execute(Command::StartGuided).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!(g.step, S::Orient);
+    assert!(g.kontra.is_some());
+    respond(&mut s, G::Reveal).unwrap();
+    assert!(s.guided().unwrap().rule.is_none());
+
+    // Grand UnderPartner (MH) and Ouvert Grand WinLast: honest fallback.
+    let under = fixture::contract_actions(
+        fixture::deal(),
+        Seat::Hinterhand,
+        fixture::hand_game(GRAND, false),
+        &["C9"],
+    );
+    let ouvert = fixture::contract_actions(
+        fixture::deal(),
+        Seat::Hinterhand,
+        fixture::hand_game(GRAND, true),
+        &["C9", "C8"],
+    );
+    for (human, actions) in [(Seat::Mittelhand, under), (Seat::Hinterhand, ouvert)] {
+        let mut s = grand_session(human, fixture::deal(), false, &actions);
+        assert!(s.view().legal_actions.len() >= 2);
+        s.execute(Command::StartGuided).unwrap();
+        let g = s.guided().unwrap();
+        assert_eq!(g.step, S::Unsupported);
+        assert!(g.rule.is_none() && g.kontra_exclusion.is_none());
+        respond(&mut s, G::Return).unwrap();
+    }
+
+    // Automatic levels never start it; off rejects it; re-entry is stale;
+    // the next game drops it.
+    for level in [
+        crate::CoachLevel::Important,
+        crate::CoachLevel::EveryMove,
+        crate::CoachLevel::Off,
+    ] {
+        let mut s = grand_last(Seat::Vorhand, fixture::deal(), &["C9", "C7"]);
+        s.execute(Command::SetCoach(CoachSettings {
+            level,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        assert!(s.guided().is_none());
+        if level == crate::CoachLevel::Off {
+            assert_eq!(s.execute(Command::StartGuided), Err(AppError::CoachOff));
+        }
+    }
+    let mut s = grand_last(Seat::Vorhand, fixture::deal(), &["C9", "C7"]);
+    s.execute(Command::StartGuided).unwrap();
+    let old = s.guided().unwrap().id;
+    s.execute(Command::StartGuided).unwrap();
+    assert_eq!(
+        s.execute(Command::Guided(old, G::Reveal)),
+        Err(AppError::StaleGuided)
+    );
+    while s.game.current_seat().is_some() {
+        s.apply(s.game.legal_actions()[0]).unwrap();
+    }
+    s.execute(Command::NextGame).unwrap();
+    assert!(s.guided().is_none());
+}

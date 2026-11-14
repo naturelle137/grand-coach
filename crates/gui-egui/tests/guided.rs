@@ -827,3 +827,147 @@ fn guided_grand_and_null_kontra_widgets_explain_rule_limits_and_observe_actual_s
         }
     }
 }
+
+fn grand_app(seed: u64) -> Harness<'static, GrandCoachApp> {
+    let config = SessionConfig {
+        seed,
+        series: SeriesLength::Free,
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
+    };
+    Harness::builder()
+        .with_size([1600.0, 1200.0])
+        .build_eframe(move |cc| GrandCoachApp::new(&cc.egui_ctx, config))
+}
+
+/// Ordinary app, real widgets, Kontra/Re off (#157). Seed 19, second game:
+/// the human (Hinterhand) passes and defends last against Mittelhand's
+/// Grand; MH's C9 is ahead of VH's C7, CT/CA overtake, C8 does not, Easy
+/// takes CT. Seed 19 later reaches an unsupported Grand decision. Seed 2,
+/// first game: the human (Vorhand) declares Grand at most 30 after a pickup
+/// and plays last against HH's HK: only HA overtakes HQ. Hand-derived.
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn guided_grand_win_last_widgets_both_roles_any_card_actual_trick_and_fallback_in_de_en() {
+    use skat_app::{Action, Card, GameType, Rank, Seat, Suit};
+    let play = |c: Card| Action::Play(c);
+    for language in Language::ALL {
+        let i = I18n::new(language);
+        // Defender: wrong/retry, correct attempt with the non-Easy winner CA,
+        // then the losing alternative C8 and the actual completed trick.
+        let mut h = grand_app(19);
+        enter_grand(&mut h, language, false, true);
+        let before = h.state().session().view();
+        let history_before = h.state().learning_history().clone();
+        let (c8, ct, ca) = (
+            Card::new(Suit::Kreuz, Rank::Acht),
+            Card::new(Suit::Kreuz, Rank::Zehn),
+            Card::new(Suit::Kreuz, Rank::Ass),
+        );
+        assert_eq!(before.contract.unwrap().game, GameType::Grand);
+        assert_ne!(before.declarer, Some(skat_app::PlayerId::HUMAN));
+        assert_eq!(before.players[0].seat, Seat::Hinterhand);
+        assert_eq!(before.legal_actions, vec![play(c8), play(ct), play(ca)]);
+        let consider = |c| i.tf("guided-consider", &[("card", card_name(&i, c).into())]);
+        let rule_card = |c| i.tf("guided-rule-card", &[("card", card_name(&i, c).into())]);
+        assert!(h.query_by_label(&consider(ct)).is_none());
+        assert!(h.query_by_label(&rule_card(ct)).is_none());
+        assert!(h.query_by_label(&i.t("guided-memory")).is_none());
+        click(&mut h, &seat_name(&i, Seat::Hinterhand));
+        assert!(h.query_by_label(&i.t("guided-wrong")).is_some());
+        click(&mut h, &i.t("guided-retry"));
+        click(&mut h, &seat_name(&i, Seat::Mittelhand));
+        assert_eq!(
+            h.state().session().guided().unwrap().step,
+            GuidedStep::Check
+        );
+        click(&mut h, &i.t("guided-none"));
+        assert!(h.query_by_label(&i.t("guided-win")).is_some());
+        assert!(h.query_by_label(&rule_card(ct)).is_none());
+        click(&mut h, &consider(c8));
+        assert!(h.query_by_label(&i.t("guided-wrong")).is_some());
+        click(&mut h, &i.t("guided-retry"));
+        click(&mut h, &consider(ca));
+        let g = h.state().session().guided().unwrap();
+        assert_eq!(g.step, GuidedStep::Act);
+        assert_eq!(g.rule.unwrap().card, ct);
+        assert!(h.query_by_label(&rule_card(ct)).is_some());
+        assert!(h.query_by_label(&i.t("guided-rule-win")).is_some());
+        let cards = format!("{}, {}", card_name(&i, ct), card_name(&i, ca));
+        assert!(
+            h.query_by_label(&i.tf("guided-candidates", &[("cards", cards.into())]))
+                .is_some()
+        );
+        click(&mut h, &i.t("guided-memory"));
+        let m = h.state().session().guided().unwrap().memory.unwrap();
+        assert_eq!(m.skat, None);
+        assert!(m.trumpf.is_some());
+        click(&mut h, &i.t("guided-memory-hide"));
+        assert_eq!(
+            h.state().session().view().legal_actions,
+            before.legal_actions
+        );
+        click(&mut h, &card_name(&i, c8));
+        assert_eq!(
+            h.state().session().guided().unwrap().step,
+            GuidedStep::Observe
+        );
+        click(&mut h, &i.t("guided-void-yes"));
+        assert!(h.query_by_label(&i.t("guided-wrong")).is_some());
+        click(&mut h, &i.t("guided-retry"));
+        click(&mut h, &i.t("guided-void-no"));
+        let o = h.state().session().guided().unwrap().observation.unwrap();
+        assert!(!o.proves_void);
+        assert_eq!(o.winner, Some(Seat::Mittelhand));
+        assert!(matches!(
+            o.source,
+            skat_app::coach_model::Source::Trick { index: 0, seat: Seat::Hinterhand, card, .. } if card == c8
+        ));
+        assert!(h.query_by_label(&i.t("guided-only-card")).is_some());
+        let winner = i.tf(
+            "guided-winner",
+            &[("seat", seat_name(&i, Seat::Mittelhand).into())],
+        );
+        assert!(h.query_by_label(&winner).is_some());
+        assert_eq!(h.state().learning_history(), &history_before);
+        click(&mut h, &i.t("guided-return"));
+        assert!(h.state().session().guided().is_none());
+
+        // Same game, a later Grand decision outside WinLast: honest fallback.
+        enter_grand(&mut h, language, false, false);
+        assert!(h.query_by_label(&i.t("guided-unsupported")).is_some());
+        assert!(h.state().session().guided().unwrap().rule.is_none());
+        click(&mut h, &i.t("guided-return"));
+
+        // Declarer: "I don't know" reveals Easy's HA; the learner plays HA.
+        let mut h = grand_app(2);
+        enter_grand(&mut h, language, true, true);
+        let before = h.state().session().view();
+        let (hq, ha) = (
+            Card::new(Suit::Herz, Rank::Dame),
+            Card::new(Suit::Herz, Rank::Ass),
+        );
+        assert_eq!(before.declarer, Some(skat_app::PlayerId::HUMAN));
+        assert_eq!(before.players[0].seat, Seat::Vorhand);
+        assert_eq!(before.legal_actions, vec![play(hq), play(ha)]);
+        click(&mut h, &i.t("guided-unknown"));
+        let rule = h.state().session().guided().unwrap().rule.unwrap();
+        assert_eq!((rule.card, rule.candidates), (ha, vec![ha]));
+        assert!(h.query_by_label(&rule_card(ha)).is_some());
+        click(&mut h, &card_name(&i, ha));
+        assert_eq!(
+            h.state().session().guided().unwrap().step,
+            GuidedStep::Observe
+        );
+        click(&mut h, &i.t("guided-reveal"));
+        let o = h.state().session().guided().unwrap().observation.unwrap();
+        assert_eq!(o.winner, Some(Seat::Vorhand));
+        let winner = i.tf(
+            "guided-winner",
+            &[("seat", seat_name(&i, Seat::Vorhand).into())],
+        );
+        assert!(h.query_by_label(&winner).is_some());
+        click(&mut h, &i.t("guided-return"));
+        assert!(h.state().session().guided().is_none());
+    }
+}

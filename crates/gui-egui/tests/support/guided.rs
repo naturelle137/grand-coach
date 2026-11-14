@@ -331,3 +331,82 @@ pub fn seat_name(i: &I18n, seat: skat_app::Seat) -> String {
         skat_app::Seat::Hinterhand => "seat-hinterhand",
     })
 }
+
+/// Ordinary app (Kontra/Re off), real widgets only, up to the human's first
+/// card decision in a non-Ouvert Grand whose dialogue is `supported`
+/// (orientation) or the honest fallback; enters it by its real button.
+///
+/// As a defender (`declare`: false) the human passes every bid. As declarer
+/// it holds or bids up to 30, picks up, puts away its first two cards and
+/// announces Grand. Every other move is the first legal action; other
+/// decisions' dialogues are entered and returned unchanged.
+#[allow(dead_code)]
+pub fn enter_grand(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    declare: bool,
+    supported: bool,
+) {
+    use skat_app::GameType;
+    let i = I18n::new(language);
+    h.state_mut().set_language(language);
+    h.state_mut().opponent_delay = 0.0;
+    h.state_mut().set_coach_budget(skat_app::Budget {
+        samples: 1,
+        nodes_per_task: 1,
+    });
+    for _ in 0..600 {
+        settle(h);
+        let v = h.state().session().view();
+        if v.phase == Phase::Spiel && !v.legal_actions.is_empty() {
+            click(h, &i.t("guided-start"));
+            let g = h.state().session().guided().expect("explicit dialogue");
+            let grand = v
+                .contract
+                .is_some_and(|c| c.game == GameType::Grand && !c.ouvert);
+            let wanted = if supported {
+                GuidedStep::Orient
+            } else {
+                GuidedStep::Unsupported
+            };
+            if grand && g.step == wanted && g.kontra.is_none() {
+                return;
+            }
+            click(h, &i.t("guided-return"));
+        }
+        assert!(!v.series_finished, "guided walkthrough needs free play");
+        if declare && v.phase == Phase::Druecken && !v.legal_actions.is_empty() {
+            for &card in &v.hand[..2] {
+                click(h, &card_name(&i, card));
+            }
+            click(h, &i.t("button-discard"));
+            continue;
+        }
+        if declare && v.phase == Phase::Ansage && !v.legal_actions.is_empty() {
+            h.get_by_role_and_label(Role::RadioButton, &game_name(&i, GameType::Grand))
+                .click();
+            h.run_steps(4);
+            click(h, &i.t("button-announce"));
+            continue;
+        }
+        let bid = v.legal_actions.iter().find_map(|a| match a {
+            Action::Bid(value) if declare && *value <= 30 => Some(*value),
+            _ => None,
+        });
+        let label = if v.can_next_game {
+            i.t("button-next-game")
+        } else if declare && v.legal_actions.contains(&Action::Hold) && v.bid <= 30 {
+            i.tf("button-hold", &[("value", v.bid.into())])
+        } else if let Some(value) = bid {
+            i.tf("button-bid", &[("value", value.into())])
+        } else if declare && v.legal_actions.contains(&Action::TakeSkat) {
+            i.t("button-take-skat")
+        } else if v.legal_actions.contains(&Action::Pass) {
+            i.t("button-pass")
+        } else {
+            coach::action(&i, &v, v.legal_actions[0])
+        };
+        click(h, &label);
+    }
+    panic!("seeded ordinary app did not reach a human Grand card decision");
+}
