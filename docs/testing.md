@@ -445,6 +445,14 @@ bilingual `guided` Kontra, Re and Grand/Null widget tests drive the same seeds
 through real widgets. No automatic opponent says Kontra in a non-Ouvert Grand
 or Null, so the human's Grand/Null Re reply is covered by core-replayed app
 fixtures only, not by an ordinary-app walkthrough or screenshot.
+Grand card play (#157, Kontra/Re off): `guided-grand-orient`,
+`guided-grand-act` (correct non-Easy winner, worked answer CT) and
+`guided-grand-observed` (the losing C8 and the actual trick) use seed 19,
+second game, with the human defending last; each has an `-en` variant, plus
+`guided-grand-act-narrow` and the honest fallback `guided-grand-fallback(-en)`
+at a later decision of that game. `guided-grand-declarer-act(-en)` (seed 2,
+first game) reveals Easy's HA for the human declarer. The ignored bilingual
+`guided` Grand widget test drives the same paths.
 These are technical checks, not learner UAT.
 
 ## Platform verification (M2)

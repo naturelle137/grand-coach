@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Bounded guided Farbspiel, Reizen, Skataufnahme, Drücken, Ansage and
-//! non-Ouvert Kontra/Re lessons. Exact rule provenance, never search ranking.
+//! Bounded guided Farbspiel and non-Ouvert Grand card play, Reizen,
+//! Skataufnahme, Drücken, Ansage and non-Ouvert Kontra/Re lessons. Exact
+//! rule provenance, never search ranking.
 
 use crate::Source;
 pub use skat_analysis::baseline::{Branch, CardRule, KontraCall, KontraRule};
@@ -86,10 +87,13 @@ pub struct Lesson {
     pub seat: Seat,
 }
 
-/// Select only two tested branches, with real alternatives and candidates.
+/// Select only tested branches, with real alternatives and candidates:
+/// Farbspiel UnderPartner/WinLast and non-Ouvert Grand WinLast.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
-    let game = view.contract?.game;
-    if view.phase != Phase::Spiel || !matches!(game, GameType::Farbe(_)) {
+    let contract = view.contract?;
+    let game = contract.game;
+    let grand = game == GameType::Grand && !contract.ouvert;
+    if view.phase != Phase::Spiel || !(matches!(game, GameType::Farbe(_)) || grand) {
         return None;
     }
     let rule = baseline::rule(view)?;
@@ -97,6 +101,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         || rule.candidates.is_empty()
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
         || !matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
+        || (grand && rule.branch != Branch::WinLast)
     {
         return None;
     }
@@ -478,7 +483,7 @@ pub struct Memory {
 pub struct Observation {
     /// Public card source including trick, seat, led card and played card.
     pub source: Source,
-    /// Led follow class; a Bube belongs to Trumpf in Farbspiel.
+    /// Led follow class; a Bube belongs to Trumpf in Farbspiel and Grand.
     pub follow: Follow,
     /// Whether the card proves a void in that class at this play.
     pub proves_void: bool,

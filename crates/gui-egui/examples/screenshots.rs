@@ -92,6 +92,21 @@ const SEEDS: &[(&str, u64)] = &[
     // Seed 848, second game: the Null ouvert round falls back honestly.
     ("guided-kontra-fallback", 848),
     ("guided-kontra-fallback-en", 848),
+    // Seed 19, second game (#157): the human defends last against
+    // Mittelhand's Grand; CT/CA overtake, C8 does not. A later Grand
+    // decision outside WinLast falls back honestly.
+    ("guided-grand-orient", 19),
+    ("guided-grand-act", 19),
+    ("guided-grand-observed", 19),
+    ("guided-grand-orient-en", 19),
+    ("guided-grand-act-en", 19),
+    ("guided-grand-observed-en", 19),
+    ("guided-grand-act-narrow", 19),
+    ("guided-grand-fallback", 19),
+    ("guided-grand-fallback-en", 19),
+    // Seed 2, first game: the human declares Grand and plays last.
+    ("guided-grand-declarer-act", 2),
+    ("guided-grand-declarer-act-en", 2),
 ];
 
 /// Scenarios that switch Kontra/Re on (other guided scenarios keep it off).
@@ -233,6 +248,17 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("guided-kontra-null-act-narrow", guided_kontra_null_act),
     ("guided-kontra-fallback", guided_kontra_fallback),
     ("guided-kontra-fallback-en", guided_kontra_fallback_en),
+    ("guided-grand-orient", guided_grand_orient),
+    ("guided-grand-act", guided_grand_act),
+    ("guided-grand-observed", guided_grand_observed),
+    ("guided-grand-orient-en", guided_grand_orient_en),
+    ("guided-grand-act-en", guided_grand_act_en),
+    ("guided-grand-observed-en", guided_grand_observed_en),
+    ("guided-grand-act-narrow", guided_grand_act),
+    ("guided-grand-fallback", guided_grand_fallback),
+    ("guided-grand-fallback-en", guided_grand_fallback_en),
+    ("guided-grand-declarer-act", guided_grand_declarer_act),
+    ("guided-grand-declarer-act-en", guided_grand_declarer_act_en),
     ("launch", launch),
     ("recording", recording),
     ("recording-final", recording_final),
@@ -2909,4 +2935,61 @@ fn coach_jump_context(h: &mut Harness<'_, GrandCoachApp>) {
 fn coach_jump_context_en(h: &mut Harness<'_, GrandCoachApp>) {
     qa146::jump(h);
     qa146::assert_copy(h, Language::En);
+}
+
+/// Grand WinLast dialogue as a defender (#157, seed 19) in `language` after
+/// `steps`: 1 orientation, 2 correct seat, nobody and the non-Easy winner
+/// CA (worked answer CT), 3 the losing C8 played and the actual trick.
+fn guided_grand(h: &mut Harness<'_, GrandCoachApp>, language: Language, steps: u8) {
+    use skat_app::{Seat, Suit};
+    let i = I18n::new(language);
+    guided_support::enter_grand(h, language, false, true);
+    if steps == 1 {
+        return;
+    }
+    guided_support::click(h, &guided_support::seat_name(&i, Seat::Mittelhand));
+    guided_support::click(h, &i.t("guided-none"));
+    let card = |rank| guided_support::card_name(&i, Card::new(Suit::Kreuz, rank));
+    guided_support::click(
+        h,
+        &i.tf("guided-consider", &[("card", card(Rank::Ass).into())]),
+    );
+    if steps == 2 {
+        return;
+    }
+    guided_support::click(h, &card(Rank::Acht));
+    guided_support::click(h, &i.t("guided-void-no"));
+}
+fn guided_grand_orient(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand(h, Language::De, 1);
+}
+fn guided_grand_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand(h, Language::De, 2);
+}
+fn guided_grand_observed(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand(h, Language::De, 3);
+}
+fn guided_grand_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand(h, Language::En, 1);
+}
+fn guided_grand_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand(h, Language::En, 2);
+}
+fn guided_grand_observed_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand(h, Language::En, 3);
+}
+fn guided_grand_fallback(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::enter_grand(h, Language::De, false, false);
+}
+fn guided_grand_fallback_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::enter_grand(h, Language::En, false, false);
+}
+/// Declarer (seed 2): "I don't know" reveals Easy's HA among free HQ/HA.
+fn guided_grand_declarer_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::enter_grand(h, Language::De, true, true);
+    guided_support::click(h, &I18n::new(Language::De).t("guided-unknown"));
+}
+fn guided_grand_declarer_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::enter_grand(h, Language::En, true, true);
+    guided_support::click(h, &I18n::new(Language::En).t("guided-unknown"));
 }

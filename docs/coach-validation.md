@@ -46,7 +46,9 @@ search must not change the rule. Kontra/Re lessons additionally distinguish
 the core's factual eligibility, Easy's heuristic condition and the unknown
 outcome, observe the actual next public transition and name Ouvert
 exclusions; Grand states the four-Buben limit and Null only the rule's
-inapplicability, never a Null strength. Actual de/en widget and inspected PNG evidence
+inapplicability, never a Null strength. Grand `WinLast` card play names the
+Buben as the only Trumpf, proves a defender position with the declarer ahead
+and excludes partner-ahead, Null and Ouvert. Actual de/en widget and inspected PNG evidence
 is technical validation, never learner UAT, retention or transfer evidence.
 
 ## A. Evidence checklist per lesson

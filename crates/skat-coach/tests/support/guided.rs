@@ -68,10 +68,12 @@ pub fn swap(deal: Deal, a: Card, b: Card) -> Deal {
 }
 
 /// HH declares Herz Hand; all core actions are checked, never fake PlayerViews.
+#[allow(dead_code)]
 pub fn position(deal: Deal, declarer: bool) -> Game {
     position_led(deal, declarer, if declarer { "C9" } else { "CK" })
 }
 
+#[allow(dead_code)]
 pub fn position_led(deal: Deal, declarer: bool, lead: &str) -> Game {
     let mut g = Game::from_deal(deal, RuleConfig::default());
     while g.phase() != Phase::Spiel {
@@ -89,4 +91,61 @@ pub fn position_led(deal: Deal, declarer: bool, lead: &str) -> Game {
         g.apply(Action::Play(card("C8"))).unwrap();
     }
     g
+}
+
+/// Core-accepted actions to the play: `declarer` bids 18 (or holds), the
+/// others pass, Hand, `game` announced, then `plays` in seat order.
+#[allow(dead_code)]
+pub fn contract_actions(
+    deal: Deal,
+    declarer: Seat,
+    game: Announcement,
+    plays: &[&str],
+) -> Vec<Action> {
+    let mut g = Game::from_deal(deal, RuleConfig::default());
+    let mut actions = Vec::new();
+    while g.phase() != Phase::Spiel {
+        let a = match g.phase() {
+            Phase::Reizen if g.current_seat() == Some(declarer) => {
+                if g.legal_actions().contains(&Action::Bid(18)) {
+                    Action::Bid(18)
+                } else {
+                    Action::Hold
+                }
+            }
+            Phase::Reizen => Action::Pass,
+            Phase::SkatAufnahme => Action::Hand,
+            Phase::Ansage => Action::Announce(game),
+            _ => panic!("unexpected phase"),
+        };
+        g.apply(a).unwrap();
+        actions.push(a);
+    }
+    for p in plays {
+        let a = Action::Play(card(p));
+        g.apply(a).unwrap();
+        actions.push(a);
+    }
+    actions
+}
+
+/// Replays [`contract_actions`] through the core.
+#[allow(dead_code)]
+pub fn contract_position(deal: Deal, declarer: Seat, game: Announcement, plays: &[&str]) -> Game {
+    let mut g = Game::from_deal(deal, RuleConfig::default());
+    for a in contract_actions(deal, declarer, game, plays) {
+        g.apply(a).unwrap();
+    }
+    g
+}
+
+/// Announced Hand game, optionally Ouvert (which implies Schneider/Schwarz).
+#[allow(dead_code)]
+pub fn hand_game(game: GameType, ouvert: bool) -> Announcement {
+    Announcement {
+        game,
+        schneider: ouvert,
+        schwarz: ouvert,
+        ouvert,
+    }
 }
