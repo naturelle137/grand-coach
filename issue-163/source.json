@@ -1,0 +1,160 @@
+{
+  "count": 20,
+  "source": "ordinary new() + real widgets, seed15/fixed3/twoEasy",
+  "stages": [
+    "orientation",
+    "candidate",
+    "rule",
+    "completed observation",
+    "return"
+  ],
+  "languages": [
+    "de",
+    "en"
+  ],
+  "findings": "All new dialogue text, eight candidate buttons and Return readable in both sizes. Existing score-sheet clipping after Return at minimum width is outside this slice.",
+  "files": [
+    {
+      "file": "guided-grand-feed-candidate-de-narrow.png",
+      "sha256": "f403adee6ee9526fe174ac1fdd12698f4931d67fd341f5852c5a2dce7c7f1ce5",
+      "width": 960,
+      "height": 640,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-candidate-de.png",
+      "sha256": "70318fc68790f0f28e62a17de3992a296bc488d143db37cef4039514cc83afc5",
+      "width": 1440,
+      "height": 1000,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-candidate-en-narrow.png",
+      "sha256": "2370e297287235cb93a7bc5f4b16ea1c116d57d617f56d159e2880d797f117a1",
+      "width": 960,
+      "height": 640,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-candidate-en.png",
+      "sha256": "9893d20f7978c622d2302fe593352446e992c3ce492b701a279d3ae979ad3017",
+      "width": 1440,
+      "height": 1000,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-observed-de-narrow.png",
+      "sha256": "fa734a8d84214f778929b1defa52336052bd5a0e05fb50c7b18e9d544e316223",
+      "width": 960,
+      "height": 640,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-observed-de.png",
+      "sha256": "f87402efa71c66823a51edf76d24fdc97afcc4898d174896b24c6164d19647dc",
+      "width": 1440,
+      "height": 1000,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-observed-en-narrow.png",
+      "sha256": "3aae3ca95615967e2172257cee723e89660e1c044ddc548b9af6eda2f0ce2852",
+      "width": 960,
+      "height": 640,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-observed-en.png",
+      "sha256": "021c027048329a202ea9566c503a2bf297d78974d429a4fea71020db3d3728f2",
+      "width": 1440,
+      "height": 1000,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-orient-de-narrow.png",
+      "sha256": "3f3dba0a58aa9e9d6f7021cf883bd0528a84ca353fdad17f6299767a8a995b56",
+      "width": 960,
+      "height": 640,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-orient-de.png",
+      "sha256": "a89a5dd01844031ac5915f8f85feef27af88d8754cc706269f25b999ff8cc84e",
+      "width": 1440,
+      "height": 1000,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-orient-en-narrow.png",
+      "sha256": "0c4f5bbe3f38a2f8983c47d666a36a536ae8586b3033d7b1f799b2f25d72ff0f",
+      "width": 960,
+      "height": 640,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-orient-en.png",
+      "sha256": "f57e8ea2b25c048422b36a47e466b5e6dfb61977283336a5d8e45ca77a728f65",
+      "width": 1440,
+      "height": 1000,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-return-de-narrow.png",
+      "sha256": "e72796f824c7f71e759b977e8ddb7422b034f3134f76599bfc43529ddd62dd3d",
+      "width": 960,
+      "height": 640,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-return-de.png",
+      "sha256": "433933c0463399ab780d68cacf80fe38fe3ba64620f065c33f82de82e388eff1",
+      "width": 1440,
+      "height": 1000,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-return-en-narrow.png",
+      "sha256": "135653e558f1f5d648a6831201005d3dd72151c6f48e6b6a5220020f8b576dfd",
+      "width": 960,
+      "height": 640,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-return-en.png",
+      "sha256": "9ff09eab9e49d9164f37c290b32d50026f5ef0aff1f27e1de6a08eeb6f064b1a",
+      "width": 1440,
+      "height": 1000,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-rule-de-narrow.png",
+      "sha256": "d2e106153fa864d7412be177f935fbbcd7521e3af06cb805ba6ba78f07c0c841",
+      "width": 960,
+      "height": 640,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-rule-de.png",
+      "sha256": "49f359230bf91409a3307dbd74d0c47dff638094ab56007e1f351a410f5abfdb",
+      "width": 1440,
+      "height": 1000,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-rule-en-narrow.png",
+      "sha256": "4c335a3d40e72ebf3ba944cabcbfd7bcc9fb0f5496ed4a917d860d9f17204804",
+      "width": 960,
+      "height": 640,
+      "personally_inspected": true
+    },
+    {
+      "file": "guided-grand-feed-rule-en.png",
+      "sha256": "ff7bf582ea396e187a3131cbdd39628bef7b9c7758cb7f38f96bfd09c51fa08b",
+      "width": 1440,
+      "height": 1000,
+      "personally_inspected": true
+    }
+  ],
+  "source_sha": "ee9d7d23fb5044bc757a47aa65f394d1e7d8e771",
+  "command": "cargo run --locked -p gui-egui --example screenshots -- OUT_DIR guided-grand-feed-{orient,candidate,rule,observed,return}-{de,en} [and -narrow variants]"
+}
