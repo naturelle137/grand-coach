@@ -1,0 +1,72 @@
+{
+  "source_sha": "f8e81a457ee54af3fa580265a64bb072721df399",
+  "tree_sha": "725cf35c15c507d1cbcd438d9e6d2617cabd05f0",
+  "command": "cargo run --locked -p gui-egui --example screenshots -- OUT_DIR guided-grand-early-orient guided-grand-early-act guided-grand-early-observed guided-grand-early-orient-en guided-grand-early-act-en guided-grand-early-observed-en guided-grand-early-act-narrow guided-grand-early-observed-narrow guided-grand-early-act-en-narrow guided-grand-early-observed-en-narrow",
+  "route": "ordinary seed0/game3/trick2, MH declarer only; no injected Session/Game/PlayerView/recording",
+  "actual": "non-Easy S8; HH C8; VH CT wins",
+  "coverage": "de/en1440x1000 orientation/action/observation, de/en960x640 action/observation; defender and changed conditions are fixture-only",
+  "pngs": [
+    {
+      "file": "guided-grand-early-act-en-narrow.png",
+      "sha256": "780e22d92f0512631f7d11702ce13f663729cb90ad3a318a3d79d0e011660fab",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "file": "guided-grand-early-act-en.png",
+      "sha256": "4ea938d70e08b19d2f9394a9903abf1df0c9c4fc1bcab132f8c1f94bba96ddb6",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "guided-grand-early-act-narrow.png",
+      "sha256": "28b8909f2b2a73e48b0ac7010668041a27c969746c12c15235aea574d7b2e82a",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "file": "guided-grand-early-act.png",
+      "sha256": "dcacc97ea1ef3d626ff18fe67140bc34eb50bce2cc9b8b2c45f6cf4977986ae9",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "guided-grand-early-observed-en-narrow.png",
+      "sha256": "41447151ee42762051138b2774a1748cc01b3b33dd6bf10328d048a88e29bc6c",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "file": "guided-grand-early-observed-en.png",
+      "sha256": "6a052dd71a58fd7a5b577b6cfc4336deb87d10adba02a8afea7b808bdad4a55d",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "guided-grand-early-observed-narrow.png",
+      "sha256": "56a3a5fea74bfe78126d6b0482c91e33d275bfd5a536c8909e2d3af637a19acc",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "file": "guided-grand-early-observed.png",
+      "sha256": "bd6145ac1c6263d53fbe9042625844b6e10a273ff7ae1df5fb00864ebe41113e",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "guided-grand-early-orient-en.png",
+      "sha256": "ca6c053a1ebaf8b1353a35666f9d62c46ae44bcf8778167528bf052d2f0ac8fa",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "guided-grand-early-orient.png",
+      "sha256": "35e25b9cc2e2fd6b83b84e3656be5b8bb297016e72c15367e920651133af2814",
+      "width": 1440,
+      "height": 1000
+    }
+  ],
+  "all_expected_pngs": true,
+  "reproduced_identical_pngs": 10
+}
