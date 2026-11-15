@@ -179,6 +179,38 @@ const OPEN_DISPLAY: &[&str] = &[
 ];
 
 const SCENARIOS: &[(&str, Scenario)] = &[
+    ("guided-grand-feed-orient-de", guided_feed_orient_de),
+    ("guided-grand-feed-orient-de-narrow", guided_feed_orient_de),
+    ("guided-grand-feed-candidate-de", guided_feed_candidate_de),
+    (
+        "guided-grand-feed-candidate-de-narrow",
+        guided_feed_candidate_de,
+    ),
+    ("guided-grand-feed-rule-de", guided_feed_rule_de),
+    ("guided-grand-feed-rule-de-narrow", guided_feed_rule_de),
+    ("guided-grand-feed-observed-de", guided_feed_observed_de),
+    (
+        "guided-grand-feed-observed-de-narrow",
+        guided_feed_observed_de,
+    ),
+    ("guided-grand-feed-return-de", guided_feed_return_de),
+    ("guided-grand-feed-return-de-narrow", guided_feed_return_de),
+    ("guided-grand-feed-orient-en", guided_feed_orient_en),
+    ("guided-grand-feed-orient-en-narrow", guided_feed_orient_en),
+    ("guided-grand-feed-candidate-en", guided_feed_candidate_en),
+    (
+        "guided-grand-feed-candidate-en-narrow",
+        guided_feed_candidate_en,
+    ),
+    ("guided-grand-feed-rule-en", guided_feed_rule_en),
+    ("guided-grand-feed-rule-en-narrow", guided_feed_rule_en),
+    ("guided-grand-feed-observed-en", guided_feed_observed_en),
+    (
+        "guided-grand-feed-observed-en-narrow",
+        guided_feed_observed_en,
+    ),
+    ("guided-grand-feed-return-en", guided_feed_return_en),
+    ("guided-grand-feed-return-en-narrow", guided_feed_return_en),
     ("coach-jump-context", coach_jump_context),
     ("coach-jump-context-en", coach_jump_context_en),
     ("guided-orient", guided_orient),
@@ -1603,37 +1635,42 @@ fn main() {
             TableDisplay::Closed
         };
         let launch = *name == "launch" || name.starts_with("open-display-new-series");
-        let mut harness = if name.starts_with("guided-grand-early-") {
-            Harness::builder()
-                .with_size([1440.0, 1000.0])
-                .wgpu()
-                .build_eframe(|cc| {
-                    GrandCoachApp::new(
-                        &cc.egui_ctx,
-                        SessionConfig {
-                            seed: 0,
-                            series: SeriesLength::Fixed(3),
-                            kontra_re: false,
-                            opponents: Opponents::Levels([Level::Easy; 2]),
-                            display: TableDisplay::Closed,
-                        },
-                    )
-                })
-        } else if name.starts_with("coach-jump-context") {
-            Harness::builder()
-                .with_size([1440.0, 1000.0])
-                .wgpu()
-                .build_eframe(|cc| GrandCoachApp::new(&cc.egui_ctx, qa146::config()))
-        } else {
-            harness(
-                launch,
-                seed,
-                opponents,
-                display,
-                name.starts_with("guided-"),
-                kontra_scenario(name),
-            )
-        };
+        let mut harness =
+            if name.starts_with("guided-grand-early-") || name.starts_with("guided-grand-feed-") {
+                Harness::builder()
+                    .with_size([1440.0, 1000.0])
+                    .wgpu()
+                    .build_eframe(|cc| {
+                        GrandCoachApp::new(
+                            &cc.egui_ctx,
+                            SessionConfig {
+                                seed: if name.starts_with("guided-grand-feed-") {
+                                    15
+                                } else {
+                                    0
+                                },
+                                series: SeriesLength::Fixed(3),
+                                kontra_re: false,
+                                opponents: Opponents::Levels([Level::Easy; 2]),
+                                display: TableDisplay::Closed,
+                            },
+                        )
+                    })
+            } else if name.starts_with("coach-jump-context") {
+                Harness::builder()
+                    .with_size([1440.0, 1000.0])
+                    .wgpu()
+                    .build_eframe(|cc| GrandCoachApp::new(&cc.egui_ctx, qa146::config()))
+            } else {
+                harness(
+                    launch,
+                    seed,
+                    opponents,
+                    display,
+                    name.starts_with("guided-"),
+                    kontra_scenario(name),
+                )
+            };
         if let Some(size) = table_size(name) {
             harness.set_size(size.into());
             harness.run_steps(2);
@@ -3157,4 +3194,35 @@ fn guided_grand_early_act_en(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn guided_grand_early_observed_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_grand_early(h, Language::En, 3);
+}
+
+fn guided_feed_orient_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::feed_flow(h, Language::De, 0, 8);
+}
+fn guided_feed_candidate_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::feed_flow(h, Language::De, 1, 8);
+}
+fn guided_feed_rule_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::feed_flow(h, Language::De, 2, 8);
+}
+fn guided_feed_observed_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::feed_flow(h, Language::De, 3, 8);
+}
+fn guided_feed_return_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::feed_flow(h, Language::De, 4, 8);
+}
+fn guided_feed_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::feed_flow(h, Language::En, 0, 8);
+}
+fn guided_feed_candidate_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::feed_flow(h, Language::En, 1, 8);
+}
+fn guided_feed_rule_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::feed_flow(h, Language::En, 2, 8);
+}
+fn guided_feed_observed_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::feed_flow(h, Language::En, 3, 8);
+}
+fn guided_feed_return_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::feed_flow(h, Language::En, 4, 8);
 }

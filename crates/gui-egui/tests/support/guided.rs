@@ -533,3 +533,124 @@ pub fn enter_early(h: &mut Harness<'_, GrandCoachApp>, language: Language) {
         GuidedStep::Orient
     );
 }
+
+/// Frozen ordinary #163 route: seed15/fixed3/twoEasy, closed, Kontra/Re off.
+/// Human initial VH defends LAST to trick3. No injected session or view.
+#[allow(dead_code)]
+pub fn enter_feed(h: &mut Harness<'_, GrandCoachApp>, language: Language) {
+    use skat_app::*;
+    h.state_mut().set_language(language);
+    h.state_mut().opponent_delay = 0.0;
+    let i = I18n::new(language);
+    assert_eq!(
+        h.state().session().coach_settings(),
+        CoachSettings::default()
+    );
+    for action in [
+        Action::Pass,
+        Action::Play(Card::from_index(2).unwrap()),
+        Action::Play(Card::from_index(5).unwrap()),
+    ] {
+        settle(h);
+        assert!(h.state().session().view().legal_actions.contains(&action));
+        click(
+            h,
+            &match action {
+                Action::Play(c) => card_name(&i, c),
+                _ => i.t("button-pass"),
+            },
+        );
+    }
+    settle(h);
+    let v = h.state().session().view();
+    assert_eq!((v.game_number, v.tricks_played), (1, 2));
+    assert_eq!(
+        v.players[0].seat,
+        Seat::Vorhand,
+        "initial seat, not trick order"
+    );
+    assert_eq!(v.declarer, Some(PlayerId(1)));
+    assert_eq!(v.contract.unwrap().game, GameType::Grand);
+    assert!(!v.contract.unwrap().ouvert);
+    assert_eq!(
+        v.current_trick
+            .iter()
+            .map(|p| (p.player.0, p.card.index()))
+            .collect::<Vec<_>>(),
+        vec![(1, 20), (2, 12)]
+    );
+    assert_eq!(
+        v.legal_actions,
+        [8, 10, 11, 13, 14, 17, 18, 25].map(|n| Action::Play(Card::from_index(n).unwrap()))
+    );
+    click(h, &i.t("guided-start"));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Orient
+    );
+}
+
+/// Exercise each ordinary #163 stage through widgets; shared by tests/screenshots.
+/// 0 orientation, 1 candidate, 2 rule, 3 completed observation, 4 return.
+#[allow(dead_code)]
+pub fn feed_flow(h: &mut Harness<'_, GrandCoachApp>, language: Language, stage: u8, chosen: u8) {
+    use skat_app::*;
+    enter_feed(h, language);
+    let i = I18n::new(language);
+    if stage == 0 {
+        return;
+    }
+    click(h, &seat_name(&i, Seat::Hinterhand));
+    click(h, &i.t("guided-none"));
+    assert_eq!(
+        h.state().session().guided().unwrap().task,
+        Some(GuidedBranch::FeedPartner)
+    );
+    if stage == 1 {
+        return;
+    }
+    let before = h.state().session().view();
+    click(
+        h,
+        &i.tf(
+            "guided-consider",
+            &[(
+                "card",
+                card_name(&i, Card::from_index(chosen).unwrap()).into(),
+            )],
+        ),
+    );
+    let g = h.state().session().guided().unwrap();
+    assert_eq!(g.step, GuidedStep::Act);
+    assert_eq!(g.rule.unwrap().card.index(), 11);
+    assert_eq!(h.state().session().view().hand, before.hand);
+    assert_eq!(
+        h.state().session().view().legal_actions,
+        before.legal_actions
+    );
+    assert_eq!(
+        h.state().session().view().current_trick,
+        before.current_trick
+    );
+    if stage == 2 {
+        return;
+    }
+    click(h, &card_name(&i, Card::from_index(chosen).unwrap()));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Observe
+    );
+    click(h, &i.t("guided-void-yes"));
+    let g = h.state().session().guided().unwrap();
+    assert_eq!(g.step, GuidedStep::Complete);
+    assert_eq!(g.observation.unwrap().winner, Some(Seat::Hinterhand));
+    assert_eq!(
+        h.state().session().view().last_trick.unwrap().winner,
+        PlayerId(2)
+    );
+    if stage == 3 {
+        return;
+    }
+    click(h, &i.t("guided-return"));
+    assert!(h.state().session().guided().is_none());
+}

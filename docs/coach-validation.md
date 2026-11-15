@@ -261,3 +261,19 @@ only, with wrong/retry, attempt/reveal, consent memory, non-Easy play and
 actual observation/return. Renders cover de/en orientation/action/observation
 and narrow action/observation. Defender roles and changed conditions are
 fixture-only. No new learner observations, transfer or #131 completion follow.
+
+## Grand last-seat FeedPartner technical evidence (#163)
+
+Use the [frozen fixture and normal route contract](guided-dialogue.md#grand-last-seat-feedpartner-163).
+Verify all legal cards remain candidates, maximum nontrump/Augen with last
+exact tie and no power comparison, corrected Kreuz/Bube and mandatory Ouvert
+flags, every actual individual completed winner (including an overtake),
+hidden permutation and early/mixed/single/other-contract exclusions.
+`guided_feed_partner` replays independent complete deals; the Session tests
+cover every ordinary completion, fixture-only overtakes and stale IDs.
+`grand_feed_ordinary_bilingual_widgets_chosen_alternative_retry_and_free_return`
+uses ordinary `new()` and real widgets, initial VH but last to trick3, with
+Pik10 and Pik7, no premature play, source/retry and immediate return. Inspect
+all twenty new desktop/narrow German/English screenshot scenarios. Required
+CI, review, merged-main and both-OS archive acceptance stay pending until
+performed. None of these automated checks supplies human learning evidence.

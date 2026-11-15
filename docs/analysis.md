@@ -45,7 +45,7 @@ can still be trumped. Unsupported branches are not explained as safe tactics.
 
 The guided exception to D-49 exposes action-bearing rule data only after an
 attempt or deliberate reveal inside that explicitly entered dialogue. Ordinary
-lesson `Evidence` below remains action-free. The two bounded guided families
+lesson `Evidence` below remains action-free. The bounded guided families
 and their core-legal fixtures are specified in [the walkthrough](guided-dialogue.md).
 Exact facts come from own hand, known own Skat, public trick cards, seat order
 and rules; unknown holders, including unknown Skat, stay unknown. Observations
