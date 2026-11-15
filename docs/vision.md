@@ -40,7 +40,9 @@ the long-term measure of success.
 
 The deliberately entered [guided Farbspiel dialogue](coach.md#guided-farbspiel-dialogue-131)
 now lets the learner answer one question at a time, reveal Easy's actual
-conditional rule move and inspect the resulting public play. Free choice of
+conditional rule move and inspect the resulting public play. Non-Ouvert Grand
+now includes early overtaking in Mittelhand: distinguish a side master from
+a winning Bube, then observe whether the remaining player overtakes. Free choice of
 every legal card and an immediate return to play remain available. Early,
 automatic and unaided help conceal the move; figures require a separate
 request and enabled figures. This first bounded slice does not establish

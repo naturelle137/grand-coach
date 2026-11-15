@@ -1,4 +1,4 @@
-# Guided Farbspiel and Grand card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159)
+# Guided Farbspiel and Grand card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159, #161)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -8,7 +8,7 @@ remain unmeasured.
 
 ## Rule and evidence definition
 
-`guided-under-partner@1` and `guided-win-last@1` are bounded heuristic dialogues,
+`UnderPartner`, `WinLast` and Grand `WinEarly` are bounded heuristic dialogues,
 not new solver-approved mechanisms in the six-lesson catalogue. Their source
 is the existing `BaselineOpponent::choose_card` on main
 `ecfb2fe1ff5a50ab2fb5f17a892dd9e5f68c6c80`, now shared in
@@ -29,8 +29,11 @@ separate factual oracles.
   opposing party leads, at least two legal cards and a winning candidate. Easy takes a winner by `(is_trump, power)`,
   first exact tie. Other winning cards still win this trick. No claim about
   their future strategic value or the final game result follows.
-- **Exclusions:** no lead, early winner, partner feeding, arbitrary fallback,
-  single legal action, Grand other than `WinLast`/`UnderPartner`, Ouvert Grand, Null or
+- **WinEarly:** non-Ouvert Grand only (#161, below), opposing party ahead,
+  one remaining player, at least two legal cards and current winners. The
+  selected cheapest winner is Trumpf or a follow-class master.
+- **Exclusions:** no lead, Farbspiel early winner, partner feeding, arbitrary fallback,
+  single legal action, other Grand branches, Ouvert Grand, Null or
   Kontra/Re (Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
   explicitly marked `Fallback` and excluded, rather than explained as staying
@@ -113,7 +116,7 @@ Trumpf: a led Bube must be followed with a Bube, and a Bube never follows its
 printed suit. A partner ahead in last seat selects the earlier `FeedPartner`
 branch, which stays unsupported in Grand (`UnderPartner` before the last seat:
 see #159 below), as do `DrawTrumpf`, `LeadMaster`,
-`WinEarly`, fallback, single legal moves, Ouvert Grand and all Null card play
+Farbspiel `WinEarly`, fallback, single legal moves, Ouvert Grand and all Null card play
 (Farbspiel, including Ouvert, keeps its shipped scope). A core-offered Kontra
 keeps its own dialogue first. In last seat the learner's own card completes
 the trick: the observation uses that card and the actual core `TrickWon`,
@@ -173,7 +176,7 @@ the learner may overtake or trump. Easy, branch order, ties and the frozen
 hashes are untouched. Excluded: the partner's follow-class master or the last
 seat (`FeedPartner`; a side master is no immunity to trumping), no losing card
 (`Fallback`), a single legal card, the declarer role (a Grand declarer never
-enters `UnderPartner`), leads, `WinEarly`, Null, Ouvert Grand, and a
+enters `UnderPartner`), leads, Farbspiel `WinEarly`, Null, Ouvert Grand, and a
 core-offered Kontra, which keeps its own dialogue first. The observation waits
 for the declarer's actual automated card and the actual core `TrickWon`.
 
@@ -213,6 +216,74 @@ widget test enters it by the real button, answers wrong and retries at each
 step, attempts H7 (German) or reveals it (English), opens the memory, plays
 the non-Easy H9 and observes the declarer's actual HQ, which wins. This is
 technical evidence, not learner UAT.
+
+## Grand WinEarly card play (#161)
+
+Non-Ouvert Grand also supports the existing shared `WinEarly` branch in
+Mittelhand: the opposing party leads, one player remains, at least two cards
+are legal and there are current winners. Candidates are **all** current
+winning legal cards. Easy's first minimum `(is_trump, power)` is unchanged.
+Only the selected card must be Trumpf or a master of its follow class. The
+worked answer explains that selected-card condition, never a condition on
+every candidate. A side master can still be trumped; a Bube can be
+overtrumped. In Grand only the four Buben are Trumpf, never following their
+printed suit. Neither the trick nor strategic quality is guaranteed. Every
+legal card, including a loser, stays free.
+
+Orientation asks who currently wins, then who remains. Attempts at any current
+winner, deliberate reveal and “I don't know” use the existing disclosure and
+consent-gated memory lifecycle. Observation cites the actual third card and
+completed winner. Early/automatic/off/unaided help does not reveal the rule.
+No optional estimate selects the rule. No new Farbspiel WinEarly, Null/Ouvert,
+FeedPartner, DrawTrumpf, LeadMaster, Fallback or single-card lesson is added.
+Existing supported branches keep their behaviour.
+
+The unchanged handwritten oracle is in `tests/support/win_early.rs` under
+`skat-coach`. Both MH-declarer and MH-defender roles are **fixtures**. Starting
+with the complete deal above and VH's CK:
+
+| Case | Change | Legal MH cards | Current winners; Easy | Actual reply and winner |
+|------|--------|----------------|-----------------------|-------------------------|
+| A | CA/C7 swapped | C8 CT CA | CT CA; CT | CQ: CT/CA win for MH, C8 for VH |
+| B | A, C7/H8 and CQ/H7 swapped | C8 CT CA | CT CA; CT | DJ: HH wins, Kreuz void proven |
+| C | Original, C7/D7 C8/D8 CT/D9 swapped | D7 D8 D9 S7 S8 S9 ST SJ SQ SK | SJ; SJ | CA after SJ: MH; C7 after D7: VH |
+| D | C, HH's CA CQ C7 C8 CT swapped for VH's H7 H8 H9 HT HQ; HA/CJ swapped | same as C | SJ; SJ | CJ overtrumps SJ: HH, Kreuz void proven |
+| E | Original | C7 C8 CT | CT; Easy C7 Fallback | CA after CT: HH; no lesson |
+
+The core/coach tests preserve ten case/role combinations, 16 named completed
+winners and 58 all-legal completion witnesses. A/B and C/D have identical
+permitted input; extra unseen opponent/Skat substitutions preserve it too.
+App tests add consent, attempts, all legal actions, actual replies, God Mode,
+stale/re-entry and next-game boundaries. Frozen Easy checks remain unchanged.
+
+### Frozen ordinary route
+
+The permanent widget helper `enter_early` in `gui-egui/tests/support/guided.rs`
+replays the independently frozen 43-action route: **series seed 0, fixed three
+games, two Easy opponents, Kontra/Re off, closed display, Coach Off during
+navigation**. Human is **MH declarer only**, Grand Hand, bid 27; actual game
+seed `12896916468484187878`, game 3, trick 2. Language and coach changes use
+Settings widgets, and announcements use Grand radio + Announce. The sole
+harness timing change sets opponent delay to zero.
+
+1. Game 1: hold 18,20,22,23,24,27,30; pass 33; play CT CJ CQ SJ SQ H7
+   D7 D9 DK DJ; Next game.
+2. Game 2: bid 24,27; Hand, Grand; play D9 H8 ST DQ SK C8 CK H9 HT DK;
+   Next game.
+3. Game 3: bid 18,20,22,23,24,27; Hand, Grand; after CA play C7. VH wins
+   after HH's CQ, then leads CT. Enable Coach On request and enter.
+
+Legal alternatives: S8 ST HK D7 D9 DT DJ DK DA. DJ is the sole current winner
+and Easy card. The bilingual widget test exercises wrong/retry, winning-card
+attempt, return/re-entry, deliberate reveal/don't-know, consent memory and
+non-Easy S8, then HH's actual C8 and VH's actual win with CT, and return. Bilingual orientation,
+action and observation renders also cover narrow action/observation at
+960x640. No injected view/session/recording supplies this route. Defender roles,
+changed conditions and the side-master explanation are fixture-only evidence.
+These technical checks establish no human learning, transfer, UAT, persistence,
+interactive Windows 11, packaged lifecycle or release acceptance. #131's
+later-phase criterion remains open; terminal acceptance owns actual-main and
+both-OS archive checks.
 
 ## Reizen threshold decision (#148)
 

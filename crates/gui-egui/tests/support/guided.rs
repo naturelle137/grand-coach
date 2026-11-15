@@ -418,3 +418,113 @@ pub fn enter_grand(
     }
     panic!("seeded ordinary app did not reach a human Grand card decision");
 }
+
+/// Frozen ordinary #161 route: seed0/game3/trick2, MH DECLARER only.
+/// All navigation uses actual widgets. No fixture or privileged state injection.
+#[allow(dead_code)]
+pub fn enter_early(h: &mut Harness<'_, GrandCoachApp>, language: Language) {
+    use skat_app::*;
+    h.state_mut().opponent_delay = 0.0;
+    h.run_steps(4);
+    click(h, "Einstellungen");
+    if language == Language::En {
+        h.get_by_role_and_label(Role::RadioButton, "English")
+            .click();
+        h.run_steps(4);
+    }
+    let i = I18n::new(language);
+    if language == Language::En {
+        // Selecting a language closes the Settings menu.
+        click(h, &i.t("menu-settings"));
+    }
+    h.get_by_role_and_label(Role::RadioButton, &i.t("coach-level-off"))
+        .click();
+    h.run_steps(4);
+    h.key_press(eframe::egui::Key::Escape);
+    h.run_steps(4);
+    let actions = [
+        Some(Action::Hold),
+        Some(Action::Hold),
+        Some(Action::Hold),
+        Some(Action::Hold),
+        Some(Action::Hold),
+        Some(Action::Hold),
+        Some(Action::Hold),
+        Some(Action::Pass),
+        Some(Action::Play(Card::from_index(3).unwrap())),
+        Some(Action::Play(Card::from_index(4).unwrap())),
+        Some(Action::Play(Card::from_index(5).unwrap())),
+        Some(Action::Play(Card::from_index(12).unwrap())),
+        Some(Action::Play(Card::from_index(13).unwrap())),
+        Some(Action::Play(Card::from_index(16).unwrap())),
+        Some(Action::Play(Card::from_index(24).unwrap())),
+        Some(Action::Play(Card::from_index(26).unwrap())),
+        Some(Action::Play(Card::from_index(30).unwrap())),
+        Some(Action::Play(Card::from_index(28).unwrap())),
+        None,
+        Some(Action::Bid(24)),
+        Some(Action::Bid(27)),
+        Some(Action::Hand),
+        Some(Action::Announce(Announcement::plain(GameType::Grand))),
+        Some(Action::Play(Card::from_index(26).unwrap())),
+        Some(Action::Play(Card::from_index(17).unwrap())),
+        Some(Action::Play(Card::from_index(11).unwrap())),
+        Some(Action::Play(Card::from_index(29).unwrap())),
+        Some(Action::Play(Card::from_index(14).unwrap())),
+        Some(Action::Play(Card::from_index(1).unwrap())),
+        Some(Action::Play(Card::from_index(6).unwrap())),
+        Some(Action::Play(Card::from_index(18).unwrap())),
+        Some(Action::Play(Card::from_index(19).unwrap())),
+        Some(Action::Play(Card::from_index(30).unwrap())),
+        None,
+        Some(Action::Bid(18)),
+        Some(Action::Bid(20)),
+        Some(Action::Bid(22)),
+        Some(Action::Bid(23)),
+        Some(Action::Bid(24)),
+        Some(Action::Bid(27)),
+        Some(Action::Hand),
+        Some(Action::Announce(Announcement::plain(GameType::Grand))),
+        Some(Action::Play(Card::from_index(0).unwrap())),
+    ];
+    for (n, action) in actions.into_iter().enumerate() {
+        settle(h);
+        let v = h.state().session().view();
+        let label = match action {
+            None => i.t("button-next-game"),
+            Some(Action::Announce(_)) => {
+                h.get_by_role_and_label(Role::RadioButton, "Grand").click();
+                h.run_steps(4);
+                i.t("button-announce")
+            }
+            Some(Action::Hold) => i.tf("button-hold", &[("value", v.bid.into())]),
+            Some(Action::Bid(value)) => i.tf("button-bid", &[("value", value.into())]),
+            Some(Action::Pass) => i.t("button-pass"),
+            Some(Action::Hand) => i.t("button-hand"),
+            Some(Action::Play(card)) => card_name(&i, card),
+            Some(a) => panic!("unexpected route action {n}: {a:?}"),
+        };
+
+        click(h, &label);
+    }
+    settle(h);
+    let v = h.state().session().view();
+    assert_eq!(v.game_number, 3);
+    assert_eq!(v.tricks_played, 1);
+    assert_eq!(v.players[0].seat, Seat::Mittelhand);
+    assert_eq!(v.contract.unwrap().game, GameType::Grand);
+    assert_eq!(h.state().session().game_seed(), 12896916468484187878);
+
+    assert_eq!(v.declarer, Some(PlayerId::HUMAN));
+    click(h, &i.t("menu-settings"));
+    h.get_by_role_and_label(Role::RadioButton, &i.t("coach-level-on-request"))
+        .click();
+    h.run_steps(4);
+    h.key_press(eframe::egui::Key::Escape);
+    h.run_steps(4);
+    click(h, &i.t("guided-start"));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Orient
+    );
+}

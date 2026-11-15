@@ -531,3 +531,22 @@ withheld key and refusal to overwrite existing personal data. The same RC
 packager verifies the installed executable's notices/resources and hashes.
 Actual human Initial/Delayed sessions, clean platforms and packaged lifecycle
 acceptance remain separately pending; this suite cannot satisfy those gates.
+
+## Grand WinEarly verification (#161)
+
+`skat-coach/tests/guided_win_early.rs` preserves the frozen handwritten A–E
+expectations: ten case/role combinations, 16 named winners, 58 legal completion
+witnesses, equal permitted-view pairs, extra unseen substitutions and
+exclusions. `skat-app` tests named `grand_win_early` cover consent, hidden
+pairs/God Mode, free play, actual replies and lifecycle boundaries.
+`gui-egui/tests/win_early.rs` is an ignored bilingual ordinary-widget test;
+run it explicitly with `cargo test --locked -p gui-egui --test win_early --
+--include-ignored --nocapture` in the development container.
+
+Screenshot scenarios `guided-grand-early-{orient,act,observed}` each have an
+`-en` variant. Action and observation also have `-narrow` and `-en-narrow`
+variants at 960x640; desktop is 1440x1000. All replay the frozen seed0 ordinary
+route through real widgets, MH declarer only. Side-master and defender roles
+are core/app fixture evidence, not ordinary renders. Main regression,
+independent review, both-OS archive/hash/visual acceptance and human/platform
+release evidence remain separate checks.

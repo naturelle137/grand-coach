@@ -5,9 +5,9 @@ use crate::{coach, i18n::I18n, text};
 use eframe::egui;
 use skat_app::coach_model::Source;
 use skat_app::{
-    GameType, GuidedAction, GuidedAnnounceRule, GuidedAnswer, GuidedBranch, GuidedGameBranch,
-    GuidedKeep, GuidedKontra, GuidedKontraCall, GuidedKontraExclusion, GuidedKontraObservation,
-    GuidedPreRule, GuidedStep, GuidedView, Phase, Seat, TableView,
+    GameType, GuidedAction, GuidedAnnounceRule, GuidedAnswer, GuidedBranch, GuidedEarlyCondition,
+    GuidedGameBranch, GuidedKeep, GuidedKontra, GuidedKontraCall, GuidedKontraExclusion,
+    GuidedKontraObservation, GuidedPreRule, GuidedStep, GuidedView, Phase, Seat, TableView,
 };
 
 pub(crate) fn panel(
@@ -31,6 +31,7 @@ pub(crate) fn panel(
         GuidedStep::Orient => "guided-orient",
         GuidedStep::Check => "guided-check",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::UnderPartner) => "guided-under",
+        GuidedStep::Narrow if g.task == Some(GuidedBranch::WinEarly) => "guided-early-attempt",
         GuidedStep::Narrow | GuidedStep::Threshold => "guided-win",
         GuidedStep::Act => "guided-act",
         GuidedStep::Waiting => "guided-waiting",
@@ -85,10 +86,18 @@ pub(crate) fn panel(
         ));
         let key = if rule.branch == GuidedBranch::UnderPartner {
             "guided-rule-under"
+        } else if rule.branch == GuidedBranch::WinEarly {
+            "guided-rule-early"
         } else {
             "guided-rule-win"
         };
         ui.label(i.t(key));
+        if let Some(condition) = g.early_condition {
+            ui.label(i.t(match condition {
+                GuidedEarlyCondition::Trumpf => "guided-early-trumpf",
+                GuidedEarlyCondition::FollowClassMaster => "guided-early-master",
+            }));
+        }
         let cards: Vec<_> = rule.candidates.iter().map(|&c| text::card(i, c)).collect();
         ui.label(i.tf("guided-candidates", &[("cards", cards.join(", ").into())]));
         let open = g.memory.is_some();
