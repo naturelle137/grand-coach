@@ -335,10 +335,10 @@ pub fn seat_name(i: &I18n, seat: skat_app::Seat) -> String {
 /// Ordinary app (Kontra/Re off), real widgets only, up to the human's first
 /// card decision in a non-Ouvert Grand whose dialogue is the supported
 /// `target` branch (orientation) or, for `None`, the honest fallback; enters
-/// it by its real button. Supported Grand card play is WinLast (last seat,
-/// two cards on the table) or UnderPartner (middle seat, one card), so the
-/// public trick identifies the branch before the hidden task; callers
-/// assert the task after orientation.
+/// it by its real button. Public trick length and party roles distinguish
+/// WinLast from the two middle-seat branches: UnderPartner (partner ahead)
+/// and WinEarly (opposing party ahead). No hidden task or rule is revealed
+/// to select the route; callers assert the task after orientation.
 ///
 /// As a defender (`declare`: false) the human passes every bid. As declarer
 /// it holds or bids up to 30, picks up, puts away its first two cards and
@@ -369,7 +369,12 @@ pub fn enter_grand(
                 .contract
                 .is_some_and(|c| c.game == GameType::Grand && !c.ouvert);
             let branch = match v.current_trick.len() {
-                1 => Some(GuidedBranch::UnderPartner),
+                1 if v.declarer != Some(skat_app::PlayerId::HUMAN)
+                    && v.declarer != Some(v.current_trick[0].player) =>
+                {
+                    Some(GuidedBranch::UnderPartner)
+                }
+                1 => Some(GuidedBranch::WinEarly),
                 2 => Some(GuidedBranch::WinLast),
                 _ => None,
             };
