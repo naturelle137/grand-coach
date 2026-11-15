@@ -453,6 +453,13 @@ second game, with the human defending last; each has an `-en` variant, plus
 at a later decision of that game. `guided-grand-declarer-act(-en)` (seed 2,
 first game) reveals Easy's HA for the human declarer. The ignored bilingual
 `guided` Grand widget test drives the same paths.
+Grand `UnderPartner` (#159): `guided-grand-under-orient`,
+`guided-grand-under-act` (worked answer H7 revealed) and
+`guided-grand-under-observed` (the non-Easy H9 and the declarer's actual HQ)
+use seed 119, third game, sixth trick, with the human defending in Mittelhand;
+each has an `-en` variant, plus `guided-grand-under-act-narrow` and
+`guided-grand-under-observed-narrow` at 960x640. The route comes from the
+bounded skat-app seed search (`guided-dialogue.md`).
 These are technical checks, not learner UAT.
 
 ## Platform verification (M2)

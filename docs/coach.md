@@ -262,9 +262,9 @@ candidate set. The former follows a partner who is not a follow-class master
 with one seat still to play; Easy selects a losing card by nontrump, Augen,
 power, retaining the first exact tie. The latter wins in last seat by nontrump,
 power, retaining the first exact tie. Non-Ouvert Grand supports `WinLast`
-only, with the four Buben as its only Trumpf (#157). Other branches, other
-Grand branches, Ouvert Grand and Null card play report unsupported and return
-to free play; Kontra/Re has its own
+(#157) and, for a defender in the middle seat, `UnderPartner` (#159), with the
+four Buben as its only Trumpf. Other branches, other Grand branches, Ouvert
+Grand and Null card play report unsupported and return to free play; Kontra/Re has its own
 dialogue below. In particular, a side master is
 not safe against trumping: the early `FeedPartner` branch is excluded.
 
