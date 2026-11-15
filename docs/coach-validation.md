@@ -248,3 +248,16 @@ Task ID@version | Lesson | New position? | Assistance | Prior exposure | Answer 
 Counts: unaided correct __ / __, assisted __, repeated __, skipped __
 Performed by: maintainer (learner)   Status: performed / pending
 ```
+
+## Grand WinEarly technical evidence (#161)
+
+The [frozen A–E oracle and ordinary route](guided-dialogue.md#grand-winearly-card-play-161)
+separate handwritten core expectations from shared-policy comparisons. Both
+fixture roles replay every legal alternative, actual third cards and completed
+winners; hidden pairs and unknown Skat never identify a holder. Only the
+selected card gets the master/Trumpf condition; all current winners remain
+candidates. Bilingual ordinary widgets use seed0/game3/trick2, MH declarer
+only, with wrong/retry, attempt/reveal, consent memory, non-Easy play and
+actual observation/return. Renders cover de/en orientation/action/observation
+and narrow action/observation. Defender roles and changed conditions are
+fixture-only. No new learner observations, transfer or #131 completion follow.

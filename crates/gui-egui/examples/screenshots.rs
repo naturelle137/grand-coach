@@ -110,6 +110,16 @@ const SEEDS: &[(&str, u64)] = &[
     // Seed 119, third game, sixth trick (#159): the human defends in
     // Mittelhand; partner VH's H8 is ahead, H7 stays under, H9 overtakes,
     // and the declarer's actual HQ wins after the non-Easy H9.
+    ("guided-grand-early-orient", 0),
+    ("guided-grand-early-act", 0),
+    ("guided-grand-early-observed", 0),
+    ("guided-grand-early-orient-en", 0),
+    ("guided-grand-early-act-en", 0),
+    ("guided-grand-early-observed-en", 0),
+    ("guided-grand-early-act-narrow", 0),
+    ("guided-grand-early-observed-narrow", 0),
+    ("guided-grand-early-act-en-narrow", 0),
+    ("guided-grand-early-observed-en-narrow", 0),
     ("guided-grand-under-orient", 119),
     ("guided-grand-under-act", 119),
     ("guided-grand-under-observed", 119),
@@ -270,6 +280,28 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("guided-grand-fallback-en", guided_grand_fallback_en),
     ("guided-grand-declarer-act", guided_grand_declarer_act),
     ("guided-grand-declarer-act-en", guided_grand_declarer_act_en),
+    ("guided-grand-early-orient", guided_grand_early_orient),
+    ("guided-grand-early-act", guided_grand_early_act),
+    ("guided-grand-early-observed", guided_grand_early_observed),
+    ("guided-grand-early-orient-en", guided_grand_early_orient_en),
+    ("guided-grand-early-act-en", guided_grand_early_act_en),
+    (
+        "guided-grand-early-observed-en",
+        guided_grand_early_observed_en,
+    ),
+    ("guided-grand-early-act-narrow", guided_grand_early_act),
+    (
+        "guided-grand-early-observed-narrow",
+        guided_grand_early_observed,
+    ),
+    (
+        "guided-grand-early-act-en-narrow",
+        guided_grand_early_act_en,
+    ),
+    (
+        "guided-grand-early-observed-en-narrow",
+        guided_grand_early_observed_en,
+    ),
     ("guided-grand-under-orient", guided_grand_under_orient),
     ("guided-grand-under-act", guided_grand_under_act),
     ("guided-grand-under-observed", guided_grand_under_observed),
@@ -1571,7 +1603,23 @@ fn main() {
             TableDisplay::Closed
         };
         let launch = *name == "launch" || name.starts_with("open-display-new-series");
-        let mut harness = if name.starts_with("coach-jump-context") {
+        let mut harness = if name.starts_with("guided-grand-early-") {
+            Harness::builder()
+                .with_size([1440.0, 1000.0])
+                .wgpu()
+                .build_eframe(|cc| {
+                    GrandCoachApp::new(
+                        &cc.egui_ctx,
+                        SessionConfig {
+                            seed: 0,
+                            series: SeriesLength::Fixed(3),
+                            kontra_re: false,
+                            opponents: Opponents::Levels([Level::Easy; 2]),
+                            display: TableDisplay::Closed,
+                        },
+                    )
+                })
+        } else if name.starts_with("coach-jump-context") {
             Harness::builder()
                 .with_size([1440.0, 1000.0])
                 .wgpu()
@@ -3058,4 +3106,55 @@ fn guided_grand_under_act_en(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn guided_grand_under_observed_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_grand_under(h, Language::En, 3);
+}
+
+/// Frozen #161 ordinary seed0/game3/trick2 route. MH declarer only.
+/// The observed scenario plays non-Easy S8 and reports the actual third card.
+fn guided_grand_early(h: &mut Harness<'_, GrandCoachApp>, language: Language, steps: u8) {
+    let i = I18n::new(language);
+    guided_support::enter_early(h, language);
+    if steps == 1 {
+        return;
+    }
+    guided_support::click(h, &guided_support::seat_name(&i, skat_app::Seat::Vorhand));
+    guided_support::click(
+        h,
+        &guided_support::seat_name(&i, skat_app::Seat::Hinterhand),
+    );
+    guided_support::click(h, &i.t("guided-reveal"));
+    if steps == 2 {
+        return;
+    }
+    guided_support::click(
+        h,
+        &guided_support::card_name(&i, Card::new(skat_app::Suit::Pik, Rank::Acht)),
+    );
+    guided_support::settle(h);
+    eprintln!(
+        "#161 actual third: {:?}",
+        h.state().session().guided().unwrap().observed_source
+    );
+    guided_support::click(h, &i.t("guided-reveal"));
+    eprintln!(
+        "#161 actual observation: {:?}",
+        h.state().session().guided().unwrap().observation
+    );
+}
+fn guided_grand_early_orient(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand_early(h, Language::De, 1);
+}
+fn guided_grand_early_act(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand_early(h, Language::De, 2);
+}
+fn guided_grand_early_observed(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand_early(h, Language::De, 3);
+}
+fn guided_grand_early_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand_early(h, Language::En, 1);
+}
+fn guided_grand_early_act_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand_early(h, Language::En, 2);
+}
+fn guided_grand_early_observed_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_grand_early(h, Language::En, 3);
 }

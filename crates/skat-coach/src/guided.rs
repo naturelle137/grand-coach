@@ -88,7 +88,7 @@ pub struct Lesson {
 }
 
 /// Select only tested branches, with real alternatives and candidates:
-/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand. Grand
+/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus Grand WinEarly. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
 /// and at least one losing card; FeedPartner and Fallback stay excluded.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
@@ -102,7 +102,8 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     if view.legal_actions.len() < 2
         || rule.candidates.is_empty()
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
-        || !matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
+        || !(matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
+            || (grand && rule.branch == Branch::WinEarly))
     {
         return None;
     }
@@ -143,6 +144,30 @@ impl Lesson {
             unseen: self.knowledge.unseen(),
             trumpf: skat_analysis::counting::CountingAid::from_knowledge(&self.knowledge).trumpf,
         }
+    }
+}
+
+/// Condition on Easy's selected early winner, never on every candidate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum EarlyCondition {
+    /// A Bube in Grand; a higher remaining Bube can still overtrump.
+    Trumpf,
+    /// No unseen higher card of this follow class; trumping remains possible.
+    FollowClassMaster,
+}
+
+impl Lesson {
+    /// Explain the shared predicate only for the actual selected card.
+    pub fn early_condition(&self) -> Option<EarlyCondition> {
+        (self.rule.branch == Branch::WinEarly).then(|| {
+            if self.game.is_trump(self.rule.card) {
+                EarlyCondition::Trumpf
+            } else {
+                debug_assert!(self.knowledge.is_master(self.rule.card));
+                EarlyCondition::FollowClassMaster
+            }
+        })
     }
 }
 

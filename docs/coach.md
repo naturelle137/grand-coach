@@ -262,8 +262,11 @@ candidate set. The former follows a partner who is not a follow-class master
 with one seat still to play; Easy selects a losing card by nontrump, Augen,
 power, retaining the first exact tie. The latter wins in last seat by nontrump,
 power, retaining the first exact tie. Non-Ouvert Grand supports `WinLast`
-(#157) and, for a defender in the middle seat, `UnderPartner` (#159), with the
-four Buben as its only Trumpf. Other branches, other Grand branches, Ouvert
+(#157), for a defender in the middle seat `UnderPartner` (#159), and
+`WinEarly` in Mittelhand (#161). WinEarly retains all current winners as
+candidates and explains only the selected card: Trumpf or a follow-class
+master. A side master can be trumped; a Bube can be overtrumped. Grand has
+only four Buben as Trumpf. Other branches, Ouvert
 Grand and Null card play report unsupported and return to free play; Kontra/Re has its own
 dialogue below. In particular, a side master is
 not safe against trumping: the early `FeedPartner` branch is excluded.
@@ -281,7 +284,7 @@ action, resulting step and sticky assisted flag. Consumers deduplicate by
 `(id, sequence)`; no mastery or retention inference follows.
 
 The app follows the originating trick across automated turns. For
-`UnderPartner`, the later player's actual card is the observation; for
+`UnderPartner` and `WinEarly`, the later player's actual card is the observation; for
 `WinLast`, the human's actual completing card is. Evidence carries trick index,
 seat, led card, played card and the actual completed winner, even if the human
 chose a different card. Failure to follow establishes a void at that play;
@@ -317,7 +320,8 @@ or deliberate reveal shows Easy's action, the candidate game and ceiling, the
 branch formula, the stake comparison and a caveat: the ceiling is a
 conditional, approximate rule of thumb from the own hand, not a guaranteed
 contract value or winning promise, and the hidden Skat cannot supply missing
-Spitzen. Null and Grand are named as such; their card play gets no dialogue.
+Spitzen. Null and Grand are named as such; their card-play scope is defined
+by the guided card-play section above.
 Memory and estimates are unavailable here. All legal calls stay on the table;
 any call, a new game, coach off or replay ends the dialogue, and old
 responses are rejected.
