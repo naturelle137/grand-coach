@@ -88,7 +88,9 @@ pub struct Lesson {
 }
 
 /// Select only tested branches, with real alternatives and candidates:
-/// Farbspiel UnderPartner/WinLast and non-Ouvert Grand WinLast.
+/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand. Grand
+/// UnderPartner needs a defender, the partner ahead, the declarer still to act
+/// and at least one losing card; FeedPartner and Fallback stay excluded.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
     let game = contract.game;
@@ -101,7 +103,6 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         || rule.candidates.is_empty()
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
         || !matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
-        || (grand && rule.branch != Branch::WinLast)
     {
         return None;
     }

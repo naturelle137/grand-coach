@@ -48,7 +48,11 @@ outcome, observe the actual next public transition and name Ouvert
 exclusions; Grand states the four-Buben limit and Null only the rule's
 inapplicability, never a Null strength. Grand `WinLast` card play names the
 Buben as the only Trumpf, proves a defender position with the declarer ahead
-and excludes partner-ahead, Null and Ouvert. Actual de/en widget and inspected PNG evidence
+and excludes partner-ahead, Null and Ouvert. Grand `UnderPartner` stays
+defender-only, says that staying under never secures the partner's trick
+(the following declarer may overtake or trump), excludes a follow-class master
+(`FeedPartner`), no losing card and the last seat, and observes the declarer's
+actual reply. Actual de/en widget and inspected PNG evidence
 is technical validation, never learner UAT, retention or transfer evidence.
 
 ## A. Evidence checklist per lesson
