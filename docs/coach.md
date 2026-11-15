@@ -263,7 +263,9 @@ with one seat still to play; Easy selects a losing card by nontrump, Augen,
 power, retaining the first exact tie. The latter wins in last seat by nontrump,
 power, retaining the first exact tie. Non-Ouvert Grand supports `WinLast`
 (#157), for a defender in the middle seat `UnderPartner` (#159), and
-`WinEarly` in Mittelhand (#161). WinEarly retains all current winners as
+`WinEarly` in Mittelhand (#161), and last-seat `FeedPartner` (#163).
+FeedPartner considers all legal cards, including overtakes, maximises
+`(!is_trump, Augen)` and keeps the last exact legal-order tie without power. WinEarly retains all current winners as
 candidates and explains only the selected card: Trumpf or a follow-class
 master. A side master can be trumped; a Bube can be overtrumped. Grand has
 only four Buben as Trumpf. Other branches, Ouvert
@@ -285,7 +287,7 @@ action, resulting step and sticky assisted flag. Consumers deduplicate by
 
 The app follows the originating trick across automated turns. For
 `UnderPartner` and `WinEarly`, the later player's actual card is the observation; for
-`WinLast`, the human's actual completing card is. Evidence carries trick index,
+`WinLast` and last-seat `FeedPartner`, the human's actual completing card is. Evidence carries trick index,
 seat, led card, played card and the actual completed winner, even if the human
 chose a different card. Failure to follow establishes a void at that play;
 a Bube follows Trumpf in Farbspiel, never its printed suit. Following accounts

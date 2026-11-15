@@ -228,13 +228,13 @@ fn grand_bube_follows_trumpf_never_its_printed_suit() {
 #[test]
 fn grand_exclusions_partner_ahead_not_last_lead_no_winner_and_single_card() {
     // Partner ahead: MH's CT overtakes the declarer's C9. HH last selects the
-    // earlier partner branch (FeedPartner), outside this increment.
+    // earlier partner branch (FeedPartner), supported in last seat.
     let g = grand(deal(), Seat::Vorhand, &["C9", "CT"]);
     let v = g.view(Seat::Hinterhand);
     let r = rule(&v).unwrap();
     assert!(r.partner_ahead && r.last && r.winners.contains(&card("CA")));
     assert_eq!(r.branch, Branch::FeedPartner);
-    assert!(lesson(&v).is_none());
+    assert_eq!(lesson(&v).is_some(), r.last);
 
     // Leading declarer: DrawTrumpf.
     let g = grand(deal(), Seat::Vorhand, &[]);
@@ -443,7 +443,7 @@ fn own_higher_kreuz_make_ck_a_follow_class_master_and_feed_partner_stays_out() {
     let r = rule(&v).unwrap();
     assert!(r.partner_ahead && !r.last && r.table_master);
     assert_eq!(r.branch, Branch::FeedPartner);
-    assert!(lesson(&v).is_none());
+    assert_eq!(lesson(&v).is_some(), r.last);
 }
 
 #[test]
@@ -454,7 +454,7 @@ fn grand_under_partner_exclusions_last_seat_no_loser_single_card_declarer_role()
     let r = rule(&v).unwrap();
     assert!(r.partner_ahead && r.last);
     assert_eq!(r.branch, Branch::FeedPartner);
-    assert!(lesson(&v).is_none());
+    assert_eq!(lesson(&v).is_some(), r.last);
 
     // No losing candidate: MH holds only CT and CK in Kreuz (VH gets C7/C8
     // instead of CK/H7), both overtake VH's C9 → Fallback.

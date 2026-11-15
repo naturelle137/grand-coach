@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::{GuidedAction as G, GuidedAnswer as A, GuidedStep as S};
-use skat_core::KontraLevel;
+use skat_core::{Card, KontraLevel};
 #[path = "../../skat-coach/tests/support/guided.rs"]
 mod fixture;
 
@@ -2417,6 +2417,93 @@ fn grand_win_early_exclusions_preserve_existing_app_lessons_and_all_legal_action
         }
         for action in legal {
             s.clone().execute(Command::Act(action)).unwrap();
+        }
+    }
+}
+
+#[test]
+fn grand_feed_frozen_ordinary_session_every_legal_card_and_stale_return() {
+    for n in [8, 10, 11, 13, 14, 17, 18, 25] {
+        let mut s = Session::new(SessionConfig {
+            seed: 15,
+            series: SeriesLength::Fixed(3),
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
+        });
+        for a in [
+            Action::Pass,
+            Action::Play(Card::from_index(2).unwrap()),
+            Action::Play(Card::from_index(5).unwrap()),
+        ] {
+            s.run_opponents();
+            s.execute(Command::Act(a)).unwrap();
+        }
+        s.run_opponents();
+        let v = s.view();
+        assert_eq!(
+            (v.game_number, v.tricks_played, v.players[0].seat),
+            (1, 2, Seat::Vorhand)
+        );
+        s.execute(Command::StartGuided).unwrap();
+        let id = s.guided().unwrap().id;
+        assert!(s.guided().unwrap().rule.is_none());
+        respond(&mut s, G::Answer(A::Seat(Some(Seat::Hinterhand)))).unwrap();
+        respond(&mut s, G::Answer(A::Seat(None))).unwrap();
+        assert_eq!(
+            s.guided().unwrap().task,
+            Some(crate::GuidedBranch::FeedPartner)
+        );
+        respond(&mut s, G::Answer(A::Card(Card::from_index(n).unwrap()))).unwrap();
+        let g = s.guided().unwrap();
+        assert_eq!(g.step, S::Act);
+        assert_eq!(g.rule.unwrap().card.index(), 11);
+        assert_eq!(s.view().legal_actions, v.legal_actions);
+        assert_eq!(s.view().hand, v.hand);
+        assert_eq!(s.view().current_trick, v.current_trick);
+        s.execute(Command::Act(Action::Play(Card::from_index(n).unwrap())))
+            .unwrap();
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        assert!(s.guided().unwrap().observation.is_none());
+        respond(&mut s, G::Answer(A::Void(true))).unwrap();
+        let o = s.guided().unwrap().observation.unwrap();
+        assert_eq!(o.winner, Some(Seat::Hinterhand));
+        assert!(o.proves_void);
+        respond(&mut s, G::Return).unwrap();
+        assert!(s.guided().is_none());
+        assert_eq!(
+            s.execute(Command::Guided(id, G::Reveal)),
+            Err(AppError::StaleGuided)
+        );
+    }
+}
+
+#[allow(dead_code)]
+#[path = "../../skat-coach/tests/support/feed_partner.rs"]
+mod feed_fixture;
+
+#[test]
+fn grand_feed_fixture_only_overtake_names_human_winner_and_preserves_all_candidates() {
+    for c in feed_fixture::cases().into_iter().filter(|c| c.supported) {
+        for (&n, &winner) in c.legal.iter().zip(c.completed) {
+            let mut s = Session::new(SessionConfig::default());
+            s.dealer = PlayerId(0); // human is HH in these explicitly labelled fixtures
+            s.game = c.position();
+            s.execute(Command::StartGuided).unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().rule.unwrap().card.index(),
+                c.choice.unwrap()
+            );
+            s.execute(Command::Act(Action::Play(feed_fixture::card(n))))
+                .unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+            let o = s.guided().unwrap().observation.unwrap();
+            assert_eq!(
+                o.winner,
+                Some(Seat::from_index(winner)),
+                "{} card {n}",
+                c.id
+            );
         }
     }
 }

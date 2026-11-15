@@ -27,10 +27,29 @@ pub(crate) fn panel(
     if let Some(k) = g.kontra {
         return kontra(ui, i, table, g, k);
     }
+    if matches!(
+        g.step,
+        GuidedStep::Orient | GuidedStep::Check | GuidedStep::Narrow | GuidedStep::Act
+    ) && table
+        .contract
+        .is_some_and(|c| c.game == GameType::Grand && !c.ouvert)
+        && table.current_trick.len() == 2
+        && table.declarer != Some(skat_app::PlayerId::HUMAN)
+        && let Some(partner) = table
+            .players
+            .iter()
+            .find(|p| p.player != skat_app::PlayerId::HUMAN && Some(p.player) != table.declarer)
+    {
+        ui.label(i.tf(
+            "guided-feed-role",
+            &[("seat", text::seat(i, partner.seat).into())],
+        ));
+    }
     let prompt = match g.step {
         GuidedStep::Orient => "guided-orient",
         GuidedStep::Check => "guided-check",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::UnderPartner) => "guided-under",
+        GuidedStep::Narrow if g.task == Some(GuidedBranch::FeedPartner) => "guided-feed-attempt",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::WinEarly) => "guided-early-attempt",
         GuidedStep::Narrow | GuidedStep::Threshold => "guided-win",
         GuidedStep::Act => "guided-act",
@@ -86,6 +105,8 @@ pub(crate) fn panel(
         ));
         let key = if rule.branch == GuidedBranch::UnderPartner {
             "guided-rule-under"
+        } else if rule.branch == GuidedBranch::FeedPartner {
+            "guided-rule-feed"
         } else if rule.branch == GuidedBranch::WinEarly {
             "guided-rule-early"
         } else {

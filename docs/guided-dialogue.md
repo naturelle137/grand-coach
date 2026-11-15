@@ -1,4 +1,4 @@
-# Guided Farbspiel and Grand card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159, #161)
+# Guided Farbspiel and Grand card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159, #161, #163)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -8,7 +8,7 @@ remain unmeasured.
 
 ## Rule and evidence definition
 
-`UnderPartner`, `WinLast` and Grand `WinEarly` are bounded heuristic dialogues,
+`UnderPartner`, `WinLast`, Grand `WinEarly` and last-seat Grand `FeedPartner` are bounded heuristic dialogues,
 not new solver-approved mechanisms in the six-lesson catalogue. Their source
 is the existing `BaselineOpponent::choose_card` on main
 `ecfb2fe1ff5a50ab2fb5f17a892dd9e5f68c6c80`, now shared in
@@ -32,7 +32,9 @@ separate factual oracles.
 - **WinEarly:** non-Ouvert Grand only (#161, below), opposing party ahead,
   one remaining player, at least two legal cards and current winners. The
   selected cheapest winner is Trumpf or a follow-class master.
-- **Exclusions:** no lead, Farbspiel early winner, partner feeding, arbitrary fallback,
+- **FeedPartner:** non-Ouvert Grand only (#163, below), defender last to
+  the current trick, partner ahead, at least two pure legal card actions.
+- **Exclusions:** no lead, Farbspiel early winner, early or Farbspiel feeding, arbitrary fallback,
   single legal action, other Grand branches, Ouvert Grand, Null or
   Kontra/Re (Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
@@ -114,8 +116,8 @@ memory and observation are unchanged; Easy's `choose_card`, branch order,
 ties and the frozen hashes are untouched. In Grand only the four Buben are
 Trumpf: a led Bube must be followed with a Bube, and a Bube never follows its
 printed suit. A partner ahead in last seat selects the earlier `FeedPartner`
-branch, which stays unsupported in Grand (`UnderPartner` before the last seat:
-see #159 below), as do `DrawTrumpf`, `LeadMaster`,
+branch, now supported in last-seat Grand (#163 below; `UnderPartner` before
+the last seat: see #159 below). Unsupported remain `DrawTrumpf`, `LeadMaster`,
 Farbspiel `WinEarly`, fallback, single legal moves, Ouvert Grand and all Null card play
 (Farbspiel, including Ouvert, keeps its shipped scope). A core-offered Kontra
 keeps its own dialogue first. In last seat the learner's own card completes
@@ -235,7 +237,7 @@ winner, deliberate reveal and “I don't know” use the existing disclosure and
 consent-gated memory lifecycle. Observation cites the actual third card and
 completed winner. Early/automatic/off/unaided help does not reveal the rule.
 No optional estimate selects the rule. No new Farbspiel WinEarly, Null/Ouvert,
-FeedPartner, DrawTrumpf, LeadMaster, Fallback or single-card lesson is added.
+early FeedPartner, DrawTrumpf, LeadMaster, Fallback or single-card lesson is added.
 Existing supported branches keep their behaviour.
 
 The unchanged handwritten oracle is in `tests/support/win_early.rs` under
@@ -508,3 +510,82 @@ adds `guided-orient`, `guided-act`, `guided-memory`, `guided-observe`,
 `guided-orient-narrow`, and the Kontra/Re scenarios listed in
 [testing](testing.md#screenshots-of-the-frontend). Each reaches the real app by widget clicks. Rendered
 PNG hashes and individual visual inspections belong to the PR evidence.
+
+## Grand last-seat FeedPartner (#163)
+
+`guided-feed-partner@1` is a bounded heuristic dialogue, not a new catalogue
+mechanism. It applies only to non-Ouvert Grand, a defender last to the current
+trick, partner currently ahead and at least two pure legal card actions.
+Initial deal seat is irrelevant. Early FeedPartner (even a follow-class
+master), Farbspiel feeding, Null, Ouvert, leads, one legal card and mixed
+card/call actions remain excluded. Existing WinLast/WinEarly/UnderPartner
+selection and the shared baseline/Easy source and frozen hashes are unchanged.
+
+Every legal card is a candidate, including an overtake. Easy maximises
+`(!is_trump, Augen)` in core legal order, retaining the **last exact tie**;
+there is no power comparison. The public partner card identifies the current
+winner, not a guarantee of the individual completed winner. Own cards, public
+contract/trick/history and legal actions are the only sources. No hidden
+holder, optimality, game result or later lead is promised. A follow-class
+master can still be trumped in an early trick.
+
+### Frozen independent fixture evidence
+
+The original handwritten complete-deal oracle was frozen before baseline
+execution on 2026-11-15 at 10:13:32 UTC. Its SHA-256 is
+`f91cf881add14276ed16bc174dd51163ff8eba972cf6e73fe7db79b2ef8cf443`;
+handwritten derivation
+`dc810ee72786595aab6b102ed6952d917383f0e8954513cec80d3f58828018d2`;
+separate correction/addendum
+`e32bf9cbb7ddc49faf8020da882794bca9940d46231ae04409f5172e7cdfd29e`.
+The [accepted preflight](https://github.com/naturelle137/grand-coach/issues/163#issuecomment-6893030950)
+retains the original mistake: Kreuz legal actions omitted off-suit Buben.
+Correct legal indices are [1,2,7,12,20], completed winners [1,1,2,2,2].
+Ouvert replay sets mandatory Schneider/Schwarz flags. The separate eligible
+Kontra history and complete early continuation trees stay negative boundaries.
+
+`skat-coach/tests/support/feed_partner.rs` ports the handwritten complete
+32-card deals and legal histories as **fixture-only** data, with the corrected
+Kreuz expectations. `guided_feed_partner.rs` checks all 14 retained rows
+(including the original Kreuz diagnostic and its corrected counterpart),
+current/actual winners, every completion, early continuation trees and hidden
+permutations before comparing policy. Indices are suit × 8 + rank, suits
+Kreuz/Pik/Herz/Karo and ranks 7/8/9/10/Bube/Dame/König/Ass; seats 0/1/2.
+
+| Fixture | Legal indices | Completed winners | Easy |
+|---------|---------------|-------------------|------|
+| Follow/overtake | 1,2,7 | 1,1,2 | 7 |
+| Zero tie | 0,1,2 | 1,1,1 | 2 |
+| Void/nontrump | 4,12,16,17,18,19,21,22,23,31 | 2,2,0,0,0,0,0,0,0,0 | 31 |
+| Trump tie, no power | 4,20,28 | 2,0,0 | 28 |
+
+Changing declarer ahead preserves WinLast; exchanging hidden Pik cards
+preserves the entire permitted view and lesson. App fixture tests verify all
+legal completions including a human overtake: the observation names HH, never
+falsely the partner.
+
+### Ordinary Session and real-widget evidence
+
+Frozen route SHA-256:
+`184aab000de96e8bd3c609679ded741d3142b6a91e109c7b74ba0c9a3f676c23`.
+Start the ordinary app (`GrandCoachApp::new`) with seed 15, fixed three games,
+two Easy opponents, closed display, Kontra/Re off, coach OnRequest and
+figures/warnings off. Click Pass, Kreuz9, KreuzDame. In game 1, trick 3,
+Player0 is the human defender with initial **Vorhand**, now acting **last**
+after Player1 HerzBube and partner Player2 PikBube. Legal indices are
+[8,10,11,13,14,17,18,25]; Easy chooses Pik10 (11), every completion leaves
+Player2 winner. The source is the normal Session, never an injected view.
+
+`enter_feed` and `feed_flow` drive actual widgets in both languages. They
+cover orientation (partner HH), nobody remaining, legal candidate, rule answer
+without playing, chosen Pik10 and alternative Pik7, actual void/individual
+winner feedback and return. The widget test additionally checks wrong
+orientation, public source feedback, retry and immediate return/free play.
+Session tests check every legal completion and stale response rejection.
+The screenshot generator includes `guided-grand-feed-{orient,candidate,rule,
+observed,return}-{de,en}` and each `-narrow` variant, ordinary app at
+1440×1000 and 960×640. Both OS CI screenshot jobs run all scenarios and hash
+archives. Local PNG inspection and CI rendering are technical evidence only;
+merged-main verification and protected integration remain terminal-owner work.
+No learner UAT, transfer, training/persistence, interactive Windows 11,
+packaged lifecycle, release or completion of #131 is claimed.

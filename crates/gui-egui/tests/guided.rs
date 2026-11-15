@@ -1130,3 +1130,67 @@ fn guided_grand_under_partner_widgets_wrong_retry_reveal_alternative_and_declare
         assert!(h.state().session().guided().is_none());
     }
 }
+
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn grand_feed_ordinary_bilingual_widgets_chosen_alternative_retry_and_free_return() {
+    use skat_app::*;
+    for language in Language::ALL {
+        for narrow in [false, true] {
+            for chosen in [11, 8] {
+                let mut h = Harness::builder()
+                    .with_size(if narrow {
+                        [960.0, 640.0]
+                    } else {
+                        [1440.0, 1000.0]
+                    })
+                    .build_eframe(|cc| {
+                        GrandCoachApp::new(
+                            &cc.egui_ctx,
+                            SessionConfig {
+                                seed: 15,
+                                series: SeriesLength::Fixed(3),
+                                opponents: Opponents::Levels([Level::Easy; 2]),
+                                ..SessionConfig::default()
+                            },
+                        )
+                    });
+                feed_flow(&mut h, language, 4, chosen);
+            }
+            let mut h = Harness::builder()
+                .with_size([1440.0, 1000.0])
+                .build_eframe(|cc| {
+                    GrandCoachApp::new(
+                        &cc.egui_ctx,
+                        SessionConfig {
+                            seed: 15,
+                            series: SeriesLength::Fixed(3),
+                            opponents: Opponents::Levels([Level::Easy; 2]),
+                            ..SessionConfig::default()
+                        },
+                    )
+                });
+            enter_feed(&mut h, language);
+            let i = I18n::new(language);
+            let before = h.state().session().view();
+            click(&mut h, &seat_name(&i, Seat::Mittelhand));
+            assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+            h.get_by_label(&i.tf(
+                "guided-source",
+                &[
+                    ("trick", 3.into()),
+                    ("seat", seat_name(&i, Seat::Hinterhand).into()),
+                    ("card", card_name(&i, Card::from_index(12).unwrap()).into()),
+                ],
+            ));
+            click(&mut h, &i.t("guided-retry"));
+            assert_eq!(h.state().session().guided().unwrap().correct, None);
+            click(&mut h, &i.t("guided-return"));
+            assert_eq!(
+                h.state().session().view().legal_actions,
+                before.legal_actions
+            );
+            click(&mut h, &card_name(&i, Card::from_index(8).unwrap()));
+        }
+    }
+}
