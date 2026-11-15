@@ -2106,3 +2106,317 @@ fn ordinary_grand_under_partner_routes_within_the_bounded_seed_search() {
         assert_eq!(trick.winner, Seat::Hinterhand);
     }
 }
+
+#[path = "../../skat-coach/tests/support/win_early.rs"]
+mod early_oracle;
+
+/// Fixture-only MH role variants; ordinary widget route covers MH declarer.
+fn grand_early(deal: skat_core::Deal, declarer: Seat) -> Session {
+    let actions =
+        fixture::contract_actions(deal, declarer, fixture::hand_game(GRAND, false), &["CK"]);
+    grand_session(Seat::Mittelhand, deal, false, &actions)
+}
+
+#[test]
+fn grand_win_early_a_to_e_both_fixture_roles_attempt_memory_all_legal_actual_replies() {
+    use fixture::card as c;
+    for declarer in [Seat::Mittelhand, Seat::Vorhand] {
+        for (n, deal) in early_oracle::deals().into_iter().enumerate() {
+            let original = grand_early(deal, declarer);
+            let legal: Vec<_> = fixture::cards(early_oracle::LEGAL[n])
+                .iter()
+                .map(Action::Play)
+                .collect();
+            assert_eq!(original.view().legal_actions, legal);
+            for mine in early_oracle::LEGAL[n].split_whitespace() {
+                let mut s = original.clone();
+                let before = s.view();
+                s.execute(Command::StartGuided).unwrap();
+                let g = s.guided().unwrap();
+                assert!(g.rule.is_none() && g.early_condition.is_none() && g.memory.is_none());
+                assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
+                if n == 4 {
+                    assert_eq!(g.step, S::Unsupported);
+                    s.execute(Command::Act(Action::Play(c(mine)))).unwrap();
+                    s.apply(Action::Play(c(early_oracle::REPLY[n]))).unwrap();
+                    assert_eq!(s.game.tricks()[0].winner, early_oracle::winner(n, mine));
+                    continue;
+                }
+                assert_eq!(g.step, S::Orient);
+                respond(&mut s, G::Answer(A::Seat(Some(Seat::Mittelhand)))).unwrap();
+                assert_eq!(s.guided().unwrap().correct, Some(false));
+                respond(&mut s, G::Retry).unwrap();
+                respond(&mut s, G::Answer(A::Seat(Some(Seat::Vorhand)))).unwrap();
+                assert!(s.guided().unwrap().early_condition.is_none());
+                respond(&mut s, G::Answer(A::Seat(Some(Seat::Hinterhand)))).unwrap();
+                let loser = if n < 2 { "C8" } else { "D7" };
+                respond(&mut s, G::Answer(A::Card(c(loser)))).unwrap();
+                assert_eq!(s.guided().unwrap().correct, Some(false));
+                respond(&mut s, G::Retry).unwrap();
+                // Any current winner, including the non-Easy CA, is accepted.
+                if declarer == Seat::Mittelhand {
+                    respond(
+                        &mut s,
+                        G::Answer(A::Card(c(if n < 2 { "CA" } else { "SJ" }))),
+                    )
+                    .unwrap();
+                } else {
+                    respond(&mut s, G::Reveal).unwrap();
+                }
+                let g = s.guided().unwrap();
+                assert_eq!(g.step, S::Act);
+                assert_eq!(g.rule.unwrap().card, c(early_oracle::EASY[n]));
+                assert!(g.early_condition.is_some());
+                assert!(g.memory.is_none() && g.figures.is_none());
+                respond(&mut s, G::Memory(true)).unwrap();
+                let m = s.guided().unwrap().memory.unwrap();
+                assert_eq!(m.skat, None);
+                assert_eq!(m.own, before.hand.iter().copied().collect());
+                respond(&mut s, G::Memory(false)).unwrap();
+                assert!(s.guided().unwrap().memory.is_none());
+                assert_eq!(s.view().legal_actions, before.legal_actions);
+                s.execute(Command::Act(Action::Play(c(mine)))).unwrap();
+                assert_eq!(s.guided().unwrap().step, S::Waiting);
+                assert!(s.guided().unwrap().memory.is_none());
+                s.apply(Action::Play(c(early_oracle::REPLY[n]))).unwrap();
+                assert_eq!(s.guided().unwrap().step, S::Observe);
+                assert!(s.guided().unwrap().observation.is_none());
+                respond(&mut s, G::Reveal).unwrap();
+                let o = s.guided().unwrap().observation.unwrap();
+                assert_eq!(o.winner, Some(early_oracle::winner(n, mine)));
+                assert_eq!(o.proves_void, n == 1 || n == 3);
+                assert_eq!(
+                    o.source,
+                    skat_coach::Source::Trick {
+                        index: 0,
+                        seat: Seat::Hinterhand,
+                        led: c("CK"),
+                        card: c(early_oracle::REPLY[n])
+                    }
+                );
+                respond(&mut s, G::Return).unwrap();
+                assert!(s.guided().is_none());
+            }
+        }
+    }
+}
+
+#[test]
+fn grand_win_early_hidden_pairs_god_mode_and_estimates_keep_permitted_dialogue() {
+    let walk = |deal, decl, god| {
+        let mut s = grand_early(deal, decl);
+        if god {
+            s.config.opponents = Opponents::GodMode;
+        }
+        s.execute(Command::StartGuided).unwrap();
+        let mut views = vec![s.guided().unwrap()];
+        for a in [
+            G::Answer(A::Seat(Some(Seat::Vorhand))),
+            G::Answer(A::Seat(Some(Seat::Hinterhand))),
+            G::Reveal,
+            G::Memory(true),
+        ] {
+            respond(&mut s, a).unwrap();
+            views.push(s.guided().unwrap());
+        }
+        views
+    };
+    for decl in [Seat::Mittelhand, Seat::Vorhand] {
+        let deals = early_oracle::deals();
+        for (a, b) in [
+            (deals[0], deals[1]),
+            (deals[2], deals[3]),
+            (
+                deals[0],
+                fixture::swap(deals[0], fixture::card("DK"), fixture::card("SA")),
+            ),
+        ] {
+            let base = walk(a, decl, false);
+            for other in [walk(b, decl, false), walk(a, decl, true)] {
+                for (mut o, b) in other.into_iter().zip(&base) {
+                    o.id = b.id;
+                    o.basis = b.basis;
+                    assert_eq!(&o, b);
+                }
+            }
+        }
+    }
+    // Rule availability/selection never waits for optional estimates.
+    let mut s = grand_early(early_oracle::deals()[0], Seat::Mittelhand);
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    assert_eq!(
+        s.guided().unwrap().rule.unwrap().card,
+        fixture::card(early_oracle::EASY[0])
+    );
+    assert!(s.guided().unwrap().figures.is_none());
+    assert_eq!(early_oracle::WINNERS[0], "CT CA");
+}
+
+#[test]
+fn grand_win_early_stale_reentry_off_automatic_and_new_game_reset() {
+    let mut s = grand_early(early_oracle::deals()[0], Seat::Mittelhand);
+    for level in [
+        crate::CoachLevel::Important,
+        crate::CoachLevel::EveryMove,
+        crate::CoachLevel::Off,
+    ] {
+        s.execute(Command::SetCoach(CoachSettings {
+            level,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        assert!(s.guided().is_none());
+        if level == crate::CoachLevel::Off {
+            assert_eq!(s.execute(Command::StartGuided), Err(AppError::CoachOff));
+        }
+    }
+    s.execute(Command::SetCoach(CoachSettings::default()))
+        .unwrap();
+    s.execute(Command::StartGuided).unwrap();
+    let old = s.guided().unwrap().id;
+    respond(&mut s, G::Return).unwrap();
+    s.execute(Command::StartGuided).unwrap();
+    assert_eq!(
+        s.execute(Command::Guided(old, G::Reveal)),
+        Err(AppError::StaleGuided)
+    );
+    let id = s.guided().unwrap().id;
+    while s.game.current_seat().is_some() {
+        s.apply(s.game.legal_actions()[0]).unwrap();
+    }
+    s.execute(Command::NextGame).unwrap();
+    assert!(s.guided().is_none());
+    assert_eq!(
+        s.execute(Command::Guided(id, G::Memory(true))),
+        Err(AppError::StaleGuided)
+    );
+}
+
+#[test]
+fn grand_win_early_optional_incomplete_disagreeing_estimates_never_select_rule() {
+    let mut s = grand_early(early_oracle::deals()[0], Seat::Mittelhand);
+    s.set_coach_budget(Budget {
+        samples: 1,
+        nodes_per_task: 1,
+    });
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    let rule = s.guided().unwrap().rule;
+    let condition = s.guided().unwrap().early_condition;
+    let result = s
+        .coach_job()
+        .unwrap()
+        .run(None)
+        .guided_rank_first(Action::Play(fixture::card("C8")));
+    assert_eq!(
+        result.explanation().unwrap().options[0].action,
+        Action::Play(fixture::card("C8"))
+    );
+    s.finish_coach(result).unwrap();
+    s.execute(Command::Act(Action::Play(fixture::card("CT"))))
+        .unwrap();
+    s.apply(Action::Play(fixture::card("CQ"))).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    assert!(s.guided().unwrap().figures.is_none());
+    s.execute(Command::SetCoach(CoachSettings {
+        show_figures: true,
+        ..CoachSettings::default()
+    }))
+    .unwrap();
+    respond(&mut s, G::Figures).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!(g.rule, rule);
+    assert_eq!(g.early_condition, condition);
+    assert!(g.figures_requested);
+    if let Some(h) = g.figures {
+        assert_ne!(h.status, skat_coach::Status::Complete);
+    }
+}
+
+#[test]
+fn grand_win_early_exclusions_preserve_existing_app_lessons_and_all_legal_actions() {
+    use fixture::{card as c, hand_game, swap};
+    let d = early_oracle::deals();
+    let no = swap(d[4], c("CT"), c("C9"));
+    let one = swap(swap(d[0], c("C8"), c("H7")), c("CT"), c("H8"));
+    for (deal, decl, game, plays, human, expected) in [
+        (
+            d[4],
+            Seat::Hinterhand,
+            hand_game(GRAND, false),
+            vec!["CK"],
+            Seat::Mittelhand,
+            Some(crate::GuidedBranch::UnderPartner),
+        ),
+        (
+            no,
+            Seat::Mittelhand,
+            hand_game(GRAND, false),
+            vec!["CK"],
+            Seat::Mittelhand,
+            None,
+        ),
+        (
+            one,
+            Seat::Mittelhand,
+            hand_game(GRAND, false),
+            vec!["CK"],
+            Seat::Mittelhand,
+            None,
+        ),
+        (
+            d[4],
+            Seat::Vorhand,
+            hand_game(GRAND, false),
+            vec!["CK", "C7"],
+            Seat::Hinterhand,
+            Some(crate::GuidedBranch::WinLast),
+        ),
+        (
+            d[4],
+            Seat::Mittelhand,
+            hand_game(NULL, false),
+            vec!["CK"],
+            Seat::Mittelhand,
+            None,
+        ),
+        (
+            d[0],
+            Seat::Mittelhand,
+            hand_game(GRAND, true),
+            vec!["CK"],
+            Seat::Mittelhand,
+            None,
+        ),
+        (
+            d[0],
+            Seat::Mittelhand,
+            hand_game(HERZ, false),
+            vec!["CK"],
+            Seat::Mittelhand,
+            None,
+        ),
+    ] {
+        let actions = fixture::contract_actions(deal, decl, game, &plays);
+        let mut s = grand_session(human, deal, false, &actions);
+        let legal = s.view().legal_actions;
+        s.execute(Command::StartGuided).unwrap();
+        assert_eq!(
+            s.guided().unwrap().step,
+            if expected.is_some() {
+                S::Orient
+            } else {
+                S::Unsupported
+            }
+        );
+        if let Some(branch) = expected {
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(s.guided().unwrap().rule.unwrap().branch, branch);
+            assert!(s.guided().unwrap().early_condition.is_none());
+        }
+        for action in legal {
+            s.clone().execute(Command::Act(action)).unwrap();
+        }
+    }
+}

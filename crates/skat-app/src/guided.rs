@@ -11,9 +11,10 @@ use skat_coach::guided::{
 pub use skat_coach::guided::{
     AnnounceCandidate as GuidedAnnounceCandidate, AnnounceRule as GuidedAnnounceRule,
     Answer as GuidedAnswer, BidRule as GuidedBidRule, Branch as GuidedBranch,
-    GameBranch as GuidedGameBranch, Keep as GuidedKeep, KontraCall as GuidedKontraCall,
-    KontraExclusion as GuidedKontraExclusion, KontraObservation as GuidedKontraObservation,
-    KontraRule as GuidedKontraRule, PreRule as GuidedPreRule, Step as GuidedStep,
+    EarlyCondition as GuidedEarlyCondition, GameBranch as GuidedGameBranch, Keep as GuidedKeep,
+    KontraCall as GuidedKontraCall, KontraExclusion as GuidedKontraExclusion,
+    KontraObservation as GuidedKontraObservation, KontraRule as GuidedKontraRule,
+    PreRule as GuidedPreRule, Step as GuidedStep,
 };
 use skat_core::{Action, Event, KontraLevel, PlayerView, Seat};
 
@@ -130,6 +131,8 @@ pub struct GuidedView {
     pub correct: Option<bool>,
     /// Rule after deliberate reveal only.
     pub rule: Option<skat_coach::guided::CardRule>,
+    /// Selected WinEarly card condition, disclosed with the rule only.
+    pub early_condition: Option<GuidedEarlyCondition>,
     /// Public source for orientation feedback, only after an attempt/reveal.
     pub evidence: Option<skat_coach::Source>,
     /// Optional collapsed memory; withheld before the rule answer.
@@ -286,6 +289,10 @@ impl GuidedState {
             rule: self
                 .revealed
                 .then(|| self.lesson.as_ref().map(|l| l.rule.clone()))
+                .flatten(),
+            early_condition: self
+                .revealed
+                .then(|| self.lesson.as_ref()?.early_condition())
                 .flatten(),
             evidence: self
                 .correct
