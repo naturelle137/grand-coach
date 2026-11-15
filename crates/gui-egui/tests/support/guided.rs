@@ -333,8 +333,12 @@ pub fn seat_name(i: &I18n, seat: skat_app::Seat) -> String {
 }
 
 /// Ordinary app (Kontra/Re off), real widgets only, up to the human's first
-/// card decision in a non-Ouvert Grand whose dialogue is `supported`
-/// (orientation) or the honest fallback; enters it by its real button.
+/// card decision in a non-Ouvert Grand whose dialogue is the supported
+/// `target` branch (orientation) or, for `None`, the honest fallback; enters
+/// it by its real button. Supported Grand card play is WinLast (last seat,
+/// two cards on the table) or UnderPartner (middle seat, one card), so the
+/// public trick identifies the branch before the hidden task; callers
+/// assert the task after orientation.
 ///
 /// As a defender (`declare`: false) the human passes every bid. As declarer
 /// it holds or bids up to 30, picks up, puts away its first two cards and
@@ -345,9 +349,9 @@ pub fn enter_grand(
     h: &mut Harness<'_, GrandCoachApp>,
     language: Language,
     declare: bool,
-    supported: bool,
+    target: Option<skat_app::GuidedBranch>,
 ) {
-    use skat_app::GameType;
+    use skat_app::{GameType, GuidedBranch};
     let i = I18n::new(language);
     h.state_mut().set_language(language);
     h.state_mut().opponent_delay = 0.0;
@@ -364,12 +368,16 @@ pub fn enter_grand(
             let grand = v
                 .contract
                 .is_some_and(|c| c.game == GameType::Grand && !c.ouvert);
-            let wanted = if supported {
-                GuidedStep::Orient
-            } else {
-                GuidedStep::Unsupported
+            let branch = match v.current_trick.len() {
+                1 => Some(GuidedBranch::UnderPartner),
+                2 => Some(GuidedBranch::WinLast),
+                _ => None,
             };
-            if grand && g.step == wanted && g.kontra.is_none() {
+            let reached = match target {
+                Some(t) => g.step == GuidedStep::Orient && branch == Some(t),
+                None => g.step == GuidedStep::Unsupported,
+            };
+            if grand && reached && g.kontra.is_none() {
                 return;
             }
             click(h, &i.t("guided-return"));

@@ -2024,3 +2024,85 @@ fn grand_under_partner_estimates_keep_the_original_rule() {
         assert_ne!(h.status, skat_coach::Status::Complete);
     }
 }
+
+/// Bounded ordinary-app route search (#159), mirroring the egui walkthrough
+/// helper: seeds 0..128, at most three games each, Kontra/Re off, Easy
+/// opponents; the human passes every bid and otherwise plays its first legal
+/// card. Records each seed's first human decision whose permitted view gets
+/// the Grand UnderPartner lesson as (seed, game, completed tricks).
+#[test]
+fn ordinary_grand_under_partner_routes_within_the_bounded_seed_search() {
+    use fixture::card as c;
+    let mut routes = Vec::new();
+    let mut seed_119 = None;
+    for seed in 0..128u64 {
+        let mut s = Session::new(SessionConfig {
+            seed,
+            series: SeriesLength::Free,
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
+        });
+        'games: for game in 1..=3u32 {
+            loop {
+                s.run_opponents();
+                let v = s.view();
+                if v.can_next_game {
+                    break;
+                }
+                let seat = PlayerId::HUMAN.seat(s.dealer);
+                assert_eq!(s.game.current_seat(), Some(seat));
+                let pv = s.game.view(seat);
+                if let Some(l) = skat_coach::guided::lesson(&pv)
+                    && l.game == GRAND
+                    && l.rule.branch == crate::GuidedBranch::UnderPartner
+                {
+                    routes.push((seed, game, pv.tricks.len()));
+                    if seed == 119 {
+                        seed_119 = Some((s.clone(), l));
+                    }
+                    break 'games;
+                }
+                let a = if v.legal_actions.contains(&Action::Pass) {
+                    Action::Pass
+                } else {
+                    v.legal_actions[0]
+                };
+                s.execute(Command::Act(a)).unwrap();
+            }
+            s.execute(Command::NextGame).unwrap();
+        }
+    }
+    // Seed 97 (VH's S7, every legal card loses) is first; the egui walkthrough
+    // uses seed 119, the first route with both a losing and an overtaking card.
+    assert_eq!(routes, vec![(97, 3, 0), (106, 3, 2), (119, 3, 5)]);
+    let (s, l) = seed_119.unwrap();
+    let v = s.view();
+    assert_eq!(PlayerId::HUMAN.seat(s.dealer), Seat::Mittelhand);
+    assert_eq!(
+        s.game.view(Seat::Mittelhand).declarer,
+        Some(Seat::Hinterhand)
+    );
+    // VH leads H8; H7 stays below, H9 overtakes; Easy H7.
+    assert_eq!(
+        v.current_trick.iter().map(|p| p.card).collect::<Vec<_>>(),
+        vec![c("H8")]
+    );
+    assert_eq!(
+        v.legal_actions,
+        vec![Action::Play(c("H7")), Action::Play(c("H9"))]
+    );
+    assert_eq!(
+        (l.rule.losers, l.rule.winners),
+        (vec![c("H7")], vec![c("H9")])
+    );
+    assert_eq!(l.rule.card, c("H7"));
+    // Actual automated declarer reply: HQ wins after either card.
+    for card in ["H7", "H9"] {
+        let mut t = s.clone();
+        t.execute(Command::Act(Action::Play(c(card)))).unwrap();
+        t.run_opponents();
+        let trick = *t.game.view(Seat::Mittelhand).tricks.last().unwrap();
+        assert_eq!(trick.cards, [c("H8"), c(card), c("HQ")]);
+        assert_eq!(trick.winner, Seat::Hinterhand);
+    }
+}
