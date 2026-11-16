@@ -1064,3 +1064,10 @@ validation-stopped = Sitzung ohne Antwort beendet. Bitte zur Partie zurückkehre
 validation-position = Aufgabe { $number } von 4
 validation-first = Erste erfasste Präsentation. Nur die erste ungestützte gewertete Antwort mit ausdrücklich gemeldeter fehlender Vorbekanntheit kann berücksichtigt werden. Ein lokaler Verlauf allein belegt keine Neuheit.
 validation-unclear-result = Als unklar erfasst – keine Wertung.
+
+guided-null-middle-role = Du spielst im Null als Zweiter; ein Gegenspieler folgt noch. Buben und Zehnen bedienen ihre aufgedruckte Farbe, ohne Trumpf.
+guided-rule-null-middle = Eine jetzt verlierende Karte kann den Stich für dich nicht gewinnen. Ein Überholen durch den letzten Gegenspieler wechselt nur den gewinnenden Gegenspieler; Easys Abwurf ist eine Faustregel ohne Spielgewinn-Garantie.
+guided-null-middle-details = Regeldetails: Kandidaten und Gleichstand
+guided-null-middle-order = Easy nimmt den höchsten Rang unter den aktuellen Verlierern; bei gleichem Rang die LETZTE Karte in erlaubter Reihenfolge. Der Rang gilt in der eigenen Farbe: Eine fremde Farbe gewinnt die ausgespielte nie.
+guided-null-middle-no-winners = Keine deiner legalen Karten überholt die erste Karte.
+guided-null-middle-winners = Karten, die jetzt die erste Karte überholen: { $cards }. Ein Gegenspieler folgt noch.

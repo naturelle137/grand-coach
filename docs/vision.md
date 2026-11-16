@@ -43,8 +43,10 @@ now lets the learner answer one question at a time, reveal Easy's actual
 conditional rule move and inspect the resulting public play. Non-Ouvert Grand
 now includes early overtaking in Mittelhand: distinguish a side master from
 a winning Bube, then observe whether the remaining player overtakes. A last-seat Grand defender can also compare all legal feeding cards and
-observe the actual individual winner, including an overtake of the partner. A non-Ouvert Null declarer acting last can compare current losing cards by
-Null rank and observe any chosen card, including an overtake. Free choice of
+observe the actual individual winner, including an overtake of the partner. A non-Ouvert Null declarer acting second or last can compare current losing cards by
+Null rank and observe any chosen card, including an overtake. In second seat,
+a current loser cannot win this trick for the declarer, although the last
+defender may change which defender wins. Free choice of
 every legal card and an immediate return to play remain available. Early,
 automatic and unaided help conceal the move; figures require a separate
 request and enabled figures. This first bounded slice does not establish

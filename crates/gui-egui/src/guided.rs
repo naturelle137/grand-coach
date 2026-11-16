@@ -85,10 +85,15 @@ fn content(
             g.step,
             GuidedStep::Orient | GuidedStep::Check | GuidedStep::Narrow | GuidedStep::Act
         )
-        && table.current_trick.len() == 2
+        && (table.current_trick.len() == 2
+            || (table.current_trick.len() == 1 && g.step == GuidedStep::Orient))
         && table.declarer == Some(skat_app::PlayerId::HUMAN)
     {
-        ui.label(i.t("guided-null-role"));
+        ui.label(i.t(if table.current_trick.len() == 1 {
+            "guided-null-middle-role"
+        } else {
+            "guided-null-role"
+        }));
     }
     let prompt = match g.step {
         GuidedStep::Orient => "guided-orient",
@@ -156,7 +161,11 @@ fn content(
         } else if rule.branch == GuidedBranch::WinEarly {
             "guided-rule-early"
         } else if rule.branch == GuidedBranch::Null {
-            "guided-rule-null"
+            if rule.last {
+                "guided-rule-null"
+            } else {
+                "guided-rule-null-middle"
+            }
         } else {
             "guided-rule-win"
         };
@@ -167,18 +176,36 @@ fn content(
                 GuidedEarlyCondition::FollowClassMaster => "guided-early-master",
             }));
         }
-        let cards: Vec<_> = rule.candidates.iter().map(|&c| text::card(i, c)).collect();
-        ui.label(i.tf("guided-candidates", &[("cards", cards.join(", ").into())]));
-        if rule.branch == GuidedBranch::Null {
-            let winners: Vec<_> = rule.winners.iter().map(|&c| text::card(i, c)).collect();
-            ui.label(if winners.is_empty() {
-                i.t("guided-null-no-winners")
-            } else {
-                i.tf(
-                    "guided-null-winners",
-                    &[("cards", winners.join(", ").into())],
-                )
+        let details = |ui: &mut egui::Ui| {
+            let cards: Vec<_> = rule.candidates.iter().map(|&c| text::card(i, c)).collect();
+            ui.label(i.tf("guided-candidates", &[("cards", cards.join(", ").into())]));
+            if rule.branch == GuidedBranch::Null {
+                let winners: Vec<_> = rule.winners.iter().map(|&c| text::card(i, c)).collect();
+                ui.label(if winners.is_empty() {
+                    i.t(if rule.last {
+                        "guided-null-no-winners"
+                    } else {
+                        "guided-null-middle-no-winners"
+                    })
+                } else {
+                    i.tf(
+                        if rule.last {
+                            "guided-null-winners"
+                        } else {
+                            "guided-null-middle-winners"
+                        },
+                        &[("cards", winners.join(", ").into())],
+                    )
+                });
+            }
+        };
+        if rule.branch == GuidedBranch::Null && !rule.last {
+            ui.collapsing(i.t("guided-null-middle-details"), |ui| {
+                ui.label(i.t("guided-null-middle-order"));
+                details(ui);
             });
+        } else {
+            details(ui);
         }
         let open = g.memory.is_some();
         if ui

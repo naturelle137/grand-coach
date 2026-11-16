@@ -2379,7 +2379,7 @@ fn grand_win_early_exclusions_preserve_existing_app_lessons_and_all_legal_action
             hand_game(NULL, false),
             vec!["CK"],
             Seat::Mittelhand,
-            None,
+            Some(crate::GuidedBranch::Null),
         ),
         (
             d[0],
@@ -2821,7 +2821,16 @@ fn null_last_real_exclusions_keep_unsupported_and_every_card_playable() {
         s.game = c.position();
         let before = s.view();
         s.execute(Command::StartGuided).unwrap();
-        assert_eq!(s.guided().unwrap().step, S::Unsupported, "{}", c.id);
+        assert_eq!(
+            s.guided().unwrap().step,
+            if c.id == "real-early" {
+                S::Orient
+            } else {
+                S::Unsupported
+            },
+            "{}",
+            c.id
+        );
         assert!(s.guided().unwrap().rule.is_none());
         for a in &before.legal_actions {
             s.clone().execute(Command::Act(*a)).unwrap();
@@ -2850,6 +2859,405 @@ fn null_last_rematched_session_and_assistance_change_reject_stale_answers() {
     assert!(s.guided().is_none());
     assert_eq!(
         s.execute(Command::Guided(old, G::Reveal)),
+        Err(AppError::StaleGuided)
+    );
+}
+
+#[allow(dead_code)]
+#[path = "../../skat-analysis/tests/null_middle_policy.rs"]
+mod middle_fixture;
+
+fn middle_fixture_session(c: &middle_fixture::Case) -> Session {
+    let mut s = Session::new(SessionConfig {
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
+    });
+    s.dealer = (0..3)
+        .map(PlayerId)
+        .find(|&d| PlayerId::HUMAN.seat(d) == c.seat)
+        .unwrap();
+    s.game = c.game();
+    s.recording.deal = c.deal;
+    s
+}
+
+fn middle_ordinary() -> Session {
+    use middle_fixture::card as c;
+    let mut s = Session::new(SessionConfig {
+        seed: 1,
+        series: SeriesLength::Fixed(3),
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
+    });
+    for a in [
+        Action::Hold,
+        Action::Hold,
+        Action::Hold,
+        Action::Hold,
+        Action::Pass,
+    ]
+    .into_iter()
+    .chain([31, 28, 8, 25, 26, 29, 23, 15, 14, 22].map(|n| Action::Play(c(n))))
+    {
+        s.run_opponents();
+        s.execute(Command::Act(a)).unwrap();
+    }
+    s.run_opponents();
+    s.execute(Command::NextGame).unwrap();
+    for a in [
+        Action::Bid(20),
+        Action::Hand,
+        Action::Announce(skat_core::Announcement::plain(NULL)),
+        Action::Play(c(19)),
+        Action::Play(c(24)),
+        Action::Play(c(4)),
+    ] {
+        s.run_opponents();
+        s.execute(Command::Act(a)).unwrap();
+    }
+    s.run_opponents();
+    let v = s.view();
+    assert_eq!(
+        (v.game_number, v.tricks_played, v.players[0].seat),
+        (2, 3, Seat::Hinterhand)
+    );
+    assert_eq!(
+        v.current_trick
+            .iter()
+            .map(|p| p.card.index())
+            .collect::<Vec<_>>(),
+        [12]
+    );
+    assert_eq!(v.legal_actions, [9, 10, 13, 14].map(|n| Action::Play(c(n))));
+    s
+}
+
+#[test]
+fn null_middle_every_candidate_and_continuation_observes_actual_third_winner() {
+    for c in middle_fixture::cases().into_iter().filter(|c| c.admitted) {
+        for &(candidate, third, winner) in &c.completions {
+            let mut s = middle_fixture_session(&c);
+            let before = s.view();
+            s.execute(Command::StartGuided).unwrap();
+            let id = s.guided().unwrap().id;
+            assert_eq!(s.guided().unwrap().step, S::Orient);
+            assert!(s.guided().unwrap().rule.is_none());
+            respond(
+                &mut s,
+                G::Answer(A::Seat(c.expected.as_ref().unwrap().winner)),
+            )
+            .unwrap();
+            respond(
+                &mut s,
+                G::Answer(A::Seat(Some(Seat::from_index(c.seat.index() + 1)))),
+            )
+            .unwrap();
+            let chosen = middle_fixture::card(candidate);
+            respond(&mut s, G::Answer(A::Card(chosen))).unwrap();
+            let loses = c.expected.as_ref().unwrap().losers.contains(&chosen);
+            assert_eq!(s.guided().unwrap().correct, Some(loses));
+            if !loses {
+                respond(&mut s, G::Retry).unwrap();
+                respond(&mut s, G::Reveal).unwrap();
+            }
+            assert_eq!(s.guided().unwrap().rule, c.expected);
+            assert!(s.guided().unwrap().memory.is_none());
+            respond(&mut s, G::Memory(true)).unwrap();
+            assert_eq!(
+                s.guided().unwrap().memory.unwrap().skat,
+                before.own_skat.map(|cs| cs.into_iter().collect())
+            );
+            s.execute(Command::Act(Action::Play(chosen))).unwrap();
+            assert_eq!(s.guided().unwrap().step, S::Waiting);
+            s.apply(Action::Play(middle_fixture::card(third))).unwrap();
+            let g = s.guided().unwrap();
+            assert_eq!(g.id, id);
+            assert_eq!(g.step, S::Observe);
+            assert!(g.observation.is_none() && g.memory.is_none());
+            assert_eq!(
+                g.observed_source,
+                Some(skat_coach::Source::Trick {
+                    index: before.tricks_played,
+                    seat: Seat::from_index(c.seat.index() + 1),
+                    led: before.current_trick[0].card,
+                    card: middle_fixture::card(third),
+                })
+            );
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().observation.unwrap().winner,
+                Some(winner)
+            );
+            respond(&mut s, G::Return).unwrap();
+            assert!(s.guided().is_none());
+        }
+    }
+}
+
+#[test]
+fn null_middle_full_dialogue_hidden_substitutions_even_in_god_mode() {
+    let cs = middle_fixture::cases();
+    for (a, b) in [
+        ("mixed-hand", "privacy-opponent-opponent"),
+        ("mixed-hand", "privacy-opponent-unknown-Hand-Skat"),
+        ("mixed-pickup", "privacy-pickup-opponents"),
+    ] {
+        for god in [false, true] {
+            let build = |id| {
+                let mut s = middle_fixture_session(cs.iter().find(|c| c.id == id).unwrap());
+                if god {
+                    s.config.opponents = Opponents::GodMode;
+                }
+                s
+            };
+            let mut x = build(a);
+            let mut y = build(b);
+            x.execute(Command::StartGuided).unwrap();
+            y.execute(Command::StartGuided).unwrap();
+            for action in [
+                None,
+                Some(G::Answer(A::Seat(Some(Seat::Mittelhand)))),
+                Some(G::Retry),
+                Some(G::Answer(A::Seat(Some(Seat::Vorhand)))),
+                Some(G::Answer(A::Seat(Some(Seat::Hinterhand)))),
+                Some(G::Answer(A::Card(middle_fixture::card(0)))),
+                Some(G::Memory(true)),
+                Some(G::Memory(false)),
+            ] {
+                if let Some(action) = action {
+                    respond(&mut x, action).unwrap();
+                    respond(&mut y, action).unwrap();
+                }
+                let gx = x.guided().unwrap();
+                let mut gy = y.guided().unwrap();
+                gy.id = gx.id;
+                assert_eq!(gx, gy, "{a}/{b}/god={god}");
+            }
+            assert!(x.guided().unwrap().rule.is_some());
+        }
+    }
+}
+
+#[test]
+fn null_middle_ordinary_recording_all_alternatives_stale_return_and_no_early_answer() {
+    for n in [9, 10, 13, 14] {
+        let mut s = middle_ordinary();
+        let recording = s.export_current_recording_privileged();
+        let before = s.view();
+        assert!(s.guided().is_none());
+        s.execute(Command::StartGuided).unwrap();
+        let id = s.guided().unwrap().id;
+        respond(&mut s, G::Return).unwrap();
+        assert_eq!(s.view(), before);
+        assert_eq!(s.export_current_recording_privileged(), recording);
+        s.execute(Command::StartGuided).unwrap();
+        assert_ne!(s.guided().unwrap().id, id);
+        assert_eq!(
+            s.execute(Command::Guided(id, G::Reveal)),
+            Err(AppError::StaleGuided)
+        );
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(s.guided().unwrap().rule.unwrap().card.index(), 10);
+        assert_eq!(s.view().legal_actions, before.legal_actions);
+        s.execute(Command::Act(Action::Play(middle_fixture::card(n))))
+            .unwrap();
+        assert_eq!(s.guided().unwrap().step, S::Waiting);
+        s.run_opponents();
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(Seat::Vorhand)
+        );
+        assert_eq!(
+            s.view()
+                .last_trick
+                .unwrap()
+                .cards
+                .into_iter()
+                .map(|p| p.card.index())
+                .collect::<Vec<_>>(),
+            [12, n, 15]
+        );
+        assert_eq!(respond(&mut s, G::Figures), Err(AppError::NoQuestion));
+        s.execute(Command::SetCoach(CoachSettings {
+            level: crate::CoachLevel::Off,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        assert!(s.guided().is_none());
+    }
+}
+
+/// Real app-emitted boundary models, not an ordinary route or an oracle.
+#[test]
+fn null_middle_fixture_widget_models_match_checked_sessions() {
+    let mut frames = Vec::new();
+    for c in middle_fixture::cases().into_iter().filter(|c| {
+        matches!(
+            c.id,
+            "mixed-hand"
+                | "mixed-pickup"
+                | "void-last-exact-tie"
+                | "changed-leading-rank"
+                | "all-loser-follow"
+                | "no-loser"
+                | "single-legal"
+                | "ouvert"
+        )
+    }) {
+        let mut s = middle_fixture_session(&c);
+        s.execute(Command::StartGuided).unwrap();
+        let mut save = |stage: &str, s: &Session| {
+            let mut g = serde_json::to_value(s.guided().unwrap()).unwrap();
+            g["id"]["lineage"] = 0.into();
+            g["id"]["generation"] = 0.into();
+            frames.push(serde_json::json!({"case":c.id,"stage":stage,"table":s.view(),"guided":g}));
+        };
+        if !c.admitted {
+            save("unsupported", &s);
+            continue;
+        }
+        respond(&mut s, G::Reveal).unwrap();
+        save("rule", &s);
+        if c.id == "mixed-pickup" {
+            respond(&mut s, G::Memory(true)).unwrap();
+            save("memory", &s);
+        }
+        if c.id == "mixed-hand" || c.id == "void-last-exact-tie" {
+            let (candidate, third, winner) = if c.id == "mixed-hand" {
+                (6, 2, Seat::Mittelhand)
+            } else {
+                (31, 6, Seat::Hinterhand)
+            };
+            // Candidate6 overtakes; third2 cannot catch it. Void31 loses,
+            // but third6 changes the winning defender from VH to HH.
+            s.execute(Command::Act(Action::Play(middle_fixture::card(candidate))))
+                .unwrap();
+            s.apply(Action::Play(middle_fixture::card(third))).unwrap();
+            save("observe", &s);
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().observation.unwrap().winner,
+                Some(winner)
+            );
+            save("complete", &s);
+        }
+    }
+    let value = serde_json::to_string_pretty(&frames).unwrap() + "\n";
+    if let Ok(path) = std::env::var("SKAT_NULL_MIDDLE_WIDGET_FIXTURES_OUT") {
+        std::fs::write(path, value).unwrap();
+    } else {
+        assert_eq!(
+            value,
+            include_str!("../../gui-egui/tests/fixtures/null-middle.json")
+        );
+    }
+}
+
+#[test]
+fn null_middle_fresh_ordinary_replay_evidence() {
+    let mut s = middle_ordinary();
+    let before = s.export_current_recording_privileged().unwrap();
+    let p = before.reconstruct_privileged(before.actions.len()).unwrap();
+    assert_eq!(
+        p.state.seats[Seat::Hinterhand.index()],
+        s.game.view(Seat::Hinterhand)
+    );
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    s.execute(Command::Act(Action::Play(middle_fixture::card(9))))
+        .unwrap();
+    s.execute(Command::AdvanceOpponent).unwrap();
+    let after = s.export_current_recording_privileged().unwrap();
+    let p = after.reconstruct_privileged(after.actions.len()).unwrap();
+    assert_eq!(
+        p.state.seats[Seat::Hinterhand.index()],
+        s.game.view(Seat::Hinterhand)
+    );
+    assert_eq!(s.guided().unwrap().step, S::Observe);
+    if let Ok(path) = std::env::var("SKAT_NULL_MIDDLE_ROUTE_OUT") {
+        std::fs::write(path,serde_json::to_string_pretty(&serde_json::json!({
+            "entry":"Session::new","injection":false,"recording_before":before,"recording_after":after,
+            "fresh_replay_equal":true,"actual_trick":s.view().last_trick,"guided":s.guided(),
+        })).unwrap()).unwrap();
+    }
+}
+
+#[test]
+fn null_middle_early_automatic_off_memory_estimates_and_reset_keep_consent() {
+    for level in crate::CoachLevel::ALL {
+        let mut s = middle_ordinary();
+        s.execute(Command::SetCoach(CoachSettings {
+            level,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        assert!(
+            s.guided().is_none(),
+            "ordinary/automatic help cannot enter dialogue"
+        );
+        if level == crate::CoachLevel::Off {
+            assert_eq!(s.execute(Command::StartGuided), Err(AppError::CoachOff));
+            continue;
+        }
+        s.set_coach_budget(Budget {
+            samples: 1,
+            nodes_per_task: 1,
+        });
+        s.execute(Command::StartGuided).unwrap();
+        let id = s.guided().unwrap().id;
+        assert!(s.guided().unwrap().rule.is_none());
+        assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
+        assert_eq!(respond(&mut s, G::Figures), Err(AppError::NoQuestion));
+        respond(&mut s, G::Reveal).unwrap();
+        let rule = s.guided().unwrap().rule;
+        let result = s
+            .coach_job()
+            .unwrap()
+            .run(None)
+            .guided_rank_first(Action::Play(middle_fixture::card(14)));
+        s.finish_coach(result).unwrap();
+        s.execute(Command::Act(Action::Play(middle_fixture::card(9))))
+            .unwrap();
+        s.execute(Command::AdvanceOpponent).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        s.execute(Command::SetCoach(CoachSettings {
+            level,
+            show_figures: true,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        assert!(s.guided().unwrap().figures.is_none());
+        respond(&mut s, G::Figures).unwrap();
+        let g = s.guided().unwrap();
+        assert_eq!(g.id, id);
+        assert_eq!(g.rule, rule);
+        assert!(g.figures_requested);
+        if let Some(h) = g.figures {
+            assert_ne!(h.status, skat_coach::Status::Complete);
+        }
+        s.execute(Command::SetAssist(crate::AssistSettings {
+            counting_aid: true,
+            ..crate::AssistSettings::default()
+        }))
+        .unwrap();
+        assert!(s.guided().is_none());
+        assert_eq!(
+            s.execute(Command::Guided(id, G::Reveal)),
+            Err(AppError::StaleGuided)
+        );
+    }
+    let mut s = middle_ordinary();
+    s.execute(Command::StartGuided).unwrap();
+    let id = s.guided().unwrap().id;
+    while s.game.current_seat().is_some() {
+        s.apply(s.game.legal_actions()[0]).unwrap();
+    }
+    s.execute(Command::NextGame).unwrap();
+    assert!(s.guided().is_none());
+    assert_eq!(
+        s.execute(Command::Guided(id, G::Reveal)),
         Err(AppError::StaleGuided)
     );
 }

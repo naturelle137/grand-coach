@@ -571,3 +571,24 @@ cover every new PNG without cropping, scaling or repairing source pixels.
 Both full OS archives, their API digest/size, exact sets and every file hash,
 merged-main regression and personal cross-platform inspection remain the
 terminal delivery owner's checks.
+
+### Null middle-seat dialogue (#169)
+
+`null_middle_policy` (skat-analysis, default features) freezes QA1591's
+corrected legal oracle; `guided_null_middle` (skat-coach) checks scope,
+whole non-absent lessons and privacy. App `null_middle` tests replay every
+admitted candidate/continuation, full hidden-substitution dialogue models,
+ordinary seeded recording reconstruction and actual individual winners.
+The ignored `gui-egui --test null_middle` tests exercise ordinary widgets,
+all legal alternatives, both languages and 1440×1000 / 960×640.
+
+The existing all-scenarios screenshot example includes all new ordinary
+stages and explicitly labelled boundary components on each OS. Its
+`null-middle-inventory.json` is generated from the same source that selects
+views, with name, stage, kind, language and exact dimensions. Names beginning
+`guided-null-middle-` are new; existing #165 scenarios are retained without
+duplication. App-emitted component models live in
+`crates/gui-egui/tests/fixtures/null-middle.json` and are compared byte for
+byte with checked session output; they are neither an ordinary route nor
+the independent oracle. Personal PNG inspection and final two-OS archive
+verification are separate evidence, never inferred from a passing renderer.

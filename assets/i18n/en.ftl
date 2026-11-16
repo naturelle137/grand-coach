@@ -1064,3 +1064,10 @@ validation-stopped = Session stopped without an answer. Return to the game and r
 validation-position = Task { $number } of 4
 validation-first = First recorded presentation. Only the first unaided scored answer with an explicit report of no prior exposure can be considered. Local history alone does not establish novelty.
 validation-unclear-result = Recorded as unclear – not scored.
+
+guided-null-middle-role = You play second in Null; one defender still follows. Buben and Zehnen follow their printed suit, without Trumpf.
+guided-rule-null-middle = A current loser cannot win this trick for you. An overtake by the last defender only changes the winning defender; Easy’s discard is a heuristic with no game-win guarantee.
+guided-null-middle-details = Rule details: candidates and ties
+guided-null-middle-order = Easy takes the highest rank among current losers; on equal rank, the LAST card in legal order. Rank is within the card’s own suit: another suit never wins the led suit.
+guided-null-middle-no-winners = None of your legal cards overtakes the lead.
+guided-null-middle-winners = Cards that currently overtake the lead: { $cards }. A defender still follows.

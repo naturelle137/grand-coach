@@ -180,7 +180,7 @@ fn early_exclusions_retain_existing_branches_and_no_new_farbspiel() {
             vec!["CK"],
             Seat::Mittelhand,
             Branch::Null,
-            false,
+            true,
         ),
         (
             d[0],
