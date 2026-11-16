@@ -2507,3 +2507,349 @@ fn grand_feed_fixture_only_overtake_names_human_winner_and_preserves_all_candida
         }
     }
 }
+
+#[allow(dead_code)]
+#[path = "../../skat-coach/tests/support/null_last.rs"]
+mod null_fixture;
+
+fn null_ordinary() -> Session {
+    let mut s = Session::new(SessionConfig {
+        seed: 6,
+        series: SeriesLength::Fixed(3),
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
+    });
+    // QA1458 route.json, unchanged ordinary Session; no injected state.
+    for (start, cards) in [
+        (
+            vec![Action::Hold, Action::Pass],
+            vec![2, 24, 19, 21, 3, 8, 5, 27, 6, 29],
+        ),
+        (
+            vec![Action::Pass],
+            vec![0, 1, 26, 10, 16, 27, 2, 13, 18, 23],
+        ),
+    ] {
+        for a in start.into_iter().chain(
+            cards
+                .into_iter()
+                .map(|n| Action::Play(Card::from_index(n).unwrap())),
+        ) {
+            s.run_opponents();
+            s.execute(Command::Act(a)).unwrap();
+        }
+        s.run_opponents();
+        s.execute(Command::NextGame).unwrap();
+    }
+    for a in [
+        Action::Bid(18),
+        Action::Hand,
+        Action::Announce(skat_core::Announcement::plain(skat_core::GameType::Null)),
+        Action::Play(Card::from_index(1).unwrap()),
+    ] {
+        s.run_opponents();
+        s.execute(Command::Act(a)).unwrap();
+    }
+    s.run_opponents();
+    s
+}
+
+#[test]
+fn null_last_ordinary_every_card_consent_retry_return_and_stale_reset() {
+    let base = null_ordinary();
+    let v = base.view();
+    assert_eq!(
+        (v.game_number, v.tricks_played, v.players[0].seat),
+        (3, 1, Seat::Mittelhand)
+    );
+    assert_eq!(v.declarer, Some(PlayerId::HUMAN));
+    assert_eq!(
+        v.legal_actions,
+        [16, 18, 20].map(|n| Action::Play(Card::from_index(n).unwrap()))
+    );
+    for action in v.legal_actions.clone() {
+        let mut s = base.clone();
+        assert!(s.guided().is_none());
+        s.execute(Command::StartGuided).unwrap();
+        let id = s.guided().unwrap().id;
+        let g = s.guided().unwrap();
+        assert_eq!(g.step, S::Orient);
+        assert!(g.rule.is_none() && g.memory.is_none() && g.figures.is_none());
+        assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
+        respond(&mut s, G::Answer(A::Seat(Some(Seat::Mittelhand)))).unwrap();
+        assert_eq!(s.guided().unwrap().correct, Some(false));
+        assert!(s.guided().unwrap().rule.is_none());
+        respond(&mut s, G::Retry).unwrap();
+        respond(&mut s, G::Answer(A::Seat(Some(Seat::Vorhand)))).unwrap();
+        respond(&mut s, G::Answer(A::Seat(None))).unwrap();
+        assert_eq!(s.guided().unwrap().task, Some(crate::GuidedBranch::Null));
+        let Action::Play(c) = action else {
+            panic!("card")
+        };
+        respond(&mut s, G::Answer(A::Card(c))).unwrap();
+        assert_eq!(s.guided().unwrap().rule.unwrap().card.index(), 20);
+        respond(&mut s, G::Memory(true)).unwrap();
+        assert_eq!(s.guided().unwrap().memory.unwrap().trumpf, None);
+        respond(&mut s, G::Return).unwrap();
+        assert_eq!(s.view(), v);
+        s.execute(Command::StartGuided).unwrap();
+        assert_ne!(s.guided().unwrap().id, id);
+        assert_eq!(
+            s.execute(Command::Guided(id, G::Reveal)),
+            Err(AppError::StaleGuided)
+        );
+        respond(&mut s, G::Reveal).unwrap();
+        s.execute(Command::Act(action)).unwrap();
+        let g = s.guided().unwrap();
+        assert_eq!(g.step, S::Observe);
+        assert!(g.observation.is_none() && g.memory.is_none() && g.figures.is_none());
+        respond(&mut s, G::Answer(A::Void(false))).unwrap();
+        let o = s.guided().unwrap().observation.unwrap();
+        assert_eq!(o.winner, Some(Seat::Vorhand));
+        assert_eq!(
+            s.view()
+                .last_trick
+                .unwrap()
+                .cards
+                .into_iter()
+                .map(|p| p.card.index())
+                .collect::<Vec<_>>(),
+            [17, 21, c.index()]
+        );
+        assert_eq!(respond(&mut s, G::Figures), Err(AppError::NoQuestion));
+        s.execute(Command::SetCoach(CoachSettings {
+            level: crate::CoachLevel::Off,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        assert!(s.guided().is_none());
+        assert_eq!(
+            s.execute(Command::Guided(id, G::Reveal)),
+            Err(AppError::StaleGuided)
+        );
+    }
+    let mut s = base;
+    // Reset boundary after the frozen Fixed3 route: allow a following game.
+    s.config.series = SeriesLength::Free;
+    s.execute(Command::StartGuided).unwrap();
+    let id = s.guided().unwrap().id;
+    while s.game.current_seat().is_some() {
+        s.apply(s.game.legal_actions()[0]).unwrap();
+    }
+    s.execute(Command::NextGame).unwrap();
+    assert!(s.guided().is_none());
+    assert_eq!(
+        s.execute(Command::Guided(id, G::Reveal)),
+        Err(AppError::StaleGuided)
+    );
+}
+
+#[test]
+fn null_last_fixtures_every_candidate_actual_winner_and_hidden_views() {
+    for c in null_fixture::cases().into_iter().filter(|c| c.supported) {
+        for (&n, &w) in c.legal.iter().zip(c.completed) {
+            let mut s = Session::new(SessionConfig::default());
+            s.dealer = PlayerId(0); // Explicit fixture: human HH, not ordinary route.
+            s.game = c.position();
+            let before = s.view();
+            s.execute(Command::StartGuided).unwrap();
+            respond(
+                &mut s,
+                G::Answer(A::Seat(Some(null_fixture::seat(c.winner.unwrap())))),
+            )
+            .unwrap();
+            respond(&mut s, G::Answer(A::Seat(None))).unwrap();
+            respond(&mut s, G::Answer(A::Card(null_fixture::card(n)))).unwrap();
+            let loses = c.losers.contains(&n);
+            assert_eq!(s.guided().unwrap().correct, Some(loses));
+            if !loses {
+                // Winning alternatives are wrong for the task, still playable.
+                assert!(s.guided().unwrap().rule.is_none());
+                respond(&mut s, G::Retry).unwrap();
+                respond(&mut s, G::Reveal).unwrap();
+            }
+            assert_eq!(s.view().legal_actions, before.legal_actions);
+            assert_eq!(
+                s.guided().unwrap().rule.unwrap().card,
+                null_fixture::card(c.choice.unwrap())
+            );
+            s.execute(Command::Act(Action::Play(null_fixture::card(n))))
+                .unwrap();
+            assert_eq!(s.guided().unwrap().step, S::Observe);
+            assert!(s.guided().unwrap().observation.is_none());
+            respond(&mut s, G::Reveal).unwrap();
+            let o = s.guided().unwrap().observation.unwrap();
+            assert_eq!(o.winner, Some(null_fixture::seat(w)), "{} {n}", c.id);
+            assert_eq!(
+                o.proves_void,
+                null_fixture::card(n).suit() != before.current_trick[0].card.suit()
+            );
+        }
+    }
+    let cases = null_fixture::cases();
+    for (name, a, b) in [
+        ("mixed-ten", "VH H7", "Skat DK"),
+        ("mixed-ten", "VH H7", "MH S7"),
+        ("pickup-mixed", "VH H7", "MH S7"),
+    ] {
+        let c = cases.iter().find(|c| c.id == name).unwrap();
+        let mut x = Session::new(SessionConfig::default());
+        x.dealer = PlayerId(0);
+        x.game = c.position();
+        let mut y = x.clone();
+        y.game = c.swapped(a, b);
+        assert_eq!(x.view(), y.view());
+        x.execute(Command::StartGuided).unwrap();
+        y.execute(Command::StartGuided).unwrap();
+        for action in [G::Reveal, G::Memory(true)] {
+            respond(&mut x, action).unwrap();
+            respond(&mut y, action).unwrap();
+            let gx = x.guided().unwrap();
+            let mut gy = y.guided().unwrap();
+            assert!(gx.rule.is_some());
+            gy.id = gx.id;
+            assert_eq!(gx, gy);
+        }
+    }
+}
+
+/// Serialize ACTUAL fixture dialogue views for frontend component rendering.
+/// These are not ordinary-route coverage and not the domain oracle: the tests
+/// above compare every winner/choice against QA1458's handwritten expectations.
+#[test]
+fn null_last_fixture_widget_models_match_checked_session_outputs() {
+    let mut frames = Vec::new();
+    for c in null_fixture::cases().into_iter().filter(|c| c.supported) {
+        let mut s = Session::new(SessionConfig::default());
+        s.dealer = PlayerId(0);
+        s.game = c.position();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        let mut save = |stage: &str, s: &Session| {
+            if !matches!(
+                (c.id, stage),
+                ("mixed-ten", "rule" | "observe" | "complete")
+                    | ("void-last-tie", "rule" | "complete")
+                    | ("pickup-mixed", "memory")
+                    | ("void-changed-queen" | "printed-bube", "rule")
+            ) {
+                return;
+            }
+            let mut g = serde_json::to_value(s.guided().unwrap()).unwrap();
+            // Entry identity is deliberately inert in a component fixture;
+            // lifecycle/identity is tested on real sessions, never this replay.
+            g["id"]["lineage"] = 0.into();
+            g["id"]["generation"] = 0.into();
+            frames.push(
+                serde_json::json!({"case": c.id, "stage": stage, "table":s.view(), "guided":g}),
+            );
+        };
+        save("rule", &s);
+        respond(&mut s, G::Memory(true)).unwrap();
+        save("memory", &s);
+        // Mixed positions deliberately take the trick with a winning alternative;
+        // void fixtures discard. All choices separately exercised exhaustively.
+        let n = if c.id == "mixed-ten" || c.id == "pickup-mixed" || c.id == "printed-bube" {
+            c.legal[c.legal.len() - 1]
+        } else {
+            c.choice.unwrap()
+        };
+        s.execute(Command::Act(Action::Play(null_fixture::card(n))))
+            .unwrap();
+        save("observe", &s);
+        respond(&mut s, G::Reveal).unwrap();
+        save("complete", &s);
+    }
+    let value = serde_json::to_string_pretty(&frames).unwrap() + "\n";
+    if let Ok(path) = std::env::var("SKAT_NULL_WIDGET_FIXTURES_OUT") {
+        std::fs::write(path, &value).unwrap();
+    } else {
+        assert_eq!(
+            value,
+            include_str!("../../gui-egui/tests/fixtures/null-last.json")
+        );
+    }
+}
+
+#[test]
+fn null_last_separate_incomplete_estimates_never_change_rule_or_leak_on_entry() {
+    let mut s = null_ordinary();
+    s.set_coach_budget(Budget {
+        samples: 1,
+        nodes_per_task: 1,
+    });
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    let rule = s.guided().unwrap().rule;
+    let result = s
+        .coach_job()
+        .unwrap()
+        .run(None)
+        .guided_rank_first(Action::Play(null_fixture::card("H7")));
+    assert_eq!(
+        result.explanation().unwrap().options[0].action,
+        Action::Play(null_fixture::card("H7"))
+    );
+    s.finish_coach(result).unwrap();
+    s.execute(Command::Act(Action::Play(null_fixture::card("H7"))))
+        .unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    s.execute(Command::SetCoach(CoachSettings {
+        show_figures: true,
+        ..CoachSettings::default()
+    }))
+    .unwrap();
+    assert!(s.guided().unwrap().figures.is_none());
+    respond(&mut s, G::Figures).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!(g.rule, rule);
+    assert!(g.figures_requested);
+    if let Some(h) = g.figures {
+        assert_ne!(h.status, skat_coach::Status::Complete);
+    }
+}
+
+#[test]
+fn null_last_real_exclusions_keep_unsupported_and_every_card_playable() {
+    for c in null_fixture::cases().into_iter().filter(|c| !c.supported) {
+        let mut s = Session::new(SessionConfig::default());
+        let human = null_fixture::seat(c.actor);
+        s.dealer = (0..3)
+            .map(PlayerId)
+            .find(|&d| PlayerId::HUMAN.seat(d) == human)
+            .unwrap();
+        s.game = c.position();
+        let before = s.view();
+        s.execute(Command::StartGuided).unwrap();
+        assert_eq!(s.guided().unwrap().step, S::Unsupported, "{}", c.id);
+        assert!(s.guided().unwrap().rule.is_none());
+        for a in &before.legal_actions {
+            s.clone().execute(Command::Act(*a)).unwrap();
+        }
+        respond(&mut s, G::Return).unwrap();
+        assert_eq!(s.view(), before);
+    }
+}
+
+#[test]
+fn null_last_rematched_session_and_assistance_change_reject_stale_answers() {
+    let mut s = null_ordinary();
+    let mut other = null_ordinary();
+    s.execute(Command::StartGuided).unwrap();
+    other.execute(Command::StartGuided).unwrap();
+    let old = s.guided().unwrap().id;
+    assert_eq!(
+        other.execute(Command::Guided(old, G::Reveal)),
+        Err(AppError::StaleGuided)
+    );
+    s.execute(Command::SetAssist(crate::AssistSettings {
+        counting_aid: true,
+        ..crate::AssistSettings::default()
+    }))
+    .unwrap();
+    assert!(s.guided().is_none());
+    assert_eq!(
+        s.execute(Command::Guided(old, G::Reveal)),
+        Err(AppError::StaleGuided)
+    );
+}

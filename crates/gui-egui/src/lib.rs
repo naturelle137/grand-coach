@@ -18,4 +18,5 @@ pub use app::GrandCoachApp;
 pub use cards::{Deck, Theme};
 pub use i18n::Language;
 
-mod guided;
+/// Guided dialogue component, also used by permitted-view fixture renderers.
+pub mod guided;

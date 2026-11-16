@@ -654,3 +654,211 @@ pub fn feed_flow(h: &mut Harness<'_, GrandCoachApp>, language: Language, stage: 
     click(h, &i.t("guided-return"));
     assert!(h.state().session().guided().is_none());
 }
+
+/// Frozen QA1458 ordinary #165 seed6 route. Initial MH, CURRENT last in trick2.
+/// No injected deal, table view or session. Used by tests and screenshot scenarios.
+#[allow(dead_code)]
+pub fn enter_null(h: &mut Harness<'_, GrandCoachApp>, language: Language) {
+    use skat_app::*;
+    h.state_mut().set_language(language);
+    h.state_mut().opponent_delay = 0.0;
+    let i = I18n::new(language);
+    assert_eq!(
+        h.state().session().coach_settings(),
+        CoachSettings::default()
+    );
+    for (first, cards) in [
+        (
+            vec![Action::Hold, Action::Pass],
+            vec![2, 24, 19, 21, 3, 8, 5, 27, 6, 29],
+        ),
+        (
+            vec![Action::Pass],
+            vec![0, 1, 26, 10, 16, 27, 2, 13, 18, 23],
+        ),
+    ] {
+        for a in first.into_iter().chain(
+            cards
+                .into_iter()
+                .map(|n| Action::Play(Card::from_index(n).unwrap())),
+        ) {
+            settle(h);
+            let v = h.state().session().view();
+            assert!(v.legal_actions.contains(&a));
+            let label = match a {
+                Action::Hold => i.tf("button-hold", &[("value", v.bid.into())]),
+                Action::Pass => i.t("button-pass"),
+                Action::Play(c) => card_name(&i, c),
+                _ => unreachable!(),
+            };
+            click(h, &label);
+        }
+        settle(h);
+        assert!(h.state().session().view().can_next_game);
+        click(h, &i.t("button-next-game"));
+    }
+    for a in [
+        Action::Bid(18),
+        Action::Hand,
+        Action::Announce(Announcement::plain(GameType::Null)),
+        Action::Play(Card::from_index(1).unwrap()),
+    ] {
+        settle(h);
+        assert!(h.state().session().view().legal_actions.contains(&a));
+        let label = match a {
+            Action::Bid(b) => i.tf("button-bid", &[("value", b.into())]),
+            Action::Hand => i.t("button-hand"),
+            Action::Announce(_) => {
+                h.get_by_role_and_label(Role::RadioButton, "Null").click();
+                h.run_steps(4);
+                i.t("button-announce")
+            }
+            Action::Play(c) => card_name(&i, c),
+            _ => unreachable!(),
+        };
+        click(h, &label);
+    }
+    settle(h);
+    let v = h.state().session().view();
+    assert_eq!(
+        (v.game_number, v.tricks_played, v.players[0].seat),
+        (3, 1, Seat::Mittelhand)
+    );
+    assert_eq!(v.declarer, Some(PlayerId::HUMAN));
+    assert_eq!(
+        v.current_trick
+            .iter()
+            .map(|p| (p.player.0, p.card.index()))
+            .collect::<Vec<_>>(),
+        vec![(1, 17), (2, 21)]
+    );
+    assert_eq!(
+        v.legal_actions,
+        [16, 18, 20].map(|n| Action::Play(Card::from_index(n).unwrap()))
+    );
+    assert!(v.own_skat.is_none() && v.open_cards.is_none());
+    click(h, &i.t("guided-start"));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Orient
+    );
+}
+
+/// #165 ordinary views: orientation, wrong/retry, remaining, candidate, attempt,
+/// deliberate reveal, memory, actual observation, feedback and immediate return.
+#[allow(dead_code)]
+pub fn null_flow(h: &mut Harness<'_, GrandCoachApp>, language: Language, stage: u8, chosen: u8) {
+    use skat_app::*;
+    enter_null(h, language);
+    let i = I18n::new(language);
+    if stage == 0 {
+        return;
+    }
+    null_click(h, &seat_name(&i, Seat::Mittelhand));
+    assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+    if stage == 1 {
+        return;
+    }
+    null_click(h, &i.t("guided-retry"));
+    null_click(h, &seat_name(&i, Seat::Vorhand));
+    if stage == 2 {
+        return;
+    }
+    null_click(h, &i.t("guided-none"));
+    assert_eq!(
+        h.state().session().guided().unwrap().task,
+        Some(GuidedBranch::Null)
+    );
+    if stage == 3 {
+        return;
+    }
+    let before = h.state().session().view();
+    if stage == 5 {
+        null_click(h, &i.t("guided-reveal"));
+    } else {
+        null_click(
+            h,
+            &i.tf(
+                "guided-consider",
+                &[(
+                    "card",
+                    card_name(&i, Card::from_index(chosen).unwrap()).into(),
+                )],
+            ),
+        );
+    }
+    assert_eq!(
+        h.state()
+            .session()
+            .guided()
+            .unwrap()
+            .rule
+            .unwrap()
+            .card
+            .index(),
+        20
+    );
+    assert_eq!(
+        h.state().session().view().legal_actions,
+        before.legal_actions
+    );
+    assert_eq!(
+        h.state().session().view().current_trick,
+        before.current_trick
+    );
+    if stage == 4 || stage == 5 {
+        return;
+    }
+    if stage == 6 {
+        null_click(h, &i.t("guided-memory"));
+        h.get_by_label(&i.t("guided-unknown-skat")).scroll_to_me();
+        h.run_steps(4);
+        return;
+    }
+    // Hold opponents after completion so the actual trick remains on the table.
+    h.state_mut().opponent_delay = 1000.0;
+    null_click(h, &card_name(&i, Card::from_index(chosen).unwrap()));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Observe
+    );
+    assert_eq!(
+        h.state()
+            .session()
+            .view()
+            .last_trick
+            .unwrap()
+            .cards
+            .into_iter()
+            .map(|p| p.card.index())
+            .collect::<Vec<_>>(),
+        [17, 21, chosen]
+    );
+    if stage == 7 {
+        return;
+    }
+    null_click(h, &i.t("guided-void-no"));
+    assert_eq!(
+        h.state()
+            .session()
+            .guided()
+            .unwrap()
+            .observation
+            .unwrap()
+            .winner,
+        Some(Seat::Vorhand)
+    );
+    if stage == 8 {
+        return;
+    }
+    null_click(h, &i.t("guided-return"));
+    assert!(h.state().session().guided().is_none());
+}
+
+/// Scroll a new Null-dialogue control into view before a real pointer click.
+#[allow(dead_code)]
+pub fn null_click(h: &mut Harness<'_, GrandCoachApp>, label: &str) {
+    h.get_by_role_and_label(Role::Button, label).scroll_to_me();
+    h.run_steps(4);
+    click(h, label);
+}
