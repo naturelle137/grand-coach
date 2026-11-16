@@ -1,0 +1,658 @@
+{
+  "issue": 165,
+  "source_head": "b5a3d58798f63b3a01aaa36b9b93487747a2f052",
+  "ordinary_count": 40,
+  "fixture_component_count": 32,
+  "backend": "Linux CPU lavapipe",
+  "all_personally_inspected": true,
+  "files": [
+    {
+      "name": "guided-null-last-attempt-de.png",
+      "sha256": "ad246927255e626fa3f71ee8455b4f1ad2e6a1762c249883cb6e1c503bca40a7",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 358811
+    },
+    {
+      "name": "guided-null-last-attempt-de-narrow.png",
+      "sha256": "5c7c7d73cfdfce10d68ebeffeabb4056d83b17ccc7bfaf43f20b4c46b5e0da7f",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 281425
+    },
+    {
+      "name": "guided-null-last-attempt-en.png",
+      "sha256": "2a125810eea5f471dbb98d1db973bbceba6a22ae5128747f29d46afb796c4ac2",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 333894
+    },
+    {
+      "name": "guided-null-last-attempt-en-narrow.png",
+      "sha256": "bddd215ba90462f0e282e26be301a49ce9300747dd083904819a372cb92f9583",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 273517
+    },
+    {
+      "name": "guided-null-last-candidate-de.png",
+      "sha256": "d83af3af36149b2b746e4f6b197a8788dd319b0f62ebcc2be8959b2d6e80ac99",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 289279
+    },
+    {
+      "name": "guided-null-last-candidate-de-narrow.png",
+      "sha256": "b1019358c0563f7fbb1f19f7f03078452c2a742e498fc12609f8bec925d0273f",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 235202
+    },
+    {
+      "name": "guided-null-last-candidate-en.png",
+      "sha256": "c59b95a59b4e2e4e1743a4a063cf3a8ed492a65715c4962498aff4d5bdf89eaf",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 275630
+    },
+    {
+      "name": "guided-null-last-candidate-en-narrow.png",
+      "sha256": "009e1edac0e5601fceaa9db60e2f0116906a6fbb183ccca06bc63d1381a6b937",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 222183
+    },
+    {
+      "name": "guided-null-last-complete-de.png",
+      "sha256": "564104d407df456273e3658d73b907f72c0b7adc8ede0d32e066929cd02d37e7",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 262399
+    },
+    {
+      "name": "guided-null-last-complete-de-narrow.png",
+      "sha256": "736c4db3bb01addb9ca524eb70f66857ce3b33d379bc939e81eb445d20943b7e",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 208555
+    },
+    {
+      "name": "guided-null-last-complete-en.png",
+      "sha256": "8ad54e19b9822e5ac3322d7f51338fe751cd179a499f69e2cdd4e6d749078813",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 252833
+    },
+    {
+      "name": "guided-null-last-complete-en-narrow.png",
+      "sha256": "e6020e25473ce3bf2cc84b9a40ccac847e53316a3328e9491a6a99024e010cda",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 199777
+    },
+    {
+      "name": "guided-null-last-memory-de.png",
+      "sha256": "1f1cac2a3dc13162dfeedb333b874dc8eb2d60febaf6f7582725ebfd3646d640",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 376831
+    },
+    {
+      "name": "guided-null-last-memory-de-narrow.png",
+      "sha256": "61ba6bcb0f608d8b22cb7746ec9438b74fe1183a6972786f16b89eb80700db83",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 275432
+    },
+    {
+      "name": "guided-null-last-memory-en.png",
+      "sha256": "36e1ce161a44fbf20cb7279ce325462baebf6759a8fcdae7d9b28f17ec7def80",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 347692
+    },
+    {
+      "name": "guided-null-last-memory-en-narrow.png",
+      "sha256": "3a6e13c3c10c7c17de27436e730ec50cb567e6e6fae7ee506c63c03937325318",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 265300
+    },
+    {
+      "name": "guided-null-last-observe-de.png",
+      "sha256": "da3d5bf73fe3541e8f0ac6ef6e77ffe3187c3dee259e867eac9b2111612daadd",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 261350
+    },
+    {
+      "name": "guided-null-last-observe-de-narrow.png",
+      "sha256": "c410d99d6ffec787ebb4d9caf3f1c88ac0a5f700fc2897466a78b1e446f59491",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 208067
+    },
+    {
+      "name": "guided-null-last-observe-en.png",
+      "sha256": "820b4a799bca375e60c42f5236a96ddd967ad81e5f9f006fce3940184f080f75",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 252081
+    },
+    {
+      "name": "guided-null-last-observe-en-narrow.png",
+      "sha256": "dffa1c44457ca4e9cce8da65ca8e916e096eaa669e14697959e38de4f754d8b1",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 199449
+    },
+    {
+      "name": "guided-null-last-orient-de.png",
+      "sha256": "899005e3ce6b6e09f16039cdfc78e2a4a36525031869e83c98014d87ba7d5516",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 271899
+    },
+    {
+      "name": "guided-null-last-orient-de-narrow.png",
+      "sha256": "a9dba86f785571d097b30397f7823c4c72c129eaee0f1da07167dc7fe95715cc",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 218089
+    },
+    {
+      "name": "guided-null-last-orient-en.png",
+      "sha256": "3836c4890d5f96b080214d3fef8d71de6cf6bc692e5048b4d087345765e451fd",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 261580
+    },
+    {
+      "name": "guided-null-last-orient-en-narrow.png",
+      "sha256": "dab2a92c291d1ecbcb96bad7205c7e9f6376b70a02a3640a50164b177348a815",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 208497
+    },
+    {
+      "name": "guided-null-last-remaining-de.png",
+      "sha256": "caaa70dcb54ff378b3c0f8042ed46c92b2f18f17b60e58e2375397811880c8d2",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 274610
+    },
+    {
+      "name": "guided-null-last-remaining-de-narrow.png",
+      "sha256": "aafd5d3e23f9dad6316af5f90c2d8aece97d8341a5e34adf90f8eb32216aa0b9",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 220450
+    },
+    {
+      "name": "guided-null-last-remaining-en.png",
+      "sha256": "556a5ad65d475a1f94a7a5fac294dd22ea1e3eeb7a3f84844147d90dfcee5827",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 263686
+    },
+    {
+      "name": "guided-null-last-remaining-en-narrow.png",
+      "sha256": "9f5c4fa27a32b80a66af1fa0344ca5e8e6d29f121be81090d6262ef655d1cf58",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 210670
+    },
+    {
+      "name": "guided-null-last-return-de.png",
+      "sha256": "280cc237b151a95633d5136dc9cf767a6a77fb9cf4923c64f7f9484224ceb5ce",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 238704
+    },
+    {
+      "name": "guided-null-last-return-de-narrow.png",
+      "sha256": "3e3a975023a4bb6a4d486ebe40e4044ace09cca6f5a60a30b92e3e45ea80dba8",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 184779
+    },
+    {
+      "name": "guided-null-last-return-en.png",
+      "sha256": "19aaf057396d5e01a90984f5c22448bd5e900daa3f4a4a5c16da3615d42ccc0b",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 233657
+    },
+    {
+      "name": "guided-null-last-return-en-narrow.png",
+      "sha256": "d8c52e290e37f30b06c01233d168136d3e632761a8a902ea998fbc16c3de6052",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 180589
+    },
+    {
+      "name": "guided-null-last-reveal-de.png",
+      "sha256": "86245de925075b5b7ecee6af0896ef70634f0eb610400a258a626b47a9e8ea72",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 358853
+    },
+    {
+      "name": "guided-null-last-reveal-de-narrow.png",
+      "sha256": "4c83486d1916d2e61798157ee68eb4018277b22aa662ea33efd641671940c036",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 281461
+    },
+    {
+      "name": "guided-null-last-reveal-en.png",
+      "sha256": "da8878544ab84e29baf964b64ad5fd7530e60e0cca8a926fa4ea448db0304161",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 334041
+    },
+    {
+      "name": "guided-null-last-reveal-en-narrow.png",
+      "sha256": "1b6ae450bf28042d4dc7dd69da8a3aaa3aab5c904288b61fb33488cc7e75de75",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 273472
+    },
+    {
+      "name": "guided-null-last-wrong-de.png",
+      "sha256": "78f13401572e62f0fd487ac7817caf175b945a06160d18e6c0ccc6f10be30470",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 290157
+    },
+    {
+      "name": "guided-null-last-wrong-de-narrow.png",
+      "sha256": "b6154bc91581612fb95857258e0173c1729740e78646ba1152303322884ce1b8",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 235911
+    },
+    {
+      "name": "guided-null-last-wrong-en.png",
+      "sha256": "7e68cbd772e6ac333c342f230ee47ced574f239f0d55225ed1fe13f82cf07cd2",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 277291
+    },
+    {
+      "name": "guided-null-last-wrong-en-narrow.png",
+      "sha256": "4b1f3ff28649c286939c9151ae78f36190a54a1b88058ecd316635d81207d965",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 223992
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-rule-de.png",
+      "sha256": "400e7266b6fd3f73b303192888dfa8a89e1c49c21a3bd31cab68f1cf448fd470",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 152031
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-rule-de-narrow.png",
+      "sha256": "3acf8550c781d3911a89825fd535d178ebcfe0604d2d52e2fffa48cf48fce345",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 134706
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-rule-en.png",
+      "sha256": "149a0c0f4b025361afb8ce3a07bf5ee6a6388f9e25198f1d1ffa71eb62de47c4",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 135284
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-rule-en-narrow.png",
+      "sha256": "1ada71378dd456cece9ec13677da67be120563923a47f4ddb35af75e6178a315",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 118074
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-observe-de.png",
+      "sha256": "1531f92c27ce5e8a5cdd19d31fcf0d9f45f92ab705d8d26d38ea42417112411a",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 66657
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-observe-de-narrow.png",
+      "sha256": "0101a8295a08bf648cc54b16bc83a547a76e604ecaa46792920f91f449fb6d93",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 49394
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-observe-en.png",
+      "sha256": "5f372d143d0aa3408ea7236dd375cbc006203cbcdd0a270aed31fcef3a196954",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 62358
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-observe-en-narrow.png",
+      "sha256": "127ce9e82db0bde592a0fabe6e402ea226178e4c7b935ea7b138c845faee34f7",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 45127
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-complete-de.png",
+      "sha256": "408082ebb56986a04599e44f64359634f337fb00d750cdd7ab52820708252eb8",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 66756
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-complete-de-narrow.png",
+      "sha256": "e9be38b52451d195bab3f47a0141bb8ed9548fc139cdfe815f3694c0bda0032a",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 49445
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-complete-en.png",
+      "sha256": "64ce371ecb324cc4f0ea015a0727030b0373457657eeac4fc04400fa12cfa763",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 61922
+    },
+    {
+      "name": "guided-null-fixture-mixed-ten-complete-en-narrow.png",
+      "sha256": "dd7a61b948800d3b16af715a65099fe166d673c759fb59616817e3ec789afa4a",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 44632
+    },
+    {
+      "name": "guided-null-fixture-printed-bube-rule-de.png",
+      "sha256": "e177d6461b3108ab03a1f04c20ef781a70c86e30ad29e7bf58237b8c85990ea8",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 151989
+    },
+    {
+      "name": "guided-null-fixture-printed-bube-rule-de-narrow.png",
+      "sha256": "dec9612e9adb2ca8b423c8651f6495b249be4e83396d6470cd487de0fbd40547",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 134660
+    },
+    {
+      "name": "guided-null-fixture-printed-bube-rule-en.png",
+      "sha256": "649115162cff5318a05ce5b92cc79002a3118db596a54522cc43bfbaeaaa9c84",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 135058
+    },
+    {
+      "name": "guided-null-fixture-printed-bube-rule-en-narrow.png",
+      "sha256": "90ba1f947bc827701de377abdbc1b8307ff9df19729e387e9e44b37bdf988bf8",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 117836
+    },
+    {
+      "name": "guided-null-fixture-void-last-tie-rule-de.png",
+      "sha256": "d4cbd5c29cbbbf5fe3167d77d0aa42d653a0924897cf2cee8593b192b422541d",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 160073
+    },
+    {
+      "name": "guided-null-fixture-void-last-tie-rule-de-narrow.png",
+      "sha256": "d3be4f0f9def3c80b4df72a1aed0fa41e058fe377c4aea398fb5c2d3f20147f5",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 142753
+    },
+    {
+      "name": "guided-null-fixture-void-last-tie-rule-en.png",
+      "sha256": "9106e39aa628c415ccf24dc6bf7137d2869c00a379ef00863c6f18c83b11cb13",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 149002
+    },
+    {
+      "name": "guided-null-fixture-void-last-tie-rule-en-narrow.png",
+      "sha256": "f8f7e3ac034008f63f29550a8660b4787f3e5f7302fc62fa66d56539918864eb",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 131762
+    },
+    {
+      "name": "guided-null-fixture-void-last-tie-complete-de.png",
+      "sha256": "cd2caee739b4f1e1375625ef0790395158796c7bbe648ca46b964f0c6260c7ff",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 70988
+    },
+    {
+      "name": "guided-null-fixture-void-last-tie-complete-de-narrow.png",
+      "sha256": "243ba63637ca3a1d2c1827a3eaa5b56c3982810cce618f656ae7dfbe88508077",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 53686
+    },
+    {
+      "name": "guided-null-fixture-void-last-tie-complete-en.png",
+      "sha256": "7378c29f951f3f87727c3bfee6bf15ba93aa538dbda420e9a8cdd07112660679",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 61719
+    },
+    {
+      "name": "guided-null-fixture-void-last-tie-complete-en-narrow.png",
+      "sha256": "7116e4466b38bcd2455da490ab02f3bddf4ba5aeed51ee4941ba74e37be8e8e2",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 44425
+    },
+    {
+      "name": "guided-null-fixture-pickup-mixed-memory-de.png",
+      "sha256": "2823f9b0a535090380dfd6b2374f1fdabad9aa1ea68546fa11ba47a01c4c3c4e",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 163296
+    },
+    {
+      "name": "guided-null-fixture-pickup-mixed-memory-de-narrow.png",
+      "sha256": "4eec6e5db49ce2b2a23510441ae87625310a802efa5be9e7a12ccc9d5e4e24f1",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 145997
+    },
+    {
+      "name": "guided-null-fixture-pickup-mixed-memory-en.png",
+      "sha256": "b11d67d80d7a443efac2dc588e4dee9b184f8dd59cc90c2d1d818770a703f57d",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 144483
+    },
+    {
+      "name": "guided-null-fixture-pickup-mixed-memory-en-narrow.png",
+      "sha256": "2f9dc2b4ef459196b0f3af8c7fdbcd2f1e0007e7f4001d4b81d4f951a354720d",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 127290
+    },
+    {
+      "name": "guided-null-fixture-void-changed-queen-rule-de.png",
+      "sha256": "4be6c4ad1c10668afd7e9e2f347dbd78e7908a323c2521b9e963fbfcf974734c",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 160980
+    },
+    {
+      "name": "guided-null-fixture-void-changed-queen-rule-de-narrow.png",
+      "sha256": "06c8755888620246615340754abb9c740f347296fbd79e3014d1eaa135711c0f",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 143665
+    },
+    {
+      "name": "guided-null-fixture-void-changed-queen-rule-en.png",
+      "sha256": "9b9485ff95b4e8201c679bb5d5d0dbb56654c523caa54ecf72b1a96c7f69abf1",
+      "dimensions": [
+        1440,
+        1000
+      ],
+      "bytes": 150538
+    },
+    {
+      "name": "guided-null-fixture-void-changed-queen-rule-en-narrow.png",
+      "sha256": "99762ad93cac81a5c7e3df294c5169cd743db5479659f29e25409ed1f7d2352c",
+      "dimensions": [
+        960,
+        640
+      ],
+      "bytes": 133301
+    }
+  ]
+}
