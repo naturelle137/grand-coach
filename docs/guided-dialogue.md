@@ -589,3 +589,89 @@ archives. Local PNG inspection and CI rendering are technical evidence only;
 merged-main verification and protected integration remain terminal-owner work.
 No learner UAT, transfer, training/persistence, interactive Windows 11,
 packaged lifecycle, release or completion of #131 is claimed.
+
+## Null declarer last to the current trick (#165)
+
+`guided-null-last@1` is an explicitly entered heuristic dialogue, not a
+catalogue mechanism. Eligibility requires Spiel, a non-Ouvert Null contract,
+the own valid turn as declarer, exactly two contiguous public trick cards
+with a consistent leader/acting seat, at least two pure legal card actions
+and at least one current loser. Initial deal seat is irrelevant. Defenders
+(including declarer ahead), leads/early seats, Ouvert, no-loser, single-card,
+mixed/call-only and absent/inconsistent contract/turn/declarer views keep the
+phase-specific unsupported fallback. The shared baseline is unchanged.
+
+Null has no Trumpf; Buben follow their printed suit and rank between 10 and
+Dame: 7, 8, 9, 10, Bube, Dame, König, Ass. `baseline::rule` supplies the exact
+winner/loser sets and Easy's maximum Null power among losers, retaining the
+**last exact tie in core legal order**. Power compares rank in each card's
+own follow class; an off-suit Ass cannot win a led Kreuz. The dialogue states
+this heuristic without an optimum, future lead, game guarantee or concealed
+holder. The worked answer shows losing candidates and winning alternatives;
+EVERY legal card stays playable. Before attempt/reveal, the preferred card,
+sets, memory and estimates remain hidden. Wrong/retry, candidate attempts,
+deliberate reveal and immediate free return reuse the existing state machine.
+The Null panel scrolls below a permanently visible free-return control.
+
+Last seat observes the human's actual completing card and individual winner,
+including non-Easy moves and overtakes. Observation deductions remain hidden
+until answer/reveal. Null void feedback names printed-suit following. Hand
+memory leaves the Skat unknown; pickup keeps the own known discards. Figures
+still require enabled figures and a separate request. Re-entry, reset,
+changed assistance and subsequent decisions retain stale-response protection.
+
+### Frozen evidence and discrepancy
+
+Preimplementation acceptance is recorded in [#165](https://github.com/naturelle137/grand-coach/issues/165),
+heading `Terminal preimplementation gate ACCEPTED — HQ1468`, on source
+`316aa0e78a231aa26fad1260da38b584f5c10c69`, tree
+`a51faefacf126092c6434176f778d402529f7409`. QA1458 froze its original at
+2026-11-15 11:58:42.302220 UTC (event 10964), before baseline execution:
+`6b3d308f271bf79dbf9be5f3f1fa29a522d507d58e673d9650c2b001a900238e`.
+The separate **post-source** addendum remains distinct:
+`f118dcac33807201d95c263e38c90e2366b6a12f28d14007291d10726024b4e9`.
+Original synthetic `defender-declarer-ahead` metadata names all-loser-king,
+but its harness actually cloned mixed-ten. Tests preserve the honest actual
+mixed-ten case and separately replay the real defender boundary; the wrong
+label is not silently promoted into an oracle.
+
+`skat-coach/tests/support/null_last.rs` ports complete handwritten partitions
+and legal histories. `guided_null_last` checks all 30 original completions,
+the 10 changed-queen completions and four real-defender completions, legal
+order, every candidate winner, Bube/10, mandatory following, void/tie and
+changed maximum, Hand/pickup, real and synthetic exclusions. Three hidden
+substitutions compare the ENTIRE permitted view and actual new Lesson:
+opponent/unknown Hand Skat, opponent/opponent Hand, opponent/opponent pickup
+with DK/DA retained. `None == None` is never privacy evidence. App `null_last`
+tests exercise every admitted candidate, actual observations, consent,
+wrong/retry, memory, return, re-entry, reset and stale identities.
+
+### Ordinary route and fixture rendering
+
+QA1458 `route.json` SHA-256:
+`2d815cd0d3a306cb614d631f431697eadbcccac4d06732e47c0e0a1ce169ec58`.
+Start `Session::new` / `GrandCoachApp::new`, seed6 / Fixed3 / two Easy,
+closed display, Kontra/Re off, OnRequest, figures/warnings off. The exact
+frozen action sequence is transcribed in `null_ordinary` and `enter_null`.
+Game3/trick2: human initial MH acts CURRENT LAST after H8/HQ; legal order
+H7/H9/HJ, all lose to VH; Easy HJ. Non-Easy H7 actually completes H8/HQ/H7
+with winner VH. Bilingual widgets at 1440×1000 and 960×640 exercise every
+legal card, retry, attempt/reveal, hidden memory, observation and free return.
+
+Forty ordinary screenshot scenarios are
+`guided-null-last-{orient,wrong,remaining,candidate,attempt,reveal,memory,
+observe,complete,return}-{de,en}` and their `-narrow` variants. Thirty-two
+explicit `guided-null-fixture-*` component views cover mixed alternatives,
+actual overtaking, printed Bube, void/tie, changed queen and known pickup Skat
+in both languages/sizes. They are rendered from actual app fixture outputs,
+checked against committed JSON by `null_last_fixture_widget_models_match_checked_session_outputs`;
+they NEVER count as ordinary gameplay. To regenerate those technical models,
+set `SKAT_NULL_WIDGET_FIXTURES_OUT` to the absolute JSON destination and run
+that exact app test. The handwritten oracle remains the domain reference.
+
+Both OS CI screenshot jobs include these scenarios. Terminal #1477 owns the
+one fresh review, at most one fix round, required CI, protected integration,
+actual merged-main non-GPU regression including ignored tests and complete
+both-OS archive/hash/visual acceptance. Local technical checks establish no
+learner UAT, transfer, persistence, training, interactive Windows 11,
+packaged lifecycle, release or completion of later #131 phases.

@@ -550,3 +550,24 @@ route through real widgets, MH declarer only. Side-master and defender roles
 are core/app fixture evidence, not ordinary renders. Main regression,
 independent review, both-OS archive/hash/visual acceptance and human/platform
 release evidence remain separate checks.
+
+## Null last-seat dialogue verification (#165)
+
+`skat-coach --test guided_null_last` ports the independently frozen #165
+oracle and separately labelled addendum. App tests matching `null_last`
+exercise actual new lessons, every legal fixture/ordinary completion,
+privacy, consent, return and stale/reset boundaries. Run the ignored GUI
+suite explicitly with `cargo test --locked -p gui-egui --test null_last --
+--include-ignored --nocapture` in `skat-dev` (lavapipe). It covers both
+languages/sizes and every legal card on the ordinary seed6 route, plus
+explicit fixture components.
+
+The screenshots example includes forty `guided-null-last-*` ordinary views
+and thirty-two `guided-null-fixture-*` component views. Names and evidence
+boundaries are in [the walkthrough](guided-dialogue.md#null-declarer-last-to-the-current-trick-165).
+The fixture JSON is checked against actual Session output; it is not the
+handwritten domain oracle or ordinary-route evidence. Local inspection must
+cover every new PNG without cropping, scaling or repairing source pixels.
+Both full OS archives, their API digest/size, exact sets and every file hash,
+merged-main regression and personal cross-platform inspection remain the
+terminal delivery owner's checks.

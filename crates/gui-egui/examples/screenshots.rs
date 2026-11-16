@@ -29,6 +29,9 @@ const SIZE: [f32; 2] = [1280.0, 820.0];
 /// `-narrow` shrink to it after reaching their state.
 const NARROW: [f32; 2] = [960.0, 640.0];
 
+#[path = "support/null_widgets.rs"]
+mod null_widgets;
+
 type Scenario = fn(&mut Harness<'_, GrandCoachApp>);
 
 /// Series seed of every scenario not in [`SEEDS`].
@@ -179,6 +182,64 @@ const OPEN_DISPLAY: &[&str] = &[
 ];
 
 const SCENARIOS: &[(&str, Scenario)] = &[
+    ("guided-null-last-orient-de", guided_null_orient_de),
+    ("guided-null-last-orient-de-narrow", guided_null_orient_de),
+    ("guided-null-last-orient-en", guided_null_orient_en),
+    ("guided-null-last-orient-en-narrow", guided_null_orient_en),
+    ("guided-null-last-wrong-de", guided_null_wrong_de),
+    ("guided-null-last-wrong-de-narrow", guided_null_wrong_de),
+    ("guided-null-last-wrong-en", guided_null_wrong_en),
+    ("guided-null-last-wrong-en-narrow", guided_null_wrong_en),
+    ("guided-null-last-remaining-de", guided_null_remaining_de),
+    (
+        "guided-null-last-remaining-de-narrow",
+        guided_null_remaining_de,
+    ),
+    ("guided-null-last-remaining-en", guided_null_remaining_en),
+    (
+        "guided-null-last-remaining-en-narrow",
+        guided_null_remaining_en,
+    ),
+    ("guided-null-last-candidate-de", guided_null_candidate_de),
+    (
+        "guided-null-last-candidate-de-narrow",
+        guided_null_candidate_de,
+    ),
+    ("guided-null-last-candidate-en", guided_null_candidate_en),
+    (
+        "guided-null-last-candidate-en-narrow",
+        guided_null_candidate_en,
+    ),
+    ("guided-null-last-attempt-de", guided_null_attempt_de),
+    ("guided-null-last-attempt-de-narrow", guided_null_attempt_de),
+    ("guided-null-last-attempt-en", guided_null_attempt_en),
+    ("guided-null-last-attempt-en-narrow", guided_null_attempt_en),
+    ("guided-null-last-reveal-de", guided_null_reveal_de),
+    ("guided-null-last-reveal-de-narrow", guided_null_reveal_de),
+    ("guided-null-last-reveal-en", guided_null_reveal_en),
+    ("guided-null-last-reveal-en-narrow", guided_null_reveal_en),
+    ("guided-null-last-memory-de", guided_null_memory_de),
+    ("guided-null-last-memory-de-narrow", guided_null_memory_de),
+    ("guided-null-last-memory-en", guided_null_memory_en),
+    ("guided-null-last-memory-en-narrow", guided_null_memory_en),
+    ("guided-null-last-observe-de", guided_null_observe_de),
+    ("guided-null-last-observe-de-narrow", guided_null_observe_de),
+    ("guided-null-last-observe-en", guided_null_observe_en),
+    ("guided-null-last-observe-en-narrow", guided_null_observe_en),
+    ("guided-null-last-complete-de", guided_null_complete_de),
+    (
+        "guided-null-last-complete-de-narrow",
+        guided_null_complete_de,
+    ),
+    ("guided-null-last-complete-en", guided_null_complete_en),
+    (
+        "guided-null-last-complete-en-narrow",
+        guided_null_complete_en,
+    ),
+    ("guided-null-last-return-de", guided_null_return_de),
+    ("guided-null-last-return-de-narrow", guided_null_return_de),
+    ("guided-null-last-return-en", guided_null_return_en),
+    ("guided-null-last-return-en-narrow", guided_null_return_en),
     ("guided-grand-feed-orient-de", guided_feed_orient_de),
     ("guided-grand-feed-orient-de-narrow", guided_feed_orient_de),
     ("guided-grand-feed-candidate-de", guided_feed_candidate_de),
@@ -1597,14 +1658,21 @@ fn main() {
         std::process::exit(2);
     };
     let wanted: Vec<String> = args.collect();
+    let fixture_names = null_widgets::names();
     if let Some(unknown) = wanted
         .iter()
-        .find(|w| !SCENARIOS.iter().any(|(name, _)| name == w))
+        .find(|w| !SCENARIOS.iter().any(|(name, _)| name == w) && !fixture_names.contains(w))
     {
         eprintln!("unknown scenario {unknown:?}");
         std::process::exit(2);
     }
     std::fs::create_dir_all(&out).expect("create output directory");
+    for name in fixture_names {
+        if wanted.is_empty() || wanted.contains(&name) {
+            null_widgets::render(&name, Some(&out));
+            println!("{out}/{name}.png");
+        }
+    }
     for (name, scenario) in SCENARIOS {
         if !wanted.is_empty() && !wanted.iter().any(|w| w == name) {
             continue;
@@ -1635,45 +1703,53 @@ fn main() {
             TableDisplay::Closed
         };
         let launch = *name == "launch" || name.starts_with("open-display-new-series");
-        let mut harness =
-            if name.starts_with("guided-grand-early-") || name.starts_with("guided-grand-feed-") {
-                Harness::builder()
-                    .with_size([1440.0, 1000.0])
-                    .wgpu()
-                    .build_eframe(|cc| {
-                        GrandCoachApp::new(
-                            &cc.egui_ctx,
-                            SessionConfig {
-                                seed: if name.starts_with("guided-grand-feed-") {
-                                    15
-                                } else {
-                                    0
-                                },
-                                series: SeriesLength::Fixed(3),
-                                kontra_re: false,
-                                opponents: Opponents::Levels([Level::Easy; 2]),
-                                display: TableDisplay::Closed,
+        let mut harness = if name.starts_with("guided-grand-early-")
+            || name.starts_with("guided-grand-feed-")
+            || name.starts_with("guided-null-last-")
+        {
+            Harness::builder()
+                .with_size([1440.0, 1000.0])
+                .wgpu()
+                .build_eframe(|cc| {
+                    GrandCoachApp::new(
+                        &cc.egui_ctx,
+                        SessionConfig {
+                            seed: if name.starts_with("guided-null-last-") {
+                                6
+                            } else if name.starts_with("guided-grand-feed-") {
+                                15
+                            } else {
+                                0
                             },
-                        )
-                    })
-            } else if name.starts_with("coach-jump-context") {
-                Harness::builder()
-                    .with_size([1440.0, 1000.0])
-                    .wgpu()
-                    .build_eframe(|cc| GrandCoachApp::new(&cc.egui_ctx, qa146::config()))
-            } else {
-                harness(
-                    launch,
-                    seed,
-                    opponents,
-                    display,
-                    name.starts_with("guided-"),
-                    kontra_scenario(name),
-                )
-            };
+                            series: SeriesLength::Fixed(3),
+                            kontra_re: false,
+                            opponents: Opponents::Levels([Level::Easy; 2]),
+                            display: TableDisplay::Closed,
+                        },
+                    )
+                })
+        } else if name.starts_with("coach-jump-context") {
+            Harness::builder()
+                .with_size([1440.0, 1000.0])
+                .wgpu()
+                .build_eframe(|cc| GrandCoachApp::new(&cc.egui_ctx, qa146::config()))
+        } else {
+            harness(
+                launch,
+                seed,
+                opponents,
+                display,
+                name.starts_with("guided-"),
+                kontra_scenario(name),
+            )
+        };
         if let Some(size) = table_size(name) {
             harness.set_size(size.into());
             harness.run_steps(2);
+        }
+        if name.starts_with("guided-null-last-") && name.ends_with("-narrow") {
+            harness.set_size(NARROW.into());
+            harness.run_steps(4);
         }
         scenario(&mut harness);
         if name.ends_with("-narrow") {
@@ -3225,4 +3301,65 @@ fn guided_feed_observed_en(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn guided_feed_return_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_support::feed_flow(h, Language::En, 4, 8);
+}
+
+fn guided_null_orient_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::De, 0, 16);
+}
+fn guided_null_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::En, 0, 16);
+}
+fn guided_null_wrong_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::De, 1, 16);
+}
+fn guided_null_wrong_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::En, 1, 16);
+}
+fn guided_null_remaining_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::De, 2, 16);
+}
+fn guided_null_remaining_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::En, 2, 16);
+}
+fn guided_null_candidate_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::De, 3, 16);
+}
+fn guided_null_candidate_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::En, 3, 16);
+}
+fn guided_null_attempt_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::De, 4, 16);
+}
+fn guided_null_attempt_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::En, 4, 16);
+}
+fn guided_null_reveal_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::De, 5, 16);
+}
+fn guided_null_reveal_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::En, 5, 16);
+}
+fn guided_null_memory_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::De, 6, 16);
+}
+fn guided_null_memory_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::En, 6, 16);
+}
+fn guided_null_observe_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::De, 7, 16);
+}
+fn guided_null_observe_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::En, 7, 16);
+}
+fn guided_null_complete_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::De, 8, 16);
+}
+fn guided_null_complete_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::En, 8, 16);
+}
+fn guided_null_return_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::De, 9, 16);
+}
+fn guided_null_return_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_support::null_flow(h, Language::En, 9, 16);
 }

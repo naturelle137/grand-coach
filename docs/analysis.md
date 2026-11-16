@@ -41,7 +41,12 @@ branch, predicates, winning/losing groups, candidates and selection key from
 one permitted view. Easy and `skat-coach::guided` consume this result; the coach
 has no dependency on `skat-ai` and runs no second strategy or search.
 `Knowledge::is_master` means master of the follow class only: a side master
-can still be trumped. Unsupported branches are not explained as safe tactics.
+can still be trumped. Unsupported branches are not explained as safe tactics. The Null branch and
+`HighestPowerLast` are broader than the #165 teaching guard: only a non-Ouvert
+human declarer last to the current trick, with at least two pure legal cards
+and a current loser, gets the dialogue. It uses the existing current loser
+set, maximum own printed-suit power and last exact legal-order tie unchanged;
+off-suit power never means that the card can win the led suit.
 
 The guided exception to D-49 exposes action-bearing rule data only after an
 attempt or deliberate reveal inside that explicitly entered dialogue. Ordinary

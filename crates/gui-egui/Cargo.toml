@@ -21,6 +21,7 @@ fluent-bundle = "0.16"
 unic-langid = "0.9"
 
 [dev-dependencies]
+serde_json.workspace = true
 egui_kittest = { version = "0.37", features = ["eframe", "wgpu"] }
 rand_chacha.workspace = true
 

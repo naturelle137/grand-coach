@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Bounded guided Farbspiel and non-Ouvert Grand card play, Reizen,
+//! Bounded guided Farbspiel, non-Ouvert Grand and last-seat non-Ouvert Null
+//! declarer card play, Reizen,
 //! Skataufnahme, Drücken, Ansage and non-Ouvert Kontra/Re lessons. Exact
 //! rule provenance, never search ranking.
 
@@ -91,11 +92,45 @@ pub struct Lesson {
 /// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus Grand WinEarly and last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
 /// and at least one losing card; early FeedPartner and Fallback stay excluded.
+/// Null: only the declarer on its own turn, last to the current trick, with
+/// at least two pure card actions and at least one losing card. The shared
+/// `Branch::Null` is broader; defenders, lead and early seats, Ouvert and
+/// restricted or inconsistent views stay excluded here.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
     let game = contract.game;
     let grand = game == GameType::Grand && !contract.ouvert;
-    if view.phase != Phase::Spiel || !(matches!(game, GameType::Farbe(_)) || grand) {
+    let null = game == GameType::Null && !contract.ouvert;
+    if view.phase != Phase::Spiel || !(matches!(game, GameType::Farbe(_)) || grand || null) {
+        return None;
+    }
+    // Checked before the shared rule, which assumes a declarer during play.
+    if null
+        && (view.declarer != Some(view.seat)
+            || view.hand_game != Some(contract.hand)
+            || contract.schneider
+            || contract.schwarz
+            || (contract.hand && view.own_skat.is_some())
+            || (!contract.hand && view.own_skat.is_none_or(|s| s.len() != 2))
+            || view.current_seat != Some(view.seat)
+            || view.current_trick.cards[0].is_none()
+            || view.current_trick.cards[1].is_none()
+            || view.current_trick.cards[2].is_some()
+            || view
+                .current_trick
+                .leader
+                .map(|s| Seat::from_index(s.index() + 2))
+                != Some(view.seat))
+    {
+        return None;
+    }
+    if null
+        && view.legal_actions
+            != skat_core::legal_cards(game, view.hand, view.current_trick.led())
+                .iter()
+                .map(Action::Play)
+                .collect::<Vec<_>>()
+    {
         return None;
     }
     let rule = baseline::rule(view)?;
@@ -105,7 +140,8 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         || !(matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
             || (grand
                 && (rule.branch == Branch::WinEarly
-                    || (rule.branch == Branch::FeedPartner && rule.last))))
+                    || (rule.branch == Branch::FeedPartner && rule.last)))
+            || (null && rule.branch == Branch::Null && rule.last && !rule.losers.is_empty()))
     {
         return None;
     }

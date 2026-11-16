@@ -3933,6 +3933,7 @@ dependencies = [
  "egui_kittest",
  "fluent-bundle",
  "rand_chacha 0.10.0",
+ "serde_json",
  "skat-app",
  "unic-langid",
 ]

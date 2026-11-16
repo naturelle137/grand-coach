@@ -10,11 +10,43 @@ use skat_app::{
     GuidedKontraObservation, GuidedPreRule, GuidedStep, GuidedView, Phase, Seat, TableView,
 };
 
-pub(crate) fn panel(
+/// Render one active guided prompt from the application's permitted models.
+/// Returns a user response; the caller applies it to the owning session.
+pub fn panel(
     ui: &mut egui::Ui,
     i: &I18n,
     table: &TableView,
     g: &GuidedView,
+) -> Option<GuidedAction> {
+    // Keep free return reachable while the longer Null explanation scrolls,
+    // including at the minimum supported window height. Earlier families keep
+    // their existing layout and controls.
+    if table.contract.is_some_and(|c| c.game == GameType::Null)
+        && g.kontra.is_none()
+        && g.reizen.is_none()
+        && g.preplay.is_none()
+    {
+        let leave = ui.button(i.t("guided-return")).clicked();
+        let response = egui::ScrollArea::vertical()
+            .id_salt("null_dialogue")
+            .show(ui, |ui| content(ui, i, table, g, false))
+            .inner;
+        if leave {
+            Some(GuidedAction::Return)
+        } else {
+            response
+        }
+    } else {
+        content(ui, i, table, g, true)
+    }
+}
+
+fn content(
+    ui: &mut egui::Ui,
+    i: &I18n,
+    table: &TableView,
+    g: &GuidedView,
+    return_button: bool,
 ) -> Option<GuidedAction> {
     let mut action = None;
     ui.heading(i.t("guided-title"));
@@ -45,12 +77,26 @@ pub(crate) fn panel(
             &[("seat", text::seat(i, partner.seat).into())],
         ));
     }
+    let null = table
+        .contract
+        .is_some_and(|c| c.game == GameType::Null && !c.ouvert);
+    if null
+        && matches!(
+            g.step,
+            GuidedStep::Orient | GuidedStep::Check | GuidedStep::Narrow | GuidedStep::Act
+        )
+        && table.current_trick.len() == 2
+        && table.declarer == Some(skat_app::PlayerId::HUMAN)
+    {
+        ui.label(i.t("guided-null-role"));
+    }
     let prompt = match g.step {
         GuidedStep::Orient => "guided-orient",
         GuidedStep::Check => "guided-check",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::UnderPartner) => "guided-under",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::FeedPartner) => "guided-feed-attempt",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::WinEarly) => "guided-early-attempt",
+        GuidedStep::Narrow if g.task == Some(GuidedBranch::Null) => "guided-null-attempt",
         GuidedStep::Narrow | GuidedStep::Threshold => "guided-win",
         GuidedStep::Act => "guided-act",
         GuidedStep::Waiting => "guided-waiting",
@@ -109,6 +155,8 @@ pub(crate) fn panel(
             "guided-rule-feed"
         } else if rule.branch == GuidedBranch::WinEarly {
             "guided-rule-early"
+        } else if rule.branch == GuidedBranch::Null {
+            "guided-rule-null"
         } else {
             "guided-rule-win"
         };
@@ -121,6 +169,17 @@ pub(crate) fn panel(
         }
         let cards: Vec<_> = rule.candidates.iter().map(|&c| text::card(i, c)).collect();
         ui.label(i.tf("guided-candidates", &[("cards", cards.join(", ").into())]));
+        if rule.branch == GuidedBranch::Null {
+            let winners: Vec<_> = rule.winners.iter().map(|&c| text::card(i, c)).collect();
+            ui.label(if winners.is_empty() {
+                i.t("guided-null-no-winners")
+            } else {
+                i.tf(
+                    "guided-null-winners",
+                    &[("cards", winners.join(", ").into())],
+                )
+            });
+        }
         let open = g.memory.is_some();
         if ui
             .button(i.t(if open {
@@ -165,7 +224,9 @@ pub(crate) fn panel(
         }
     }
     if let Some(o) = &g.observation {
-        ui.label(i.t(if o.proves_void {
+        ui.label(i.t(if o.proves_void && null {
+            "guided-null-proves-void"
+        } else if o.proves_void {
             "guided-proves-void"
         } else {
             "guided-only-card"
@@ -192,7 +253,7 @@ pub(crate) fn panel(
         action = Some(GuidedAction::Figures);
     }
     figures_panel(ui, i, table, g);
-    if ui.button(i.t("guided-return")).clicked() {
+    if return_button && ui.button(i.t("guided-return")).clicked() {
         action = Some(GuidedAction::Return);
     }
     action
