@@ -29,6 +29,8 @@ const SIZE: [f32; 2] = [1280.0, 820.0];
 /// `-narrow` shrink to it after reaching their state.
 const NARROW: [f32; 2] = [960.0, 640.0];
 
+#[path = "support/null_middle_widgets.rs"]
+mod null_middle_widgets;
 #[path = "support/null_widgets.rs"]
 mod null_widgets;
 
@@ -1658,7 +1660,8 @@ fn main() {
         std::process::exit(2);
     };
     let wanted: Vec<String> = args.collect();
-    let fixture_names = null_widgets::names();
+    let mut fixture_names = null_widgets::names();
+    fixture_names.extend(null_middle_widgets::names());
     if let Some(unknown) = wanted
         .iter()
         .find(|w| !SCENARIOS.iter().any(|(name, _)| name == w) && !fixture_names.contains(w))
@@ -1667,9 +1670,18 @@ fn main() {
         std::process::exit(2);
     }
     std::fs::create_dir_all(&out).expect("create output directory");
+    std::fs::write(
+        format!("{out}/null-middle-inventory.json"),
+        serde_json::to_string_pretty(&null_middle_widgets::inventory()).unwrap(),
+    )
+    .unwrap();
     for name in fixture_names {
         if wanted.is_empty() || wanted.contains(&name) {
-            null_widgets::render(&name, Some(&out));
+            if name.starts_with("guided-null-middle-") {
+                null_middle_widgets::render(&name, Some(&out));
+            } else {
+                null_widgets::render(&name, Some(&out));
+            }
             println!("{out}/{name}.png");
         }
     }

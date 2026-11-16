@@ -862,3 +862,209 @@ pub fn null_click(h: &mut Harness<'_, GrandCoachApp>, label: &str) {
     h.run_steps(4);
     click(h, label);
 }
+
+/// #169 exact accepted seed1/game2/trick4 route through ordinary widgets.
+#[allow(dead_code)]
+pub fn enter_null_middle(h: &mut Harness<'_, GrandCoachApp>, language: Language) {
+    use skat_app::*;
+    let i = I18n::new(language);
+    h.state_mut().set_language(language);
+    h.state_mut().opponent_delay = 0.0;
+    h.state_mut().set_coach_budget(Budget {
+        samples: 1,
+        nodes_per_task: 1,
+    });
+    for a in [
+        Action::Hold,
+        Action::Hold,
+        Action::Hold,
+        Action::Hold,
+        Action::Pass,
+    ]
+    .into_iter()
+    .chain(
+        [31, 28, 8, 25, 26, 29, 23, 15, 14, 22].map(|n| Action::Play(Card::from_index(n).unwrap())),
+    ) {
+        settle(h);
+        let v = h.state().session().view();
+        assert!(v.legal_actions.contains(&a));
+        let label = match a {
+            Action::Hold => i.tf("button-hold", &[("value", v.bid.into())]),
+            Action::Pass => i.t("button-pass"),
+            Action::Play(c) => card_name(&i, c),
+            _ => unreachable!(),
+        };
+        click(h, &label);
+    }
+    settle(h);
+    click(h, &i.t("button-next-game"));
+    for a in [
+        Action::Bid(20),
+        Action::Hand,
+        Action::Announce(Announcement::plain(GameType::Null)),
+    ]
+    .into_iter()
+    .chain([19, 24, 4].map(|n| Action::Play(Card::from_index(n).unwrap())))
+    {
+        settle(h);
+        assert!(h.state().session().view().legal_actions.contains(&a));
+        let label = match a {
+            Action::Bid(b) => i.tf("button-bid", &[("value", b.into())]),
+            Action::Hand => i.t("button-hand"),
+            Action::Announce(_) => {
+                h.get_by_role_and_label(Role::RadioButton, "Null").click();
+                h.run_steps(4);
+                i.t("button-announce")
+            }
+            Action::Play(c) => card_name(&i, c),
+            _ => unreachable!(),
+        };
+        click(h, &label);
+    }
+    settle(h);
+    let v = h.state().session().view();
+    assert_eq!(
+        (v.game_number, v.tricks_played, v.players[0].seat),
+        (2, 3, Seat::Hinterhand)
+    );
+    assert_eq!(v.declarer, Some(PlayerId::HUMAN));
+    assert_eq!(
+        v.current_trick
+            .iter()
+            .map(|p| p.card.index())
+            .collect::<Vec<_>>(),
+        [12]
+    );
+    assert_eq!(
+        v.legal_actions,
+        [9, 10, 13, 14].map(|n| Action::Play(Card::from_index(n).unwrap()))
+    );
+    assert!(v.own_skat.is_none() && v.open_cards.is_none());
+    click(h, &i.t("guided-start"));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Orient
+    );
+}
+
+/// All #169 ordinary stages; no session/view injection. `chosen` stays free.
+#[allow(dead_code)]
+pub fn null_middle_flow(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    stage: u8,
+    chosen: u8,
+) {
+    use skat_app::*;
+    enter_null_middle(h, language);
+    let i = I18n::new(language);
+    if stage == 0 {
+        return;
+    }
+    null_click(h, &seat_name(&i, Seat::Hinterhand));
+    assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+    if stage == 1 {
+        return;
+    }
+    null_click(h, &i.t("guided-retry"));
+    null_click(h, &seat_name(&i, Seat::Mittelhand));
+    if stage == 2 {
+        return;
+    }
+    null_click(h, &seat_name(&i, Seat::Vorhand));
+    if stage == 3 {
+        return;
+    }
+    if stage == 5 {
+        null_click(h, &i.t("guided-unknown"));
+    } else {
+        null_click(
+            h,
+            &i.tf(
+                "guided-consider",
+                &[(
+                    "card",
+                    card_name(&i, Card::from_index(chosen).unwrap()).into(),
+                )],
+            ),
+        );
+        if chosen == 13 || chosen == 14 {
+            assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+            null_click(h, &i.t("guided-retry"));
+            null_click(h, &i.t("guided-reveal"));
+        }
+    }
+    assert_eq!(
+        h.state()
+            .session()
+            .guided()
+            .unwrap()
+            .rule
+            .unwrap()
+            .card
+            .index(),
+        10
+    );
+    if stage == 4 || stage == 5 {
+        return;
+    }
+    if stage == 10 {
+        h.get_by_role_and_label(Role::DisclosureTriangle, &i.t("guided-null-middle-details"))
+            .scroll_to_me();
+        h.run_steps(4);
+        h.get_by_role_and_label(Role::DisclosureTriangle, &i.t("guided-null-middle-details"))
+            .click();
+        h.run_steps(4);
+        return;
+    }
+    if stage == 6 {
+        null_click(h, &i.t("guided-memory"));
+        h.get_by_label(&i.t("guided-unknown-skat")).scroll_to_me();
+        h.run_steps(4);
+        return;
+    }
+    null_click(h, &card_name(&i, Card::from_index(chosen).unwrap()));
+    for _ in 0..5000 {
+        h.run_steps(1);
+        if h.state().session().guided().unwrap().step == GuidedStep::Observe {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    h.state_mut().opponent_delay = 1000.0;
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Observe
+    );
+    assert_eq!(
+        h.state()
+            .session()
+            .view()
+            .last_trick
+            .unwrap()
+            .cards
+            .into_iter()
+            .map(|p| p.card.index())
+            .collect::<Vec<_>>(),
+        [12, chosen, 15]
+    );
+    if stage == 7 {
+        return;
+    }
+    null_click(h, &i.t("guided-void-no"));
+    assert_eq!(
+        h.state()
+            .session()
+            .guided()
+            .unwrap()
+            .observation
+            .unwrap()
+            .winner,
+        Some(Seat::Vorhand)
+    );
+    if stage == 8 {
+        return;
+    }
+    null_click(h, &i.t("guided-return"));
+    assert!(h.state().session().guided().is_none());
+}

@@ -94,12 +94,26 @@ fn frozen_deals_every_completion_exact_null_key_and_scope() {
         }
         let l = lesson(&v);
         assert_eq!(l, lesson(&v), "deterministic");
-        assert_eq!(l.is_some(), c.supported, "{} applicability", c.id);
+        assert_eq!(
+            l.is_some(),
+            c.supported || c.id == "real-early",
+            "{} applicability",
+            c.id
+        );
         if let Some(l) = l {
             assert_eq!(l.rule, r, "the shared rule, unchanged");
             assert_eq!(l.rule.branch, Branch::Null);
-            assert_eq!((l.remaining, l.seat, l.game), (None, actor, GameType::Null));
-            assert!(l.rule.last && !l.rule.partner_ahead);
+            let remaining = if c.id == "real-early" {
+                Some(Seat::Hinterhand)
+            } else {
+                None
+            };
+            assert_eq!(
+                (l.remaining, l.seat, l.game),
+                (remaining, actor, GameType::Null)
+            );
+            assert_eq!(l.rule.last, c.id != "real-early");
+            assert!(!l.rule.partner_ahead);
             assert_eq!(l.rule.candidates, cards(c.losers));
             assert_eq!(l.memory().trumpf, None, "no Null Trumpf category");
             assert_eq!(l.early_condition(), None);
@@ -108,7 +122,7 @@ fn frozen_deals_every_completion_exact_null_key_and_scope() {
             for wrong in Seat::ALL.into_iter().filter(|&s| s != winner) {
                 assert!(!l.check(Step::Orient, Answer::Seat(Some(wrong))));
             }
-            assert!(l.check(Step::Check, Answer::Seat(None)));
+            assert!(l.check(Step::Check, Answer::Seat(remaining)));
             assert!(!l.check(Step::Check, Answer::Seat(Some(winner))));
             for &n in c.legal {
                 assert_eq!(

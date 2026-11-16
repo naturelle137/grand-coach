@@ -675,3 +675,52 @@ actual merged-main non-GPU regression including ignored tests and complete
 both-OS archive/hash/visual acceptance. Local technical checks establish no
 learner UAT, transfer, persistence, training, interactive Windows 11,
 packaged lifecycle, release or completion of later #131 phases.
+
+## Null declarer acting second (#169)
+
+The #165 guard also admits the non-Ouvert Null declarer CURRENT SECOND,
+after exactly one contiguous public card, on its own turn, with at least two
+pure core-legal Play actions and one current loser. Physical Mittelhand is
+not required. Lead, defender, Ouvert, no-loser fallback, one-card decisions,
+mixed calls and restricted/inconsistent legal lists remain unsupported.
+Hand Skat stays unknown; own pickup discards are permitted. Even at a God
+Mode table, the rule dialogue uses the closed permitted view.
+
+A current loser cannot win this trick for the declarer, regardless of the
+last defender's card. That defender may change which defender wins. Easy's
+unchanged maximum losing power, last exact legal-order tie, is a bounded
+shedding heuristic, with no optimality or game-outcome guarantee. Null has
+no Trumpf: printed-suit 7/8/9/10/Bube/Dame/König/Ass determines following
+and rank. Every legal alternative remains playable without automatic play.
+
+QA1591 sealed the independent oracle before policy inspection; cloud1593
+accepted the gate. The original's changed C8 lead / C7 / C9 winner error is
+preserved there and explicitly corrected to physical HH in the addendum,
+in both completion representations. Cloud-authored
+`skat-analysis/tests/null_middle_policy.rs` checks all 15 full legal deals,
+the nine admitted states and 84 admitted continuations, exact full shared
+rules, fallback and last ties. Failed local1592/1595 attempts remain
+unaccepted; this is cloud completion in the combined feature, not accepted
+local-model work. Whole non-absent lessons and full app dialogue models are
+compared across three same-permitted-view hidden substitutions, including
+unknown Hand Skat and known pickup discards.
+
+The ordinary widget route uses Session/GrandCoachApp seed 1, Fixed(3), two
+Easy opponents, closed display, Kontra off, OnRequest, figures/warnings off,
+focus None. In game 1: Hold four times, Pass, then play indices
+31/28/8/25/26/29/23/15/14/22, letting opponents act before each command.
+NextGame; Bid20, Hand, announce Null; play 19/24/4 with the same automation.
+Game 2, trick 4: physical MH leads Pik-Bube (12), physical HH acts second.
+Legal 9/10/13/14 are Pik-8/Pik-9/Pik-Dame/Pik-König; losers 9/10,
+Easy 10. Choose free alternative9: actual third Pik-Ass15, completed
+12/9/15 won by physical VH. The new ignored widget tests use this exact
+ordinary route; injected boundary components are explicitly labelled.
+
+One question at a time covers winner, remaining seat, candidate, deliberate
+reveal, actual third card and individual winner. Wrong/retry, worked answer,
+I don't know, skip/return, collapsed memory, separate opt-in estimates and
+original decision identity reuse the existing lifecycle. A changed decision,
+reentry, replay, assistance change or reset invalidates old responses.
+This supplies technical evidence only: independent PR review, final CI,
+protected integration and actual-main/both-OS acceptance belong to the
+terminal owner; human learning and release evidence remain pending.
