@@ -95,7 +95,14 @@ pub fn render(name: &str, out: Option<&str>) {
             });
         });
     };
-    let mut h = Harness::builder().with_size(size).wgpu().build_ui(draw);
+    // Component assertions need a renderer only when saving a PNG.
+    let builder = Harness::builder().with_size(size);
+    let builder = if out.is_some() {
+        builder.wgpu()
+    } else {
+        builder
+    };
+    let mut h = builder.build_ui(draw);
     h.run_steps(8);
     h.get_by_label(&expected);
     h.get_by_label(
