@@ -277,3 +277,27 @@ Pik10 and Pik7, no premature play, source/retry and immediate return. Inspect
 all twenty new desktop/narrow German/English screenshot scenarios. Required
 CI, review, merged-main and both-OS archive acceptance stay pending until
 performed. None of these automated checks supplies human learning evidence.
+
+## Null last-seat declarer technical evidence (#165)
+
+Use [the frozen oracle, discrepancy and ordinary route](guided-dialogue.md#null-declarer-last-to-the-current-trick-165).
+The lesson `guided-null-last@1` explains the conditional shared Easy heuristic;
+current winner, following, rank and actual completed winner are exact facts,
+void is a public deduction, and requested figures remain separate estimates.
+It is not a new catalogue Mechanism or a strategic optimum. ISkO following
+and Null ranking are implemented by core; no rule obliges Easy's choice.
+
+The coach fixture suite checks every original/supplemental candidate,
+Hand/pickup and entire actual new Lesson/view substitutions before comparing
+the shared policy. App tests cover free winning alternatives and actual
+individual winners; GUI ordinary widgets cover the frozen seed6 route in both
+languages/sizes. Explicit fixture component pictures additionally cover
+mixed/overtake, void/tie, changed queen, Bube and known Skat. Current losers
+and current winners are disclosed only with the worked answer. Immediate
+return, hidden memory and stale/reset checks retain the existing protections.
+Missing teaching evidence means phase-specific Unsupported, never an invented
+tactic; existing search cancellation/fallback and D-49 outside the entered
+dialogue are unchanged. No later historical or hidden cards enter this lesson.
+Technical checks and rendered models are not learner responses, retention,
+transfer, interactive Windows 11 or release acceptance. Terminal #1477 retains
+review, integration and both complete OS archive/main-regression acceptance.

@@ -268,8 +268,14 @@ FeedPartner considers all legal cards, including overtakes, maximises
 `(!is_trump, Augen)` and keeps the last exact legal-order tie without power. WinEarly retains all current winners as
 candidates and explains only the selected card: Trumpf or a follow-class
 master. A side master can be trumped; a Bube can be overtrumped. Grand has
-only four Buben as Trumpf. Other branches, Ouvert
-Grand and Null card play report unsupported and return to free play; Kontra/Re has its own
+only four Buben as Trumpf. Non-Ouvert Null (#165) supports only the human
+declarer last to the current trick, with two or more pure card actions and a
+present loser. Easy maximises Null power among current losers and retains the
+last exact tie in legal order. Buben follow their printed suit, with ranks
+7/8/9/10/Bube/Dame/König/Ass; off-suit cards cannot win the led suit.
+Winning alternatives are named after disclosure and stay playable. No
+optimality, later lead or hidden holder is claimed. Other branches and Ouvert
+Grand/Null card play report unsupported and return to free play; Kontra/Re has its own
 dialogue below. In particular, a side master is
 not safe against trumping: the early `FeedPartner` branch is excluded.
 
@@ -287,10 +293,10 @@ action, resulting step and sticky assisted flag. Consumers deduplicate by
 
 The app follows the originating trick across automated turns. For
 `UnderPartner` and `WinEarly`, the later player's actual card is the observation; for
-`WinLast` and last-seat `FeedPartner`, the human's actual completing card is. Evidence carries trick index,
+`WinLast`, last-seat Null and last-seat `FeedPartner`, the human's actual completing card is. Evidence carries trick index,
 seat, led card, played card and the actual completed winner, even if the human
 chose a different card. Failure to follow establishes a void at that play;
-a Bube follows Trumpf in Farbspiel, never its printed suit. Following accounts
+a Bube follows Trumpf in Farbspiel/Grand, its printed suit in Null. Following accounts
 for that card only. Observation deductions are hidden until an answer/reveal.
 A new human move, new game, changed assistance, coach off, replay entry or
 practice session cancels the old dialogue. Each entry has its own identity;
