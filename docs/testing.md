@@ -592,3 +592,24 @@ duplication. App-emitted component models live in
 byte with checked session output; they are neither an ordinary route nor
 the independent oracle. Personal PNG inspection and final two-OS archive
 verification are separate evidence, never inferred from a passing renderer.
+
+### Grand lead dialogue (#171)
+
+`skat-analysis --test lead_master_policy` runs with default features and
+literal accepted1633 expectations (3,324 next-trick, 106 terminal
+continuations). `skat-coach --test guided_lead_master` covers whole lessons,
+role/master answers, malformed guards and two non-absent hidden-view pairs.
+App tests matching `lead_master` check all legal completions, whole dialogs
+including God Mode, ordinary seed3 commands, consent, stale identities,
+memory, actual replies/winners and original-decision estimates.
+
+Run the ignored GUI suite in skat-dev with `cargo test --locked -p gui-egui
+--test lead_master -- --include-ignored --nocapture`. It exercises every new
+ordinary stage and labelled fixture in both languages/sizes and every legal
+ordinary card. The screenshots example retains the old inventory and adds
+`guided-lead-master-*` plus `lead-master-inventory.json`, using the same source
+for names and rendering. `lead_master_fixture_widget_models_match_checked_sessions`
+checks committed component JSON; set `SKAT_LEAD_MASTER_WIDGET_FIXTURES_OUT`
+to its absolute destination when intentionally regenerating those models.
+Full push and configured non-GPU/include-ignored regression remain required;
+local rendering does not establish both-OS archive/hash/visual acceptance.

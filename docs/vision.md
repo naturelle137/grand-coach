@@ -46,7 +46,9 @@ a winning Bube, then observe whether the remaining player overtakes. A last-seat
 observe the actual individual winner, including an overtake of the partner. A non-Ouvert Null declarer acting second or last can compare current losing cards by
 Null rank and observe any chosen card, including an overtake. In second seat,
 a current loser cannot win this trick for the declarer, although the last
-defender may change which defender wins. Free choice of
+defender may change which defender wins. Grand leads now distinguish a side master from a trumping-proof card and
+observe both actual replies; Easy's largest-Augen lead remains a heuristic.
+Free choice of
 every legal card and an immediate return to play remain available. Early,
 automatic and unaided help conceal the move; figures require a separate
 request and enabled figures. This first bounded slice does not establish

@@ -29,6 +29,8 @@ const SIZE: [f32; 2] = [1280.0, 820.0];
 /// `-narrow` shrink to it after reaching their state.
 const NARROW: [f32; 2] = [960.0, 640.0];
 
+#[path = "support/lead_master_widgets.rs"]
+mod lead_master_widgets;
 #[path = "support/null_middle_widgets.rs"]
 mod null_middle_widgets;
 #[path = "support/null_widgets.rs"]
@@ -1662,6 +1664,7 @@ fn main() {
     let wanted: Vec<String> = args.collect();
     let mut fixture_names = null_widgets::names();
     fixture_names.extend(null_middle_widgets::names());
+    fixture_names.extend(lead_master_widgets::names());
     if let Some(unknown) = wanted
         .iter()
         .find(|w| !SCENARIOS.iter().any(|(name, _)| name == w) && !fixture_names.contains(w))
@@ -1675,9 +1678,16 @@ fn main() {
         serde_json::to_string_pretty(&null_middle_widgets::inventory()).unwrap(),
     )
     .unwrap();
+    std::fs::write(
+        format!("{out}/lead-master-inventory.json"),
+        serde_json::to_string_pretty(&lead_master_widgets::inventory()).unwrap(),
+    )
+    .unwrap();
     for name in fixture_names {
         if wanted.is_empty() || wanted.contains(&name) {
-            if name.starts_with("guided-null-middle-") {
+            if name.starts_with("guided-lead-master-") {
+                lead_master_widgets::render(&name, Some(&out));
+            } else if name.starts_with("guided-null-middle-") {
                 null_middle_widgets::render(&name, Some(&out));
             } else {
                 null_widgets::render(&name, Some(&out));

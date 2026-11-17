@@ -3261,3 +3261,398 @@ fn null_middle_early_automatic_off_memory_estimates_and_reset_keep_consent() {
         Err(AppError::StaleGuided)
     );
 }
+
+#[allow(dead_code)]
+#[path = "../../skat-analysis/tests/lead_master_policy.rs"]
+mod lead_fixture;
+
+fn lead_fixture_session(c: &lead_fixture::Case) -> Session {
+    let mut s = Session::new(SessionConfig {
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        ..SessionConfig::default()
+    });
+    s.dealer = (0..3)
+        .map(PlayerId)
+        .find(|&d| PlayerId::HUMAN.seat(d) == c.seat)
+        .unwrap();
+    s.game = c.game();
+    s.recording.deal = c.deal;
+    s
+}
+fn lead_ordinary() -> Session {
+    let mut s = Session::new(SessionConfig {
+        seed: 3,
+        series: SeriesLength::Fixed(1),
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        kontra_re: false,
+        display: TableDisplay::Closed,
+    });
+    s.run_opponents();
+    s.execute(Command::Act(Action::Pass)).unwrap();
+    s.run_opponents();
+    let v = s.view();
+    assert_eq!(
+        (v.game_number, v.tricks_played, v.dealer),
+        (1, 0, PlayerId(2))
+    );
+    assert_eq!(
+        v.legal_actions,
+        [5, 6, 8, 13, 14, 22, 23, 27, 28, 29].map(|n| Action::Play(lead_fixture::card(n)))
+    );
+    s
+}
+
+#[test]
+fn lead_master_every_legal_completion_waits_for_both_replies_and_individual_winner() {
+    for c in lead_fixture::cases().into_iter().filter(|c| c.admitted()) {
+        for (_, cards, winner) in lead_fixture::tricks(c.next) {
+            let mut s = lead_fixture_session(&c);
+            s.execute(Command::StartGuided).unwrap();
+            let id = s.guided().unwrap().id;
+            assert_eq!(s.guided().unwrap().step, S::Orient);
+            assert!(s.guided().unwrap().rule.is_none());
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(s.guided().unwrap().rule, Some(c.expected.clone()));
+            s.execute(Command::Act(Action::Play(cards[0]))).unwrap();
+            assert_eq!(s.guided().unwrap().step, S::Waiting);
+            s.apply(Action::Play(cards[1])).unwrap();
+            let g = s.guided().unwrap();
+            assert_eq!(g.step, S::Waiting);
+            assert_eq!(g.lead_replies.len(), 1);
+            assert!(g.observation.is_none());
+            s.apply(Action::Play(cards[2])).unwrap();
+            let g = s.guided().unwrap();
+            assert_eq!(g.id, id);
+            assert_eq!(g.step, S::Observe);
+            assert_eq!(g.lead_replies.len(), 2);
+            assert!(g.observation.is_none());
+            assert_eq!(
+                g.observed_source,
+                Some(skat_coach::Source::Trick {
+                    index: s.game.tricks().len() as u8 - 1,
+                    seat: Seat::from_index(c.seat.index() + 2),
+                    led: cards[0],
+                    card: cards[2]
+                })
+            );
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().observation.unwrap().winner,
+                Some(winner)
+            );
+        }
+    }
+}
+
+#[test]
+fn lead_master_full_non_absent_dialogue_privacy_including_god_mode() {
+    let cs = lead_fixture::cases();
+    for other in ["02", "01-hidden-swap"] {
+        for god in [false, true] {
+            let build = |id| {
+                let mut s = lead_fixture_session(cs.iter().find(|c| c.id == id).unwrap());
+                if god {
+                    s.config.opponents = Opponents::GodMode;
+                }
+                s
+            };
+            let mut x = build("01");
+            let mut y = build(other);
+            x.execute(Command::StartGuided).unwrap();
+            y.execute(Command::StartGuided).unwrap();
+            for a in [
+                None,
+                Some(G::Answer(A::Lead {
+                    seat: Seat::Vorhand,
+                    declarer: true,
+                })),
+                Some(G::Retry),
+                Some(G::Answer(A::Lead {
+                    seat: Seat::Vorhand,
+                    declarer: false,
+                })),
+                Some(G::Answer(A::Card(lead_fixture::card(3)))),
+                // CA is a valid master, but loses the exact last tie to SA.
+                Some(G::Answer(A::Card(lead_fixture::card(7)))),
+                Some(G::Retry),
+                Some(G::Answer(A::Card(lead_fixture::card(15)))),
+                Some(G::Memory(true)),
+                Some(G::Memory(false)),
+            ] {
+                if let Some(a) = a {
+                    respond(&mut x, a).unwrap();
+                    respond(&mut y, a).unwrap();
+                }
+                if a == Some(G::Answer(A::Card(lead_fixture::card(7)))) {
+                    let g = x.guided().unwrap();
+                    assert_eq!(g.step, S::Narrow);
+                    assert_eq!(g.correct, Some(false));
+                    assert!(g.rule.is_none());
+                }
+                let gx = x.guided().unwrap();
+                let mut gy = y.guided().unwrap();
+                gy.id = gx.id;
+                assert_eq!(gx, gy, "{other}/god={god}");
+            }
+            assert!(x.guided().unwrap().rule.is_some());
+            // Common legal public continuation in BOTH concealed deals:
+            // SA/S8/S10. Compare the entire non-absent dialogue through
+            // waiting, each reply, observation and completed feedback too.
+            for n in [15, 9, 11] {
+                x.apply(Action::Play(lead_fixture::card(n))).unwrap();
+                y.apply(Action::Play(lead_fixture::card(n))).unwrap();
+                assert_eq!(x.game.view(Seat::Vorhand), y.game.view(Seat::Vorhand));
+                let gx = x.guided().unwrap();
+                let mut gy = y.guided().unwrap();
+                gy.id = gx.id;
+                assert_eq!(gx, gy, "{other}/god={god}/public-card={n}");
+            }
+            assert_eq!(x.guided().unwrap().step, S::Observe);
+            for a in [
+                G::Answer(A::Void(true)),
+                G::Retry,
+                G::Answer(A::Void(false)),
+            ] {
+                respond(&mut x, a).unwrap();
+                respond(&mut y, a).unwrap();
+                let gx = x.guided().unwrap();
+                let mut gy = y.guided().unwrap();
+                gy.id = gx.id;
+                assert_eq!(gx, gy, "{other}/god={god}/feedback={a:?}");
+            }
+            assert_eq!(x.guided().unwrap().step, S::Complete);
+            assert!(x.guided().unwrap().observation.is_some());
+        }
+    }
+}
+
+#[test]
+fn lead_master_ordinary_all_legal_choices_consent_stale_reentry_replay_and_automation() {
+    for n in [5, 6, 8, 13, 14, 22, 23, 27, 28, 29] {
+        let mut s = lead_ordinary();
+        let before = s.view();
+        let recording = s.export_current_recording_privileged();
+        assert!(s.guided().is_none());
+        s.execute(Command::StartGuided).unwrap();
+        let old = s.guided().unwrap().id;
+        assert!(s.guided().unwrap().rule.is_none());
+        assert!(s.guided().unwrap().memory.is_none());
+        assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
+        respond(&mut s, G::Return).unwrap();
+        assert_eq!(s.view(), before);
+        assert_eq!(s.export_current_recording_privileged(), recording);
+        s.execute(Command::StartGuided).unwrap();
+        let id = s.guided().unwrap().id;
+        assert_ne!(old, id);
+        assert_eq!(
+            s.execute(Command::Guided(old, G::Reveal)),
+            Err(AppError::StaleGuided)
+        );
+        respond(
+            &mut s,
+            G::Answer(A::Lead {
+                seat: Seat::Vorhand,
+                declarer: true,
+            }),
+        )
+        .unwrap();
+        assert_eq!(s.guided().unwrap().correct, Some(false));
+        assert_eq!(
+            s.guided().unwrap().evidence,
+            Some(skat_coach::Source::Lead {
+                index: 0,
+                seat: Seat::Vorhand
+            })
+        );
+        respond(&mut s, G::Retry).unwrap();
+        respond(
+            &mut s,
+            G::Answer(A::Lead {
+                seat: Seat::Vorhand,
+                declarer: false,
+            }),
+        )
+        .unwrap();
+        assert_eq!(s.guided().unwrap().step, S::Check);
+        respond(&mut s, G::Answer(A::Card(lead_fixture::card(5)))).unwrap();
+        assert_eq!(s.guided().unwrap().correct, Some(false));
+        respond(&mut s, G::Retry).unwrap();
+        respond(&mut s, G::Answer(A::Card(lead_fixture::card(23)))).unwrap();
+        assert!(s.guided().unwrap().rule.is_none());
+        assert_eq!(s.guided().unwrap().step, S::Narrow);
+        respond(&mut s, G::Answer(A::Card(lead_fixture::card(23)))).unwrap();
+        assert_eq!(s.guided().unwrap().rule.unwrap().card.index(), 23);
+        respond(&mut s, G::Memory(true)).unwrap();
+        assert!(s.guided().unwrap().memory.unwrap().skat.is_none());
+        s.execute(Command::Act(Action::Play(lead_fixture::card(n))))
+            .unwrap();
+        s.run_opponents();
+        let g = s.guided().unwrap();
+        assert_eq!(g.id, id);
+        assert_eq!(g.step, S::Observe);
+        assert_eq!(g.lead_replies.len(), 2);
+        assert!(g.memory.is_none() && g.observation.is_none());
+        respond(&mut s, G::Reveal).unwrap();
+        let t = s.game.tricks()[0];
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(t.winner)
+        );
+        if n == 5 {
+            assert_eq!(t.cards.map(|c| c.index()), [5, 0, 3]);
+            assert_eq!(t.winner, Seat::Hinterhand);
+        }
+        let frozen = s.guided().unwrap();
+        s.run_opponents();
+        assert_eq!(s.guided().unwrap(), frozen);
+        let r = s.export_current_recording_privileged().unwrap();
+        let pos = r.reconstruct_privileged(r.actions.len()).unwrap();
+        assert_eq!(pos.state.seats[0], s.game.view(Seat::Vorhand));
+        respond(&mut s, G::Return).unwrap();
+        assert!(s.guided().is_none());
+    }
+}
+
+#[test]
+fn lead_master_off_automatic_unaided_estimates_origin_and_reset() {
+    for level in crate::CoachLevel::ALL {
+        let mut s = lead_ordinary();
+        s.execute(Command::SetCoach(CoachSettings {
+            level,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        assert!(s.guided().is_none());
+        if level == crate::CoachLevel::Off {
+            assert_eq!(s.execute(Command::StartGuided), Err(AppError::CoachOff));
+            continue;
+        }
+        s.set_coach_budget(Budget {
+            samples: 1,
+            nodes_per_task: 1,
+        });
+        s.execute(Command::StartGuided).unwrap();
+        let id = s.guided().unwrap().id;
+        assert!(s.guided().unwrap().rule.is_none());
+        assert_eq!(respond(&mut s, G::Figures), Err(AppError::NoQuestion));
+        respond(&mut s, G::Reveal).unwrap();
+        let rule = s.guided().unwrap().rule;
+        let result = s
+            .coach_job()
+            .unwrap()
+            .run(None)
+            .guided_rank_first(Action::Play(lead_fixture::card(5)));
+        s.finish_coach(result).unwrap();
+        s.execute(Command::Act(Action::Play(lead_fixture::card(5))))
+            .unwrap();
+        s.run_opponents();
+        respond(&mut s, G::Reveal).unwrap();
+        s.execute(Command::SetCoach(CoachSettings {
+            level,
+            show_figures: true,
+            ..CoachSettings::default()
+        }))
+        .unwrap();
+        assert!(s.guided().unwrap().figures.is_none());
+        respond(&mut s, G::Figures).unwrap();
+        let g = s.guided().unwrap();
+        assert_eq!(g.id, id);
+        assert_eq!(g.rule, rule);
+        assert!(g.figures_requested);
+        if let Some(h) = g.figures {
+            assert_eq!(
+                h.situation.expect("original-decision estimates").options[0],
+                Action::Play(lead_fixture::card(5))
+            );
+        }
+        s.execute(Command::SetAssist(crate::AssistSettings {
+            counting_aid: true,
+            ..crate::AssistSettings::default()
+        }))
+        .unwrap();
+        assert!(s.guided().is_none());
+        assert_eq!(
+            s.execute(Command::Guided(id, G::Reveal)),
+            Err(AppError::StaleGuided)
+        );
+    }
+}
+
+#[test]
+fn lead_master_fixture_widget_models_match_checked_sessions() {
+    let mut frames = Vec::new();
+    for c in lead_fixture::cases().into_iter().filter(|c| {
+        matches!(
+            c.id,
+            "01" | "02"
+                | "03"
+                | "04"
+                | "09"
+                | "11"
+                | "12"
+                | "13-postfreeze-actual-DrawTrumpf"
+                | "14-postfreeze-known-discard-higher"
+        )
+    }) {
+        let mut s = lead_fixture_session(&c);
+        s.execute(Command::StartGuided).unwrap();
+        let mut save = |stage: &str, s: &Session| {
+            let mut g = serde_json::to_value(s.guided().unwrap()).unwrap();
+            g["id"]["lineage"] = 0.into();
+            g["id"]["generation"] = 0.into();
+            frames.push(serde_json::json!({"case":c.id,"stage":stage,"table":s.view(),"guided":g}));
+        };
+        if !c.admitted() {
+            save("unsupported", &s);
+            continue;
+        }
+        respond(&mut s, G::Reveal).unwrap();
+        if c.id == "03" {
+            respond(&mut s, G::Memory(true)).unwrap();
+            save("memory", &s);
+        } else {
+            save("rule", &s);
+        }
+        if c.id == "09" || c.id == "02" {
+            // Accepted case02: C10/C8/CJ loses to HH. Case09 owns all
+            // Buben: its side master wins C10/C7/H9, with no opposing Trumpf.
+            // Preserve BOTH observations; all3324 continuations remain tested.
+            let expected_cards = if c.id == "02" { [3, 1, 4] } else { [3, 0, 18] };
+            let expected_winner = if c.id == "02" {
+                Seat::Hinterhand
+            } else {
+                Seat::Vorhand
+            };
+            let (_, cards, winner) = lead_fixture::tricks(c.next)
+                .into_iter()
+                .find(|(_, cards, _)| cards.map(|c| c.index()) == expected_cards)
+                .unwrap();
+            assert_eq!(winner, expected_winner);
+            s.execute(Command::Act(Action::Play(cards[0]))).unwrap();
+            s.apply(Action::Play(cards[1])).unwrap();
+            s.apply(Action::Play(cards[2])).unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().observation.unwrap().winner,
+                Some(winner)
+            );
+            save(
+                if c.id == "02" {
+                    "trumped"
+                } else {
+                    "all-buben-own-completed"
+                },
+                &s,
+            );
+        }
+    }
+    let value = serde_json::to_string_pretty(&frames).unwrap() + "\n";
+    if let Ok(path) = std::env::var("SKAT_LEAD_MASTER_WIDGET_FIXTURES_OUT") {
+        std::fs::write(path, value).unwrap();
+    } else {
+        assert_eq!(
+            value,
+            include_str!("../../gui-egui/tests/fixtures/lead-master.json")
+        );
+    }
+}

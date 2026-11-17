@@ -154,6 +154,13 @@ pub enum Source {
         /// The card `seat` played.
         card: Card,
     },
+    /// An empty trick: the acting seat has the lead, with no card or winner yet.
+    Lead {
+        /// Zero-based index of the empty trick.
+        index: u8,
+        /// Seat entitled to lead.
+        seat: Seat,
+    },
     /// The bidding call with this index in the bidding history.
     Bid {
         /// Index into `PlayerView::bidding`.

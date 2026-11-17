@@ -1068,3 +1068,152 @@ pub fn null_middle_flow(
     null_click(h, &i.t("guided-return"));
     assert!(h.state().session().guided().is_none());
 }
+
+/// #171 accepted seed3, game1/trick1, through real ordinary widgets only.
+#[allow(dead_code)]
+pub fn lead_master_flow(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    stage: u8,
+    chosen: u8,
+) {
+    use skat_app::*;
+    let i = I18n::new(language);
+    h.state_mut().set_language(language);
+    h.state_mut().opponent_delay = 0.0;
+    h.state_mut().set_coach_budget(Budget {
+        samples: 1,
+        nodes_per_task: 1,
+    });
+    settle(h);
+    click(h, &i.t("button-pass"));
+    settle(h);
+    let v = h.state().session().view();
+    assert_eq!((v.game_number, v.tricks_played), (1, 0));
+    assert!(v.current_trick.is_empty());
+    assert_eq!(
+        v.legal_actions,
+        [5, 6, 8, 13, 14, 22, 23, 27, 28, 29].map(|n| Action::Play(Card::from_index(n).unwrap()))
+    );
+    click(h, &i.t("guided-start"));
+    if stage == 0 {
+        return;
+    }
+    null_click(h, &i.t("guided-lead-declarer"));
+    assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+    if stage == 1 {
+        return;
+    }
+    null_click(h, &i.t("guided-retry"));
+    null_click(h, &i.t("guided-lead-defender"));
+    if stage == 2 {
+        return;
+    }
+    let consider = |n| {
+        i.tf(
+            "guided-consider",
+            &[("card", card_name(&i, Card::from_index(n).unwrap()).into())],
+        )
+    };
+    null_click(h, &consider(5));
+    assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+    null_click(h, &i.t("guided-retry"));
+    null_click(h, &consider(23));
+    let prompt = h.get_by_label(&i.t("guided-lead-attempt")).rect();
+    assert!(
+        prompt.min.y >= 75.0 && prompt.max.y < 190.0,
+        "new lead question must be visible after scrolling to the master answer: {prompt:?}"
+    );
+    if stage == 3 {
+        return;
+    }
+    if stage == 5 {
+        null_click(h, &i.t("guided-unknown"));
+    } else {
+        null_click(h, &consider(23));
+    }
+    assert_eq!(
+        h.state()
+            .session()
+            .guided()
+            .unwrap()
+            .rule
+            .unwrap()
+            .card
+            .index(),
+        23
+    );
+    if stage == 4 || stage == 5 {
+        return;
+    }
+    if stage == 11 {
+        h.get_by_role_and_label(Role::DisclosureTriangle, &i.t("guided-lead-details"))
+            .scroll_to_me();
+        h.run_steps(4);
+        h.get_by_role_and_label(Role::DisclosureTriangle, &i.t("guided-lead-details"))
+            .click();
+        h.run_steps(4);
+        return;
+    }
+    if stage == 6 {
+        null_click(h, &i.t("guided-memory"));
+        return;
+    }
+    h.state_mut().opponent_delay = 1000.0;
+    null_click(h, &card_name(&i, Card::from_index(chosen).unwrap()));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Waiting
+    );
+    if stage == 7 {
+        return;
+    }
+    h.state_mut().opponent_delay = 0.0;
+    for _ in 0..5000 {
+        h.run_steps(1);
+        if h.state().session().guided().unwrap().step == GuidedStep::Observe {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    h.state_mut().opponent_delay = 1000.0;
+    let g = h.state().session().guided().unwrap();
+    assert_eq!(g.step, GuidedStep::Observe);
+    assert_eq!(g.lead_replies.len(), 2);
+    assert!(g.observation.is_none());
+    if chosen == 5 {
+        assert_eq!(
+            h.state()
+                .session()
+                .view()
+                .last_trick
+                .unwrap()
+                .cards
+                .into_iter()
+                .map(|p| p.card.index())
+                .collect::<Vec<_>>(),
+            [5, 0, 3]
+        );
+    }
+    if stage == 8 {
+        return;
+    }
+    null_click(h, &i.t("guided-reveal"));
+    if chosen == 5 {
+        assert_eq!(
+            h.state()
+                .session()
+                .guided()
+                .unwrap()
+                .observation
+                .unwrap()
+                .winner,
+            Some(Seat::Hinterhand)
+        );
+    }
+    if stage == 9 {
+        return;
+    }
+    null_click(h, &i.t("guided-return"));
+    assert!(h.state().session().guided().is_none());
+}
