@@ -642,9 +642,9 @@ actual-main/both-OS archive/hash/visual acceptance. No learner results follow.
 `cargo test --locked -p skat-analysis --test suit_win_early_policy` runs with
 project default features. The cloud-owned literal module checks full legal
 histories, PlayerViews, ten Knowledge fields, eleven CardRule fields,
-ordered partitions/selection and all356 third-card completions. The original
+ordered partitions/selection and all 356 third-card completions. The original
 and sole supplement provenance is in the [walkthrough](guided-dialogue.md#farbspiel-winearly-178).
-`skat-coach --test guided_suit_win_early` checks the22 named complete API
+`skat-coach --test guided_suit_win_early` checks the 22 named complete API
 inputs, full non-absent lessons, conditions and both positive hidden pairs.
 App `suit_win_early` tests cover complete dialogue privacy including God Mode,
 all legal choices, actual replies/winners, consent, stale/reentry/reset,
