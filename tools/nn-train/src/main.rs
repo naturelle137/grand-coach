@@ -20,7 +20,7 @@
 //!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
 //!     [--device cpu|vulkan[:discrete|:integrated[:N]]]
 //!     [--patience N [--lr-decay X] [--lr-decays N]]
-//!     [--cache DIR] [--data-on-device GB]
+//!     [--cache DIR] [--data-on-device GB] [--all-phases]
 //!     [--queue LxH,LxH... [--workers once:cpu,last:vulkan:discrete]]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
@@ -528,6 +528,7 @@ fn train(args: &[String]) {
     assert!(!dirs.is_empty(), "train needs at least one DATA_DIR");
     let d = Hyper::default();
     let hyper = Hyper {
+        all_phases: args.iter().any(|a| a == "--all-phases"),
         hidden: flag(args, "--hidden", d.hidden),
         layers: flag(args, "--layers", d.layers),
         batch: flag(args, "--batch", d.batch),
@@ -693,8 +694,8 @@ fn train_one(
 ) {
     use nn_train::resident::ResidentRows;
     use nn_train::train::{
-        PHASES, Recipe, TRAIN_FORMAT, TrainLimits, TrainManifest, TrainStop, evaluate_with,
-        hex_hash, read_model, train_with,
+        Recipe, TRAIN_FORMAT, TrainLimits, TrainManifest, TrainStop, evaluate_with, hex_hash,
+        read_model, train_with,
     };
     // Lines go to stdout or a log file; a full disk must not stop training.
     let mut say = |line: String| {
@@ -731,7 +732,7 @@ fn train_one(
     let recipe = Recipe {
         train_format: TRAIN_FORMAT,
         encoder_version: ENCODER_VERSION,
-        phases: PHASES.bits(),
+        phases: hyper.phases().bits(),
         data: data.sources.clone(),
         hyper: hyper.clone(),
     };
@@ -837,7 +838,11 @@ fn evaluate(args: &[String]) {
     let model = std::fs::read(args.first().expect("evaluate MODEL DATA_DIR...")).expect("model");
     let dirs: Vec<std::path::PathBuf> = args[1..].iter().map(std::path::PathBuf::from).collect();
     assert!(!dirs.is_empty(), "evaluate needs at least one DATA_DIR");
-    let hyper = Hyper::default();
+    let header = skat_nn::read_header(&model).expect("model header");
+    let hyper = Hyper {
+        all_phases: header.phases == skat_nn::Phases::ALL,
+        ..Hyper::default()
+    };
     let data = load(&dirs, &hyper).expect("load data");
     let report = |name: &str, examples: &nn_train::train::Examples| {
         let m = evaluate_model(&model, examples, &hyper).expect("evaluate");

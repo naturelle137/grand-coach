@@ -33,6 +33,11 @@
 //!   only the [`PolicyValueNet`]; the head is saved next to it
 //!   (`belief.bpk`) for `nn-train probe`. Model selection ignores it.
 //!
+//! With [`Hyper::all_phases`], every decision phase is included and the
+//! recorded teacher's Kontra/Re actions are retained without #108
+//! relabelling. The existing shared encoder and joint pair-action head
+//! serve every phase; this mode does not generate counterfactual labels.
+//!
 //! The only model input is the encoded [`PlayerView`](skat_core::PlayerView)
 //! of the record; final points and option values are targets.
 //!
@@ -61,7 +66,7 @@ use burn::tensor::activation::log_softmax;
 use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 use skat_ai::{KontraRule, Status, kontra_by_rules, kontra_rule};
-use skat_core::{OmniscientView, Phase, PlayerView};
+use skat_core::{OmniscientView, PlayerView};
 use skat_nn::{
     ACTIONS, ENCODER_VERSION, MIN_LAYERS, ModelHeader, NetShape, Phases, PolicyValueNet,
     action_index, encode, sha256, unseen_cards, write_model,
@@ -75,7 +80,7 @@ use crate::shards::{Manifest, read_manifest, read_shard_hashed, replay_deal};
 /// Version of the training recipe and run-directory layout.
 pub const TRAIN_FORMAT: u32 = 3;
 
-/// Phases the trained model decides; everything else stays Classic.
+/// Default phases; all-phase imitation is an explicit opt-in.
 pub const PHASES: Phases = Phases::SPIEL;
 
 /// Scale of the value target in the loss (points per unit).
@@ -116,6 +121,10 @@ pub fn belief_target(view: &PlayerView, all: &OmniscientView) -> [u8; 32] {
 /// Hyperparameters of a training run.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Hyper {
+    /// Include every phase and retain the teacher's Kontra/Re choices.
+    /// False preserves the card-play recipe and #108 Kontra relabelling.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub all_phases: bool,
     /// Width of every hidden layer.
     pub hidden: usize,
     /// Number of hidden layers; omitted from the recipe when it is
@@ -177,6 +186,7 @@ pub struct Plateau {
 impl Default for Hyper {
     fn default() -> Hyper {
         Hyper {
+            all_phases: false,
             hidden: 256,
             layers: MIN_LAYERS,
             batch: 256,
@@ -192,6 +202,18 @@ impl Default for Hyper {
             seed: 0,
             plateau: None,
         }
+    }
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde passes a reference
+const fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+impl Hyper {
+    /// Phase coverage recorded in the recipe and model header.
+    pub fn phases(&self) -> Phases {
+        if self.all_phases { Phases::ALL } else { PHASES }
     }
 }
 
@@ -216,7 +238,7 @@ pub struct Recipe {
     pub train_format: u32,
     /// Encoder version of the features.
     pub encoder_version: u16,
-    /// Phases of the examples and the model ([`PHASES`]).
+    /// Phases of the examples and model ([`Hyper::phases`]).
     pub phases: u8,
     /// Training data.
     pub data: Vec<DataSource>,
@@ -506,7 +528,7 @@ impl Examples {
         }
     }
 
-    /// Adds `record` if it is a card-play decision, with its belief target
+    /// Adds `record` if its phase is selected, with its belief target
     /// if given.
     pub(crate) fn push(
         &mut self,
@@ -514,11 +536,15 @@ impl Examples {
         hyper: &Hyper,
         belief: Option<[u8; 32]>,
     ) -> bool {
-        if r.view.phase != Phase::Spiel || !PHASES.contains(r.view.phase) {
+        if !hyper.phases().contains(r.view.phase) {
             return false;
         }
         let relabelled;
-        let r = match without_kontra(r) {
+        let r = match if hyper.all_phases {
+            Some(None)
+        } else {
+            without_kontra(r)
+        } {
             Some(Some(record)) => {
                 relabelled = record;
                 &relabelled
@@ -1166,10 +1192,14 @@ pub(crate) const fn is_min_layers(layers: &usize) -> bool {
 
 /// The model file of `net` with layer sizes `shape`.
 pub fn model_file(net: PolicyValueNet, shape: NetShape) -> Vec<u8> {
+    model_file_with_phases(net, shape, PHASES)
+}
+
+fn model_file_with_phases(net: PolicyValueNet, shape: NetShape, phases: Phases) -> Vec<u8> {
     let header = ModelHeader {
         encoder_version: ENCODER_VERSION,
         shape,
-        phases: PHASES,
+        phases,
     };
     write_model(&header, net).expect("model serialises")
 }
@@ -1204,6 +1234,9 @@ pub fn train_with(
 ) -> io::Result<Trained> {
     let start = Instant::now();
     let hyper = &recipe.hyper;
+    if recipe.phases != hyper.phases().bits() {
+        return Err(io::Error::other("recipe phases differ from training mode"));
+    }
     if recipe.encoder_version != ENCODER_VERSION {
         return Err(io::Error::other(
             "training recipe has another encoder version",
@@ -1386,7 +1419,7 @@ pub fn train_with(
     }
     let best_net = from_record(shape, best, &Device::flex())?;
     Ok(Trained {
-        model: model_file(best_net, shape),
+        model: model_file_with_phases(best_net, shape, hyper.phases()),
         belief: best_belief,
         state,
         stop,
@@ -1430,7 +1463,7 @@ pub fn hex_hash(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use skat_ai::{BaselineOpponent, Budget, Opponent, Profile};
-    use skat_core::{Action, Game, RuleConfig};
+    use skat_core::{Action, Game, Phase, RuleConfig};
 
     use super::*;
     use crate::selfplay::teach;
@@ -1458,6 +1491,100 @@ mod tests {
             lineup: None,
             teacher,
             final_points: 0,
+        }
+    }
+
+    #[test]
+    fn all_phase_rows_preserve_hand_pickup_ouvert_and_re_visibility() {
+        use skat_core::{Announcement, GameType};
+        use skat_nn::encoder::{OUVERT_BLOCK, OWN_SKAT_BLOCK};
+
+        let hyper = Hyper {
+            all_phases: true,
+            ..Hyper::default()
+        };
+        for hand in [false, true] {
+            let mut game = Game::new(74, RuleConfig { kontra_re: true });
+            for action in [Action::Bid(18), Action::Hold, Action::Pass, Action::Pass] {
+                game.apply(action).unwrap();
+            }
+            let mut saw_re = false;
+            let mut saw_revealed = false;
+            let mut saw_discard = false;
+            while let Some(seat) = game.current_seat() {
+                let view = game.view(seat);
+                let action = match view.phase {
+                    Phase::SkatAufnahme => {
+                        if hand {
+                            Action::Hand
+                        } else {
+                            Action::TakeSkat
+                        }
+                    }
+                    Phase::Ansage => Action::Announce(Announcement {
+                        game: GameType::Grand,
+                        schneider: hand,
+                        schwarz: hand,
+                        ouvert: hand,
+                    }),
+                    _ if view.legal_actions.contains(&Action::Kontra) => Action::Kontra,
+                    _ if view.legal_actions.contains(&Action::Re) => {
+                        saw_re = true;
+                        Action::Re
+                    }
+                    _ => view.legal_actions[0],
+                };
+                // Scripted schema fixture, not a strategic teacher label.
+                let record = DecisionRecord {
+                    deal: 0,
+                    split: Split::Train,
+                    view: view.clone(),
+                    action,
+                    played: None,
+                    lineup: None,
+                    final_points: 0,
+                    teacher: Teacher {
+                        status: None,
+                        fallback: false,
+                        options: vec![],
+                    },
+                };
+                crate::selfplay::check_record(&record).unwrap();
+                let mut examples = Examples::new();
+                assert!(examples.push(&record, &hyper, None));
+                let features = examples.features.row(0);
+                assert_eq!(features, encode(&view));
+                let cards = |block: std::ops::Range<usize>| -> usize {
+                    features[block].iter().filter(|&&f| f == 1.0).count()
+                };
+                assert_eq!(cards(OWN_SKAT_BLOCK), view.own_skat.map_or(0, |s| s.len()));
+                assert_eq!(
+                    cards(OUVERT_BLOCK),
+                    view.declarer_cards.map_or(0, |s| s.len())
+                );
+                if view.phase == Phase::Druecken {
+                    saw_discard = true;
+                    assert_eq!(view.hand.len(), 12);
+                    assert_eq!(view.legal_actions.len(), 66);
+                    assert_eq!(view.own_skat, None);
+                }
+                if view.hand_game == Some(true) {
+                    assert_eq!(view.own_skat, None);
+                }
+                if view.declarer != Some(seat) {
+                    assert_eq!(view.own_skat, None);
+                }
+                saw_revealed |= view.declarer_cards.is_some();
+                let legal = &examples.legal[examples.offsets[0]..examples.offsets[1]];
+                assert_eq!(
+                    crate::train::action_index(action),
+                    Some(legal[examples.chosen[0] as usize] as usize)
+                );
+                game.apply(action).unwrap();
+            }
+            assert!(saw_re);
+            assert_eq!(saw_discard, !hand);
+            assert_eq!(saw_revealed, hand);
         }
     }
 
