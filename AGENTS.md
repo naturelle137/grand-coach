@@ -123,8 +123,8 @@ For the Phase 2 seed audit, bounded pilot and HQ evaluation entrypoints,
 see [the evaluation protocol](docs/phase2-evaluation.md). Analysis regression
 fixtures run with `python3 -m unittest discover -s scripts/phase2 -p 'test_*.py'`.
 
-For the reserved #54 learner kit (technical agents only, from the exact clean
-source of a verified native RC), use
+For the optional reserved #54 learner study kit (technical agents only, from
+the exact clean source of a verified native RC), use
 `python3 -B scripts/validation54-kit.py --archive PATH --out NEW_PRIVATE_DIR`.
 It checks build/task hashes and refuses an existing destination. Run its
 failure fixtures with
@@ -155,9 +155,15 @@ fix or a rebase.
 The CEO does not review PRs or resolve technical findings. Changes to
 repository protection settings require a separate CEO decision.
 
-Learner participation is separate from technical review (D-51, D-61).
-Agents prepare and run technical checks; actual learner observations remain
-pending until collected and must never be simulated by an agent.
+Agents own technical and visual checks and verify the actual results,
+including any model-assisted screenshot findings. Successful Windows CI is
+sufficient Windows verification; no separate Windows device or CEO Windows
+acceptance is required. CEO manual tests, UAT and learner sessions are not
+development or release gates (D-36, D-51, D-61). Human participation is considered
+only for a concretely necessary test demonstrably impossible otherwise.
+Optional learner research remains unperformed until actual observations are
+collected; never simulate records or infer comprehension, learning efficacy
+or transfer from technical checks.
 
 ## Conventions
 

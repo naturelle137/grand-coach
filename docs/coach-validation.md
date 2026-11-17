@@ -1,7 +1,8 @@
 # Coach validation: evidence checklist and learner UAT
 
 Use the [analysis evidence contract](analysis.md#evidence-for-lessons) for lesson changes
-and the [release test plan](release-test-plan.md) for learner sessions.
+and the [release test plan](release-test-plan.md) for required technical checks.
+Parts B and C below preserve optional learner research, not release gates.
 
 ## Scope and limits
 
@@ -10,15 +11,17 @@ Three different questions, answered by different means:
 | Question | Means | Who | Establishes |
 |----------|-------|-----|-------------|
 | Is each stated fact or condition true for the permitted view? | Fixtures with independently specified expected results (part A) | agent, `scripts/check.sh` | correctness of the tested claims only |
-| Can a learner find, read and use the coach? | Learner UAT script (part B) | maintainer as learner | clarity and usability for this learner |
-| Does the learner later solve new tasks without help? | Unaided-task protocol (part C) | maintainer as learner, M8 (#54) | a single-learner observation |
+| Can a learner find, read and use the coach? | Learner UAT script (part B) | optional learner participant | clarity and usability for this learner |
+| Does the learner later solve new tasks without help? | Unaided-task protocol (part C) | optional learner participant, #54 | a single-learner observation |
 
 - **No human Skat expert is available, and none is a prerequisite.** No PR,
   lesson or milestone waits for expert sign-off, and none claims it.
 - Technical PR review belongs to one independent fresh-session agent review,
   any provider (D-27).
-  Learner sessions are separate release evidence, not a per-PR approval.
-- The maintainer takes part **as a learner**: they judge comprehensibility,
+  Learner sessions are optional research, never development or release gates.
+  No CEO manual tests are required; human participation is considered only for
+  a concretely necessary test demonstrably impossible otherwise (D-51).
+- A participant takes part **as a learner**: they judge comprehensibility,
   context and flow, not advanced strategy. A missing answer or “unclear” is
   a valid result.
 - Automated checks support exactly the claims they test. They do not
@@ -135,11 +138,13 @@ answers every line with the evidence (test name, file, rule source) or
 
 ## B. Coach learner UAT
 
-Run by the maintainer as a learner in the real application. No Skat
+Optional research in the real application; absence does not block development
+or release. Agents own required technical/visual usability checks, which do not
+prove human comprehension. If a learner session is undertaken, no Skat
 expertise is needed: every question asks what the learner saw and
 understood, not whether the move was best.
 
-### B1. Release-session preparation
+### B1. Optional session preparation
 
 Choose reproducible situations covering the shipped lessons. Record the
 build, series seed, steps reaching each lesson moment, coach settings and
@@ -189,17 +194,18 @@ B2.8 Play on         |  |
 Implied move advice seen? yes / no – where:
 
 Findings (each: severity, issue link):
-Performed by: maintainer (learner)   Status: performed / pending
+Performed by: actual learner participant   Status: performed / pending
 ```
 
-Store completed personal release-session records privately under
+Store completed personal learner-session records privately under
 `grand-coach-data/studies/`, never public git or `docs/uat/`, with the build,
 date and environment. Findings become issues; fixes are retested with the
 affected items. Use the same template across all shipped lessons.
 
 ## C. Initial and delayed unaided-task protocol
 
-Use this protocol when practice and progress tracking are available.
+Use this protocol only if optional learner research is undertaken. It is not
+a development or release prerequisite.
 The [reserved #54 preregistration](validation54.md) fixes the executable task
 sets, exact scoring, denominators, private storage and stop rules before results.
 
@@ -246,7 +252,7 @@ Task ID@version | Lesson | New position? | Assistance | Prior exposure | Answer 
                 |        | yes / no      | none / ... |                |                   |
 
 Counts: unaided correct __ / __, assisted __, repeated __, skipped __
-Performed by: maintainer (learner)   Status: performed / pending
+Performed by: actual learner participant   Status: performed / pending
 ```
 
 ## Grand WinEarly technical evidence (#161)

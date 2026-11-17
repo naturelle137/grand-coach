@@ -150,7 +150,9 @@ The learner needs no developer tools. Existing records are never overwritten;
 a missing history stays exposure-incomplete. The key and reserved views are
 excluded from the learner kit. The terminal owner verifies actual launch and
 accepts/sends only finished learner-facing files. Human Initial/Delayed sessions
-and platform/release acceptance remain separate gates.
+are optional research, not development or release gates. Agents own technical
+and visual release checks; successful Windows CI suffices without a separate
+Windows device or CEO acceptance (D-36, D-51, D-61).
 
 ## Branching
 

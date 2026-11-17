@@ -142,11 +142,15 @@ Probe creation/checks are API evidence, not GUI entry/answer evidence. They do
 not establish migration, cross-version upgrade or complete-series behaviour.
 Existing application/widget tests cover those behaviours separately.
 
-Before release, execute the [release test plan](release-test-plan.md) on clean
-Linux and actual Windows 11, with the exact artifact hash: valid history across
-restart and a supported-version upgrade, all faces/languages, full series,
-coach/counting/quiz, open display, recording/replay/post-game analysis and
-training. Record prerequisites installed, install/uninstall observations,
-hardware, build, commands, seeds, screenshots and findings. Actual learner
-observations remain a separate required gate. Missing evidence stays pending;
-neither server CI nor a cross-build establishes these claims.
+Before release, agents execute the required functional, package and visual
+checks in the [release test plan](release-test-plan.md), with the exact artifact
+hash: valid history across restart and a supported-version upgrade, all
+faces/languages, full series, coach/counting/quiz, open display,
+recording/replay/post-game analysis and training. Record prerequisites,
+install/uninstall results, environment, build, commands, seeds, inspected
+screenshots and findings. Successful Windows CI suffices for Windows verification;
+no separate Windows device, clean Windows 11 session or CEO acceptance is a
+prerequisite. Keep the CI environment limits above explicit. Learner research is
+optional and absent results limit comprehension, efficacy and transfer claims,
+without blocking development or release. No release/publication is authorised
+by these procedures.
