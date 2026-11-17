@@ -1,4 +1,4 @@
-# Guided card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159, #161, #163, #165, #169, #171, #176)
+# Guided card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159, #161, #163, #165, #169, #171, #176, #178)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -8,7 +8,8 @@ remain unmeasured.
 
 ## Rule and evidence definition
 
-The card-play scope includes `UnderPartner`, `WinLast`, Grand `WinEarly`,
+The card-play scope includes `UnderPartner`, `WinLast`, non-Ouvert Grand `WinEarly` and
+[non-Ouvert Farbspiel `WinEarly`](#farbspiel-winearly-178) on the human's own current second turn,
 last-seat Grand `FeedPartner`, [Grand `LeadMaster`](#grand-lead-with-a-follow-class-master-171),
 and Null declarer play [last](#null-declarer-last-to-the-current-trick-165)
 or [second](#null-declarer-acting-second-169), and the [opening lead](#null-opening-lead-176). These are bounded heuristic
@@ -32,9 +33,16 @@ separate factual oracles.
   opposing party leads, at least two legal cards and a winning candidate. Easy takes a winner by `(is_trump, power)`,
   first exact tie. Other winning cards still win this trick. No claim about
   their future strategic value or the final game result follows.
-- **WinEarly:** non-Ouvert Grand only (#161, below), opposing party ahead,
+- **WinEarly:** non-Ouvert Grand (#161, below) or
+  [non-Ouvert Farbspiel](#farbspiel-winearly-178), opposing party ahead,
   one remaining player, at least two legal cards and current winners. The
-  selected cheapest winner is Trumpf or a follow-class master.
+  selected cheapest winner itself is Trumpf or a conservative follow-class master;
+  another own master does not qualify it. Farbspiel requires the human's own
+  current second turn, exactly one contiguous public card and the correct leader,
+  at least two pure actions in exact core-legal order and consistent Hand or
+  pickup information. In Farbspiel, all four Buben and the announced suit are
+  Trumpf. A side master can be trumped; a lower Trumpf can be overtrumped.
+  Unknown holders stay unknown.
 - **FeedPartner:** non-Ouvert Grand only (#163, below), defender last to
   the current trick, partner ahead, at least two pure legal card actions.
 - **LeadMaster:** non-Ouvert Grand only (#171, below), own empty-trick
@@ -43,7 +51,8 @@ separate factual oracles.
 - **Null declarer:** non-Ouvert Null acting [last](#null-declarer-last-to-the-current-trick-165)
   or [second](#null-declarer-acting-second-169), or the opening lead (#176), with at least two pure legal
   cards and a current loser; the linked sections define the full guards.
-- **Exclusions:** other leads, Farbspiel early winner, early or Farbspiel feeding, arbitrary fallback,
+- **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
+  early or Farbspiel feeding, arbitrary fallback,
   single legal action, other Grand branches, Ouvert Grand, other Null card play or
   card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
   Ansage and Kontra/Re: see below). If the
@@ -130,10 +139,11 @@ branch, now supported in last-seat Grand (#163 below; `UnderPartner` before
 the last seat: see #159 below). Grand `LeadMaster` is supported within its
 [own scope](#grand-lead-with-a-follow-class-master-171), as is Null declarer
 play [last](#null-declarer-last-to-the-current-trick-165) or
-[second](#null-declarer-acting-second-169). Unsupported remain Grand
-`DrawTrumpf`, Farbspiel `WinEarly`, early or Farbspiel `FeedPartner`, fallback,
-single legal moves and Ouvert Grand (Farbspiel, including Ouvert, keeps its
-shipped scope). A core-offered Kontra
+[second](#null-declarer-acting-second-169). Non-Ouvert Farbspiel `WinEarly`
+follows the [#178 guards](#farbspiel-winearly-178). Unsupported remain Grand
+`DrawTrumpf`, early or Farbspiel `FeedPartner`, fallback, single legal moves
+and Ouvert Grand. Older Farbspiel families, including Ouvert, keep their
+shipped scope; #178 does not add Ouvert WinEarly. A core-offered Kontra
 keeps its own dialogue first. In last seat the learner's own card completes
 the trick: the observation uses that card and the actual core `TrickWon`,
 also for a losing alternative, without waiting for another seat.
@@ -189,8 +199,8 @@ cards, legal actions and frozen knowledge; an unseen card never names a
 holder. Prompts, checks, memory and observation are unchanged; the rule text
 states that staying under never secures the trick, because the declarer after
 the learner may overtake or trump. Easy, branch order, ties and the frozen
-hashes are untouched. Excluded: the partner's follow-class master or the last
-seat (`FeedPartner`; a side master is no immunity to trumping), no losing card
+hashes are untouched. The #159 increment excluded the partner's follow-class
+master or the last seat (`FeedPartner`; a side master is no immunity to trumping), no losing card
 (`Fallback`), a single legal card, the declarer role (a Grand declarer never
 enters `UnderPartner`), leads, Farbspiel `WinEarly`, Null, Ouvert Grand, and a
 core-offered Kontra, which keeps its own dialogue first. The observation waits
@@ -250,8 +260,8 @@ Orientation asks who currently wins, then who remains. Attempts at any current
 winner, deliberate reveal and “I don't know” use the existing disclosure and
 consent-gated memory lifecycle. Observation cites the actual third card and
 completed winner. Early/automatic/off/unaided help does not reveal the rule.
-No optional estimate selects the rule. No new Farbspiel WinEarly, Null/Ouvert,
-early FeedPartner, DrawTrumpf, LeadMaster, Fallback or single-card lesson is added.
+No optional estimate selects the rule. The #161 increment added no Farbspiel WinEarly,
+Null/Ouvert, early FeedPartner, DrawTrumpf, LeadMaster, Fallback or single-card lesson.
 Existing supported branches keep their behaviour.
 
 The unchanged handwritten oracle is in `tests/support/win_early.rs` under
