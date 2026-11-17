@@ -84,6 +84,43 @@ at weight 0.5 lost playing strength. Check belief calibration separately from
 arena results. Many decisions share a final score, so per-row value errors
 within a game are correlated. Use deals as the independent evaluation unit.
 
+## All-phase imitation preparation (#74)
+
+The opt-in `train --all-phases` mode uses the existing shared v2 encoder
+and 621-action policy head for Reizen, Hand/pickup, Drücken, Ansage and
+card play including Kontra/Re. Drücken scores each unordered pair jointly:
+496 global pair indices, masked to the 66 pairs in the declarer's twelve
+cards. No new encoder, model format or runtime default is introduced.
+
+This mode retains the recorded teacher action and legal list, including
+analysed Kontra/Re when present in the source, instead of applying the
+card-play trainer's #108 Kontra relabelling. Source manifests and independent
+pre-play label validation still determine whether a dataset is suitable;
+selecting the mode does not certify those labels. Policy/value/option target
+settings otherwise follow the existing recipe; future scores and teacher
+estimates remain targets only. This is imitation preparation, not an
+outcome-label experiment or evidence that double-dummy bias is resolved.
+
+The recipe records the opt-in and all five phase bits; cache keys separate
+both modes, resumed runs reject a changed recipe, and exported models carry
+the selected phase coverage. `evaluate` selects all-phase records when the
+model header covers all phases. Its aggregate imitation metrics are not
+bidding/pass/Einpassen rates, contract mix or role-separated calibration.
+The default card-play recipe and deployed weights remain unchanged. The
+shipped Neural opponent still applies its configured #108 Kontra rule;
+experimental inference of recorded Kontra actions does not enable them in
+that opponent by default.
+
+Tiny checked-in fixtures exercise training, model reload and legal inference
+across the recorded phases. Scripted schema tests additionally exercise Hand,
+pickup, discard, immediate Re and Ouvert reveal; they are not strategic
+labels. No production all-phase model or strength measurement is delivered.
+A production imitation run, independent label validation, model card and
+behavioural calibration remain open in #74. The outcome-label pilot is
+postponed because those prerequisites are absent and the Phase 2 no-go
+allows no further training or arenas. Long compute requires separate
+admission as a shell job; this tooling change does not grant it.
+
 ## Self-play refinement
 
 `rl` starts from supervised weights and learns from the acting seat's final

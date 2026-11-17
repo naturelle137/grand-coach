@@ -690,3 +690,16 @@ example without a filter. Fixture JSON is checked against actual app sessions by
 those technical models with `SKAT_SUIT_FEED_WIDGET_FIXTURES_OUT` set to their
 absolute path and that test; this never changes the accepted handwritten oracle.
 See the [scope and ordinary walkthrough](guided-dialogue.md#farbspiel-last-seat-feedpartner-185).
+
+## Explicit live Abstich observations (#13)
+
+The [live question contract](live-abstich.md) fixes independent Possible/Certain
+fixtures, positive-risk selection limits, immutable permitted-view provenance,
+unanswered/skip/help semantics and the separate persisted overview. App unit
+tests exercise actual Session commands and migration/reset/deduplication;
+`crates/gui-egui/tests/live_abstich.rs` drives DE/EN widgets and persisted restart.
+PR and native tiers explicitly retain these bounded widget tests despite their
+slow-test annotation. The screenshot example includes the `live-abstich-*` entry, candidate, answer,
+help, skip, unsupported, return and overview views, including narrow answers.
+Compare exported live recordings before/after these interactions to check
+nonmutation. No unchanged RC/gallery campaign or learner observations are implied.

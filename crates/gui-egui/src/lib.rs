@@ -20,3 +20,4 @@ pub use i18n::Language;
 
 /// Guided dialogue component, also used by permitted-view fixture renderers.
 pub mod guided;
+mod live_abstich;
