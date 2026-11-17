@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Bounded guided Farbspiel, non-Ouvert Grand and second/last-seat non-Ouvert Null
+//! Bounded guided Farbspiel, non-Ouvert Grand and opening/second/last-seat non-Ouvert Null
 //! declarer card play, Reizen,
 //! Skataufnahme, Drücken, Ansage and non-Ouvert Kontra/Re lessons. Exact
 //! rule provenance, never search ranking.
@@ -105,9 +105,9 @@ pub struct Lesson {
 /// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus Grand WinEarly and last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
 /// and at least one losing card; early FeedPartner and Fallback stay excluded.
-/// Null: only the declarer on its own turn, second or last to the current trick, with
+/// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. The shared
-/// `Branch::Null` is broader; defenders, lead, Ouvert and
+/// `Branch::Null` is broader; defenders, later own leads, Ouvert and
 /// restricted or inconsistent views stay excluded here. Grand LeadMaster also
 /// admits the own empty-trick lead with an exact pure core-legal action list;
 /// declarer DrawTrumpf priority and every other lead branch stay excluded.
@@ -128,13 +128,13 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || (contract.hand && view.own_skat.is_some())
             || (!contract.hand && view.own_skat.is_none_or(|s| s.len() != 2))
             || view.current_seat != Some(view.seat)
-            || view.current_trick.cards[0].is_none()
             || view.current_trick.cards[2].is_some()
-            || view
-                .current_trick
-                .leader
-                .map(|s| Seat::from_index(s.index() + view.current_trick.len()))
-                != Some(view.seat))
+            || (view.current_trick.cards[0].is_some()
+                && view
+                    .current_trick
+                    .leader
+                    .map(|s| Seat::from_index(s.index() + view.current_trick.len()))
+                    != Some(view.seat)))
     {
         return None;
     }
@@ -146,6 +146,39 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>()
     {
         return None;
+    }
+    // A Null declarer who takes any trick loses immediately. Only physical
+    // Vorhand can therefore have a reachable own opening lead.
+    if null && view.current_trick.cards[0].is_none() {
+        if view.current_trick.cards != [None; 3]
+            || view.current_trick.leader.is_some()
+            || view.seat != Seat::Vorhand
+            || !view.tricks.is_empty()
+            || view.hand.len() != 10
+            || view.hand_sizes != [10; 3]
+            || view.result.is_some()
+            || view.declarer_cards.is_some()
+            || view.own_skat.is_some_and(|s| !(s & view.hand).is_empty())
+            || view.legal_actions.len() < 2
+        {
+            return None;
+        }
+        let rule = baseline::rule(view)?;
+        if rule.branch != Branch::Null {
+            return None;
+        }
+        return Some(Lesson {
+            rule,
+            source: Source::Lead {
+                index: 0,
+                seat: view.seat,
+            },
+            knowledge: Knowledge::from_view(view),
+            game,
+            remaining: None,
+            seat: view.seat,
+            lead_declarer: Some(true),
+        });
     }
     // Lead rules assume a valid own turn, declarer and an exact pure legal
     // list. Reject malformed/restricted input before invoking the baseline.

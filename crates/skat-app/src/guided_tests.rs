@@ -2823,7 +2823,8 @@ fn null_last_real_exclusions_keep_unsupported_and_every_card_playable() {
         s.execute(Command::StartGuided).unwrap();
         assert_eq!(
             s.guided().unwrap().step,
-            if c.id == "real-early" {
+            // These remain outside #165, but #169/#176 admit them.
+            if matches!(c.id, "real-early" | "real-lead") {
                 S::Orient
             } else {
                 S::Unsupported
@@ -3656,3 +3657,6 @@ fn lead_master_fixture_widget_models_match_checked_sessions() {
         );
     }
 }
+
+#[path = "guided_null_lead_tests.rs"]
+mod null_lead_tests;

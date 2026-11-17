@@ -31,6 +31,8 @@ const NARROW: [f32; 2] = [960.0, 640.0];
 
 #[path = "support/lead_master_widgets.rs"]
 mod lead_master_widgets;
+#[path = "support/null_lead_widgets.rs"]
+mod null_lead_widgets;
 #[path = "support/null_middle_widgets.rs"]
 mod null_middle_widgets;
 #[path = "support/null_widgets.rs"]
@@ -1665,6 +1667,7 @@ fn main() {
     let mut fixture_names = null_widgets::names();
     fixture_names.extend(null_middle_widgets::names());
     fixture_names.extend(lead_master_widgets::names());
+    fixture_names.extend(null_lead_widgets::names());
     if let Some(unknown) = wanted
         .iter()
         .find(|w| !SCENARIOS.iter().any(|(name, _)| name == w) && !fixture_names.contains(w))
@@ -1683,9 +1686,33 @@ fn main() {
         serde_json::to_string_pretty(&lead_master_widgets::inventory()).unwrap(),
     )
     .unwrap();
+    std::fs::write(
+        format!("{out}/null-lead-inventory.json"),
+        serde_json::to_string_pretty(&null_lead_widgets::inventory()).unwrap(),
+    )
+    .unwrap();
+    // Full source-derived expected PNG set for both-OS archive acceptance.
+    // Selection affects rendering only; the manifest always describes all views.
+    let mut all_names: Vec<String> = SCENARIOS
+        .iter()
+        .map(|(name, _)| (*name).to_owned())
+        .collect();
+    all_names.extend(fixture_names.iter().cloned());
+    all_names.sort();
+    assert!(
+        all_names.windows(2).all(|pair| pair[0] != pair[1]),
+        "duplicate screenshot name"
+    );
+    std::fs::write(
+        format!("{out}/all-scenarios-inventory.json"),
+        serde_json::to_string_pretty(&all_names).unwrap(),
+    )
+    .unwrap();
     for name in fixture_names {
         if wanted.is_empty() || wanted.contains(&name) {
-            if name.starts_with("guided-lead-master-") {
+            if name.starts_with("guided-null-lead-") {
+                null_lead_widgets::render(&name, Some(&out));
+            } else if name.starts_with("guided-lead-master-") {
                 lead_master_widgets::render(&name, Some(&out));
             } else if name.starts_with("guided-null-middle-") {
                 null_middle_widgets::render(&name, Some(&out));

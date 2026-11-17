@@ -102,7 +102,9 @@ fn content(
     }
     let prompt = match g.step {
         GuidedStep::Orient if g.lead.is_some() => "guided-lead-orient",
+        GuidedStep::Check if g.lead.is_some() && null => "guided-null-lead-candidates",
         GuidedStep::Check if g.lead.is_some() => "guided-lead-master",
+        GuidedStep::Narrow if g.lead.is_some() && null => "guided-null-lead-attempt",
         GuidedStep::Narrow if g.lead.is_some() => "guided-lead-attempt",
         GuidedStep::Observe if g.lead.is_some() => "guided-lead-observe",
         GuidedStep::Orient => "guided-orient",
@@ -143,8 +145,16 @@ fn content(
         }
     }
     if g.lead.is_some() && matches!(g.step, GuidedStep::Check | GuidedStep::Narrow) {
-        ui.label(i.t("guided-lead-definition"));
-        ui.label(i.t("guided-lead-risk"));
+        ui.label(i.t(if null {
+            "guided-null-lead-ranks"
+        } else {
+            "guided-lead-definition"
+        }));
+        ui.label(i.t(if null {
+            "guided-null-lead-limit"
+        } else {
+            "guided-lead-risk"
+        }));
     }
     if g.lead.is_none() && matches!(g.step, GuidedStep::Orient | GuidedStep::Check) {
         for seat in Seat::ALL {
@@ -190,7 +200,9 @@ fn content(
         } else if rule.branch == GuidedBranch::WinEarly {
             "guided-rule-early"
         } else if rule.branch == GuidedBranch::Null {
-            if rule.last {
+            if g.lead.is_some() {
+                "guided-rule-null-lead"
+            } else if rule.last {
                 "guided-rule-null"
             } else {
                 "guided-rule-null-middle"
@@ -219,7 +231,7 @@ fn content(
         let details = |ui: &mut egui::Ui| {
             let cards: Vec<_> = rule.candidates.iter().map(|&c| text::card(i, c)).collect();
             ui.label(i.tf("guided-candidates", &[("cards", cards.join(", ").into())]));
-            if rule.branch == GuidedBranch::Null {
+            if rule.branch == GuidedBranch::Null && g.lead.is_none() {
                 let winners: Vec<_> = rule.winners.iter().map(|&c| text::card(i, c)).collect();
                 ui.label(if winners.is_empty() {
                     i.t(if rule.last {
@@ -244,6 +256,12 @@ fn content(
             ui.collapsing(i.t("guided-lead-details"), |ui| {
                 ui.label(i.t("guided-lead-conservative"));
                 ui.label(i.t("guided-lead-empty"));
+            });
+        } else if rule.branch == GuidedBranch::Null && g.lead.is_some() {
+            ui.collapsing(i.t("guided-null-lead-details"), |ui| {
+                ui.label(i.t("guided-null-lead-order"));
+                ui.label(i.t("guided-null-lead-empty"));
+                details(ui);
             });
         } else if rule.branch == GuidedBranch::Null && !rule.last {
             ui.collapsing(i.t("guided-null-middle-details"), |ui| {
