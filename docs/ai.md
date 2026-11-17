@@ -132,7 +132,15 @@ seeded learned levels and their still-pending calibration.
 - **Metric**: Seeger-Fabian points per seat-game, Einpassen included
   with 0 points for every seat. Per deal, D = mean of A's 9 seat-games −
   mean of B's 9 seat-games. Declarer and defender games, win rates and
-  points per role are reported as supporting information.
+  points per role are reported as supporting information. Behavioural tables
+  report Bid, Hold and Pass counts and rates over all Reizen actions (Bid
+  includes Vorhand accepting 18). Per-profile Einpassen counts participation
+  over seat-games, not causation by that profile on mixed tables. Contract
+  mix (Kreuz, Pik, Herz, Karo, Grand, Null) uses only that profile's declarer
+  games; Hand, Schneider/Schwarz announcements and Ouvert overlap those bins.
+  Achieved Schneider/Schwarz are not counted as announcements. Zero
+  denominators print `–`; these descriptive rates have no independent-row
+  confidence intervals.
 - **Sample size**: 200 deals (1,200 games) for each adjacent pair (Easy
   vs. Medium, Medium vs. Strong) on the validation suite.
 - **Uncertainty**: deals are independent; standard error of the mean of D
@@ -211,6 +219,16 @@ playing-strength results yet. Independent label validation remains pending;
 the outcome-label pilot is postponed until it and imitation calibration are
 available. The existing Phase 2 compute hold remains binding. Classic and the
 shipped Neural model and Kontra behaviour are unchanged.
+
+`calibrate` now records the required behavioural counts alongside the existing
+role-separated scores. Deterministic rule-engine tests exercise a fully
+passive table (six Einpassen games, nine Pass actions and nine thrown-in
+seat-games per profile) and twelve scripted completed games covering all
+six contract bins, pickup, Hand and Ouvert announcements. They check
+seat attribution and merged tallies against the actual calls and results.
+These are instrumentation fixtures, not production learned-opponent
+calibration or an independent strategic validation of Strong's labels.
+No training or arena campaign was run for this reporting increment.
 
 A one-epoch CPU CLI smoke on the two checked-in self-play fixture deals
 used two hidden layers of width 16 and all 101 training rows: Reizen 31,

@@ -106,6 +106,9 @@ both modes, resumed runs reject a changed recipe, and exported models carry
 the selected phase coverage. `evaluate` selects all-phase records when the
 model header covers all phases. Its aggregate imitation metrics are not
 bidding/pass/Einpassen rates, contract mix or role-separated calibration.
+The existing [calibration runner](ai.md#calibration-protocol) now reports
+these behavioural counts and their denominators alongside role scores when
+playing complete games; reporting support does not supply production results.
 The default card-play recipe and deployed weights remain unchanged. The
 shipped Neural opponent still applies its configured #108 Kontra rule;
 experimental inference of recorded Kontra actions does not enable them in
