@@ -194,3 +194,26 @@ pending and unauthorised; no default change or #104 closure is justified.
 Time Kontra/Re and the first three tricks separately. Solver-only timings
 miss the cost of sampling, all legal options and output. Use the
 [reproduction procedure](../crates/skat-analysis/experiments/strong-gpu/README.md#early-search-endgames).
+
+## Learned pre-play preparation (#74)
+
+The [all-phase imitation tooling](learned-models.md#all-phase-imitation-preparation-74)
+now preserves the #70 records' pre-play and joint discard labels through the
+existing shared encoder/head, with explicit recipe, cache and model phase
+coverage. Verification is limited to tiny fixture training/reload/legal
+inference and scripted visibility/Re schema tests. There are no production
+all-phase imitation weights, behavioural rates, contract/role statistics or
+playing-strength results yet. Independent label validation remains pending;
+the outcome-label pilot is postponed until it and imitation calibration are
+available. The existing Phase 2 compute hold remains binding. Classic and the
+shipped Neural model and Kontra behaviour are unchanged.
+
+A one-epoch CPU CLI smoke on the two checked-in self-play fixture deals
+used two hidden layers of width 16 and all 101 training rows: Reizen 31,
+Hand/pickup 2, Drücken 2, Ansage 2, Kontra/Re 4 and plain card play 60.
+Reloaded `evaluate` also selected 101 rows. Validation/test had zero rows;
+this run establishes plumbing only and supplies no held-out accuracy or
+behavioural/strength result. The temporary model was 171,212 bytes,
+SHA-256 `536095bd8af78f57f8faffeb94637679993b5ef47c9fb53edf1a4e562fd30140`;
+it is not shipped. Separate scripted tests cover the rare Hand/Ouvert/Re
+transitions absent from that training fixture.
