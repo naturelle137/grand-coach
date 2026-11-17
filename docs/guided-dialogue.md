@@ -1,4 +1,4 @@
-# Guided Farbspiel and Grand card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159, #161, #163)
+# Guided card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159, #161, #163, #165, #169, #171)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -8,9 +8,12 @@ remain unmeasured.
 
 ## Rule and evidence definition
 
-`UnderPartner`, `WinLast`, Grand `WinEarly` and last-seat Grand `FeedPartner` are bounded heuristic dialogues,
-not new solver-approved mechanisms in the six-lesson catalogue. Their source
-is the existing `BaselineOpponent::choose_card` on main
+The card-play scope includes `UnderPartner`, `WinLast`, Grand `WinEarly`,
+last-seat Grand `FeedPartner`, [Grand `LeadMaster`](#grand-lead-with-a-follow-class-master-171),
+and Null declarer play [last](#null-declarer-last-to-the-current-trick-165)
+or [second](#null-declarer-acting-second-169). These are bounded heuristic
+dialogues, not new solver-approved mechanisms in the six-lesson catalogue.
+The original `UnderPartner` and `WinLast` source was the existing `BaselineOpponent::choose_card` on main
 `ecfb2fe1ff5a50ab2fb5f17a892dd9e5f68c6c80`, now shared in
 `skat-analysis::baseline`. Easy's original legal order, min-first/max-last ties,
 Kontra/Re precedence and fallback are preserved. The pre-extraction regression
@@ -37,9 +40,13 @@ separate factual oracles.
 - **LeadMaster:** non-Ouvert Grand only (#171, below), own empty-trick
   lead, both roles where the actual shared branch permits it, at least two
   pure core-legal cards; no guarantee against trumping.
+- **Null declarer:** non-Ouvert Null acting [last](#null-declarer-last-to-the-current-trick-165)
+  or [second](#null-declarer-acting-second-169), with at least two pure legal
+  cards and a current loser; the linked sections define the full guards.
 - **Exclusions:** other leads, Farbspiel early winner, early or Farbspiel feeding, arbitrary fallback,
-  single legal action, other Grand branches, Ouvert Grand, Null or
-  Kontra/Re (Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re: see below). If the
+  single legal action, other Grand branches, Ouvert Grand, other Null card play or
+  card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
+  Ansage and Kontra/Re: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
   explicitly marked `Fallback` and excluded, rather than explained as staying
   under the partner. In
@@ -120,9 +127,13 @@ ties and the frozen hashes are untouched. In Grand only the four Buben are
 Trumpf: a led Bube must be followed with a Bube, and a Bube never follows its
 printed suit. A partner ahead in last seat selects the earlier `FeedPartner`
 branch, now supported in last-seat Grand (#163 below; `UnderPartner` before
-the last seat: see #159 below). Unsupported remain `DrawTrumpf`, `LeadMaster`,
-Farbspiel `WinEarly`, fallback, single legal moves, Ouvert Grand and all Null card play
-(Farbspiel, including Ouvert, keeps its shipped scope). A core-offered Kontra
+the last seat: see #159 below). Grand `LeadMaster` is supported within its
+[own scope](#grand-lead-with-a-follow-class-master-171), as is Null declarer
+play [last](#null-declarer-last-to-the-current-trick-165) or
+[second](#null-declarer-acting-second-169). Unsupported remain Grand
+`DrawTrumpf`, Farbspiel `WinEarly`, early or Farbspiel `FeedPartner`, fallback,
+single legal moves and Ouvert Grand (Farbspiel, including Ouvert, keeps its
+shipped scope). A core-offered Kontra
 keeps its own dialogue first. In last seat the learner's own card completes
 the trick: the observation uses that card and the actual core `TrickWon`,
 also for a losing alternative, without waiting for another seat.
@@ -143,7 +154,7 @@ and Easy's documented `(is_trump, power)` first minimum:
 | as above without plain Kreuz in HH | all ten | CJ DJ | DJ |
 
 Swapping VH's unplayed H7 with the unknown Hand Skat's DK leaves HH's view,
-lesson, memory and observations identical. Exclusions: partner ahead (MH CT
+lesson, memory and observations identical. `WinLast` fixture exclusions: partner ahead (MH CT
 over the declarer's C9: `FeedPartner`), the declarer's lead (`DrawTrumpf`),
 not last (MH: `Fallback`), no winner (HH H8/HA under
 MH's SJ), a single winning CQ, Null Hand, Grand Ouvert and a Kontra-eligible
