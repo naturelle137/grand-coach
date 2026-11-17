@@ -1,7 +1,9 @@
 # Reserved learner validation (#54), protocol revision 1
 
-This preregistration precedes human results. The deliberately entered Initial
-and Delayed sessions each contain four reserved revision-1 tasks, one each
+This optional research preregistration precedes human results. Initial/Delayed
+sessions are not development or release gates; missing observations limit
+comprehension, learning efficacy and transfer claims. Never synthesize responses.
+The deliberately entered Initial and Delayed sessions each contain four reserved revision-1 tasks, one each
 RemainingTrumpf, ProvenVoid, SideCardVulnerability and PartnerOvertaking.
 Only explicit entry exposes the selected position. Ordinary practice and
 screenshot galleries must not expose these cases. The separate
@@ -48,14 +50,18 @@ public git or `docs/uat`. The executable uses a study-specific
 history store. Keep its history, build manifest and completed local template
 private together. Do not reset or replace history to manufacture novelty.
 
-Technical agents prepare, install and verify the executable and its exact
-build/task/position hashes before asking for participation. The terminal owner
-accepts final assets, final Linux/Windows/required CI, integration and main
+If this optional study is undertaken, technical agents prepare, install and
+verify the executable and its exact build/task/position hashes before participation.
+No CEO manual tests are required; human participation is considered only for a
+concretely necessary test demonstrably impossible otherwise (D-51). The terminal
+owner accepts final assets, final Linux/Windows/required CI, integration and main
 regression; the implementation job never merges. Only the terminal sends
 finished German instructions and a blank local result template to the
 originating grand-coach thread 5; never send the key. The maintainer owns real
-Initial and later Delayed responses. Clean OS, interactive Windows 11 and full
-packaged lifecycle acceptance remain separate actual platform gates. No 1.0
+Initial and later Delayed responses if participating; agents never fill them in.
+Required functional/package and visual checks remain agent-owned; successful
+Windows CI suffices without a separate Windows device or CEO acceptance.
+Optional study participation does not block these checks or release. No 1.0
 or public release is authorised.
 
 Preparation commands are in [Contributing](../CONTRIBUTING.md#private-reserved-learner-kit).

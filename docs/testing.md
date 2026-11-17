@@ -294,8 +294,8 @@ small budget 36 frames per language while the review worked, slowest about
 0.8 s for 7 analysed decisions. These are fixture measurements, not latency
 guarantees; whether a superseded comment was still running at a GUI
 transition depends on timing, so deterministic stale-result rejection is
-pinned by the application tests. Headless runs do not replace interactive
-Windows 11 or learner checks.
+pinned by the application tests. These runs do not establish human comprehension
+or transfer. Successful Windows CI suffices for Windows verification (D-36).
 
 ### Learning history (D-70)
 
@@ -465,19 +465,27 @@ These are technical checks, not learner UAT.
 ## Platform verification (M2)
 
 The desktop app has been played interactively on Linux/Wayland. CI builds
-and exercises the headless GUI on Linux and Windows Server. Interactive
-Windows 11 verification remains open. For a platform smoke test, launch,
-play a series through to the score sheet and switch language and card faces.
+and exercises the headless GUI on Linux and Windows Server. Successful Windows
+CI is sufficient Windows verification (D-36); no separate Windows device or
+CEO interactive acceptance is required. This does not claim an observed
+interactive Windows 11 session. Agents own functional and visual checks and
+inspect actual results, including any model-assisted screenshot findings.
+Platform smoke checks exercise launch, a series through to the score sheet,
+languages and card faces.
 
 ## Release 1.0 validation
 
-Once the release features and packages are ready, agents execute
-the [release test plan](release-test-plan.md) on Linux and Windows 11,
-fixes findings and repeats affected checks before publication. For coach
-changes, automated fixtures establish the tested facts. Missing target-platform
-evidence remains pending. The maintainer's
-[learner sessions](coach-validation.md) assess comprehension and unaided
-transfer. Manual validation takes place at release time (D-61).
+Once release features and packages are ready, agents execute the required
+functional, package and visual checks in the [release test plan](release-test-plan.md),
+fix findings and repeat affected checks. Green complete CI on both platforms,
+one fresh independent review and protected PR integration remain required.
+Successful Windows CI suffices; no CEO Windows/manual/UAT/learner test is a
+development or release gate (D-36, D-61). Human participation is considered
+only for a concretely necessary test demonstrably impossible otherwise.
+Optional [learner research](coach-validation.md) remains unperformed until
+actual observations exist; technical fixtures prove only their tested claims,
+not comprehension, learning efficacy or transfer. Missing observations do not
+block progress or release. Publication authorisation is separate.
 
 ### Catalogue focus sessions (D-73)
 
@@ -494,8 +502,9 @@ Screenshot scenarios `focus-count`, `focus-changed`, `focus-help`,
 `focus-mechanism`, `focus-feedback`, `focus-boundary`, `focus-practice` (and
 `-en`) and `focus-void(-en)-narrow` show the actual session states. The existing
 Linux/Windows screenshot CI renders them and records individual PNG SHA-256
-hashes alongside the gallery. These are technical checks; Windows 11 interactive
-acceptance, learner observations and release publication remain separate.
+hashes alongside the gallery. These are technical checks; optional learner
+observations remain uncollected, and release publication requires separate
+authorisation.
 
 ## Mechanism-response evidence (#13)
 
@@ -509,8 +518,9 @@ mechanism labels, denominators, sparse fallback and window category cells.
 The screenshot scenarios `mechanism-responses`, `mechanism-trends`, their
 `-en` variants and `mechanism-trends-narrow` show the changed overview;
 `learning-empty`/`learning-empty-en` cover its empty state. Both platform CI
-galleries produce individual SHA256SUMS. Actual final platform acceptance and
-human learning evidence remain the terminal owner's responsibility.
+galleries produce individual SHA256SUMS. The terminal owner verifies final
+technical platform evidence. Human learning evidence remains unobserved
+optional research, not a release gate.
 
 ## Reserved validation technical checks (#54)
 
@@ -529,8 +539,10 @@ Never add a reserved position to a gallery. `scripts/validation54_kit_test.py`
 checks source/build mismatch, immutable task hashes, separate blank records,
 withheld key and refusal to overwrite existing personal data. The same RC
 packager verifies the installed executable's notices/resources and hashes.
-Actual human Initial/Delayed sessions, clean platforms and packaged lifecycle
-acceptance remain separately pending; this suite cannot satisfy those gates.
+Packaged lifecycle checks remain required technical work; successful Windows
+CI suffices for Windows verification. Actual human Initial/Delayed sessions
+remain optional research, unperformed until observed; this suite cannot
+supply human responses or learning evidence.
 
 ## Grand WinEarly verification (#161)
 
@@ -548,8 +560,8 @@ Screenshot scenarios `guided-grand-early-{orient,act,observed}` each have an
 variants at 960x640; desktop is 1440x1000. All replay the frozen seed0 ordinary
 route through real widgets, MH declarer only. Side-master and defender roles
 are core/app fixture evidence, not ordinary renders. Main regression,
-independent review, both-OS archive/hash/visual acceptance and human/platform
-release evidence remain separate checks.
+independent review and both-OS archive/hash/visual acceptance remain required
+technical checks. Optional human research supplies no results until observed.
 
 ## Null last-seat dialogue verification (#165)
 
