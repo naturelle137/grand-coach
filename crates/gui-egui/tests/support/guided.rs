@@ -1645,3 +1645,204 @@ pub fn suit_early_flow(
     null_click(h, &i.t("guided-return"));
     assert!(h.state().session().guided().is_none());
 }
+
+/// HQ1824's exact seed0/game1 ordinary route through actual human widgets.
+/// Opponent Advance commands are performed by the app's normal automation.
+#[allow(dead_code)] // Shared by the screenshot example and the dedicated widget target.
+pub fn suit_feed_flow(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    stage: &str,
+    chosen: u8,
+) {
+    use skat_app::*;
+    let i = I18n::new(language);
+    h.state_mut().set_language(language);
+    h.state_mut().opponent_delay = 0.0;
+    h.state_mut().set_coach_budget(Budget {
+        samples: 1,
+        nodes_per_task: 1,
+    });
+    let route: Vec<Command> =
+        serde_json::from_str(include_str!("../fixtures/suit-feed-partner-route.json")).unwrap();
+    for command in route {
+        match command {
+            Command::AdvanceOpponent | Command::SetCoach(_) => continue,
+            Command::Act(Action::Pass) => {
+                settle(h);
+                click(h, &i.t("button-pass"));
+            }
+            Command::Act(Action::Play(c)) => {
+                settle(h);
+                click(h, &card_name(&i, c));
+            }
+            _ => panic!("unexpected frozen command {command:?}"),
+        }
+    }
+    settle(h);
+    let v = h.state().session().view();
+    assert_eq!(h.state().session().game_seed(), 13080132717333068652);
+    assert_eq!(v.game_number, 1);
+    assert_eq!(v.players[0].seat, Seat::Vorhand);
+    assert_eq!(
+        v.current_trick
+            .iter()
+            .map(|p| p.card.index())
+            .collect::<Vec<_>>(),
+        [23, 20]
+    );
+    assert_eq!(
+        v.legal_actions,
+        vec![4, 12, 16, 28]
+            .into_iter()
+            .map(|n| Action::Play(Card::from_index(n).unwrap()))
+            .collect::<Vec<_>>()
+    );
+    let before = h.state().session().export_current_recording_privileged();
+    click(h, &i.t("guided-start"));
+    let id = h.state().session().guided().unwrap().id;
+    let assert_early = |h: &Harness<'_, GrandCoachApp>| {
+        let g = h.state().session().guided().unwrap();
+        assert!(g.task.is_none() && g.rule.is_none() && g.memory.is_none() && g.figures.is_none());
+        assert_eq!(g.feed_partner, Some(Seat::Hinterhand));
+        h.get_by_label(&i.tf(
+            "guided-feed-role",
+            &[("seat", seat_name(&i, Seat::Hinterhand).into())],
+        ));
+        assert!(h.query_by_label(&i.t("guided-rule-feed")).is_none());
+    };
+    assert_early(h);
+    if stage == "orient" {
+        return;
+    }
+    if stage == "free" {
+        null_click(h, &i.t("guided-return"));
+        assert_eq!(
+            h.state().session().export_current_recording_privileged(),
+            before
+        );
+        null_click(h, &card_name(&i, Card::from_index(chosen).unwrap()));
+        return;
+    }
+    null_click(h, &seat_name(&i, Seat::Vorhand));
+    assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+    if stage == "wrong" {
+        return;
+    }
+    null_click(h, &i.t("guided-retry"));
+    if stage == "retry" {
+        return;
+    }
+    null_click(h, &seat_name(&i, Seat::Hinterhand));
+    assert_early(h);
+    if stage == "check" {
+        return;
+    }
+    null_click(h, &i.t("guided-none"));
+    assert!(h.state().session().guided().unwrap().rule.is_none());
+    if stage == "attempt" {
+        return;
+    }
+    if stage == "candidate" {
+        null_click(
+            h,
+            &i.tf(
+                "guided-consider",
+                &[(
+                    "card",
+                    card_name(&i, Card::from_index(chosen).unwrap()).into(),
+                )],
+            ),
+        );
+    } else {
+        null_click(
+            h,
+            &i.t(if stage == "idk" {
+                "guided-unknown"
+            } else {
+                "guided-reveal"
+            }),
+        );
+    }
+    let g = h.state().session().guided().unwrap();
+    assert_eq!(g.id, id);
+    assert_eq!(g.rule.unwrap().card.index(), 28);
+    assert!(g.memory.is_none());
+    assert_eq!(
+        h.state().session().export_current_recording_privileged(),
+        before
+    );
+    if matches!(stage, "reveal" | "idk" | "candidate") {
+        return;
+    }
+    if stage == "memory" {
+        null_click(h, &i.t("guided-memory"));
+        let m = h.state().session().guided().unwrap().memory.unwrap();
+        h.get_by_label(&i.tf(
+            "guided-trumpf",
+            &[("count", m.trumpf.unwrap().outside.into())],
+        ))
+        .scroll_to_me();
+        h.run_steps(6);
+        assert!(
+            h.get_by_role_and_label(Role::Button, &i.t("guided-return"))
+                .rect()
+                .max
+                .y
+                < 80.0
+        );
+        return;
+    }
+    h.state_mut().opponent_delay = 1000.0;
+    null_click(h, &card_name(&i, Card::from_index(chosen).unwrap()));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Observe
+    );
+    let t = h.state().session().view().last_trick.unwrap();
+    assert_eq!(
+        t.cards.iter().map(|p| p.card.index()).collect::<Vec<_>>(),
+        [23, 20, chosen]
+    );
+    let winner = if chosen == 4 || chosen == 12 {
+        Seat::Vorhand
+    } else {
+        Seat::Hinterhand
+    };
+    assert_eq!(t.winner.seat(h.state().session().view().dealer), winner);
+    if stage == "observe" {
+        return;
+    }
+    null_click(h, &i.t("guided-reveal"));
+    assert_eq!(
+        h.state()
+            .session()
+            .guided()
+            .unwrap()
+            .observation
+            .unwrap()
+            .winner,
+        Some(winner)
+    );
+    if matches!(
+        stage,
+        "complete" | "alternative4" | "alternative12" | "alternative16"
+    ) {
+        return;
+    }
+    if stage == "figures" {
+        h.get_by_label(&i.t("menu-settings")).click();
+        h.run_steps(4);
+        h.get_by_role_and_label(Role::CheckBox, &i.t("setting-coach-figures"))
+            .click();
+        h.run_steps(4);
+        h.key_press(eframe::egui::Key::Escape);
+        h.run_steps(4);
+        null_click(h, &i.t("guided-figures"));
+        assert_eq!(h.state().session().guided().unwrap().id, id);
+        assert!(h.state().session().guided().unwrap().figures_requested);
+        return;
+    }
+    null_click(h, &i.t("guided-return"));
+    assert!(h.state().session().guided().is_none());
+}

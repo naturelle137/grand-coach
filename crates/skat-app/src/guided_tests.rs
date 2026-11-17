@@ -3666,3 +3666,6 @@ mod null_lead_tests;
 
 #[path = "guided_suit_win_early_tests.rs"]
 mod suit_win_early_tests;
+
+#[path = "guided_suit_feed_partner_tests.rs"]
+mod suit_feed_partner;

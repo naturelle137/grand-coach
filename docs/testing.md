@@ -657,3 +657,24 @@ existing all-scenarios inventory; both-OS CI collects these through the
 existing full render job. Render only the new names for author inspection.
 The minimum-size long explanation scrolls below the always reachable return.
 These automated checks establish no learner or release acceptance.
+
+## Farbspiel last-seat FeedPartner regression (#185)
+
+`cargo test --locked -p skat-analysis --test suit_feed_partner_policy` uses the
+repository lock and default features. Its accepted literal fixture checks full
+legal histories/views, Knowledge, all eleven rule fields, partitions, last ties,
+37 completions, four terminal paths and source-informed API mutations.
+`guided_suit_feed_partner` in coach and `suit_feed_partner` in app cover strict
+admission, whole non-absent lesson/dialogue equality over both hidden pairs,
+God Mode privacy, original frozen estimates, consent, lifecycle and all legal
+choices. Existing family regressions and Easy frozen hashes remain binding.
+
+The ignored GUI target `guided_suit_feed_partner` exercises ordinary widgets
+and labelled component views in both languages and sizes. The established
+screenshots example emits the source-derived `suit-feed-partner-inventory.json`
+and includes its PNGs in `all-scenarios-inventory.json`; both-OS CI runs the
+example without a filter. Fixture JSON is checked against actual app sessions by
+`suit_feed_partner_fixture_widget_models_match_actual_sessions`. Regenerate only
+those technical models with `SKAT_SUIT_FEED_WIDGET_FIXTURES_OUT` set to their
+absolute path and that test; this never changes the accepted handwritten oracle.
+See the [scope and ordinary walkthrough](guided-dialogue.md#farbspiel-last-seat-feedpartner-185).

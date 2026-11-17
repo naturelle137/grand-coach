@@ -39,6 +39,8 @@ mod null_middle_widgets;
 mod null_widgets;
 #[path = "support/suit_early_widgets.rs"]
 mod suit_early_widgets;
+#[path = "support/suit_feed_widgets.rs"]
+mod suit_feed_widgets;
 
 type Scenario = fn(&mut Harness<'_, GrandCoachApp>);
 
@@ -1671,6 +1673,7 @@ fn main() {
     fixture_names.extend(lead_master_widgets::names());
     fixture_names.extend(null_lead_widgets::names());
     fixture_names.extend(suit_early_widgets::names());
+    fixture_names.extend(suit_feed_widgets::names());
     if let Some(unknown) = wanted
         .iter()
         .find(|w| !SCENARIOS.iter().any(|(name, _)| name == w) && !fixture_names.contains(w))
@@ -1699,6 +1702,11 @@ fn main() {
         serde_json::to_string_pretty(&suit_early_widgets::inventory()).unwrap(),
     )
     .unwrap();
+    std::fs::write(
+        format!("{out}/suit-feed-partner-inventory.json"),
+        serde_json::to_string_pretty(&suit_feed_widgets::inventory()).unwrap(),
+    )
+    .unwrap();
     // Full source-derived expected PNG set for both-OS archive acceptance.
     // Selection affects rendering only; the manifest always describes all views.
     let mut all_names: Vec<String> = SCENARIOS
@@ -1718,7 +1726,9 @@ fn main() {
     .unwrap();
     for name in fixture_names {
         if wanted.is_empty() || wanted.contains(&name) {
-            if name.starts_with("guided-suit-win-early-") {
+            if name.starts_with("guided-suit-feed-partner-") {
+                suit_feed_widgets::render(&name, Some(&out));
+            } else if name.starts_with("guided-suit-win-early-") {
                 suit_early_widgets::render(&name, Some(&out));
             } else if name.starts_with("guided-null-lead-") {
                 null_lead_widgets::render(&name, Some(&out));

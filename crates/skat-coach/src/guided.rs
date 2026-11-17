@@ -102,7 +102,7 @@ pub struct Lesson {
 }
 
 /// Select only tested branches, with real alternatives and candidates:
-/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus non-Ouvert Farbspiel/Grand WinEarly and Grand last-seat FeedPartner. Grand
+/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus non-Ouvert Farbspiel/Grand WinEarly and non-Ouvert Farbspiel/Grand last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
 /// and at least one losing card; early FeedPartner and Fallback stay excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
@@ -242,13 +242,30 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .iter()
                 .map(Action::Play)
                 .collect::<Vec<_>>();
+    // The new Farbspiel family requires a valid last-seat defender input.
+    // In particular, baseline play assumes a declarer: never call it on a
+    // missing-declarer synthetic view.
+    let suit_feed = matches!(game, GameType::Farbe(_))
+        && !contract.ouvert
+        && view.declarer.is_some_and(|d| d != view.seat)
+        && view.current_seat == Some(view.seat)
+        && matches!(view.current_trick.cards, [Some(_), Some(_), None])
+        && view.current_trick.leader.map(|s| s.next().next()) == Some(view.seat)
+        && view.hand_game == Some(contract.hand)
+        && view.own_skat.is_none()
+        && view.legal_actions
+            == skat_core::legal_cards(game, view.hand, view.current_trick.led())
+                .iter()
+                .map(Action::Play)
+                .collect::<Vec<_>>();
+    view.declarer?;
     let rule = baseline::rule(view)?;
     if view.legal_actions.len() < 2
         || rule.candidates.is_empty()
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
         || !(matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
             || ((grand || suit_early) && rule.branch == Branch::WinEarly)
-            || (grand && rule.branch == Branch::FeedPartner && rule.last)
+            || ((grand || suit_feed) && rule.branch == Branch::FeedPartner && rule.last)
             || (null && rule.branch == Branch::Null && !rule.losers.is_empty()))
     {
         return None;

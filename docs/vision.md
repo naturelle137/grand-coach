@@ -48,7 +48,10 @@ Null rank and observe any chosen card, including an overtake. In second seat,
 a current loser cannot win this trick for the declarer, although the last
 defender may change which defender wins. Grand leads now distinguish a side master from a trumping-proof card and
 observe both actual replies; Easy's largest-Augen lead remains a heuristic.
-Non-Ouvert Farbspiel `WinEarly` (#178) now admits only the acting second seat with an exact legal action list, explains the selected current winner’s Trumpf or conservative follow-class-master condition and observes the actual third reply and individual winner. All Buben and the announced suit are Trumpf; no hidden holder or guaranteed trick is inferred. Non-Ouvert Null opening lead (#176) now lets the Vorhand declarer compare every legal lead, explain the legacy Augen/Null-power cost with first exact tie, and observe both actual defender replies and individual winner, including immediate Null loss. Free choice of
+Non-Ouvert Farbspiel `WinEarly` (#178) now admits only the acting second seat with an exact legal action list, explains the selected current winner’s Trumpf or conservative follow-class-master condition and observes the actual third reply and individual winner. All Buben and the announced suit are Trumpf; no hidden holder or guaranteed trick is inferred. Non-Ouvert Null opening lead (#176) now lets the Vorhand declarer compare every legal lead, explain the legacy Augen/Null-power cost with first exact tie, and observe both actual defender replies and individual winner, including immediate Null loss. Non-Ouvert Farbspiel now also supports a last-seat defender feeding the
+partner’s current lead, comparing all legal cards by nontrump preference and
+printed Augen, then observing the actual completing card and individual winner,
+including overtaking the partner. Free choice of
 every legal card and an immediate return to play remain available. Early,
 automatic and unaided help conceal the move; figures require a separate
 request and enabled figures. This first bounded slice does not establish
