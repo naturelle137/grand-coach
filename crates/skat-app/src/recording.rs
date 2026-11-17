@@ -10,7 +10,7 @@ use skat_core::{
 use crate::{Opponents, PlayerId, SeriesLength, SessionConfig};
 
 /// Wire schema supported by this build.
-pub const RECORDING_FORMAT: u16 = 1;
+pub const RECORDING_FORMAT: u16 = 2;
 /// Replay semantics, including dealing and rules. Bump on incompatible changes.
 pub const RECORDING_ENGINE: &str = "grand-coach-recording-1";
 /// Conservative bound above a complete bidding ladder and thirty card plays.
@@ -22,6 +22,9 @@ pub const MAX_RECORDING_ACTIONS: usize = 512;
 pub struct RecordingContext {
     /// Package version of the recording producer.
     pub application_version: String,
+    /// Frozen model context, absent/unknown in format 1; Classic stays format 1.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub neural: Option<crate::NeuralProvenance>,
     /// Original series configuration (its seed is not the game's seed).
     pub session: SessionConfig,
     /// One-based game number in that series.
@@ -140,7 +143,11 @@ pub enum RecordingError {
 impl GameRecording {
     pub(crate) fn start(context: RecordingContext, seed: u64, rules: RuleConfig) -> Self {
         Self {
-            format: RECORDING_FORMAT,
+            format: if context.neural.is_some() {
+                RECORDING_FORMAT
+            } else {
+                1
+            },
             engine: RECORDING_ENGINE.into(),
             context,
             seed,
@@ -214,7 +221,7 @@ impl GameRecording {
     }
 
     fn validate_header(&self) -> Result<(), RecordingError> {
-        if self.format != RECORDING_FORMAT {
+        if self.format != 1 && self.format != RECORDING_FORMAT {
             return Err(RecordingError::UnsupportedFormat { found: self.format });
         }
         if self.engine != RECORDING_ENGINE {
@@ -226,6 +233,16 @@ impl GameRecording {
             });
         }
         let c = &self.context;
+        if c.session.validate().is_err()
+            || (self.format == 1
+                && (c.neural.is_some() || c.session.engine != crate::OpponentEngine::Classic))
+            || (self.format == RECORDING_FORMAT && (c.neural.is_none() || !c.session.uses_neural()))
+            || c.neural.as_ref().is_some_and(|p| {
+                p.policy_revision != "greedy-policy-1" || p.fallback != crate::Level::Strong
+            })
+        {
+            return Err(RecordingError::InvalidContext);
+        }
         let goldfish_valid = match (c.session.opponents, c.goldfish) {
             (Opponents::Goldfish, Some(PlayerId(1 | 2))) => true,
             (Opponents::Goldfish, _) => false,

@@ -327,6 +327,7 @@ fn open_display_round_trips_through_files_and_practice() {
             kontra_re: true,
             opponents: Opponents::Levels([Level::Easy; 2]),
             display,
+            ..SessionConfig::default()
         });
         while session.completed_recordings_privileged().is_empty() {
             if session.opponent_to_move() {
@@ -373,4 +374,30 @@ fn open_display_round_trips_through_files_and_practice() {
     assert!(!job.sees_all_cards());
     let closed_practice = closed_session.start_practice(closed).unwrap();
     assert_eq!(closed_practice.view().open_cards, None);
+}
+
+#[test]
+fn neural_recording_file_preserves_frozen_identity_and_practice_after_restart() {
+    let temp = Temp::new();
+    let original = Session::new(SessionConfig {
+        seed: 7,
+        engine: OpponentEngine::Neural,
+        ..SessionConfig::default()
+    });
+    let recording = original.export_current_recording_privileged().unwrap();
+    let path = temp.file("neural.json");
+    recording.save_local_new(&path).unwrap();
+    drop(original);
+    let reopened = GameRecording::open_local(&path).unwrap();
+    assert_eq!(reopened, recording);
+    assert_eq!(reopened.format, 2);
+    let live = Session::new(SessionConfig::default());
+    let before = live.view();
+    let practice = live.start_practice(&reopened).unwrap();
+    assert_eq!(
+        practice.neural_provenance(),
+        reopened.context.neural.as_ref()
+    );
+    assert_eq!(practice.config(), reopened.context.session);
+    assert_eq!(live.view(), before);
 }

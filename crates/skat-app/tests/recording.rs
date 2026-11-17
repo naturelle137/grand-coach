@@ -230,7 +230,7 @@ fn invalid_recordings_fail_atomically_even_when_requesting_an_early_prefix() {
     let valid = fixture("grand");
     let mut cases = Vec::new();
     let mut r = valid.clone();
-    r.format += 1;
+    r.format = RECORDING_FORMAT + 1;
     cases.push((
         r,
         RecordingError::UnsupportedFormat {

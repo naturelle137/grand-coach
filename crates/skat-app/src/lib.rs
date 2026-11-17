@@ -75,7 +75,7 @@ pub use learning_io::{LearningFileError, MAX_LEARNING_BYTES};
 pub use mechanism_responses::{
     MechanismComparison, MechanismCounts, MechanismExposure, MechanismResponse, MechanismRow,
 };
-pub use neural::{neural_model, neural_model_available};
+pub use neural::{NeuralIdentity, NeuralProvenance, neural_model, neural_model_available};
 pub use quiz::{
     AssistSettings, AssistView, AssistanceLevel, CountingState, CountingView, LessonFamily,
     LessonRevision, OpportunityId, QUESTION_AFTER_TRICKS, QuestionId, QuizFeedback, QuizOutcome,
@@ -97,8 +97,8 @@ pub use replay_review::{
 };
 pub use series::{GameRecord, ScoreSheet, SeriesResult};
 pub use session::{
-    AppError, AppEvent, Command, OpponentJob, OpponentMove, Opponents, PlayerId, SeriesLength,
-    Session, SessionConfig, TableDisplay,
+    AppError, AppEvent, Command, InvalidEngineConfig, OpponentEngine, OpponentJob, OpponentMove,
+    Opponents, PlayerId, SeriesLength, Session, SessionConfig, TableDisplay,
 };
 pub use skat_ai::{Budget, Cancel, Level};
 /// Exact counting facts and question kinds (D-64); frontends translate them.

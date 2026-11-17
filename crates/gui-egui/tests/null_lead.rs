@@ -32,6 +32,7 @@ fn null_lead_real_widgets_all_legal_choices_and_free_return() {
                                 opponents: Opponents::Levels([Level::Easy; 2]),
                                 kontra_re: false,
                                 display: TableDisplay::Closed,
+                                ..SessionConfig::default()
                             },
                         )
                     });

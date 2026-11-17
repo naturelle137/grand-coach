@@ -23,6 +23,7 @@ fn ordinary() -> Session {
         opponents: Opponents::Levels([Level::Easy; 2]),
         kontra_re: false,
         display: TableDisplay::Closed,
+        ..SessionConfig::default()
     });
     s.execute(Command::SetCoach(CoachSettings::default()))
         .unwrap();

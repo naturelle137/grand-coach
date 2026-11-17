@@ -101,15 +101,34 @@ Table mode `Opponents::Mephisto` in `skat-app`, decided by
   human and the coach see every card, and the GUI shows the God Mode
   faces, back and a blue table.
 
-## Neural table mode
+## Neural engine selection
 
 Both opponents use the [bundled card-play model](learned-models.md) with
 Classic Strong fallback. Bidding, pickup, discards, announcement and the
 default Kontra rule come from Classic. The model can choose cards and Re.
 
-The [engine-selection and difficulty implementation plan](learned-engine-selection.md)
-for #77 separates the existing table from proposed independent selectors,
-seeded learned levels and their still-pending calibration.
+Ordinary tables select `OpponentEngine::Classic` (default) or experimental
+`Neural`, separately from the retained Classic seat levels. Neural currently
+uses one greedy policy and Strong fallback; it does not yet offer learned
+Easy/Medium/Strong levels. The bilingual new-series dialog hides Classic level
+controls while Neural is selected and preserves their draft values for switching
+back. Special tables do not accept this independent Neural engine.
+
+The app freezes the model load result, actual SHA-256, encoder version,
+`greedy-policy-1` revision and Strong fallback for the entire session. New Neural
+recordings store this context; replay applies recorded actions without weights.
+Practice uses the historical identity or visibly falls back to Strong for an
+unknown/different/unavailable model, including legacy Neural records. The new
+series dialog and live status disclose model failure. Loading success and
+failure are cached per process; retry requires an app restart. Settings apply
+only after Start; Cancel retains the series and pending workers.
+`OpponentJob::run_explained` exposes each decision's structured fallback reason.
+
+[Remaining #77 work](learned-engine-selection.md#increment-b-one-seeded-learned-difficulty-mechanism)
+is shared seeded learned profiles and runner support, followed by separately
+authorised fresh adjacent-level calibration. No learned-level calibration was
+run for this selection increment; all Neural options remain experimental.
+Equal level names will not imply equal strength to Classic.
 
 ## Calibration protocol
 

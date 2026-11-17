@@ -51,9 +51,9 @@ mode-goldfish-description = Goldfish: one opponent, chosen at random, plays stro
 mode-mephisto = Mephisto
 mode-god = God Mode
 mode-god-description = God Mode: you see every card, the Skat included, and play against Mephisto. The coach sees every card too; it still does not tell you the move but helps you think.
-mode-neural = Neural net (test)
-mode-neural-description = Neural net: both opponents play their cards with the trained neural network in its current state of development; bidding, Skat and announcements are played by the Strong level.
-mode-neural-missing = No model found (assets/models/card-play.gcnn): the opponents play Strong throughout.
+mode-neural = Neural (experimental)
+mode-neural-description = One experimental card policy without its own difficulty levels. Bidding, Skat, announcements, Kontra and unsupported decisions use Classic Strong. Classic level selections are retained for switching back. Model and settings apply to the whole new series; retrying model loading requires an app restart.
+mode-neural-missing = Model missing, damaged or different from the recording: this series uses Classic Strong.
 opponent-left = Left opponent:
 opponent-right = Right opponent:
 level-easy = Easy
@@ -1100,3 +1100,6 @@ guided-null-lead-empty = Every legal lead is a current-table winner only because
 
 guided-suit-early-trumpf = Easy’s selected card is trump: all four Jacks and the announced suit are trumps; a Jack never follows its printed suit. The remaining player may overtrump with a higher trump.
 guided-suit-early-master = Easy’s selected card is a master of its follow class: higher cards are known or in your hand. The remaining player may still trump if void in the side suit; all Jacks and the announced suit are trumps.
+
+opponent-engine = Opponent engine:
+engine-classic = Classic

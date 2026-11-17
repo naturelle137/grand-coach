@@ -3290,6 +3290,7 @@ fn lead_ordinary() -> Session {
         opponents: Opponents::Levels([Level::Easy; 2]),
         kontra_re: false,
         display: TableDisplay::Closed,
+        ..SessionConfig::default()
     });
     s.run_opponents();
     s.execute(Command::Act(Action::Pass)).unwrap();

@@ -76,6 +76,70 @@ fn recorded_hash(manifest: &str) -> Option<[u8; 32]> {
     Some(hash)
 }
 
+/// Actual model identity; never supplied to model input or deal RNG.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NeuralIdentity {
+    /// SHA-256 of the bytes actually loaded.
+    pub sha256: [u8; 32],
+    /// Actual header version, independent of the manifest.
+    pub encoder_version: u16,
+}
+
+/// Frozen optional-engine diagnostics. Levels remain in SessionConfig.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NeuralProvenance {
+    /// Loaded model identity or structured load failure.
+    pub model: Result<NeuralIdentity, ModelError>,
+    /// Greedy legal-order policy, before learned levels are implemented.
+    pub policy_revision: String,
+    /// All unsupported decisions use this existing Classic profile.
+    pub fallback: crate::Level,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct FrozenNeural {
+    pub model: Result<Arc<NeuralModel>, ModelError>,
+    pub provenance: NeuralProvenance,
+}
+
+impl FrozenNeural {
+    pub fn load() -> Self {
+        Self::new(neural_model())
+    }
+
+    pub fn new(model: Result<Arc<NeuralModel>, ModelError>) -> Self {
+        let identity = model
+            .as_ref()
+            .map(|m| NeuralIdentity {
+                sha256: m.sha256(),
+                encoder_version: m.header().encoder_version,
+            })
+            .map_err(Clone::clone);
+        Self {
+            model,
+            provenance: NeuralProvenance {
+                model: identity,
+                policy_revision: "greedy-policy-1".into(),
+                fallback: crate::Level::Strong,
+            },
+        }
+    }
+
+    pub fn for_practice(recorded: Option<&NeuralProvenance>) -> Self {
+        // Legacy recordings have unknown identity: do not silently claim that
+        // the currently installed model is the historical opponent.
+        let loaded = Self::load();
+        match recorded {
+            Some(p) if p == &loaded.provenance => loaded,
+            Some(p) if p.model.is_err() => Self::new(Err(p.model.as_ref().unwrap_err().clone())),
+            Some(_) => Self::new(Err(ModelError::HashMismatch)),
+            None => Self::new(Err(ModelError::Missing)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::recorded_hash;

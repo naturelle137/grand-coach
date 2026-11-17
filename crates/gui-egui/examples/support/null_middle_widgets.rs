@@ -72,6 +72,7 @@ pub fn render(name: &str, out: Option<&str>) {
                     opponents: Opponents::Levels([Level::Easy; 2]),
                     kontra_re: false,
                     display: TableDisplay::Closed,
+                    ..SessionConfig::default()
                 },
             )
         });
