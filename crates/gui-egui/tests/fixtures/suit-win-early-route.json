@@ -1,0 +1,256 @@
+[
+  {
+    "SetCoach": {
+      "focus": null,
+      "level": "OnRequest",
+      "show_figures": false,
+      "warnings": false
+    }
+  },
+  "AdvanceOpponent",
+  {
+    "Act": "Hold"
+  },
+  "AdvanceOpponent",
+  {
+    "Act": "Hold"
+  },
+  "AdvanceOpponent",
+  {
+    "Act": "Hold"
+  },
+  "AdvanceOpponent",
+  {
+    "Act": "Hold"
+  },
+  "AdvanceOpponent",
+  {
+    "Act": "Hold"
+  },
+  "AdvanceOpponent",
+  {
+    "Act": "Hold"
+  },
+  "AdvanceOpponent",
+  {
+    "Act": "Pass"
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 24
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 28
+    }
+  },
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 30
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 12
+    }
+  },
+  {
+    "Act": {
+      "Play": 26
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 3
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 5
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 13
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 4
+    }
+  },
+  {
+    "Act": {
+      "Play": 16
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "NextGame",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": "Pass"
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 30
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 19
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 14
+    }
+  },
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 1
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 6
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 29
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 11
+    }
+  },
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 17
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 18
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 26
+    }
+  },
+  "AdvanceOpponent",
+  "NextGame",
+  {
+    "Act": {
+      "Bid": 18
+    }
+  },
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Bid": 20
+    }
+  },
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Bid": 22
+    }
+  },
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Bid": 23
+    }
+  },
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Bid": 24
+    }
+  },
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Bid": 27
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": "TakeSkat"
+  },
+  {
+    "Act": {
+      "Discard": 524289
+    }
+  },
+  {
+    "Act": {
+      "Announce": {
+        "game": {
+          "Farbe": "Karo"
+        },
+        "ouvert": false,
+        "schneider": false,
+        "schwarz": false
+      }
+    }
+  },
+  "AdvanceOpponent"
+]

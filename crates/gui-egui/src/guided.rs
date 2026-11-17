@@ -21,7 +21,10 @@ pub fn panel(
     // Keep free return reachable while the Null or lead explanation scrolls,
     // including at the minimum supported window height. Earlier families keep
     // their existing layout and controls.
-    if (g.lead.is_some() || table.contract.is_some_and(|c| c.game == GameType::Null))
+    if (g.lead.is_some()
+        || g.task == Some(GuidedBranch::WinEarly)
+        || g.early_condition.is_some()
+        || table.contract.is_some_and(|c| c.game == GameType::Null))
         && g.kontra.is_none()
         && g.reizen.is_none()
         && g.preplay.is_none()
@@ -30,7 +33,7 @@ pub fn panel(
         let scroll = egui::ScrollArea::vertical().id_salt("null_dialogue");
         // A new lead question starts at the top. Retaining the candidate
         // control's scroll offset could hide the next prompt at 960x640.
-        let scroll = if g.lead.is_some() {
+        let scroll = if g.lead.is_some() || g.task == Some(GuidedBranch::WinEarly) {
             scroll.id_salt(("lead_dialogue", g.step as u8))
         } else {
             scroll
@@ -224,6 +227,16 @@ fn content(
         }
         if let Some(condition) = g.early_condition {
             ui.label(i.t(match condition {
+                GuidedEarlyCondition::Trumpf
+                    if matches!(table.contract.map(|c| c.game), Some(GameType::Farbe(_))) =>
+                {
+                    "guided-suit-early-trumpf"
+                }
+                GuidedEarlyCondition::FollowClassMaster
+                    if matches!(table.contract.map(|c| c.game), Some(GameType::Farbe(_))) =>
+                {
+                    "guided-suit-early-master"
+                }
                 GuidedEarlyCondition::Trumpf => "guided-early-trumpf",
                 GuidedEarlyCondition::FollowClassMaster => "guided-early-master",
             }));

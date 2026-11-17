@@ -636,3 +636,24 @@ Source-derived `null-lead-inventory.json` joins the existing both-OS gallery.
 Push gate and the configured workspace non-GPU/include-ignored suite remain
 required, including nn-train and vulkan-search. Terminal owns review and final
 actual-main/both-OS archive/hash/visual acceptance. No learner results follow.
+
+## Farbspiel WinEarly verification (#178)
+
+`cargo test --locked -p skat-analysis --test suit_win_early_policy` runs with
+project default features. The cloud-owned literal module checks full legal
+histories, PlayerViews, ten Knowledge fields, eleven CardRule fields,
+ordered partitions/selection and all 356 third-card completions. The original
+and sole supplement provenance is in the [walkthrough](guided-dialogue.md#farbspiel-winearly-178).
+`skat-coach --test guided_suit_win_early` checks the 22 named complete API
+inputs, full non-absent lessons, conditions and both positive hidden pairs.
+App `suit_win_early` tests cover complete dialogue privacy including God Mode,
+all legal choices, actual replies/winners, consent, stale/reentry/reset,
+recording reconstruction and separately requested original-decision estimates.
+
+The ignored `gui-egui --test guided_suit_win_early` drives ordinary widgets
+and labelled fixture views in both languages/sizes. The screenshots example
+emits `suit-win-early-inventory.json` and includes its exact names in the
+existing all-scenarios inventory; both-OS CI collects these through the
+existing full render job. Render only the new names for author inspection.
+The minimum-size long explanation scrolls below the always reachable return.
+These automated checks establish no learner or release acceptance.

@@ -1428,3 +1428,220 @@ pub fn null_lead_flow(
     null_click(h, &i.t("guided-return"));
     assert!(h.state().session().guided().is_none());
 }
+
+/// #178 accepted ordinary seed0/game3 pickup-Karo route; no injected state.
+#[allow(dead_code)]
+pub fn suit_early_flow(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    stage: &str,
+    chosen: u8,
+) {
+    use skat_app::*;
+    let i = I18n::new(language);
+    h.state_mut().set_language(language);
+    h.state_mut().opponent_delay = 0.0;
+    h.state_mut().set_coach_budget(Budget {
+        samples: 1,
+        nodes_per_task: 1,
+    });
+    let route: Vec<Command> =
+        serde_json::from_str(include_str!("../fixtures/suit-win-early-route.json")).unwrap();
+    for command in route {
+        // The GUI runs opponents itself; all human commands use real widgets.
+        if matches!(command, Command::AdvanceOpponent | Command::SetCoach(_)) {
+            continue;
+        }
+        settle(h);
+        let v = h.state().session().view();
+        let label = match command {
+            Command::NextGame => i.t("button-next-game"),
+            Command::Act(Action::Hold) => i.tf("button-hold", &[("value", v.bid.into())]),
+            Command::Act(Action::Bid(n)) => i.tf("button-bid", &[("value", n.into())]),
+            Command::Act(Action::Pass) => i.t("button-pass"),
+            Command::Act(Action::TakeSkat) => i.t("button-take-skat"),
+            Command::Act(Action::Play(c)) => card_name(&i, c),
+            Command::Act(Action::Discard(cs)) => {
+                for c in cs {
+                    click(h, &card_name(&i, c));
+                }
+                i.t("button-discard")
+            }
+            Command::Act(Action::Announce(_)) => {
+                h.get_by_role_and_label(
+                    Role::RadioButton,
+                    &game_name(&i, GameType::Farbe(Suit::Karo)),
+                )
+                .click();
+                h.run_steps(4);
+                i.t("button-announce")
+            }
+            _ => panic!("unexpected accepted command {command:?}"),
+        };
+        click(h, &label);
+    }
+    settle(h);
+    let v = h.state().session().view();
+    assert_eq!(v.game_number, 3);
+    assert_eq!(v.players[0].seat, Seat::Mittelhand);
+    assert_eq!(h.state().session().game_seed(), 12896916468484187878);
+    assert_eq!(
+        v.current_trick
+            .iter()
+            .map(|p| p.card.index())
+            .collect::<Vec<_>>(),
+        [7]
+    );
+    let before = h.state().session().export_current_recording_privileged();
+    click(h, &i.t("guided-start"));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Orient
+    );
+    if stage == "orient" {
+        return;
+    }
+    if stage == "free" {
+        null_click(h, &i.t("guided-return"));
+        assert_eq!(
+            h.state().session().export_current_recording_privileged(),
+            before
+        );
+        null_click(h, &card_name(&i, Card::from_index(chosen).unwrap()));
+        return;
+    }
+    null_click(h, &seat_name(&i, Seat::Mittelhand));
+    assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+    if stage == "wrong" {
+        return;
+    }
+    null_click(h, &i.t("guided-retry"));
+    if stage == "retry" {
+        return;
+    }
+    null_click(h, &seat_name(&i, Seat::Vorhand));
+    if stage == "check" {
+        return;
+    }
+    null_click(h, &seat_name(&i, Seat::Hinterhand));
+    if stage == "attempt" {
+        return;
+    }
+    let consider = |n| {
+        i.tf(
+            "guided-consider",
+            &[("card", card_name(&i, Card::from_index(n).unwrap()).into())],
+        )
+    };
+    null_click(h, &consider(9));
+    assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+    if stage == "attempt-wrong" {
+        return;
+    }
+    null_click(h, &i.t("guided-retry"));
+    null_click(
+        h,
+        &i.t(if stage == "idk" {
+            "guided-unknown"
+        } else {
+            "guided-reveal"
+        }),
+    );
+    assert_eq!(
+        h.state()
+            .session()
+            .guided()
+            .unwrap()
+            .rule
+            .unwrap()
+            .card
+            .index(),
+        24
+    );
+    assert!(h.state().session().guided().unwrap().memory.is_none());
+    assert_eq!(
+        h.state().session().export_current_recording_privileged(),
+        before
+    );
+    if matches!(stage, "reveal" | "idk") {
+        return;
+    }
+    if stage == "memory" {
+        null_click(h, &i.t("guided-memory"));
+        let m = h.state().session().guided().unwrap().memory.unwrap();
+        let label = i.tf(
+            "guided-trumpf",
+            &[("count", m.trumpf.unwrap().outside.into())],
+        );
+        h.get_by_label(&label).scroll_to_me();
+        h.run_steps(6);
+        let back = h
+            .get_by_role_and_label(Role::Button, &i.t("guided-return"))
+            .rect();
+        assert!(back.max.y < 80.0, "free return stays above memory scroll");
+        return;
+    }
+    h.state_mut().opponent_delay = 1000.0;
+    null_click(h, &card_name(&i, Card::from_index(chosen).unwrap()));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Waiting
+    );
+    if stage == "waiting" {
+        return;
+    }
+    h.state_mut().opponent_delay = 0.0;
+    for _ in 0..5000 {
+        h.run_steps(1);
+        if h.state().session().guided().unwrap().step == GuidedStep::Observe {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    h.state_mut().opponent_delay = 1000.0;
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Observe
+    );
+    let t = h.state().session().view().last_trick.unwrap();
+    assert_eq!(
+        t.cards.iter().map(|p| p.card.index()).collect::<Vec<_>>(),
+        if chosen == 24 { [7, 24, 1] } else { [7, 9, 5] }
+    );
+    let winner = if chosen == 24 {
+        Seat::Mittelhand
+    } else {
+        Seat::Vorhand
+    };
+    assert_eq!(t.winner.seat(h.state().session().view().dealer), winner);
+    if stage == "observe" {
+        return;
+    }
+    null_click(h, &i.t("guided-reveal"));
+    assert_eq!(
+        h.state()
+            .session()
+            .guided()
+            .unwrap()
+            .observation
+            .unwrap()
+            .winner,
+        Some(winner)
+    );
+    if stage == "complete" || stage == "alternative" {
+        return;
+    }
+    if stage == "figures" {
+        h.get_by_label(&i.t("menu-settings")).click();
+        h.run_steps(4);
+        h.get_by_role_and_label(Role::CheckBox, &i.t("setting-coach-figures"))
+            .click();
+        h.run_steps(4);
+        h.key_press(eframe::egui::Key::Escape);
+        h.run_steps(4);
+        null_click(h, &i.t("guided-figures"));
+        return;
+    }
+    null_click(h, &i.t("guided-return"));
+    assert!(h.state().session().guided().is_none());
+}

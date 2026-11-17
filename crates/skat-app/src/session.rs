@@ -579,6 +579,13 @@ impl Session {
     /// only the human's view, in God Mode also the whole deal (D-62); never with an
     /// open display alone (D-68).
     pub fn coach_job(&self) -> Option<CoachJob> {
+        if let Some(g) = &self.guided
+            && g.permitted_suit_early()
+        {
+            return g
+                .permitted_estimate_input()
+                .map(|(key, view)| self.coach.job(key, view, None));
+        }
         if let Some(key) = self.human_decision()
             && self.coach.wanted(key)
             && self.coach.result(key).is_none()
@@ -606,7 +613,16 @@ impl Session {
     /// a warning. Fails without changes if the decision changed meanwhile.
     pub fn finish_coach(&mut self, result: CoachResult) -> Result<Vec<AppEvent>, AppError> {
         if let Some(g) = &mut self.guided {
-            g.capture(&result, self.coach.budget);
+            let captured = g.capture(&result, self.coach.budget);
+            if g.permitted_suit_early() && result.permitted_only() {
+                // Keep these closed-view estimates scoped to this dialogue;
+                // ordinary God Mode advice retains its own provenance.
+                return if captured {
+                    Ok(Vec::new())
+                } else {
+                    Err(AppError::StaleCoachResult)
+                };
+            }
         }
         if result.is_preview() {
             let key = self.human_decision().ok_or(AppError::StaleCoachResult)?;

@@ -272,7 +272,12 @@ replies and the completed individual winner. Declarer DrawTrumpf stays excluded.
 FeedPartner considers all legal cards, including overtakes, maximises
 `(!is_trump, Augen)` and keeps the last exact legal-order tie without power. WinEarly retains all current winners as
 candidates and explains only the selected card: Trumpf or a follow-class
-master. A side master can be trumped; a Bube can be overtrumped. Grand has
+master. Farbspiel `WinEarly` (#178) uses the same rule with strict
+non-Ouvert current-second-seat admission, one contiguous public card and an
+exact ordered core-legal list. It checks consistent Hand/pickup information.
+All Buben and the announced suit are Trumpf, regardless of printed suit.
+A different own master does not qualify a cheaper non-master winner.
+A side master can be trumped; a Bube can be overtrumped. Grand has
 only four Buben as Trumpf. Non-Ouvert Null (#165/#169) supports the human
 declarer second or last to the current trick, with two or more pure card actions and a
 present loser. The opening lead (#176, below) uses a separate admission and

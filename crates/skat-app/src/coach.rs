@@ -137,6 +137,7 @@ impl CoachJob {
         mut publish: impl FnMut(CoachResult),
     ) -> CoachResult {
         let wrap = |e: Explanation| CoachResult {
+            permitted_only: self.all.is_none(),
             key: self.key,
             budget: self.budget,
             seed: self.seed,
@@ -162,6 +163,7 @@ impl CoachJob {
             None => Err(Unavailable::Failed),
         };
         CoachResult {
+            permitted_only: self.all.is_none(),
             key: self.key,
             budget: self.budget,
             seed: self.seed,
@@ -224,6 +226,7 @@ impl CoachJob {
 /// A finished coach analysis, to be passed to [`crate::Session::finish_coach`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct CoachResult {
+    permitted_only: bool,
     key: DecisionKey,
     budget: Budget,
     seed: u64,
@@ -231,6 +234,9 @@ pub struct CoachResult {
 }
 
 impl CoachResult {
+    pub(crate) fn permitted_only(&self) -> bool {
+        self.permitted_only
+    }
     pub(crate) fn guided_key(&self) -> DecisionKey {
         self.key
     }
@@ -269,6 +275,7 @@ impl CoachResult {
     #[cfg(test)]
     pub(crate) fn failed(job: &CoachJob) -> CoachResult {
         CoachResult {
+            permitted_only: job.all.is_none(),
             key: job.key,
             budget: job.budget,
             seed: job.seed,

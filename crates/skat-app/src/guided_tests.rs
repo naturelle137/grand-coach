@@ -2395,7 +2395,7 @@ fn grand_win_early_exclusions_preserve_existing_app_lessons_and_all_legal_action
             hand_game(HERZ, false),
             vec!["CK"],
             Seat::Mittelhand,
-            None,
+            Some(crate::GuidedBranch::WinEarly),
         ),
     ] {
         let actions = fixture::contract_actions(deal, decl, game, &plays);
@@ -2413,7 +2413,10 @@ fn grand_win_early_exclusions_preserve_existing_app_lessons_and_all_legal_action
         if let Some(branch) = expected {
             respond(&mut s, G::Reveal).unwrap();
             assert_eq!(s.guided().unwrap().rule.unwrap().branch, branch);
-            assert!(s.guided().unwrap().early_condition.is_none());
+            assert_eq!(
+                s.guided().unwrap().early_condition.is_some(),
+                branch == crate::GuidedBranch::WinEarly
+            );
         }
         for action in legal {
             s.clone().execute(Command::Act(action)).unwrap();
@@ -3660,3 +3663,6 @@ fn lead_master_fixture_widget_models_match_checked_sessions() {
 
 #[path = "guided_null_lead_tests.rs"]
 mod null_lead_tests;
+
+#[path = "guided_suit_win_early_tests.rs"]
+mod suit_win_early_tests;

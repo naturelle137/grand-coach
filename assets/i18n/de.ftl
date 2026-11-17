@@ -1097,3 +1097,6 @@ guided-rule-null-lead = Easy minimiert (Trumpf, Augen, Null-Stärke) und behält
 guided-null-lead-details = Reihenfolge und Grenzen am leeren Tisch
 guided-null-lead-order = Die Stärke zählt schwächere Karten der aufgedruckten Farbe (0–7). Eine 9 ohne Augen kann vor einer 10 mit Augen einer anderen Farbe stehen: Das ist nicht immer der niedrigste aufgedruckte Rang.
 guided-null-lead-empty = Jede legale Karte gilt nur wegen des leeren Tisches als derzeitiger Gewinner. Das garantiert weder einen eigenen noch einen vermiedenen Stich oder den Spielgewinn.
+
+guided-suit-early-trumpf = Easys gewählte Karte ist Trumpf: Alle vier Buben und die angesagte Farbe sind Trumpf; ein Bube bedient nie seine aufgedruckte Farbe. Ein höherer Trumpf beim verbleibenden Spieler kann überstechen.
+guided-suit-early-master = Easys gewählte Karte ist Meister ihrer Bedienklasse: Höhere Karten sind bekannt oder auf deiner Hand. Der verbleibende Spieler kann trotzdem abstechen, wenn er die Seitenfarbe nicht bedienen muss; alle Buben und die angesagte Farbe sind Trumpf.
