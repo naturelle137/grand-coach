@@ -45,6 +45,7 @@ PRs and the focused references (architecture, analysis, AI, coach, testing).
 | D-40 | 2026-11-10 | Classic levels use rules of thumb before card play and for Kontra. Perfect double-dummy defenders led to excessive passing and costly Kontras when search controlled those decisions. Keep Re and card play searchable. [Profiles and calibration](ai.md). |
 | D-41 | 2026-11-01 | Goldfish forgets older cards. Mephisto sees the full deal, with privileged access explicit in its API. Use the special deck and table only in that mode. [Table behaviour](ai.md#mephisto). |
 | D-62 | 2026-11-01 | God Mode plays against Mephisto, reveals the deal to the human and coach, and allows hiding the open cards. Use the dedicated blue table, faces and back. Localise suit names to match visible symbols and keep the usual suit name in brackets for replacements. |
+| D-76 | 2026-11-17 | Experimental hybrid screening has a distinct model-identified result type; unsearched options stay unvalued and cannot enter Classic reliability predicates. [Backend contract](analysis.md#hybrid-proposals-experimental-76). |
 | D-63 | 2026-11-12 | Keep offline model weights in git under assets/models/ with a training manifest, SHA-256 and model card (CC BY-SA 4.0). Keep training data outside git. Phase 2 ends after reinforcement learning and selection of one or two models. Each model file must stay below 10 MB. One active optional Neural file uses the [reversible operational v2 selection](neural-operational-selection.md), independent of the unchanged historical Phase 2 no-go; Classic stays default. [Runtime and selection](learned-models.md). |
 | D-64 | 2026-11-12 | Offer the counting aid and in-game counting questions as two independent, default-off settings, derived only from the human's permitted view in `skat-analysis`. While a question is pending, the decision and coach are held back. Aid is hidden unless explicitly restored or visible assistance was selected; support is recorded. Focused retrieval (#48) reuses that snapshot and lifecycle with explicit support levels and plain in-memory events. [Counting aid and quiz](coach.md#counting-aid-and-quiz-d-64). |
 | D-65 | 2026-11-12 | M7 recordings are explicit privileged plain data in `skat-app`, captured after successful shared core transitions and reconstructed in isolation through the core. Version format and replay semantics separately, validate original deal/seed and completion, retain completed games apart from scores. Bounded format-1 local files use exclusive creation with no overwrite, full semantic validation and an isolated read-only recording window. No cross-version seed stability or session resume. [Recording contract](architecture.md#privileged-recordings-in-skat-app-d-65). |
@@ -260,3 +261,14 @@ git in `grand-coach-data/studies/`; prepare a verified executable kit before
 human participation. Technical and platform acceptance remain agent-owned;
 Initial and Delayed execution remain human-owned and pending.
 See [protocol and ownership](validation54.md).
+
+## D-76 Experimental hybrid proposal provenance
+
+2026-11-17. The opt-in #76 backend verifies two learned policy proposals plus
+the shared rule card with ordinary analysis, from one permitted view only.
+Keep a distinct learned-result type with actual model hash and encoder; do
+not convert screened options into complete `Analysis` or reliable comparisons.
+Unsearched alternatives remain unvalued. Enumerated/exact decisions and model
+failures retain Classic. No shipped default changes. Strategy measurements,
+selector integration and calibration remain pending under existing compute
+holds; see [the backend contract](analysis.md#hybrid-proposals-experimental-76).

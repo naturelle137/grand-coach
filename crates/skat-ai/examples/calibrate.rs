@@ -20,6 +20,8 @@
 //! points of the model's option heads instead of the policy. A trailing
 //! `+ak` lets the analysis or the model decide Kontra instead of the rules
 //! of thumb (`Profile::search_kontra`). Kontra/Re is on.
+//! `hybrid:<path>` uses experimental learned proposals verified by Strong,
+//! with fixed Strong fallback; it accepts no level or `+ak` suffix.
 //!
 //! Prints a Markdown summary: the mean per-deal difference of Seeger-Fabian
 //! points per seat-game (A minus B) with its standard error and 95 %
@@ -32,7 +34,9 @@ use std::time::Instant;
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
 use skat_ai::arena::{DealComparison, Interval, Tally, compare_with};
-use skat_ai::{Budget, Cancel, Decision, Level, NeuralOpponent, Opponent, Player, Profile};
+use skat_ai::{
+    Budget, Cancel, Decision, HybridOpponent, Level, NeuralOpponent, Opponent, Player, Profile,
+};
 use skat_core::{PlayerView, RuleConfig, Seat};
 use skat_nn::{Choice, NeuralModel};
 
@@ -85,17 +89,20 @@ enum Side {
     Experimental,
     Classic(Profile),
     Neural(Arc<NeuralModel>, Profile, Choice),
+    Hybrid(Arc<NeuralModel>),
 }
 
 enum Seated {
     Experimental(skat_ai::ExperimentalOpponent),
     Classic(Opponent),
     Neural(NeuralOpponent),
+    Hybrid(HybridOpponent),
 }
 
 impl Player for Seated {
     fn decide(&self, view: &PlayerView, cancel: Option<&Cancel>) -> Option<Decision> {
         match self {
+            Seated::Hybrid(o) => Player::decide(o, view, cancel),
             Seated::Experimental(o) => o.decide(view, cancel),
             Seated::Classic(o) => Player::decide(o, view, cancel),
             Seated::Neural(o) => Player::decide(o, view, cancel),
@@ -105,6 +112,12 @@ impl Player for Seated {
 
 impl Side {
     fn parse(spec: &str) -> Side {
+        if let Some(path) = spec.strip_prefix("hybrid:") {
+            let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+            let model = NeuralModel::load(&bytes, &skat_nn::sha256(&bytes))
+                .unwrap_or_else(|e| panic!("{path}: {e:?}"));
+            return Side::Hybrid(Arc::new(model));
+        }
         if spec == "experimental" {
             return Side::Experimental;
         }
@@ -132,6 +145,7 @@ impl Side {
 
     fn seat(&self, seed: u64) -> Seated {
         match self {
+            Side::Hybrid(model) => Seated::Hybrid(HybridOpponent::new(Ok(model.clone()), seed)),
             Side::Experimental => Seated::Experimental(skat_ai::ExperimentalOpponent {
                 seed,
                 samples: skat_ai::ExperimentalOpponent::SAMPLES,
@@ -146,6 +160,13 @@ impl Side {
 
     fn describe(&self) -> String {
         match self {
+            Side::Hybrid(model) => {
+                let hash: String = model.sha256().iter().map(|b| format!("{b:02x}")).collect();
+                format!(
+                    "experimental hybrid proposals top-2 + rule, model {hash}, encoder {}, Strong budget/fallback",
+                    model.header().encoder_version
+                )
+            }
             Side::Experimental => format!(
                 "experimental, {} samples",
                 skat_ai::ExperimentalOpponent::SAMPLES
@@ -332,4 +353,29 @@ fn main() {
     println!("|---|---|---|---|---|---|---|---|");
     row(&format!("A `{name_a}`"), &ta);
     row(&format!("B `{name_b}`"), &tb);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hybrid_spec_loads_the_named_model_and_preserves_the_seed() {
+        let bytes = skat_nn::fixture_model(19, skat_nn::Phases::SPIEL);
+        let path =
+            std::env::temp_dir().join(format!("gc-hybrid-calibrate-{}.gcnn", std::process::id()));
+        std::fs::write(&path, &bytes).unwrap();
+        let side = Side::parse(&format!("hybrid:{}", path.display()));
+        std::fs::remove_file(path).unwrap();
+        let Side::Hybrid(ref model) = side else {
+            panic!("hybrid spec")
+        };
+        assert_eq!(model.sha256(), skat_nn::sha256(&bytes));
+        assert!(side.describe().contains("experimental hybrid"));
+        let Seated::Hybrid(player) = side.seat(123) else {
+            panic!("hybrid seat")
+        };
+        assert_eq!(player.seed, 123);
+        assert_eq!(player.budget, Budget::INTERACTIVE);
+    }
 }

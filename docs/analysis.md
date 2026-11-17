@@ -231,6 +231,47 @@ dropped for every option), or `NoDecision`.
 screened on 3 distributions, the best 6 are evaluated on all. `samples`
 shows which options had fewer.
 
+## Hybrid proposals (experimental, #76)
+
+`hybrid::analyze_hybrid` is an opt-in backend increment, not a shipped
+engine choice. From the original permitted `PlayerView`, the loaded model
+proposes its two highest policy probabilities (stable legal-order ties).
+The existing shared rule card is included, giving two or three candidates.
+The ordinary `analyze` evaluates these in original legal order using the
+unchanged world/node budget and seeded sampling. The learned value is
+reported separately and never enters solver bounds or settlement.
+
+`HybridAnalysis::LearnedEstimate` carries the actual model SHA-256, header
+encoder version, learned seat value and every original legal action. Each
+action has a prior, explicit proposal membership and optional ordinary
+Monte-Carlo verification. An unsearched action has no verification, never
+zero utility or an inferior rank. The search completion status and effort
+refer only to proposals. This distinct type cannot enter `lesson::compare`
+or any existing `Analysis` reliability predicate; there is deliberately no
+conversion to a complete analysis. The recommendation compares only finished
+verified proposals at the greatest sample count, by existing `utility`,
+keeping the first original legal-order tie. No finished verification means
+no recommendation, even if the model supplied a value or prior.
+
+All enumerated distributions remain ordinary all-option Classic, including
+cheap exact late games. At most three legal cards, decisions outside pure
+card play (including Kontra/Re), and missing/broken/unsupported/non-finite
+models also keep Classic. Cancellation before inference skips the model;
+interrupted proposal verification reports its actual status without invented
+estimates. No filesystem/network IO occurs here. `skat-ai::HybridOpponent`
+provides a thin `Player` adapter with Classic Strong fallback and legal rule
+fallback when verification cannot finish. No coach strategy is duplicated.
+
+This proposal strategy is an implementation candidate, pending the short
+comparative measurement required by #76. No quality or latency measurement
+against Strong and neural-only has been performed in this increment: the
+existing [compute hold](neural-operational-selection.md) authorises no new
+arenas. Tiny random-weight fixture tests establish API behaviour, not strength
+or a speedup. The planned selector from [#77](learned-engine-selection.md),
+separately admitted `calibrate`/`latency` evidence
+remain required before full issue acceptance. Classic regressions and defaults
+are unchanged; no training, weights or model provenance were added.
+
 ## Two-stage card play (experimental, #104)
 
 `analyze_two_stage` is an opt-in prototype. No shipped level, coach or
