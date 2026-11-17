@@ -46,7 +46,9 @@ can still be trumped. Unsupported branches are not explained as safe tactics. Th
 human declarer second or last to the current trick, with at least two pure legal cards
 and a current loser, gets the dialogue. It uses the existing current loser
 set, maximum own printed-suit power and last exact legal-order tie unchanged;
-off-suit power never means that the card can win the led suit.
+off-suit power never means that the card can win the led suit. The separate
+issue #176 opening-lead guard below admits only physical Vorhand and uses
+`LowestCostFirst`, never highest-loser shedding.
 
 The guided exception to D-49 exposes action-bearing rule data only after an
 attempt or deliberate reveal inside that explicitly entered dialogue. Ordinary
@@ -54,7 +56,7 @@ lesson `Evidence` below remains action-free. The bounded guided families
 and their core-legal fixtures are specified in [the walkthrough](guided-dialogue.md).
 Exact facts come from own hand, known own Skat, public trick cards, seat order
 and rules; unknown holders, including unknown Skat, stay unknown. Observations
-cite `Source::Trick`; an empty Grand lead uses `Source::Lead` without
+cite `Source::Trick`; an empty Grand or admitted Null lead uses `Source::Lead` without
 inventing a winning card. The bounded `LeadMaster` consumer preserves the
 own/played-only master predicate (known discards still block), maximum Augen
 and last exact legal-order tie. Both real replies and the individual winner
@@ -379,3 +381,26 @@ Legal replay fixtures in `tests/retrieval.rs` cover both roles, positive,
 boundary and counterexample cases; `tests/counting_fixtures.rs` additionally
 covers known discards, Hand and Ouvert. Hidden-card substitution checks both
 baseline and focused questions and their derivations.
+
+## Null opening lead (#176)
+
+The [bounded opening-lead dialogue](guided-dialogue.md#null-opening-lead-176)
+uses the unchanged shared Null minimum-cost rule, FIRST exact tie. Only the
+non-Ouvert Vorhand declarer's own first lead is admitted; Augen are legacy
+sorting cost, not Null scoring. All legal leads remain available. Empty-table
+candidate status never predicts either defender reply or completed winner.
+
+Default-feature `cargo test -p skat-analysis --test null_lead_policy` checks
+accepted1695's complete literal inputs/all eleven fields and all 286 first
+tricks (94 immediate Null losses); `skat-coach --test guided_null_lead` and
+app tests matching `null_lead` cover full non-absent lessons/dialogues, both
+hidden substitutions including God Mode, legal alternatives, actual two replies,
+individual winner, consent, stale/reentry/replay/reset and original estimates.
+Run `cargo test -p gui-egui --test null_lead -- --include-ignored --nocapture`
+in skat-dev for ordinary widgets and labelled component fixtures in both
+languages/sizes. `SKAT_NULL_LEAD_WIDGET_FIXTURES_OUT` intentionally regenerates
+the component JSON from checked app sessions; ordinary renders never inject it.
+Source-derived `null-lead-inventory.json` joins the existing both-OS gallery.
+Push gate and the configured workspace non-GPU/include-ignored suite remain
+required, including nn-train and vulkan-search. Terminal owns review and final
+actual-main/both-OS archive/hash/visual acceptance. No learner results follow.

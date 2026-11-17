@@ -1,4 +1,4 @@
-# Guided card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159, #161, #163, #165, #169, #171)
+# Guided card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159, #161, #163, #165, #169, #171, #176)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -11,7 +11,7 @@ remain unmeasured.
 The card-play scope includes `UnderPartner`, `WinLast`, Grand `WinEarly`,
 last-seat Grand `FeedPartner`, [Grand `LeadMaster`](#grand-lead-with-a-follow-class-master-171),
 and Null declarer play [last](#null-declarer-last-to-the-current-trick-165)
-or [second](#null-declarer-acting-second-169). These are bounded heuristic
+or [second](#null-declarer-acting-second-169), and the [opening lead](#null-opening-lead-176). These are bounded heuristic
 dialogues, not new solver-approved mechanisms in the six-lesson catalogue.
 The original `UnderPartner` and `WinLast` source was the existing `BaselineOpponent::choose_card` on main
 `ecfb2fe1ff5a50ab2fb5f17a892dd9e5f68c6c80`, now shared in
@@ -41,7 +41,7 @@ separate factual oracles.
   lead, both roles where the actual shared branch permits it, at least two
   pure core-legal cards; no guarantee against trumping.
 - **Null declarer:** non-Ouvert Null acting [last](#null-declarer-last-to-the-current-trick-165)
-  or [second](#null-declarer-acting-second-169), with at least two pure legal
+  or [second](#null-declarer-acting-second-169), or the opening lead (#176), with at least two pure legal
   cards and a current loser; the linked sections define the full guards.
 - **Exclusions:** other leads, Farbspiel early winner, early or Farbspiel feeding, arbitrary fallback,
   single legal action, other Grand branches, Ouvert Grand, other Null card play or
@@ -811,3 +811,67 @@ actual-main/both-OS complete archives, hashes and personal view inspection
 remain terminal1642's delivery work. No learner/UAT, transfer, persistence,
 training, interactive Windows 11, packaging, release or later #131 completion
 is established by these technical checks.
+
+## Null opening lead (#176)
+
+`guided::lesson` version 1 extends the explicit heuristic dialogue (not the
+six-lesson mechanism catalogue) to Spiel, a non-Ouvert Null declarer in physical
+Vorhand, its own turn and the exactly empty first trick. It requires the exact
+pure core-legal list, ten own cards, three ten-card hands and consistent Hand
+(unknown Skat) or pickup (two known discarded cards). A Null declarer winning
+any trick loses immediately; later own leads and positive MH/HH rotations are
+unreachable. Real MH/HH declarer histories with VH to lead are exclusions.
+
+Easy's shared `Branch::Null` is unchanged: minimum `(is_trump, Augen, power)`,
+FIRST exact tie in core order. Null has no Trumpf; Buben follow printed suit,
+and rank is 7,8,9,10,Bube,Dame,König,Ass. Power counts weaker cards (0..7).
+Augen are a legacy sorting cost, neither Null scoring nor strategic value:
+a zero-Augen 9 can precede another suit's positive-Augen 10. This is not
+universally the lowest printed rank. All legal leads are current-table
+`winners` only because the table is empty; neither actual reply, completed
+winner nor game result follows. No unseen card gets an owner.
+
+Orientation asks the own public role and lead. The next question accepts
+every legal lead as a candidate; the attempt asks for Easy's ordering choice.
+Wrong/retry, unknown, reveal, skip/free return, every legal card and collapsed
+memory retain the existing dialogue transitions. There is one active prompt
+and at most two supporting facts. Ordering detail stays collapsed. Free return
+remains above the scrolling panel, including 960×640. Both actual defender
+replies and the individual winner persist across automation and immediate
+Null end. Figures require enabled figures plus a separate request after
+observation, retaining the original decision; they never change the rule.
+
+Accepted1695 evidence preserves original1694 SHA256
+`8a608bf13b958750b859e45a5f13f02d29708d2db1c1622e0021ef10b0bccef7`,
+freeze event 12996 (stream 23 before analysis 25), and the ONE separate
+source-informed addendum SHA256
+`e5f4cfaaf17ca0991cc73fc0a904f7defb8c86fc50afe2bc29d18562135dfcb7`.
+The original's eight discrepancies remain: six internal powers use 0..7
+rather than core 1..8; mixed returns None and a phase-only mutation Some.
+This does not retroactively repair independence. No further correction.
+Complete literals in `null_lead_policy.rs` retain all six deals/histories,
+views, Knowledge, eleven rule fields, two hidden pairs and 286 legal next
+tricks: VH 94 / MH 103 / HH 89; all 94 declarer wins immediately end Null as losses.
+Named API mutations distinguish the broader shared rule from new admission.
+Existing nonempty Null families remain supported.
+
+Ordinary route: `Session::new`, seed 1, Fixed1, Easy/Easy, Closed, no Kontra;
+OnRequest, no figures/warnings/focus. Game seed 7424550030962593201, dealer 2,
+human VH, bid 24: SetCoach(default), AdvanceOpponent twice, then five
+Hold/AdvanceOpponent pairs, Hand, announce Null. Easy Play 8 yields
+[8,10,9], MH wins. Free Play 14 yields [14,12,13], VH wins and Null ends at -70.
+The GUI replays these setup choices through ordinary widgets, without injection.
+
+`guided-null-lead-*` images cover ordinary stages from entry through wrong,
+retry, candidate/attempt, wrong attempt, reveal/unknown, memory, waiting,
+observation, completion, actual Null end, free return and ordering details.
+`guided-null-lead-fixture-*` are explicitly labelled core/app component
+fixtures for Hand/pickup, printed Bube, Augen/rank distinction, actual Null
+end and MH/HH exclusions. They are not ordinary routes or independent oracles.
+The screenshot source emits `null-lead-inventory.json` with exact names,
+stages, provenance, language and dimensions (de/en, 1440×1000 and 960×640),
+and the existing Linux/Windows all-scenario pipeline includes this family.
+Both entire OS archives, every hash, actual-main acceptance and personal
+inspection on each OS remain terminal delivery checks. #131 later phases
+remain OPEN; #175 remains deferred. No learner/UAT/transfer, training,
+persistence, interactive Windows 11, packaging or release evidence is claimed.

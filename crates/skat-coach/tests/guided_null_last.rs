@@ -94,6 +94,40 @@ fn frozen_deals_every_completion_exact_null_key_and_scope() {
         }
         let l = lesson(&v);
         assert_eq!(l, lesson(&v), "deterministic");
+        // Historical #165 exclusion retained in the frozen fixture. #176 now
+        // admits this genuine VH first lead through its separate family.
+        if c.id == "real-lead" {
+            let l = l.expect("#176 opening lead");
+            assert_eq!(l.rule, r);
+            assert_eq!(
+                l.source,
+                skat_coach::Source::Lead {
+                    index: 0,
+                    seat: Seat::Vorhand
+                }
+            );
+            assert_eq!(l.lead_declarer, Some(true));
+            assert_eq!(l.remaining, None);
+            assert_eq!(l.rule.card, card("H7"));
+            assert_eq!(l.rule.candidates, cards(c.legal));
+            assert_eq!(l.rule.winners, cards(c.legal));
+            assert!(l.rule.losers.is_empty());
+            assert_eq!(l.rule.tie_break, baseline::TieBreak::LowestCostFirst);
+            assert_eq!(l.rule.tie_key, (0, 0, 0));
+            assert!(!l.rule.last);
+            assert!(l.check(
+                Step::Orient,
+                Answer::Lead {
+                    seat: Seat::Vorhand,
+                    declarer: true
+                }
+            ));
+            for &n in c.legal {
+                assert!(l.check(Step::Check, Answer::Card(card(n))));
+                assert_eq!(l.check(Step::Narrow, Answer::Card(card(n))), n == "H7");
+            }
+            continue;
+        }
         assert_eq!(
             l.is_some(),
             c.supported || c.id == "real-early",

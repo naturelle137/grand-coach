@@ -1087,3 +1087,13 @@ guided-lead-source = Stich { $trick }: { $seat } hat das Ausspiel; noch keine Ka
 guided-lead-observe = Sieh dir beide tatsächlichen Antworten an. Beweist die letzte Antwort eine Fehlfarbe in der ausgespielten Farbe?
 guided-lead-candidates-risk = Kandidaten: { $cards }. Wer die Farbe nicht hat, kann stechen; kein Stich- oder Spielgewinn garantiert.
 guided-lead-fixture-label = Testposition: { $case } / { $stage } (kein gewöhnlicher Spielverlauf)
+
+# Null opening lead (#176)
+guided-null-lead-candidates = Welche Karten darfst du auf den leeren Tisch ausspielen?
+guided-null-lead-attempt = Welches Ausspiel steht in Easys Kostenordnung zuerst?
+guided-null-lead-ranks = Null hat keine Trümpfe. Die aufgedruckte Farbe gilt auch für Buben; Rang: 7, 8, 9, 10, B, D, K, A.
+guided-null-lead-limit = Dein Ziel ist, keinen Stich zu machen. Beide Antworten der Gegenspieler sind unbekannt.
+guided-rule-null-lead = Easy minimiert (Trumpf, Augen, Null-Stärke) und behält beim exakten Gleichstand die ERSTE Karte der legalen Reihenfolge. Augen sind historische Sortierkosten, keine Null-Wertung oder strategischer Wert.
+guided-null-lead-details = Reihenfolge und Grenzen am leeren Tisch
+guided-null-lead-order = Die Stärke zählt schwächere Karten der aufgedruckten Farbe (0–7). Eine 9 ohne Augen kann vor einer 10 mit Augen einer anderen Farbe stehen: Das ist nicht immer der niedrigste aufgedruckte Rang.
+guided-null-lead-empty = Jede legale Karte gilt nur wegen des leeren Tisches als derzeitiger Gewinner. Das garantiert weder einen eigenen noch einen vermiedenen Stich oder den Spielgewinn.

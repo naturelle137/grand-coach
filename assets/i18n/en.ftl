@@ -1087,3 +1087,13 @@ guided-lead-source = Trick { $trick }: { $seat } has the lead; no card or curren
 guided-lead-observe = Look at both actual replies. Does the last reply prove a void in the led suit?
 guided-lead-candidates-risk = Candidates: { $cards }. A void follower may trump; no trick or game win guaranteed.
 guided-lead-fixture-label = Fixture component: { $case } / { $stage } (not an ordinary route)
+
+# Null opening lead (#176)
+guided-null-lead-candidates = Which cards may you lead onto this empty table?
+guided-null-lead-attempt = Which lead comes first in Easy's cost ordering?
+guided-null-lead-ranks = Null has no Trumpf. Printed suits apply, including Buben; rank: 7, 8, 9, 10, J, Q, K, A.
+guided-null-lead-limit = Your aim is to avoid tricks. Neither defender's reply is known.
+guided-rule-null-lead = Easy minimises (Trumpf, Augen, Null power), keeping the FIRST exact tie in legal order. Augen are a legacy sorting cost, not Null scoring or strategic value.
+guided-null-lead-details = Ordering and empty-table limits
+guided-null-lead-order = Power counts weaker cards of the printed suit (0–7). A zero-Augen 9 can precede a positive-Augen 10 in another suit: this is not universally the lowest printed rank.
+guided-null-lead-empty = Every legal lead is a current-table winner only because the table is empty. This guarantees neither taking nor avoiding the completed trick or winning the game.

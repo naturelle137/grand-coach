@@ -12,6 +12,36 @@ fn middle_scope_whole_lesson_and_every_candidate() {
     for c in cases() {
         let v = c.game().view(c.seat);
         let l = lesson(&v);
+        // Historical #169 scope flags remain frozen. #176 now admits this
+        // genuine opening lead using the already frozen complete shared rule.
+        if c.id == "lead" {
+            let l = l.expect("#176 opening lead");
+            assert_eq!(Some(l.rule.clone()), c.expected);
+            assert_eq!(
+                l.source,
+                skat_coach::Source::Lead {
+                    index: 0,
+                    seat: Seat::Vorhand
+                }
+            );
+            assert_eq!(l.lead_declarer, Some(true));
+            assert_eq!(l.remaining, None);
+            assert!(l.check(
+                Step::Orient,
+                Answer::Lead {
+                    seat: Seat::Vorhand,
+                    declarer: true
+                }
+            ));
+            for card in c.legal {
+                assert!(l.check(Step::Check, Answer::Card(card)));
+                assert_eq!(
+                    l.check(Step::Narrow, Answer::Card(card)),
+                    card == l.rule.card
+                );
+            }
+            continue;
+        }
         // #165's supported last-seat lesson remains available, outside #169.
         assert_eq!(l.is_some(), c.admitted || c.id == "last", "{}", c.id);
         if !c.admitted {
