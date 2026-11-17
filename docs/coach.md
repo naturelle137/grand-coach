@@ -263,7 +263,12 @@ with one seat still to play; Easy selects a losing card by nontrump, Augen,
 power, retaining the first exact tie. The latter wins in last seat by nontrump,
 power, retaining the first exact tie. Non-Ouvert Grand supports `WinLast`
 (#157), for a defender in the middle seat `UnderPartner` (#159), and
-`WinEarly` in Mittelhand (#161), and last-seat `FeedPartner` (#163).
+`WinEarly` in Mittelhand (#161), and last-seat `FeedPartner` (#163). Empty-trick Grand `LeadMaster` (#171)
+also supports both roles where Easy selects a nontrump master: own/played
+higher cards do not block it, known discarded higher cards still do.
+It takes maximum Augen, last exact legal-order tie, with no trick guarantee.
+`Source::Lead` has no current winning card; observation retains both actual
+replies and the completed individual winner. Declarer DrawTrumpf stays excluded.
 FeedPartner considers all legal cards, including overtakes, maximises
 `(!is_trump, Augen)` and keeps the last exact legal-order tie without power. WinEarly retains all current winners as
 candidates and explains only the selected card: Trumpf or a follow-class

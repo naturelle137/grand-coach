@@ -301,3 +301,23 @@ dialogue are unchanged. No later historical or hidden cards enter this lesson.
 Technical checks and rendered models are not learner responses, retention,
 transfer, interactive Windows 11 or release acceptance. Terminal #1477 retains
 review, integration and both complete OS archive/main-regression acceptance.
+
+## Grand LeadMaster technical evidence (#171)
+
+Use the [accepted gate and exact policy](guided-dialogue.md#grand-lead-with-a-follow-class-master-171).
+The dialogue verbalises shared `baseline::rule`, not a separately computed
+strategy. Master membership is exact under its conservative predicate;
+largest Augen/last tie is heuristic; both replies and individual completed
+winner are observed. A printed-suit master can be trumped by a Bube.
+Own/played higher ranks do not block the predicate, but known discarded
+higher ranks do. Empty-table winner candidates predict no future winner.
+
+Literal whole-deal tests cover physical seat rotations, both roles,
+Hand/pickup, own/played/outstanding higher ranks, Buben, void/trump replies,
+all Buben own/played, ties, free nonmasters and excluded branches. Actual
+non-absent whole lessons and full dialog models match across two same-view
+hidden substitutions including God Mode. The ordinary seed3 route uses real
+commands/widgets; fixture components are explicitly labelled. The scoped
+local contribution supplies checked API navigation only, no local code credit.
+Technical evidence does not establish learning, UAT, transfer or release;
+review, final CI, integration and actual-main/both-OS acceptance stay separate.

@@ -127,6 +127,12 @@ pub struct GuidedView {
     pub step: GuidedStep,
     /// Immediate branch task after orientation; contains no selected card.
     pub task: Option<GuidedBranch>,
+    /// Empty-trick orientation, without any preferred card or candidate set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lead: Option<Seat>,
+    /// Actual public replies to the learner's lead, in play order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lead_replies: Vec<skat_coach::Source>,
     /// Last attempt outcome; wrong answers do not advance.
     pub correct: Option<bool>,
     /// Rule after deliberate reveal only.
@@ -188,6 +194,7 @@ pub(crate) struct GuidedState {
     memory: bool,
     observation: Option<Observation>,
     chosen: Option<skat_core::Card>,
+    lead_replies: Vec<skat_coach::Source>,
     result: Option<CoachResult>,
     figures: bool,
     sequence: u32,
@@ -227,6 +234,7 @@ impl GuidedState {
             memory: false,
             observation: None,
             chosen: None,
+            lead_replies: Vec::new(),
             result,
             figures: false,
             sequence: 0,
@@ -282,6 +290,11 @@ impl GuidedState {
         GuidedView {
             id: self.id,
             step: self.step,
+            lead: self
+                .lesson
+                .as_ref()
+                .and_then(|l| l.lead_declarer.map(|_| l.seat)),
+            lead_replies: self.lead_replies.clone(),
             correct: self.correct,
             task: matches!(self.step, GuidedStep::Narrow | GuidedStep::Act)
                 .then(|| self.lesson.as_ref().map(|l| l.rule.branch))
@@ -518,6 +531,44 @@ impl GuidedState {
         let Some(lesson) = &self.lesson else {
             return;
         };
+        if let skat_coach::Source::Lead { index, .. } = lesson.source {
+            if before == Some(lesson.seat)
+                && self.chosen.is_none()
+                && let Action::Play(card) = action
+            {
+                self.chosen = Some(card);
+                self.step = GuidedStep::Waiting;
+                self.correct = None;
+                self.memory = false;
+            }
+            let Some(led) = self.chosen else {
+                return;
+            };
+            if self.observation.is_some() {
+                return;
+            }
+            for event in events {
+                match *event {
+                    Event::CardPlayed { seat, card } if seat != lesson.seat => {
+                        self.lead_replies.push(skat_coach::Source::Trick {
+                            index,
+                            seat,
+                            led,
+                            card,
+                        });
+                    }
+                    Event::TrickWon { trick } => {
+                        if let Some(&source) = self.lead_replies.last() {
+                            self.observation =
+                                guided::observe(lesson.game, source, Some(trick.winner));
+                            self.step = GuidedStep::Observe;
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            return;
+        }
         let skat_coach::Source::Trick { index, led, .. } = lesson.source else {
             return;
         };

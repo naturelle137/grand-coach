@@ -18,19 +18,24 @@ pub fn panel(
     table: &TableView,
     g: &GuidedView,
 ) -> Option<GuidedAction> {
-    // Keep free return reachable while the longer Null explanation scrolls,
+    // Keep free return reachable while the Null or lead explanation scrolls,
     // including at the minimum supported window height. Earlier families keep
     // their existing layout and controls.
-    if table.contract.is_some_and(|c| c.game == GameType::Null)
+    if (g.lead.is_some() || table.contract.is_some_and(|c| c.game == GameType::Null))
         && g.kontra.is_none()
         && g.reizen.is_none()
         && g.preplay.is_none()
     {
         let leave = ui.button(i.t("guided-return")).clicked();
-        let response = egui::ScrollArea::vertical()
-            .id_salt("null_dialogue")
-            .show(ui, |ui| content(ui, i, table, g, false))
-            .inner;
+        let scroll = egui::ScrollArea::vertical().id_salt("null_dialogue");
+        // A new lead question starts at the top. Retaining the candidate
+        // control's scroll offset could hide the next prompt at 960x640.
+        let scroll = if g.lead.is_some() {
+            scroll.id_salt(("lead_dialogue", g.step as u8))
+        } else {
+            scroll
+        };
+        let response = scroll.show(ui, |ui| content(ui, i, table, g, false)).inner;
         if leave {
             Some(GuidedAction::Return)
         } else {
@@ -96,6 +101,10 @@ fn content(
         }));
     }
     let prompt = match g.step {
+        GuidedStep::Orient if g.lead.is_some() => "guided-lead-orient",
+        GuidedStep::Check if g.lead.is_some() => "guided-lead-master",
+        GuidedStep::Narrow if g.lead.is_some() => "guided-lead-attempt",
+        GuidedStep::Observe if g.lead.is_some() => "guided-lead-observe",
         GuidedStep::Orient => "guided-orient",
         GuidedStep::Check => "guided-check",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::UnderPartner) => "guided-under",
@@ -121,7 +130,23 @@ fn content(
             action = Some(GuidedAction::Retry);
         }
     }
-    if matches!(g.step, GuidedStep::Orient | GuidedStep::Check) {
+    if let Some(seat) = g.lead
+        && g.step == GuidedStep::Orient
+    {
+        for (key, declarer) in [
+            ("guided-lead-declarer", true),
+            ("guided-lead-defender", false),
+        ] {
+            if ui.button(i.t(key)).clicked() {
+                action = Some(GuidedAction::Answer(GuidedAnswer::Lead { seat, declarer }));
+            }
+        }
+    }
+    if g.lead.is_some() && matches!(g.step, GuidedStep::Check | GuidedStep::Narrow) {
+        ui.label(i.t("guided-lead-definition"));
+        ui.label(i.t("guided-lead-risk"));
+    }
+    if g.lead.is_none() && matches!(g.step, GuidedStep::Orient | GuidedStep::Check) {
         for seat in Seat::ALL {
             if ui.button(text::seat(i, seat)).clicked() {
                 action = Some(GuidedAction::Answer(GuidedAnswer::Seat(Some(seat))));
@@ -131,7 +156,7 @@ fn content(
             action = Some(GuidedAction::Answer(GuidedAnswer::Seat(None)));
         }
     }
-    if g.step == GuidedStep::Narrow {
+    if g.step == GuidedStep::Narrow || (g.lead.is_some() && g.step == GuidedStep::Check) {
         for &card in &g.legal_cards {
             if ui
                 .button(i.tf("guided-consider", &[("card", text::card(i, card).into())]))
@@ -150,11 +175,15 @@ fn content(
     if g.step == GuidedStep::Act
         && let Some(rule) = &g.rule
     {
-        ui.strong(i.tf(
-            "guided-rule-card",
-            &[("card", text::card(i, rule.card).into())],
-        ));
-        let key = if rule.branch == GuidedBranch::UnderPartner {
+        if rule.branch != GuidedBranch::LeadMaster {
+            ui.strong(i.tf(
+                "guided-rule-card",
+                &[("card", text::card(i, rule.card).into())],
+            ));
+        }
+        let key = if rule.branch == GuidedBranch::LeadMaster {
+            "guided-rule-lead"
+        } else if rule.branch == GuidedBranch::UnderPartner {
             "guided-rule-under"
         } else if rule.branch == GuidedBranch::FeedPartner {
             "guided-rule-feed"
@@ -169,7 +198,18 @@ fn content(
         } else {
             "guided-rule-win"
         };
-        ui.label(i.t(key));
+        if rule.branch == GuidedBranch::LeadMaster {
+            ui.strong(i.tf(key, &[("card", text::card(i, rule.card).into())]));
+            let cards = rule
+                .candidates
+                .iter()
+                .map(|&c| text::card(i, c))
+                .collect::<Vec<_>>()
+                .join(", ");
+            ui.label(i.tf("guided-lead-candidates-risk", &[("cards", cards.into())]));
+        } else {
+            ui.label(i.t(key));
+        }
         if let Some(condition) = g.early_condition {
             ui.label(i.t(match condition {
                 GuidedEarlyCondition::Trumpf => "guided-early-trumpf",
@@ -199,7 +239,13 @@ fn content(
                 });
             }
         };
-        if rule.branch == GuidedBranch::Null && !rule.last {
+        if rule.branch == GuidedBranch::LeadMaster {
+            // Choice, candidates and caveat above; further detail stays collapsed.
+            ui.collapsing(i.t("guided-lead-details"), |ui| {
+                ui.label(i.t("guided-lead-conservative"));
+                ui.label(i.t("guided-lead-empty"));
+            });
+        } else if rule.branch == GuidedBranch::Null && !rule.last {
             ui.collapsing(i.t("guided-null-middle-details"), |ui| {
                 ui.label(i.t("guided-null-middle-order"));
                 details(ui);
@@ -238,7 +284,17 @@ fn content(
             }
         });
     }
-    if matches!(g.step, GuidedStep::Observe | GuidedStep::Complete)
+    if !g.lead_replies.is_empty() {
+        ui.label(
+            g.lead_replies
+                .iter()
+                .map(|&s| source_line(i, s))
+                .collect::<Vec<_>>()
+                .join("; "),
+        );
+    }
+    if g.lead.is_none()
+        && matches!(g.step, GuidedStep::Observe | GuidedStep::Complete)
         && let Some(s) = g.observed_source
     {
         ui.label(source_line(i, s));
@@ -251,15 +307,24 @@ fn content(
         }
     }
     if let Some(o) = &g.observation {
-        ui.label(i.t(if o.proves_void && null {
+        let deduction = i.t(if o.proves_void && null {
             "guided-null-proves-void"
         } else if o.proves_void {
             "guided-proves-void"
         } else {
             "guided-only-card"
-        }));
-        if let Some(seat) = o.winner {
-            ui.label(i.tf("guided-winner", &[("seat", text::seat(i, seat).into())]));
+        });
+        if g.lead.is_some() {
+            let winner = o
+                .winner
+                .map(|seat| i.tf("guided-winner", &[("seat", text::seat(i, seat).into())]))
+                .unwrap_or_default();
+            ui.label(format!("{deduction} {winner}"));
+        } else {
+            ui.label(deduction);
+            if let Some(seat) = o.winner {
+                ui.label(i.tf("guided-winner", &[("seat", text::seat(i, seat).into())]));
+            }
         }
     }
     if matches!(
@@ -913,6 +978,13 @@ fn announce_answer(ui: &mut egui::Ui, i: &I18n, r: &GuidedAnnounceRule) {
 
 fn source_line(i: &I18n, source: Source) -> String {
     match source {
+        Source::Lead { index, seat } => i.tf(
+            "guided-lead-source",
+            &[
+                ("trick", (index + 1).into()),
+                ("seat", text::seat(i, seat).into()),
+            ],
+        ),
         Source::Trick {
             index, seat, card, ..
         } => i.tf(

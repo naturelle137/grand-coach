@@ -34,7 +34,10 @@ separate factual oracles.
   selected cheapest winner is Trumpf or a follow-class master.
 - **FeedPartner:** non-Ouvert Grand only (#163, below), defender last to
   the current trick, partner ahead, at least two pure legal card actions.
-- **Exclusions:** no lead, Farbspiel early winner, early or Farbspiel feeding, arbitrary fallback,
+- **LeadMaster:** non-Ouvert Grand only (#171, below), own empty-trick
+  lead, both roles where the actual shared branch permits it, at least two
+  pure core-legal cards; no guarantee against trumping.
+- **Exclusions:** other leads, Farbspiel early winner, early or Farbspiel feeding, arbitrary fallback,
   single legal action, other Grand branches, Ouvert Grand, Null or
   Kontra/Re (Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
@@ -44,7 +47,7 @@ separate factual oracles.
   class; it does not exclude trumping. These branches report unsupported.
 
 All predicates use `Knowledge`, `TrickState`, the public trick, own permitted
-hand and legal actions. Provenance is `Source::Trick`, own hand/known Skat and
+hand and legal actions. Provenance is `Source::Trick` or an empty-trick `Source::Lead`, own hand/known Skat and
 the announced game's rules. Outstanding/unseen is not a location. Memory uses
 M6 `CountingAid` definitions and initially stays hidden. Optional model
 comparisons have their own original-decision identity, status, budget, basis,
@@ -724,3 +727,73 @@ reentry, replay, assistance change or reset invalidates old responses.
 This supplies technical evidence only: independent PR review, final CI,
 protected integration and actual-main/both-OS acceptance belong to the
 terminal owner; human learning and release evidence remain pending.
+
+## Grand lead with a follow-class master (#171)
+
+Deliberate entry also admits a non-Ouvert Grand own turn at an empty trick,
+with at least two pure core-legal Play actions and the actual shared
+`LeadMaster` outcome. Both roles are supported where that branch applies;
+declarer `DrawTrumpf`, fallback, single cards, mixed calls and restricted or
+inconsistent views remain excluded. No policy or Easy tie changes.
+
+The learner identifies their public role/lead, then a legal side master,
+then attempts Easy's largest-Augen choice. A correct candidate attempt or
+explicit reveal shows the candidates, selected card and **last exact tie in
+core legal order**. This is a bounded heuristic, not an optimum. Every legal
+card remains freely playable, including a nonmaster. Wrong/retry, worked
+answer, I don't know and permanent free return retain the existing lifecycle.
+Before disclosure, no preferred card, candidates, memory or estimates appear.
+
+The exact `Knowledge::is_master` predicate excludes own and played higher
+cards, **not** known discarded higher cards. Thus a lower own rank can be a
+master alongside a higher own rank; a known discarded higher card still
+conservatively blocks it. Discarded Buben remain in the policy's
+`trumps_out`, although M6 memory's outside count excludes the known Skat.
+All Buben are Trumpf, including the Bube printed in the led suit. A void
+follower may trump a side master; no unseen owner, future trick or game
+winner is inferred. The empty-table shared `winners` list contains every
+legal lead, not guaranteed future winners.
+
+`Source::Lead` records the empty trick and actual entitled seat without a
+fictional winning card. Both real reply cards remain visible in order; the
+observation waits for trick completion and retains its individual winner
+across later automation, including after a non-Easy choice. The last reply's
+failure to follow is the bounded observation question. StartGuided uses the
+permitted closed view even at a God Mode table. Whole non-absent lessons and
+full dialog models are compared over two hidden substitutions. Estimates
+remain separately requested, with the original decision identity and basis.
+
+The independent gate accepted by HQ1633 preserves original1622 event12569,
+SHA256 `9389ce395a66ab94597e087553669594e70f12dc225b182eee9c64affbf65984`,
+and the separate post-source addendum
+`572495f2434b477e2c39c4708e0334d1da158eac3f3e09451235e676565c6fcf`.
+Original case10 is actually LeadMaster with four own Buben; separate case13
+proves DrawTrumpf. Cloud-owned `lead_master_policy` ports literal complete
+legal deals, all 3,324 next-trick and 106 terminal continuations. Local1639
+remains rework; checker1640's cloud-corrected API inventory is navigation
+only, with no accepted local Rust or feature-runtime credit.
+
+The ordinary route is `Session::new` / `GrandCoachApp::new`, seed3,
+Fixed(1), Easy/Easy, Closed, Kontra/Re off, OnRequest, figures/warnings off,
+focus None. Let opponents act, choose Pass, let opponents complete pickup,
+discard and Grand announcement. Game1/trick1: human player0, physical VH,
+dealer player2; legal indices 5/6/8/13/14/22/23/27/28/29, Easy HA23.
+Choose CQ5: actual CQ5/C7(0)/C10(3), winner physical HH/player2.
+This route uses real commands/widgets without injection.
+
+`lead-master-inventory.json` is derived from the same source selecting every
+new screenshot: name, stage, kind, language, width, height and fixture case
+where relevant. Ordinary stages cover orientation, wrong/retry, master,
+candidate, attempt, reveal, memory, waiting, observation, completion, return
+and details in de/en at 1440×1000 and 960×640. Labelled fixture components
+show tie/own higher, pickup memory, rotated later lead, trumping, four own
+Buben, no master, single legal card, DrawTrumpf and known-discard blocking.
+Their committed models are checked against actual Session outputs, not
+presented as ordinary routes or handwritten domain evidence. Existing
+screenshot inventories remain intact.
+
+One independent PR review, final required CI, protected integration and
+actual-main/both-OS complete archives, hashes and personal view inspection
+remain terminal1642's delivery work. No learner/UAT, transfer, persistence,
+training, interactive Windows 11, packaging, release or later #131 completion
+is established by these technical checks.

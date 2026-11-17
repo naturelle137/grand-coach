@@ -54,7 +54,11 @@ lesson `Evidence` below remains action-free. The bounded guided families
 and their core-legal fixtures are specified in [the walkthrough](guided-dialogue.md).
 Exact facts come from own hand, known own Skat, public trick cards, seat order
 and rules; unknown holders, including unknown Skat, stay unknown. Observations
-cite `Source::Trick` and use the announced game's follow class (Buben are
+cite `Source::Trick`; an empty Grand lead uses `Source::Lead` without
+inventing a winning card. The bounded `LeadMaster` consumer preserves the
+own/played-only master predicate (known discards still block), maximum Augen
+and last exact legal-order tie. Both real replies and the individual winner
+are observed. Observations use the announced game's follow class (Buben are
 Trumpf in Farbspiel). Search estimates remain a separate optional source,
 attached to the original decision with their budget and uncertainty.
 

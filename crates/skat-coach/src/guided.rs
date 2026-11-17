@@ -19,9 +19,9 @@ use skat_core::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Step {
-    /// Identify who is currently winning from the table.
+    /// Identify the current winner, or the own role/lead at an empty table.
     Orient,
-    /// Identify the remaining seat, or none in last seat.
+    /// Identify the remaining seat (none in last seat), or a side master on lead.
     Check,
     /// Try a legal card that serves this branch's immediate purpose.
     Narrow,
@@ -50,6 +50,13 @@ pub enum Step {
 pub enum Answer {
     /// Current winner or remaining player (none if no player follows).
     Seat(Option<Seat>),
+    /// Identify the public lead and own role at an empty trick.
+    Lead {
+        /// Seat entitled to lead.
+        seat: Seat,
+        /// Whether the learner is declarer.
+        declarer: bool,
+    },
     /// A candidate, without playing it.
     Card(Card),
     /// Whether the observed play proves failure to follow the led class.
@@ -76,16 +83,22 @@ pub enum Answer {
 pub struct Lesson {
     /// Actual shared Easy outcome.
     pub rule: CardRule,
-    /// Exact public source for the current winning card.
+    /// Exact public source: current winning card or an empty trick lead.
     pub source: Source,
     /// Frozen own/permitted card knowledge, also used by counting aid.
     pub knowledge: Knowledge,
     /// Announced contract's rules.
     pub game: GameType,
-    /// Seat after the learner in this trick; none in last seat.
+    /// Single seat after the learner; none in last seat or on a two-reply lead.
     pub remaining: Option<Seat>,
     /// Learner's seat.
     pub seat: Seat,
+    /// Own public role at an empty-trick lesson; absent in earlier families.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub lead_declarer: Option<bool>,
 }
 
 /// Select only tested branches, with real alternatives and candidates:
@@ -95,7 +108,9 @@ pub struct Lesson {
 /// Null: only the declarer on its own turn, second or last to the current trick, with
 /// at least two pure card actions and at least one losing card. The shared
 /// `Branch::Null` is broader; defenders, lead, Ouvert and
-/// restricted or inconsistent views stay excluded here.
+/// restricted or inconsistent views stay excluded here. Grand LeadMaster also
+/// admits the own empty-trick lead with an exact pure core-legal action list;
+/// declarer DrawTrumpf priority and every other lead branch stay excluded.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
     let game = contract.game;
@@ -132,6 +147,46 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     {
         return None;
     }
+    // Lead rules assume a valid own turn, declarer and an exact pure legal
+    // list. Reject malformed/restricted input before invoking the baseline.
+    if grand && view.current_trick.cards[0].is_none() {
+        if view.current_trick.cards != [None; 3]
+            || view.current_trick.leader != view.tricks.last().map(|t| t.winner)
+            || view.tricks.last().is_some_and(|t| t.winner != view.seat)
+            || view.current_seat != Some(view.seat)
+            || view.declarer.is_none()
+            || view.hand_game != Some(contract.hand)
+            || (contract.hand && view.own_skat.is_some())
+            || (view.declarer != Some(view.seat) && view.own_skat.is_some())
+            || (!contract.hand
+                && view.declarer == Some(view.seat)
+                && view.own_skat.is_none_or(|s| s.len() != 2))
+            || view.legal_actions.len() < 2
+            || view.legal_actions
+                != skat_core::legal_cards(game, view.hand, None)
+                    .iter()
+                    .map(Action::Play)
+                    .collect::<Vec<_>>()
+        {
+            return None;
+        }
+        let rule = baseline::rule(view)?;
+        if rule.branch != Branch::LeadMaster || game.is_trump(rule.card) {
+            return None;
+        }
+        return Some(Lesson {
+            rule,
+            source: Source::Lead {
+                index: view.tricks.len() as u8,
+                seat: view.seat,
+            },
+            knowledge: Knowledge::from_view(view),
+            game,
+            remaining: None,
+            seat: view.seat,
+            lead_declarer: Some(view.declarer == Some(view.seat)),
+        });
+    }
     let rule = baseline::rule(view)?;
     if view.legal_actions.len() < 2
         || rule.candidates.is_empty()
@@ -158,12 +213,22 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         game,
         seat: view.seat,
         knowledge: Knowledge::from_view(view),
+        lead_declarer: None,
     })
 }
 
 impl Lesson {
     /// Checks the immediate factual/policy task, not universal move quality.
     pub fn check(&self, step: Step, answer: Answer) -> bool {
+        if let Some(role) = self.lead_declarer {
+            return match (step, answer) {
+                (Step::Orient, Answer::Lead { seat, declarer }) => {
+                    seat == self.seat && declarer == role
+                }
+                (Step::Check | Step::Narrow, Answer::Card(c)) => self.rule.candidates.contains(&c),
+                _ => false,
+            };
+        }
         match (step, answer) {
             (Step::Orient, Answer::Seat(seat)) => seat == self.rule.winner,
             (Step::Check, Answer::Seat(seat)) => seat == self.remaining,

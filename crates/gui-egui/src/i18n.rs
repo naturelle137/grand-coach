@@ -174,6 +174,22 @@ mod tests {
                 }
             }
         }
+        // #171's explicitly labelled fixture renderer consumes these same
+        // Fluent messages outside the production source list. Its other
+        // hyphenated literals are scenario suffixes, not message keys.
+        for literal in include_str!("../examples/support/lead_master_widgets.rs")
+            .split('"')
+            .skip(1)
+            .step_by(2)
+        {
+            if literal.starts_with("guided-")
+                && literal
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+            {
+                found.insert(literal.to_owned());
+            }
+        }
         // Figure names are looked up by key (`text::figure_name`).
         for figure in skat_app::FIGURES {
             found.insert(format!("figure-{}", figure.key));
@@ -301,6 +317,7 @@ mod tests {
                     "won",
                     "lost",
                     "phase",
+                    "stage",
                     "current",
                     "card",
                     "left",
