@@ -471,6 +471,17 @@ fn live_late_coach_results_stay_withheld() {
     s.execute(Command::RequestAdvice).unwrap();
     let job = s.coach_job().unwrap();
     let id = select(&mut s, "CA");
+    // Settings remain available at any time; enabling an aid during the
+    // question must not disclose it or introduce a second pending quiz.
+    s.execute(Command::SetCoach(s.coach_settings())).unwrap();
+    s.execute(Command::SetAssist(crate::AssistSettings {
+        counting_aid: true,
+        quiz: true,
+        ..crate::AssistSettings::default()
+    }))
+    .unwrap();
+    assert_eq!(s.view().assist.counting, crate::CountingState::Off);
+    assert!(s.view().assist.quiz.question.is_none());
     let before = s.export_current_recording_privileged().unwrap();
     s.finish_coach(job.run(None)).unwrap();
     assert_eq!(s.view().coach, CoachView::withheld(s.coach_settings()));

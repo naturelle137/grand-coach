@@ -17,7 +17,9 @@ Possible means some but not all compatible hidden distributions; Certain
 means all. Neither predicts actual play or identifies hidden holders.
 
 The question hides certainty, derivation, counting aid, coach results (including
-late results) and replay panels until answer/help. Possible, Certain and Absent
+late results) and replay panels until answer/help. Coach/assistance settings
+remain changeable; enabling an aid during the question does not disclose it or
+create a second pending quiz. Possible, Certain and Absent
 are explicit answers. Shared evidence after an answer yields Correct,
 OverstatedCertainty, DeniedPossibility or UnderstatedCertainty. Requested help
 reveals that same evidence and permanently marks this question assisted.

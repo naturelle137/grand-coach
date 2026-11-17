@@ -803,7 +803,9 @@ impl Session {
             }
             _ => {}
         }
-        if self.live_abstich.open {
+        if self.live_abstich.open
+            && !matches!(command, Command::SetCoach(_) | Command::SetAssist(_))
+        {
             return Err(AppError::QuestionPending);
         }
         if let Command::SetCoach(settings) = command {
@@ -991,7 +993,7 @@ impl Session {
 
     /// Asks the question due at the human's current decision, if any.
     fn refresh_quiz(&mut self) {
-        if self.finished || self.guided.is_some() {
+        if self.finished || self.guided.is_some() || self.live_abstich.open {
             return;
         }
         let view = self.game.view(PlayerId::HUMAN.seat(self.dealer));
