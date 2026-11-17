@@ -490,3 +490,114 @@ fn a_plateau_lowers_the_rate_from_the_best_weights_then_stops() {
     );
     assert!(refused.is_err());
 }
+
+#[test]
+fn all_phase_imitation_keeps_joint_actions_and_teacher_labels() {
+    use skat_core::Action;
+    use skat_nn::{Phases, action_at, encode};
+
+    let h = Hyper {
+        all_phases: true,
+        value_mix: 0.0,
+        ..hyper()
+    };
+    let data = load(&[fixture()], &h).unwrap();
+    let records: Vec<_> = (0..2)
+        .flat_map(|i| read_shard(&fixture(), i).unwrap())
+        .collect();
+    assert_eq!(data.train.rows(), records.len());
+    assert_eq!(data.validation.rows() + data.test.rows(), 0);
+    for kind in DecisionKind::ALL {
+        assert!(data.coverage.iter().any(|c| c.kind == kind));
+    }
+    let e = &data.train;
+    let mut discards = 0;
+    let mut kontras = 0;
+    for (row, record) in records.iter().enumerate() {
+        assert_eq!(e.features.row(row), encode(&record.view));
+        assert_eq!(e.value[row], record.final_points as f32);
+        let range = e.offsets[row]..e.offsets[row + 1];
+        let actions: Vec<_> = e.legal[range.clone()]
+            .iter()
+            .map(|&i| action_at(i as usize).unwrap())
+            .collect();
+        assert_eq!(actions, record.view.legal_actions);
+        assert_eq!(actions[e.chosen[row] as usize], record.action);
+        let target = &e.target[range];
+        assert_eq!(target[e.chosen[row] as usize], 1.0);
+        assert_eq!(target.iter().sum::<f32>(), 1.0);
+        if record.view.phase == Phase::Druecken {
+            discards += 1;
+            assert_eq!(actions.len(), 66);
+            assert!(actions.iter().all(|a| matches!(a, Action::Discard(p) if p.len() == 2 && (*p - record.view.hand).is_empty())));
+        }
+        if record.action == Action::Kontra {
+            kontras += 1;
+        }
+    }
+    assert!(discards > 0 && kontras > 0);
+
+    // Opt-in changes data/cache identity; old recipes still read as before.
+    let old = hyper();
+    let json = serde_json::to_value(&old).unwrap();
+    assert!(json.get("all_phases").is_none());
+    assert_eq!(serde_json::from_value::<Hyper>(json).unwrap(), old);
+    assert_ne!(
+        nn_train::cache::key(
+            &data.sources,
+            &Hyper {
+                all_phases: false,
+                ..h.clone()
+            },
+            false,
+        ),
+        nn_train::cache::key(&data.sources, &h, false)
+    );
+    assert_eq!(h.phases(), Phases::ALL);
+}
+
+#[test]
+fn all_phase_fixture_training_records_coverage_and_refuses_mismatched_recipe() {
+    use skat_nn::Phases;
+    let h = Hyper {
+        all_phases: true,
+        epochs: 1,
+        ..hyper()
+    };
+    let data = load(&[fixture()], &h).unwrap();
+    let mut recipe = Recipe {
+        train_format: TRAIN_FORMAT,
+        encoder_version: ENCODER_VERSION,
+        phases: h.phases().bits(),
+        data: data.sources.clone(),
+        hyper: h,
+    };
+    let dir = scratch("all-phases");
+    let go = |recipe: &Recipe| {
+        train(
+            &dir,
+            recipe,
+            &data,
+            &Device::flex().autodiff(),
+            NO_CAP,
+            |_| true,
+        )
+    };
+    let trained = go(&recipe).unwrap();
+    let model = NeuralModel::load(&trained.model, &sha256(&trained.model)).unwrap();
+    assert_eq!(model.header().phases, Phases::ALL);
+    // The trained fixture can infer in every recorded phase with a legal
+    // action. This is plumbing coverage, not a playing-strength result.
+    for record in (0..2).flat_map(|i| read_shard(&fixture(), i).unwrap()) {
+        let result = model.evaluate(&record.view).unwrap();
+        assert!(record.view.legal_actions.contains(&result.action));
+    }
+    assert_eq!(go(&recipe).unwrap().model, trained.model);
+    recipe.phases = PHASES.bits();
+    assert!(
+        go(&recipe)
+            .unwrap_err()
+            .to_string()
+            .contains("recipe phases")
+    );
+}
