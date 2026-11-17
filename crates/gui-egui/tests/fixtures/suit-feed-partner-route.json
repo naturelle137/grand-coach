@@ -1,0 +1,27 @@
+[
+  {
+    "SetCoach": {
+      "focus": null,
+      "level": "OnRequest",
+      "show_figures": false,
+      "warnings": false
+    }
+  },
+  "AdvanceOpponent",
+  {
+    "Act": "Pass"
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  {
+    "Act": {
+      "Play": 3
+    }
+  },
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent",
+  "AdvanceOpponent"
+]

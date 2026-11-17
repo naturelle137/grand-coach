@@ -21,7 +21,8 @@ pub fn panel(
     // Keep free return reachable while the Null or lead explanation scrolls,
     // including at the minimum supported window height. Earlier families keep
     // their existing layout and controls.
-    if (g.lead.is_some()
+    if (g.feed_partner.is_some()
+        || g.lead.is_some()
         || g.task == Some(GuidedBranch::WinEarly)
         || g.early_condition.is_some()
         || table.contract.is_some_and(|c| c.game == GameType::Null))
@@ -33,7 +34,10 @@ pub fn panel(
         let scroll = egui::ScrollArea::vertical().id_salt("null_dialogue");
         // A new lead question starts at the top. Retaining the candidate
         // control's scroll offset could hide the next prompt at 960x640.
-        let scroll = if g.lead.is_some() || g.task == Some(GuidedBranch::WinEarly) {
+        let scroll = if g.feed_partner.is_some()
+            || g.lead.is_some()
+            || g.task == Some(GuidedBranch::WinEarly)
+        {
             scroll.id_salt(("lead_dialogue", g.step as u8))
         } else {
             scroll
@@ -70,10 +74,11 @@ fn content(
     if matches!(
         g.step,
         GuidedStep::Orient | GuidedStep::Check | GuidedStep::Narrow | GuidedStep::Act
-    ) && table
-        .contract
-        .is_some_and(|c| c.game == GameType::Grand && !c.ouvert)
-        && table.current_trick.len() == 2
+    ) && table.contract.is_some_and(|c| {
+        !c.ouvert
+            && (c.game == GameType::Grand
+                || (matches!(c.game, GameType::Farbe(_)) && g.feed_partner.is_some()))
+    }) && table.current_trick.len() == 2
         && table.declarer != Some(skat_app::PlayerId::HUMAN)
         && let Some(partner) = table
             .players

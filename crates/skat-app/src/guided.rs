@@ -127,6 +127,10 @@ pub struct GuidedView {
     pub step: GuidedStep,
     /// Immediate branch task after orientation; contains no selected card.
     pub task: Option<GuidedBranch>,
+    /// Public partner seat for an admitted Farbspiel last-seat defender.
+    /// Available during orientation without disclosing the rule or its card.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feed_partner: Option<Seat>,
     /// Empty-trick orientation, without any preferred card or candidate set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lead: Option<Seat>,
@@ -220,14 +224,20 @@ impl GuidedState {
         let result = result.filter(|r| {
             !lesson.as_ref().is_some_and(|l| {
                 matches!(l.game, skat_core::GameType::Farbe(_))
-                    && l.rule.branch == GuidedBranch::WinEarly
+                    && matches!(
+                        l.rule.branch,
+                        GuidedBranch::WinEarly | GuidedBranch::FeedPartner
+                    )
             }) || r.permitted_only()
         });
         let permitted_input = lesson
             .as_ref()
             .filter(|l| {
                 matches!(l.game, skat_core::GameType::Farbe(_))
-                    && l.rule.branch == GuidedBranch::WinEarly
+                    && matches!(
+                        l.rule.branch,
+                        GuidedBranch::WinEarly | GuidedBranch::FeedPartner
+                    )
             })
             .map(|_| Box::new(view.clone()));
         Self {
@@ -268,10 +278,13 @@ impl GuidedState {
         }
     }
 
-    pub(crate) fn permitted_suit_early(&self) -> bool {
+    pub(crate) fn permitted_suit_dialogue(&self) -> bool {
         self.lesson.as_ref().is_some_and(|l| {
             matches!(l.game, skat_core::GameType::Farbe(_))
-                && l.rule.branch == GuidedBranch::WinEarly
+                && matches!(
+                    l.rule.branch,
+                    GuidedBranch::WinEarly | GuidedBranch::FeedPartner
+                )
         })
     }
 
@@ -305,7 +318,7 @@ impl GuidedState {
     pub(crate) fn capture(&mut self, result: &CoachResult, budget: crate::Budget) -> bool {
         if result.guided_key() != self.key
             || result.guided_budget() != budget
-            || (self.permitted_suit_early() && !result.permitted_only())
+            || (self.permitted_suit_dialogue() && !result.permitted_only())
         {
             return false;
         }
@@ -331,6 +344,13 @@ impl GuidedState {
                 .lesson
                 .as_ref()
                 .and_then(|l| l.lead_declarer.map(|_| l.seat)),
+            feed_partner: self.lesson.as_ref().and_then(|l| {
+                (matches!(l.game, skat_core::GameType::Farbe(_))
+                    && l.rule.branch == GuidedBranch::FeedPartner
+                    && l.rule.last)
+                    .then_some(l.rule.winner)
+                    .flatten()
+            }),
             lead_replies: self.lead_replies.clone(),
             correct: self.correct,
             task: matches!(self.step, GuidedStep::Narrow | GuidedStep::Act)
@@ -656,9 +676,9 @@ impl Session {
         self.guided.as_ref().map(|s| {
             s.view(
                 self.coach.settings.show_figures,
-                // #178 is explicitly taught from the permitted player view,
+                // These Farbspiel families use the permitted player view,
                 // including its basis label on a privileged God Mode table.
-                if s.permitted_suit_early() {
+                if s.permitted_suit_dialogue() {
                     crate::CoachBasis::OwnView
                 } else {
                     self.config().coach_basis()

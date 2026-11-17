@@ -269,6 +269,10 @@ higher cards do not block it, known discarded higher cards still do.
 It takes maximum Augen, last exact legal-order tie, with no trick guarantee.
 `Source::Lead` has no current winning card; observation retains both actual
 replies and the completed individual winner. Declarer DrawTrumpf stays excluded.
+Non-Ouvert Farbspiel also admits last-seat defender `FeedPartner` (#185),
+with the partner currently ahead, exact ordered pure core-legal actions and
+consistent turn/leader and Hand/pickup information. This family uses the
+permitted view, including original-decision estimates, even in God Mode.
 FeedPartner considers all legal cards, including overtakes, maximises
 `(!is_trump, Augen)` and keeps the last exact legal-order tie without power. WinEarly retains all current winners as
 candidates and explains only the selected card: Trumpf or a follow-class

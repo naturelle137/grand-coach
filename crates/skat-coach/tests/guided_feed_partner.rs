@@ -82,10 +82,22 @@ fn frozen_complete_deals_legal_order_every_completion_and_exact_feed_key() {
         let feed = l
             .as_ref()
             .is_some_and(|l| l.rule.branch == Branch::FeedPartner);
-        assert_eq!(feed, c.supported, "{} applicability", c.id);
+        // Keep #163's historical fixture metadata unchanged. These two
+        // Farbspiel exclusions now belong to #185's independently gated
+        // family; this updates current admission, not that historical oracle.
+        let suit_now_supported = matches!(c.id, "A-suit" | "A-suit-corrected");
+        assert_eq!(
+            feed,
+            c.supported || suit_now_supported,
+            "{} applicability",
+            c.id
+        );
+        if suit_now_supported {
+            assert_eq!(l.as_ref().unwrap().rule.card, card(7));
+        }
         if c.id == "B-declarer-ahead" {
             assert_eq!(l.as_ref().unwrap().rule.branch, Branch::WinLast);
-        } else if !c.supported {
+        } else if !c.supported && !suit_now_supported {
             assert!(l.is_none(), "{} exclusion", c.id);
         }
         if feed {

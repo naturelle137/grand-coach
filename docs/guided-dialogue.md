@@ -1,4 +1,4 @@
-# Guided card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159, #161, #163, #165, #169, #171, #176, #178)
+# Guided card play, Reizen, Skataufnahme, Drücken, Ansage and Kontra/Re pilot (#131, #148, #151, #153, #155, #157, #159, #161, #163, #165, #169, #171, #176, #178, #185)
 
 This first slice implements deliberate entry, orientation, checking the next
 seat, a candidate attempt, the actual Easy rule answer, real observation and
@@ -10,7 +10,7 @@ remain unmeasured.
 
 The card-play scope includes `UnderPartner`, `WinLast`, non-Ouvert Grand `WinEarly` and
 [non-Ouvert Farbspiel `WinEarly`](#farbspiel-winearly-178) on the human's own current second turn,
-last-seat Grand `FeedPartner`, [Grand `LeadMaster`](#grand-lead-with-a-follow-class-master-171),
+last-seat Grand and [Farbspiel `FeedPartner`](#farbspiel-last-seat-feedpartner-185), [Grand `LeadMaster`](#grand-lead-with-a-follow-class-master-171),
 and Null declarer play [last](#null-declarer-last-to-the-current-trick-165)
 or [second](#null-declarer-acting-second-169), and the [opening lead](#null-opening-lead-176). These are bounded heuristic
 dialogues, not new solver-approved mechanisms in the six-lesson catalogue.
@@ -43,7 +43,8 @@ separate factual oracles.
   pickup information. In Farbspiel, all four Buben and the announced suit are
   Trumpf. A side master can be trumped; a lower Trumpf can be overtrumped.
   Unknown holders stay unknown.
-- **FeedPartner:** non-Ouvert Grand only (#163, below), defender last to
+- **FeedPartner:** non-Ouvert Grand (#163, below) or
+  [Farbspiel](#farbspiel-last-seat-feedpartner-185) (#185), defender last to
   the current trick, partner ahead, at least two pure legal card actions.
 - **LeadMaster:** non-Ouvert Grand only (#171, below), own empty-trick
   lead, both roles where the actual shared branch permits it, at least two
@@ -52,7 +53,7 @@ separate factual oracles.
   or [second](#null-declarer-acting-second-169), or the opening lead (#176), with at least two pure legal
   cards and a current loser; the linked sections define the full guards.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
-  early or Farbspiel feeding, arbitrary fallback,
+  early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
   single legal action, other Grand branches, Ouvert Grand, other Null card play or
   card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
   Ansage and Kontra/Re: see below). If the
@@ -141,7 +142,8 @@ the last seat: see #159 below). Grand `LeadMaster` is supported within its
 play [last](#null-declarer-last-to-the-current-trick-165) or
 [second](#null-declarer-acting-second-169). Non-Ouvert Farbspiel `WinEarly`
 follows the [#178 guards](#farbspiel-winearly-178). Unsupported remain Grand
-`DrawTrumpf`, early or Farbspiel `FeedPartner`, fallback, single legal moves
+`DrawTrumpf`, early `FeedPartner`, Farbspiel `FeedPartner` outside the
+[#185 guards](#farbspiel-last-seat-feedpartner-185), fallback, single legal moves
 and Ouvert Grand. Older Farbspiel families, including Ouvert, keep their
 shipped scope; #178 does not add Ouvert WinEarly. A core-offered Kontra
 keeps its own dialogue first. In last seat the learner's own card completes
@@ -937,3 +939,71 @@ protected integration and merged-main/both-OS acceptance belong to the terminal
 owner. Later #131 phases remain open, #175 remains finally deferred. No learner
 UAT, transfer, training, persistence, interactive Windows 11, packaging or
 release acceptance follows.
+
+## Farbspiel last-seat FeedPartner (#185)
+
+Deliberate entry admits a non-Ouvert Farbspiel defender on its valid current
+last turn, after exactly two contiguous public cards with a consistent leader,
+at least two actions in the exact pure core-legal Play order and consistent
+Hand/pickup information. The partner must currently lead and the shared rule
+must actually return `FeedPartner` with `last=true`. Early feeding, declarer,
+Ouvert, malformed/restricted/reordered inputs and single choices are excluded
+from this new family. Missing declarer returns before the baseline call.
+Existing families, including Grand, retain their support; a new-family false
+result does not imply that every older lesson is absent.
+
+Easy's unchanged shared policy considers EVERY legal card, maximizes
+`(!is_trump, printed Augen)` and retains the LAST exact tie in core legal
+order. There is no power tie-break. All four Buben and the announced suit
+are Trumpf. A selected card can overtake the partner. The dialogue observes
+the actual completing card and individual winner, without claiming an optimum,
+a guaranteed partner trick, a game result or an unknown card's holder.
+
+The public partner/last-seat role is available during orientation without the
+preferred card, candidate set or rule. `task` itself stays absent in Orient
+and Check. One prompt, at most two supporting facts, wrong/retry, any legal
+candidate attempt, deliberate reveal/I don't know, collapsed memory and immediate
+free return reuse the existing lifecycle. The panel scrolls below the return
+control at 960x640. Nothing autoplays. Estimates need separately enabled figures
+and a separate request, retain the original decision and frozen permitted input,
+and cannot reuse privileged God Mode analysis. Full non-absent lessons and
+complete app dialogue models match across BOTH positive hidden pairs, including
+God Mode; the table's concealed hands and Skat never enter the dialogue.
+
+HQ1827 accepted HQ1824's original SHA256
+`abf899121b7de84ad4d53c8b5721ff7b9cb855c2e3082371bf79495e0892998f`,
+freeze event13785, with zero corrections. Six full 32-card deals cover all four
+suits, all three reachable defender seats, Hand/pickup, every candidate and all
+37 represented own-card completions, plus four complete terminal paths.
+Handwritten physical partitions, selected cards, ties and individual winners
+remain distinct from core-serialized full views and post-freeze source-informed
+Knowledge/CardRule numeric/API observations. The default-feature
+`suit_feed_partner_policy` target ports those literals; missing-declarer's old
+baseline panic is recorded as such, never a successful rejection. Cloud-authored
+Rust gives no local-model coding credit. The rejected HQ1825 GUI proposal and
+illustrative HQ1826 repair are not implementation evidence.
+
+The accepted ordinary route starts Session/GrandCoachApp seed0, Fixed3,
+Easy/Easy, Closed, no Kontra, OnRequest, figures/warnings off, focus None.
+`suit-feed-partner-route.json` preserves all twelve commands: SetCoach,
+AdvanceOpponent, Pass, four AdvanceOpponent, Play3, four AdvanceOpponent.
+Game1/core seed13080132717333068652, dealer2: human physical Vorhand defender,
+Mittelhand declarer, Herz pickup. At public [23,20], legal [4,12,16,28],
+partner Hinterhand currently leads. Easy28 completes [23,20,28] with winner
+Hinterhand; free4 completes [23,20,4] with winner Vorhand. All four legal
+choices run through actual widgets. Advancing opponents is normal app automation.
+No route search or injected play is presented as ordinary.
+
+`guided-suit-feed-partner-*` screenshots and their source-derived
+`suit-feed-partner-inventory.json` cover all new stages in de/en at 1440x1000
+and 960x640. Names containing `fixture` are explicitly labelled component
+views from checked core/app sessions, including all suits, ties, Trumpf,
+late completions and reachable early/single exclusions. They are not ordinary
+routes or new handwritten oracles. The existing all-scenario CI collection
+includes this inventory and PNG family on both operating systems.
+
+This is author technical evidence. Terminal HQ1829 owns the one fresh new-PR
+review, at most one findings fix, final CI, protected integration and actual
+new-main/both-OS archive and personal visual acceptance. #131 later phases
+remain open; #175/#182 remain finally deferred. No learner/UAT, transfer,
+training, persistence, interactive Windows 11, packaging or release claim.

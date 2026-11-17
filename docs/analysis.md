@@ -424,3 +424,17 @@ checked; numeric final settlement and learning efficacy are not inferred.
 The complete guided model, including separately requested estimates, uses
 the original permitted view even in God Mode. Privileged cached advice is
 excluded from this family; ordinary God Mode advice keeps its own provenance.
+
+### Farbspiel last-seat feeding dialogue (#185)
+
+The unchanged shared `FeedPartner` rule considers every legal card, maximizes
+`(!is_trump, printed Augen)` and retains the last exact core-order tie, without
+power. The bounded coach admission is a valid non-Ouvert Farbspiel last-seat
+defender, partner currently ahead, exact ordered pure legal list of at least
+two and consistent Hand/pickup. All Buben and the announced suit are Trumpf.
+A selected card may overtake the partner; only the actual individual winner
+is observed. No strategic optimum, game guarantee or concealed holder follows.
+The [walkthrough](guided-dialogue.md#farbspiel-last-seat-feedpartner-185) separates
+the accepted independent physical predictions from source-informed API metadata.
+The cloud-owned default-feature policy target covers all 37 represented legal
+completions, four terminal paths and two full-view-equal hidden pairs.
