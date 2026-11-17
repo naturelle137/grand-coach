@@ -3386,6 +3386,33 @@ fn lead_master_full_non_absent_dialogue_privacy_including_god_mode() {
                 assert_eq!(gx, gy, "{other}/god={god}");
             }
             assert!(x.guided().unwrap().rule.is_some());
+            // Common legal public continuation in BOTH concealed deals:
+            // SA/S8/S10. Compare the entire non-absent dialogue through
+            // waiting, each reply, observation and completed feedback too.
+            for n in [15, 9, 11] {
+                x.apply(Action::Play(lead_fixture::card(n))).unwrap();
+                y.apply(Action::Play(lead_fixture::card(n))).unwrap();
+                assert_eq!(x.game.view(Seat::Vorhand), y.game.view(Seat::Vorhand));
+                let gx = x.guided().unwrap();
+                let mut gy = y.guided().unwrap();
+                gy.id = gx.id;
+                assert_eq!(gx, gy, "{other}/god={god}/public-card={n}");
+            }
+            assert_eq!(x.guided().unwrap().step, S::Observe);
+            for a in [
+                G::Answer(A::Void(true)),
+                G::Retry,
+                G::Answer(A::Void(false)),
+            ] {
+                respond(&mut x, a).unwrap();
+                respond(&mut y, a).unwrap();
+                let gx = x.guided().unwrap();
+                let mut gy = y.guided().unwrap();
+                gy.id = gx.id;
+                assert_eq!(gx, gy, "{other}/god={god}/feedback={a:?}");
+            }
+            assert_eq!(x.guided().unwrap().step, S::Complete);
+            assert!(x.guided().unwrap().observation.is_some());
         }
     }
 }
