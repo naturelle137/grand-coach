@@ -1,0 +1,152 @@
+{
+  "job": 1974,
+  "route": "seed22/Fixed3/game3/trick1/Mittelhand",
+  "views": [
+    {
+      "name": "guided-grand-early-feed-complete-de-narrow.png",
+      "width": 960,
+      "height": 640,
+      "sha256": "824f41675ebd3a338743bba597a11c53c1abf1755d5c7961cd429f50d4e47b9d",
+      "bytes": 213892,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-complete-de.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "6ff859a65df7e68d5d5fb12180d03eecd5119dc20b146d2de177848677b825b9",
+      "bytes": 265783,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-complete-en-narrow.png",
+      "width": 960,
+      "height": 640,
+      "sha256": "ab7c15fd7b1f03fc34bf0ad5339d0049698e6aafae6d55fc8dffbf0a3d685162",
+      "bytes": 198961,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-complete-en.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "db62d1e38bcbf9f368da45c8c47bc7a0129a3f5260d7e422af0aeac026b42296",
+      "bytes": 250592,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-observe-de-narrow.png",
+      "width": 960,
+      "height": 640,
+      "sha256": "84bcf506557707387d215f0e6f9863f41c645116b651fef2136078054b3a4576",
+      "bytes": 205188,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-observe-de.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "c13ed833474f9c23b3fb5fc08b49c80471334a7a0fb0976800a23f7aadf2c17b",
+      "bytes": 256993,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-observe-en-narrow.png",
+      "width": 960,
+      "height": 640,
+      "sha256": "970d0c83968936e933f765c38744699db6537c2087023971e3e5d1eca41d73e5",
+      "bytes": 194893,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-observe-en.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "10dd788f58b0779ee6a1b113095461f1d9d204b75eee37de25e4ea126fc9ff58",
+      "bytes": 246868,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-orient-de-narrow.png",
+      "width": 960,
+      "height": 640,
+      "sha256": "edb1a1a294ed94ca79051efaaeb189b0c9d16fbd52beb0b1410f9945eb1bf12c",
+      "bytes": 184630,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-orient-de.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "8abb6670417b21abdd0f3f2662fec073a3b02235f48f2dc3866385f5886768d3",
+      "bytes": 241769,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-orient-en-narrow.png",
+      "width": 960,
+      "height": 640,
+      "sha256": "e5c8f60e6b94dfb37575c9e71a1e121e542603c63caf15fcfaad29588adb833c",
+      "bytes": 175193,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-orient-en.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "b829e3084a7ddd99b28462706efdb227f92d853b5521078e96be4b894403824f",
+      "bytes": 231686,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-rule-de-narrow.png",
+      "width": 960,
+      "height": 640,
+      "sha256": "4925a35ef85aaad4c95a0bdc55945e47a939b86b3621e89bbff0c171d702db11",
+      "bytes": 218609,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-rule-de.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "4c25f9cb2cefa52e001289089f440ad19756bf21468ff1420541b1e8db73ba4d",
+      "bytes": 275462,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-rule-en-narrow.png",
+      "width": 960,
+      "height": 640,
+      "sha256": "a5d97ecdbae663e887a8c671986d475b08ac5d8ad7404eb5248787426b86e496",
+      "bytes": 202143,
+      "kind": "ordinary",
+      "inspected": true
+    },
+    {
+      "name": "guided-grand-early-feed-rule-en.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "faef391a57df9fdeaf69a24c17d9f70944b908f3024476309acd307270c26f93",
+      "bytes": 258850,
+      "kind": "ordinary",
+      "inspected": true
+    }
+  ],
+  "finding": "All sixteen full originals inspected. New dialogue and controls fit both sizes; existing score-sheet clipping in side panel remains visible. No learner observations.",
+  "source_commit": "09d7696f44e73f67e3215afde5d820bf16bee589"
+}
