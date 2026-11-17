@@ -1097,3 +1097,6 @@ guided-rule-null-lead = Easy minimises (Trumpf, Augen, Null power), keeping the 
 guided-null-lead-details = Ordering and empty-table limits
 guided-null-lead-order = Power counts weaker cards of the printed suit (0–7). A zero-Augen 9 can precede a positive-Augen 10 in another suit: this is not universally the lowest printed rank.
 guided-null-lead-empty = Every legal lead is a current-table winner only because the table is empty. This guarantees neither taking nor avoiding the completed trick or winning the game.
+
+guided-suit-early-trumpf = Easy’s selected card is trump: all four Jacks and the announced suit are trumps; a Jack never follows its printed suit. The remaining player may overtrump with a higher trump.
+guided-suit-early-master = Easy’s selected card is a master of its follow class: higher cards are known or in your hand. The remaining player may still trump if void in the side suit; all Jacks and the announced suit are trumps.

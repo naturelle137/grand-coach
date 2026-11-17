@@ -102,7 +102,7 @@ pub struct Lesson {
 }
 
 /// Select only tested branches, with real alternatives and candidates:
-/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus Grand WinEarly and last-seat FeedPartner. Grand
+/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus non-Ouvert Farbspiel/Grand WinEarly and Grand last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
 /// and at least one losing card; early FeedPartner and Fallback stay excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
@@ -220,14 +220,35 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             lead_declarer: Some(view.declarer == Some(view.seat)),
         });
     }
+    // Only the new Farbspiel WinEarly family uses this strict admission.
+    // Preserve the existing families and their shared branch precedence.
+    let suit_early = matches!(game, GameType::Farbe(_))
+        && !contract.ouvert
+        && view.current_seat == Some(view.seat)
+        && view.current_trick.cards[0].is_some()
+        && view.current_trick.cards[1..] == [None, None]
+        && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+        && view.declarer.is_some()
+        && view.hand_game == Some(contract.hand)
+        && !(contract.hand && view.own_skat.is_some())
+        && !(view.declarer != Some(view.seat) && view.own_skat.is_some())
+        && (contract.hand
+            || view.declarer != Some(view.seat)
+            || view
+                .own_skat
+                .is_some_and(|s| s.len() == 2 && (s & view.hand).is_empty()))
+        && view.legal_actions
+            == skat_core::legal_cards(game, view.hand, view.current_trick.led())
+                .iter()
+                .map(Action::Play)
+                .collect::<Vec<_>>();
     let rule = baseline::rule(view)?;
     if view.legal_actions.len() < 2
         || rule.candidates.is_empty()
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
         || !(matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
-            || (grand
-                && (rule.branch == Branch::WinEarly
-                    || (rule.branch == Branch::FeedPartner && rule.last)))
+            || ((grand || suit_early) && rule.branch == Branch::WinEarly)
+            || (grand && rule.branch == Branch::FeedPartner && rule.last)
             || (null && rule.branch == Branch::Null && !rule.losers.is_empty()))
     {
         return None;
@@ -287,7 +308,7 @@ impl Lesson {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EarlyCondition {
-    /// A Bube in Grand; a higher remaining Bube can still overtrump.
+    /// A Trumpf (only Buben in Grand); a higher remaining Trumpf may overtrump.
     Trumpf,
     /// No unseen higher card of this follow class; trumping remains possible.
     FollowClassMaster,

@@ -200,6 +200,7 @@ pub(crate) struct GuidedState {
     sequence: u32,
     legal_cards: Vec<skat_core::Card>,
     hand: Vec<skat_core::Card>,
+    permitted_input: Option<Box<PlayerView>>,
 }
 
 impl GuidedState {
@@ -216,7 +217,21 @@ impl GuidedState {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let mut id = GuidedId::from(key);
         id.generation = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let result = result.filter(|r| {
+            !lesson.as_ref().is_some_and(|l| {
+                matches!(l.game, skat_core::GameType::Farbe(_))
+                    && l.rule.branch == GuidedBranch::WinEarly
+            }) || r.permitted_only()
+        });
+        let permitted_input = lesson
+            .as_ref()
+            .filter(|l| {
+                matches!(l.game, skat_core::GameType::Farbe(_))
+                    && l.rule.branch == GuidedBranch::WinEarly
+            })
+            .map(|_| Box::new(view.clone()));
         Self {
+            permitted_input,
             key,
             id,
             lesson,
@@ -253,6 +268,24 @@ impl GuidedState {
         }
     }
 
+    pub(crate) fn permitted_suit_early(&self) -> bool {
+        self.lesson.as_ref().is_some_and(|l| {
+            matches!(l.game, skat_core::GameType::Farbe(_))
+                && l.rule.branch == GuidedBranch::WinEarly
+        })
+    }
+
+    pub(crate) fn permitted_estimate_input(&self) -> Option<(DecisionKey, PlayerView)> {
+        self.result
+            .is_none()
+            .then(|| {
+                self.permitted_input
+                    .as_deref()
+                    .map(|v| (self.key, v.clone()))
+            })
+            .flatten()
+    }
+
     pub(crate) fn step(&self) -> GuidedStep {
         self.step
     }
@@ -269,13 +302,17 @@ impl GuidedState {
         event
     }
 
-    pub(crate) fn capture(&mut self, result: &CoachResult, budget: crate::Budget) {
-        if result.guided_key() == self.key
-            && result.guided_budget() == budget
-            && !result.is_preview()
+    pub(crate) fn capture(&mut self, result: &CoachResult, budget: crate::Budget) -> bool {
+        if result.guided_key() != self.key
+            || result.guided_budget() != budget
+            || (self.permitted_suit_early() && !result.permitted_only())
         {
+            return false;
+        }
+        if !result.is_preview() {
             self.result = Some(result.clone());
         }
+        true
     }
 
     pub(crate) fn view(&self, figures_enabled: bool, basis: crate::CoachBasis) -> GuidedView {
@@ -619,7 +656,13 @@ impl Session {
         self.guided.as_ref().map(|s| {
             s.view(
                 self.coach.settings.show_figures,
-                self.config().coach_basis(),
+                // #178 is explicitly taught from the permitted player view,
+                // including its basis label on a privileged God Mode table.
+                if s.permitted_suit_early() {
+                    crate::CoachBasis::OwnView
+                } else {
+                    self.config().coach_basis()
+                },
             )
         })
     }

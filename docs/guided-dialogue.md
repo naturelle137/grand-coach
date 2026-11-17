@@ -875,3 +875,55 @@ Both entire OS archives, every hash, actual-main acceptance and personal
 inspection on each OS remain terminal delivery checks. #131 later phases
 remain OPEN; #175 remains deferred. No learner/UAT/transfer, training,
 persistence, interactive Windows 11, packaging or release evidence is claimed.
+
+## Farbspiel WinEarly (#178)
+
+The deliberate dialogue now admits non-Ouvert Farbspiel on the human's own
+current second turn: exactly one contiguous public card, correct leader,
+at least two pure actions in exact core-legal order and consistent Hand or
+pickup information. Shared `baseline::rule` remains unchanged: partner-ahead
+precedence, all current winners as candidates, minimum `(is_trump, power)`
+and first exact tie. The selected cheapest winner itself must be Trumpf or
+a conservative follow-class master; another own master does not qualify it.
+All four Buben and the announced suit are Trumpf. A side master can still be
+trumped; a lower Trumpf can be overtrumped. Unknown holders remain unknown.
+New-family exclusions do not withdraw older supported families.
+
+The existing stages retain one prompt, at most two supporting facts,
+attempt/retry, unknown/reveal, skip, all legal choices and immediate return.
+Memory starts collapsed; estimates need separate consent and enabled figures
+and remain tied to the original decision. The observation retains the actual
+third card and individual winner across automation, including a free choice.
+The new family's complete model and basis label use the permitted player view
+also on a God Mode table. Its long explanation scrolls while return remains
+above the scroll area at the minimum supported size.
+
+Accepted HQ1740 original SHA256
+`ed1d45446b6ad287334e1c35aa2aa75d7f12346149ed434655c7378933c79511`
+and sole HQ1751 supplement SHA256
+`6f7051a935407985a4de4a286f666a811c5d135e7f29fe7a790f95c3a191e7ff`
+remain separate. HQ1752 accepted the domain gate. The original 51 incorrect
+expectations and eleven explicitly uncertain supplemental legacy predictions
+remain evidence, not production defects or silently rewritten expectations.
+The source fixture names which numeric/API values use disclosed calibration.
+Twelve full legal histories cover all four announced suits, both roles,
+physical Hinterhand acting second, known pickup Skat, Buben follow classes,
+positive hidden pairs and a cheaper non-master/Fallback boundary. All 356
+represented third-card completions are checked; no numeric settlement claim.
+Selected side masters survive only 5/10, 3/10, 4/10 and 3/9 represented replies.
+
+The ordinary widget route reuses the accepted seed0/Fixed3/EasyEasy/Closed
+110-command prefix from HQ1740, stored as `suit-win-early-route.json`. Game3
+uses core seed12896916468484187878, dealer1, Mittelhand declarer, pickup Karo.
+Easy24 produces `[7,24,1]`, winner Mittelhand; free9 produces `[7,9,5]`, winner
+Vorhand. No new route search or injected state is presented as ordinary.
+`guided-suit-win-early-*` views use a source-derived inventory in de/en at
+1440x1000 and 960x640. `fixture` names are labelled component views from the
+checked full legal sessions, including trumping, overtrumping and Fallback.
+Historical fixture tables and accepted images remain unchanged.
+
+This is author technical evidence only. Independent review, final CI,
+protected integration and merged-main/both-OS acceptance belong to the terminal
+owner. Later #131 phases remain open, #175 remains finally deferred. No learner
+UAT, transfer, training, persistence, interactive Windows 11, packaging or
+release acceptance follows.

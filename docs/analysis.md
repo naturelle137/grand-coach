@@ -404,3 +404,23 @@ Source-derived `null-lead-inventory.json` joins the existing both-OS gallery.
 Push gate and the configured workspace non-GPU/include-ignored suite remain
 required, including nn-train and vulkan-search. Terminal owns review and final
 actual-main/both-OS archive/hash/visual acceptance. No learner results follow.
+
+### Farbspiel early-winner dialogue (#178)
+
+The coach now admits the shared `WinEarly` branch only for a non-Ouvert
+Farbspiel current-second-seat view with one contiguous public card, correct
+turn/leader, at least two exact ordered core-legal Play actions and consistent
+Hand/pickup knowledge. Shared policy and AI choices remain unchanged. Every
+current winner is a candidate; minimum `(is_trump, power)` keeps the first
+exact tie. The selected winner itself must be Trumpf or a conservative
+follow-class master. Another own master cannot qualify a cheaper non-master.
+All Buben and the announced suit are Trumpf. A side master remains vulnerable
+to trumping, a lower Trumpf to overtrumping. No unseen holder is assigned.
+
+The [walkthrough](guided-dialogue.md#farbspiel-winearly-178) separates accepted
+physical oracle facts from disclosed source-informed numeric/API calibration.
+All356 represented next-trick completions and four late terminal paths are
+checked; numeric final settlement and learning efficacy are not inferred.
+The complete guided model, including separately requested estimates, uses
+the original permitted view even in God Mode. Privileged cached advice is
+excluded from this family; ordinary God Mode advice keeps its own provenance.

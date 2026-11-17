@@ -132,7 +132,7 @@ fn hidden_swaps_and_unknown_skat_do_not_change_early_lesson() {
 }
 
 #[test]
-fn early_exclusions_retain_existing_branches_and_no_new_farbspiel() {
+fn early_exclusions_retain_existing_branches_and_suit_extension() {
     let d = oracle::deals();
     let no = swap(d[4], card("CT"), card("C9"));
     let one = swap(swap(d[0], card("C8"), card("H7")), card("CT"), card("H8"));
@@ -198,7 +198,7 @@ fn early_exclusions_retain_existing_branches_and_no_new_farbspiel() {
             vec!["CK"],
             Seat::Mittelhand,
             Branch::WinEarly,
-            false,
+            true,
         ),
     ] {
         let v = contract_position(deal, decl, game, &plays).view(seat);
