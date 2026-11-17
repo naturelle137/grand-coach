@@ -738,15 +738,16 @@ impl GrandCoachApp {
             ui.menu_button(self.t("menu-game"), |ui| {
                 // A practice attempt has nothing to save and starts nothing.
                 let live = self.practice.is_none();
+                let can_record = live && self.session.live_abstich().is_none();
                 if ui
-                    .add_enabled(live, egui::Button::new(self.t("record-save")))
+                    .add_enabled(can_record, egui::Button::new(self.t("record-save")))
                     .clicked()
                 {
                     self.recording.show_dialog(true, &self.session);
                     ui.close();
                 }
                 if ui
-                    .add_enabled(live, egui::Button::new(self.t("record-open")))
+                    .add_enabled(can_record, egui::Button::new(self.t("record-open")))
                     .clicked()
                 {
                     self.recording.show_dialog(false, &self.session);

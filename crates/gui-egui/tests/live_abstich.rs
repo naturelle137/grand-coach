@@ -3,7 +3,7 @@
 //! Full widget flow and restart from the real single history file.
 use eframe::egui::{self, Role};
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 use gui_egui::{GrandCoachApp, Language, i18n::I18n};
 use skat_app::{CoachLevel, CoachSettings, Level, Opponents, SeriesLength, SessionConfig};
 #[path = "../examples/support/live_abstich_flow.rs"]
@@ -118,6 +118,86 @@ fn live_widgets_small_window_still_returns_without_mutation() {
             .unwrap(),
         before
     );
+}
+
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn live_recording_menu_stays_disabled_until_return_without_mutation() {
+    for language in Language::ALL {
+        for stage in ["entry", "candidate", "answer", "help"] {
+            for action in ["record-open", "record-save"] {
+                let mut h = harness();
+                flow::stage(&mut h, language, stage);
+                let i = I18n::new(language);
+                let recording = h
+                    .state()
+                    .session()
+                    .export_current_recording_privileged()
+                    .unwrap();
+                let live = h.state().session().live_abstich().unwrap();
+                let observations = h.state().session().live_abstich_observations().to_vec();
+                let history = h.state().learning_history().clone();
+                let legal = h.state().session().view().legal_actions;
+                assert_eq!(live.evidence.is_some(), matches!(stage, "answer" | "help"));
+                assert_eq!(live.response.is_some(), stage == "answer");
+                assert_eq!(live.assisted, stage == "help");
+
+                h.get_by_role_and_label(Role::Button, &i.t("menu-game"))
+                    .click_accesskit();
+                h.run_steps(5);
+                assert!(
+                    h.get_by_role_and_label(Role::Button, &i.t(action))
+                        .accesskit_node()
+                        .is_disabled()
+                );
+                flow::click(&mut h, &i.t(action));
+                assert_eq!(h.state().session().live_abstich().unwrap(), live);
+                assert!(h.query_by_label(&i.t("record-file-help")).is_none());
+                assert!(h.query_by_label(&i.t("record-title")).is_none());
+                if matches!(stage, "entry" | "candidate") {
+                    assert!(h.query_by_label(&i.t("focus-boundary-note")).is_none());
+                }
+                // Close the still-open menu before using the actual Return widget.
+                h.key_press(egui::Key::Escape);
+                h.run_steps(5);
+                assert!(
+                    !h.get_by_role_and_label(Role::Button, &i.t("live-abstich-return"))
+                        .accesskit_node()
+                        .is_disabled()
+                );
+                flow::close(&mut h, language);
+                assert!(h.state().session().live_abstich().is_none());
+                for restored in ["record-open", "record-save"] {
+                    flow::click(&mut h, &i.t("menu-game"));
+                    assert!(
+                        !h.get_by_role_and_label(Role::Button, &i.t(restored))
+                            .accesskit_node()
+                            .is_disabled()
+                    );
+                    flow::click(&mut h, &i.t(restored));
+                    assert!(h.query_by_label(&i.t("record-file-help")).is_some());
+                    flow::click(&mut h, &i.t("button-cancel"));
+                    assert!(h.query_by_label(&i.t("record-file-help")).is_none());
+                }
+                assert_eq!(
+                    h.state()
+                        .session()
+                        .export_current_recording_privileged()
+                        .unwrap(),
+                    recording
+                );
+                assert_eq!(h.state().session().view().legal_actions, legal);
+                assert_eq!(
+                    h.state().session().live_abstich_observations(),
+                    observations
+                );
+                assert_eq!(h.state().learning_history(), &history);
+                eprintln!(
+                    "{language:?}/{stage}/{action}: disabled, Return reachable, both dialogs cancellable; recording and observations unchanged"
+                );
+            }
+        }
+    }
 }
 
 #[test]
