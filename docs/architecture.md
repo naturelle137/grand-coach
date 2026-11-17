@@ -326,7 +326,7 @@ file bytes stay untouched.
 
 `skat_app::LearningHistory` is the single local store for learning
 observations; later decision provenance extends it rather than adding a
-second statistics system. Format 5 holds a persisted attempt counter, the
+second statistics system. Format 6 holds a persisted attempt counter, the
 attempts (`AttemptId`, `AttemptKind::Series`, `Practice { attempt }` or
 `Training { attempt }`, where attempt 2 and higher are intentional retries
 or repeats) and the `RetrievalEvent`s exactly as the session or the
@@ -335,7 +335,8 @@ its attempt. An event's `OpportunityId` is either `Game(QuestionId)` or
 `Training(TrainingTask)` (fixture and version); it must fit its attempt
 kind (`LearningError::InvalidContext`). It holds no full deals, other hands,
 seeds or recordings; catalogue transitions retain bounded permitted-view
-scoring provenance.
+scoring provenance. Format 6 additionally stores separate [explicit live Abstich
+observations](live-abstich.md); formats 1–5 remain readable.
 
 Provenance (format 3): each new event carries `lesson`, the immutable
 `LessonRevision` (`LessonFamily::CountingQuiz`, `FocusedRetrieval` or
@@ -399,8 +400,8 @@ of this run stay in memory until the learner chooses **Rename damaged file
 and start a new history**, which renames it to the first free
 `learning-history.damaged-<n>.json` and saves.
 
-Migration: this build reads formats 1, 2, 3, 4 and 5 (`LEARNING_FORMATS_READ`)
-and writes 5. Format 1 (PR #133) is decoded unchanged: the untagged
+Migration: this build reads formats 1 through 6 (`LEARNING_FORMATS_READ`)
+and writes 6. Format 1 (PR #133) is decoded unchanged: the untagged
 `OpportunityId::Game` serialises exactly like the former `QuestionId`.
 Formats 1 and 2 (PR #137) are migrated in memory, keeping counter,
 attempts, events and their order, so counts and deduplication are
@@ -408,10 +409,10 @@ identical; their events stay unversioned (`lesson: None`) and their answers
 have no `expected`: no current lesson revision or count is assigned
 retrospectively. Both fields are omitted when absent, so legacy events are
 written back unchanged in shape. Reading never rewrites the file, and the
-next save (after a new event or a reset) writes format 5. A format 1 file
+next save (after a new event or a reset) writes format 6. A format 1 file
 containing training attempts or tasks, and a format 1 or 2 file containing
-provenance fields, is invalid. Any other version (for example 6 from a
-newer build) is reported as unsupported. Older builds report a format 5
+provenance fields, is invalid. Any other version (for example 7 from a
+newer build) is reported as unsupported. Older builds report a format 6
 file as unsupported and keep it, so they never drop its provenance. Two app instances writing the same file are not coordinated; the
 last save wins.
 
