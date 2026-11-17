@@ -572,6 +572,12 @@ impl GrandCoachApp {
         };
         self.learning
             .record(&mut self.learning_attempt, kind, &retrieval);
+        if events.contains(&AppEvent::LiveAbstich) {
+            self.learning.record_live(
+                &mut self.learning_attempt,
+                self.session.live_abstich_observations(),
+            );
+        }
     }
 
     /// Keeps the learning history in the file at `path` (D-70): a valid
@@ -589,6 +595,18 @@ impl GrandCoachApp {
     /// The learning history file, if one is used.
     pub fn learning_file(&self) -> Option<&std::path::Path> {
         self.learning.path()
+    }
+
+    fn learning_window(&mut self, ctx: &egui::Context) {
+        self.learning.window(ctx, &self.i18n);
+        if self.learning.take_reset() {
+            self.session.forget_live_abstich();
+            self.learning_attempt = None;
+            if let Some(practice) = &mut self.practice {
+                practice.live.session.forget_live_abstich();
+                practice.live.learning_attempt = None;
+            }
+        }
     }
 
     /// Opens the learning history window.
@@ -1760,6 +1778,17 @@ impl GrandCoachApp {
     // Bottom: actions and the human's hand.
 
     fn actions(&mut self, ui: &mut egui::Ui, view: &TableView, now: f64) {
+        if self.session.live_abstich().is_some() {
+            return;
+        }
+        if view.acting == Some(PlayerId::HUMAN)
+            && view.assist.quiz.question.is_none()
+            && self.session.guided().is_none()
+            && ui.button(self.t("live-abstich-start")).clicked()
+        {
+            self.send(Command::StartLiveAbstich, now);
+            return;
+        }
         let legal = view.legal_actions.clone();
         ui.horizontal_wrapped(|ui| {
             if let Some(error) = self.error {
@@ -2373,7 +2402,7 @@ impl eframe::App for GrandCoachApp {
                 Some(crate::training::TrainingRequest::History) => self.learning.show(),
                 None => {}
             }
-            self.learning.window(&ctx, &self.i18n);
+            self.learning_window(&ctx);
             return;
         }
         // The opponents wait while the "new series" dialog is open.
@@ -2463,6 +2492,31 @@ impl eframe::App for GrandCoachApp {
             if !blocked {
                 self.warning_window(&ctx, &view, now);
                 self.quiz_window(&ctx, &view, now);
+                if let Some(v) = self.session.live_abstich() {
+                    let mut command = None;
+                    egui::Window::new(self.t("live-abstich-title"))
+                        .id(egui::Id::unique("live_abstich"))
+                        .default_width(580.0)
+                        .default_height(580.0)
+                        .resizable(true)
+                        .show(&ctx, |ui| {
+                            egui::ScrollArea::vertical()
+                                .auto_shrink([false, false])
+                                .max_height(
+                                    (ctx.content_rect().height() - 190.0).clamp(200.0, 520.0),
+                                )
+                                .show(ui, |ui| {
+                                    command = crate::live_abstich::panel(ui, &self.i18n, &view, &v);
+                                });
+                            ui.separator();
+                            if ui.button(self.t("live-abstich-return")).clicked() {
+                                command = Some(Command::CloseLiveAbstich);
+                            }
+                        });
+                    if let Some(command) = command {
+                        self.send(command, now);
+                    }
+                }
                 self.new_series_window(&ctx, now);
             }
         });
@@ -2473,14 +2527,17 @@ impl eframe::App for GrandCoachApp {
         if let Some(cast) = self.recording.replay_cast() {
             self.i18n.cast = Some(cast);
         }
-        let started = self
-            .recording
-            .windows(&ctx, &self.i18n, self.deck, can_practice, &view);
+        let started = if self.session.live_abstich().is_none() {
+            self.recording
+                .windows(&ctx, &self.i18n, self.deck, can_practice, &view)
+        } else {
+            None
+        };
         self.i18n.cast = Some(view.cast);
         if let Some(recording) = started {
             self.practice_request = Some(PracticeRequest::Start(recording));
         }
-        self.learning.window(&ctx, &self.i18n);
+        self.learning_window(&ctx);
         if self.practice_request.is_some() {
             self.apply_practice_request();
             ctx.request_repaint();

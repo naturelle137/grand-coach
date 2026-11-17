@@ -197,6 +197,7 @@ native() {
         language_and_faces_switch_without_touching_the_game free_play_ends_on_request; do
         step cargo test --locked -p gui-egui --test gui -- --exact "$test"
     done
+    step cargo test --locked -p gui-egui --test live_abstich -- --include-ignored
     local out
     out=$(mktemp -d)
     step cargo run --locked -p gui-egui --example screenshots -- "$out" launch
@@ -214,6 +215,8 @@ portable() {
     local features
     mapfile -t features < <(test_features)
     step cargo test --locked --workspace "${features[@]}"
+    # Exercise the explicit live question and persistence on actual widgets.
+    step cargo test --locked -p gui-egui --test live_abstich -- --include-ignored
     # Privacy at every strength stays mandatory, including existing slow fixtures.
     mapfile -t features < <(test_features skat-ai)
     step cargo test --locked -p skat-ai --test fairness "${features[@]}" -- --ignored

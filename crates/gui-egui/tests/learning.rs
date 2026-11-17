@@ -508,8 +508,8 @@ fn bilingual_mechanism_widgets_show_context_denominators_and_descriptive_windows
         button(&mut h, reset);
         button(&mut h, t("Verlauf löschen", "Delete history"));
         h.get_by_label(t(
-            "In diesem Verlauf wurden keine Mechanismus-Fragen vorgelegt.",
-            "No mechanism responses presented in this history.",
+            "In diesem Verlauf wurden keine Mechanismus-Fragen aus dem Katalog vorgelegt.",
+            "No catalogue mechanism responses presented in this history.",
         ));
         assert!(
             h.state()
@@ -539,8 +539,8 @@ fn bilingual_mechanism_empty_unanswered_help_and_skip_widgets() {
         let mut h = app(language, &file);
         open_window(&mut h, en);
         h.get_by_label(t(
-            "In diesem Verlauf wurden keine Mechanismus-Fragen vorgelegt.",
-            "No mechanism responses presented in this history.",
+            "In diesem Verlauf wurden keine Mechanismus-Fragen aus dem Katalog vorgelegt.",
+            "No catalogue mechanism responses presented in this history.",
         ));
         drop(h);
         let mut history = LearningHistory::new();
