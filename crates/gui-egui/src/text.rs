@@ -221,7 +221,7 @@ pub fn error(i18n: &I18n, error: AppError) -> String {
         AppError::ActionPending => i18n.t("error-action-pending"),
         AppError::StaleCoachResult => i18n.t("error-stale-coach-result"),
         AppError::QuestionPending => i18n.t("error-question-pending"),
-        AppError::StaleGuided => i18n.t("error-stale-coach-result"),
+        AppError::StaleGuided | AppError::StaleLiveAbstich => i18n.t("error-stale-coach-result"),
         AppError::NoQuestion => i18n.t("error-no-question"),
         AppError::PracticeAttempt => i18n.t("error-practice-attempt"),
     }

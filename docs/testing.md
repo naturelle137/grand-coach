@@ -704,3 +704,16 @@ and `neural-fallback-en` show the controls and live notice; the `-narrow` varian
 also check the 960 × 640 minimum. Fallback scenarios
 require a process started with an unavailable/corrupt model override. These are
 technical lifecycle checks, not learned-strength or human-learning evidence.
+
+## Explicit live Abstich observations (#13)
+
+The [live question contract](live-abstich.md) fixes independent Possible/Certain
+fixtures, positive-risk selection limits, immutable permitted-view provenance,
+unanswered/skip/help semantics and the separate persisted overview. App unit
+tests exercise actual Session commands and migration/reset/deduplication;
+`crates/gui-egui/tests/live_abstich.rs` drives DE/EN widgets and persisted restart.
+PR and native tiers explicitly retain these bounded widget tests despite their
+slow-test annotation. The screenshot example includes the `live-abstich-*` entry, candidate, answer,
+help, skip, unsupported, return and overview views, including narrow answers.
+Compare exported live recordings before/after these interactions to check
+nonmutation. No unchanged RC/gallery campaign or learner observations are implied.

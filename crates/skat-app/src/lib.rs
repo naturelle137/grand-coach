@@ -38,6 +38,10 @@ mod figures;
 mod guided;
 mod learning;
 mod learning_io;
+mod live_abstich;
+pub use live_abstich::{
+    LiveAbstichAction, LiveAbstichEntry, LiveAbstichId, LiveAbstichObservation, LiveAbstichView,
+};
 mod mechanism_responses;
 mod neural;
 mod quiz;

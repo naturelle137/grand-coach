@@ -42,6 +42,9 @@ mod suit_early_widgets;
 #[path = "support/suit_feed_widgets.rs"]
 mod suit_feed_widgets;
 
+#[path = "support/live_abstich_flow.rs"]
+mod live_abstich_flow;
+
 type Scenario = fn(&mut Harness<'_, GrandCoachApp>);
 
 /// Series seed of every scenario not in [`SEEDS`].
@@ -192,6 +195,24 @@ const OPEN_DISPLAY: &[&str] = &[
 ];
 
 const SCENARIOS: &[(&str, Scenario)] = &[
+    ("live-abstich-entry-de", live_entry_de),
+    ("live-abstich-entry-en", live_entry_en),
+    ("live-abstich-candidate-de", live_candidate_de),
+    ("live-abstich-candidate-en", live_candidate_en),
+    ("live-abstich-answer-de", live_answer_de),
+    ("live-abstich-answer-en", live_answer_en),
+    ("live-abstich-help-de", live_help_de),
+    ("live-abstich-help-en", live_help_en),
+    ("live-abstich-skip-de", live_skip_de),
+    ("live-abstich-skip-en", live_skip_en),
+    ("live-abstich-unsupported-de", live_unsupported_de),
+    ("live-abstich-unsupported-en", live_unsupported_en),
+    ("live-abstich-return-de", live_return_de),
+    ("live-abstich-return-en", live_return_en),
+    ("live-abstich-overview-de", live_overview_de),
+    ("live-abstich-overview-en", live_overview_en),
+    ("live-abstich-answer-de-narrow", live_answer_de),
+    ("live-abstich-answer-en-narrow", live_answer_en),
     ("guided-null-last-orient-de", guided_null_orient_de),
     ("guided-null-last-orient-de-narrow", guided_null_orient_de),
     ("guided-null-last-orient-en", guided_null_orient_en),
@@ -3463,4 +3484,69 @@ fn guided_null_return_de(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn guided_null_return_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_support::null_flow(h, Language::En, 9, 16);
+}
+
+fn live_entry_de(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-entry-de", None);
+    live_abstich_flow::stage(h, Language::De, "entry");
+}
+fn live_entry_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-entry-en", None);
+    live_abstich_flow::stage(h, Language::En, "entry");
+}
+fn live_candidate_de(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-candidate-de", None);
+    live_abstich_flow::stage(h, Language::De, "candidate");
+}
+fn live_candidate_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-candidate-en", None);
+    live_abstich_flow::stage(h, Language::En, "candidate");
+}
+fn live_answer_de(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-answer-de", None);
+    live_abstich_flow::stage(h, Language::De, "answer");
+}
+fn live_answer_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-answer-en", None);
+    live_abstich_flow::stage(h, Language::En, "answer");
+}
+fn live_help_de(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-help-de", None);
+    live_abstich_flow::stage(h, Language::De, "help");
+}
+fn live_help_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-help-en", None);
+    live_abstich_flow::stage(h, Language::En, "help");
+}
+fn live_skip_de(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-skip-de", None);
+    live_abstich_flow::stage(h, Language::De, "skip");
+}
+fn live_skip_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-skip-en", None);
+    live_abstich_flow::stage(h, Language::En, "skip");
+}
+fn live_unsupported_de(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-unsupported-de", None);
+    live_abstich_flow::stage(h, Language::De, "unsupported");
+}
+fn live_unsupported_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-unsupported-en", None);
+    live_abstich_flow::stage(h, Language::En, "unsupported");
+}
+fn live_return_de(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-return-de", None);
+    live_abstich_flow::stage(h, Language::De, "return");
+}
+fn live_return_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-return-en", None);
+    live_abstich_flow::stage(h, Language::En, "return");
+}
+fn live_overview_de(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-overview-de", None);
+    live_abstich_flow::stage(h, Language::De, "overview");
+}
+fn live_overview_en(h: &mut Harness<'_, GrandCoachApp>) {
+    learning_file(h, "live-abstich-overview-en", None);
+    live_abstich_flow::stage(h, Language::En, "overview");
 }

@@ -72,7 +72,10 @@ history cannot establish novelty. Exposure outside this app file is unknown;
 these checks establish no learning efficacy or observed human transfer. A deliberately entered [reserved validation](validation54.md) prepares eight
 new positions and private build-linked records for actual Initial/Delayed
 human sessions; it supplies no learner results or efficacy claim.
-The learning overview separates [explicit mechanism-response patterns](mechanism-responses.md) from numeric counting answers, with task/context samples and descriptive earlier/recent windows; it does not diagnose ordinary-game strategy.
+The learning overview separates [explicit mechanism-response patterns](mechanism-responses.md) from numeric counting answers, with task/context samples and descriptive earlier/recent windows; it does not diagnose ordinary-game strategy. Deliberately entered
+[live Abstich questions](live-abstich.md) now record explicit conditional
+responses for selected legal candidates, with separate supported-risk counts
+and no inference about the chosen move or risk prevalence.
 The [roadmap](roadmap.md)
 covers the next steps from guided play to independent practice.
 

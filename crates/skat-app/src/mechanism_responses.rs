@@ -100,7 +100,7 @@ pub struct MechanismCounts {
     pub unanswered: u32,
 }
 impl MechanismCounts {
-    fn add(&mut self, response: MechanismResponse) {
+    pub(crate) fn add(&mut self, response: MechanismResponse) {
         use MechanismResponse::*;
         self.presented += 1;
         match response {

@@ -45,6 +45,7 @@ pub fn data_dir() -> Option<PathBuf> {
 #[derive(Default)]
 pub(crate) struct LearningUi {
     history: LearningHistory,
+    live_summary: std::cell::OnceCell<[(bool, skat_app::MechanismCounts); 2]>,
     mechanism_summary: std::cell::OnceCell<Vec<skat_app::MechanismRow>>,
     /// Where the history is saved; `None`: memory only.
     path: Option<PathBuf>,
@@ -57,6 +58,7 @@ pub(crate) struct LearningUi {
     set_aside: Option<PathBuf>,
     open: bool,
     confirm_reset: bool,
+    reset_pending: bool,
 }
 
 impl LearningUi {
@@ -65,6 +67,7 @@ impl LearningUi {
     /// reported.
     pub(crate) fn use_file(&mut self, path: PathBuf) {
         self.mechanism_summary.take();
+        self.live_summary.take();
         self.damaged = None;
         self.save_error = None;
         self.set_aside = None;
@@ -208,8 +211,34 @@ impl LearningUi {
         }
     }
 
+    pub(crate) fn record_live(
+        &mut self,
+        attempt: &mut Option<AttemptId>,
+        observations: &[skat_app::LiveAbstichObservation],
+    ) {
+        if observations.is_empty() {
+            return;
+        }
+        let mut result = attempt.map_or(Err(LearningError::UnknownAttempt), |id| {
+            self.history.record_live_abstich(id, observations)
+        });
+        if result == Err(LearningError::UnknownAttempt) {
+            result = self
+                .history
+                .begin_attempt(AttemptKind::Series)
+                .and_then(|id| {
+                    *attempt = Some(id);
+                    self.history.record_live_abstich(id, observations)
+                });
+        }
+        if result == Ok(true) {
+            self.save();
+        }
+    }
+
     fn save(&mut self) {
         self.mechanism_summary.take();
+        self.live_summary.take();
         if self.damaged.is_some() {
             return;
         }
@@ -221,7 +250,12 @@ impl LearningUi {
     /// Deliberate reset after confirmation.
     fn reset(&mut self) {
         self.history.reset();
+        self.reset_pending = true;
         self.save();
+    }
+
+    pub(crate) fn take_reset(&mut self) -> bool {
+        std::mem::take(&mut self.reset_pending)
     }
 
     /// Moves the damaged file aside and saves the history to the path.
@@ -405,6 +439,12 @@ impl LearningUi {
             }
             ui.label(i.t("validation-exposure-note"));
         }
+        crate::live_abstich::summary(
+            ui,
+            i,
+            self.live_summary
+                .get_or_init(|| self.history.live_abstich_summary()),
+        );
         mechanism_responses(
             ui,
             i,
