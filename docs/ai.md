@@ -107,6 +107,10 @@ Both opponents use the [bundled card-play model](learned-models.md) with
 Classic Strong fallback. Bidding, pickup, discards, announcement and the
 default Kontra rule come from Classic. The model can choose cards and Re.
 
+The [engine-selection and difficulty implementation plan](learned-engine-selection.md)
+for #77 separates the existing table from proposed independent selectors,
+seeded learned levels and their still-pending calibration.
+
 ## Calibration protocol
 
 - **Runner**: `cargo run --locked --release -p skat-ai --example
