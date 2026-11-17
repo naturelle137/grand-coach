@@ -188,6 +188,14 @@ impl SessionConfig {
 /// What a frontend asks the session to do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Command {
+    /// Enter the optional hypothetical live Abstich question.
+    StartLiveAbstich,
+    /// Select this legal candidate without playing it.
+    SelectLiveAbstich((u64, u32, usize), skat_core::Card),
+    /// Respond to the exact selected opportunity.
+    LiveAbstich(crate::LiveAbstichId, crate::LiveAbstichAction),
+    /// Return from the optional screen without answering.
+    CloseLiveAbstich,
     /// Deliberately enter the guided card-play dialogue.
     StartGuided,
     /// Respond to a specific guided decision; never plays a card.
@@ -230,6 +238,8 @@ pub enum Command {
 /// What happened. Contains only information the human may see.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AppEvent {
+    /// Live question snapshot changed; consume `live_abstich_observations`.
+    LiveAbstich,
     /// Explicit guided dialogue progress; in-memory consumer boundary only.
     Guided(crate::GuidedEvent),
     /// A new game was dealt.
@@ -268,6 +278,8 @@ pub enum AppEvent {
 /// Why a command was rejected. The session is unchanged after an error.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AppError {
+    /// Candidate or response no longer belongs to the active live question.
+    StaleLiveAbstich,
     /// The guided response belongs to another decision/session.
     StaleGuided,
     /// The rule engine rejected the action.
@@ -422,6 +434,7 @@ pub struct Session {
     /// The counting aid and quiz; they never influence deals or opponents.
     pub(crate) quiz: QuizState,
     pub(crate) guided: Option<crate::guided::GuidedState>,
+    pub(crate) live_abstich: crate::live_abstich::LiveAbstichState,
 }
 
 impl Session {
@@ -475,6 +488,7 @@ impl Session {
             ),
             quiz: QuizState::new(quiz_rng.next_u64()),
             guided: None,
+            live_abstich: Default::default(),
         }
     }
 
@@ -504,7 +518,7 @@ impl Session {
             &view,
             open_cards,
             self.is_practice(),
-            if self.quiz.withhold_coach() || self.guided.is_some() {
+            if self.quiz.withhold_coach() || self.guided.is_some() || self.live_abstich.open {
                 // The answer must not leak through a hint or a note.
                 {
                     let mut c = CoachView::withheld(self.coach.settings);
@@ -519,7 +533,7 @@ impl Session {
             },
             {
                 let mut aid = self.quiz.view(&view, self.dealer);
-                if self.guided.is_some() {
+                if self.guided.is_some() || self.live_abstich.open {
                     aid.counting = crate::CountingState::Off;
                     aid.quiz.feedback = None;
                 }
@@ -562,7 +576,7 @@ impl Session {
     }
 
     /// The current decision of the human, if any.
-    fn human_decision(&self) -> Option<DecisionKey> {
+    pub(crate) fn human_decision(&self) -> Option<DecisionKey> {
         let seat = self.game.current_seat()?;
         (!self.finished && PlayerId::on_seat(seat, self.dealer).is_human()).then_some(DecisionKey {
             lineage: self.lineage,
@@ -777,6 +791,21 @@ impl Session {
 
     /// Executes a command. On error nothing changes.
     pub fn execute(&mut self, command: Command) -> Result<Vec<AppEvent>, AppError> {
+        match command {
+            Command::StartLiveAbstich => return self.start_live_abstich(),
+            Command::SelectLiveAbstich(boundary, card) => {
+                return self.select_live_abstich(boundary, card);
+            }
+            Command::LiveAbstich(id, action) => return self.respond_live_abstich(id, action),
+            Command::CloseLiveAbstich => {
+                self.live_abstich.open = false;
+                return Ok(Vec::new());
+            }
+            _ => {}
+        }
+        if self.live_abstich.open {
+            return Err(AppError::QuestionPending);
+        }
         if let Command::SetCoach(settings) = command {
             self.coach.settings = settings;
             if settings.level == crate::CoachLevel::Off {
@@ -835,6 +864,10 @@ impl Session {
             return Err(AppError::QuestionPending);
         }
         match command {
+            Command::StartLiveAbstich
+            | Command::SelectLiveAbstich(..)
+            | Command::LiveAbstich(..)
+            | Command::CloseLiveAbstich => unreachable!("handled above"),
             Command::StartGuided => {
                 if self.coach.settings.level == crate::CoachLevel::Off {
                     return Err(AppError::CoachOff);
@@ -987,6 +1020,7 @@ impl Session {
         self.recording.actions.push(action);
         self.recording.end = RecordingEnd::of(&self.game);
         self.actions += 1;
+        self.live_abstich = Default::default();
         self.coach.decision_changed();
         self.quiz.decision_changed();
         let mut events: Vec<AppEvent> = core_events
@@ -1050,6 +1084,7 @@ impl Session {
         self.actions = 0;
         self.coach.game_changed();
         self.quiz.game_changed();
+        self.live_abstich = Default::default();
         self.guided = None;
         self.game = Game::new(self.game_seed, rule_config(self.config));
         self.recording = GameRecording::start(
@@ -1145,6 +1180,7 @@ impl Session {
             coach,
             quiz,
             guided: None,
+            live_abstich: Default::default(),
         };
         practice.refresh_quiz();
         practice.quiz.take_events();
@@ -1235,3 +1271,7 @@ mod tests {
 #[cfg(test)]
 #[path = "guided_tests.rs"]
 mod guided_tests;
+
+#[cfg(test)]
+#[path = "live_abstich_tests.rs"]
+mod live_abstich_tests;

@@ -237,7 +237,9 @@ impl LearningHistory {
         {
             return Ok(());
         }
-        if self.focus.len() + self.events.len() >= crate::MAX_LEARNING_EVENTS {
+        if self.focus.len() + self.events.len() + self.live_abstich.len()
+            >= crate::MAX_LEARNING_EVENTS
+        {
             self.refused = true;
             self.invalidate_exposure();
             return Err(LearningError::Full);
@@ -309,7 +311,9 @@ impl LearningHistory {
 
     pub(crate) fn validate_focus(&self) -> Result<(), LearningError> {
         use std::collections::HashSet;
-        if self.events.len() + self.focus.len() > crate::MAX_LEARNING_EVENTS {
+        if self.events.len() + self.focus.len() + self.live_abstich.len()
+            > crate::MAX_LEARNING_EVENTS
+        {
             return Err(LearningError::TooLarge);
         }
         let mut keys = HashSet::new();
