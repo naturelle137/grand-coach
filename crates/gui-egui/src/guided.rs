@@ -203,6 +203,8 @@ fn content(
             "guided-rule-lead"
         } else if rule.branch == GuidedBranch::UnderPartner {
             "guided-rule-under"
+        } else if rule.branch == GuidedBranch::FeedPartner && !rule.last {
+            "guided-rule-feed-early"
         } else if rule.branch == GuidedBranch::FeedPartner {
             "guided-rule-feed"
         } else if rule.branch == GuidedBranch::WinEarly {
@@ -279,6 +281,11 @@ fn content(
             ui.collapsing(i.t("guided-null-lead-details"), |ui| {
                 ui.label(i.t("guided-null-lead-order"));
                 ui.label(i.t("guided-null-lead-empty"));
+                details(ui);
+            });
+        } else if rule.branch == GuidedBranch::FeedPartner && !rule.last {
+            ui.collapsing(i.t("guided-feed-early-details"), |ui| {
+                ui.label(i.t("guided-feed-early-order"));
                 details(ui);
             });
         } else if rule.branch == GuidedBranch::Null && !rule.last {

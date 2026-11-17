@@ -1,0 +1,113 @@
+[
+  {
+    "Act": "Pass"
+  },
+  {
+    "Act": {
+      "Play": 4
+    }
+  },
+  {
+    "Act": {
+      "Play": 5
+    }
+  },
+  {
+    "Act": {
+      "Play": 6
+    }
+  },
+  {
+    "Act": {
+      "Play": 21
+    }
+  },
+  {
+    "Act": {
+      "Play": 24
+    }
+  },
+  {
+    "Act": {
+      "Play": 9
+    }
+  },
+  {
+    "Act": {
+      "Play": 10
+    }
+  },
+  {
+    "Act": {
+      "Play": 13
+    }
+  },
+  {
+    "Act": {
+      "Play": 25
+    }
+  },
+  {
+    "Act": {
+      "Play": 26
+    }
+  },
+  "NextGame",
+  {
+    "Act": "Pass"
+  },
+  {
+    "Act": {
+      "Play": 21
+    }
+  },
+  {
+    "Act": {
+      "Play": 24
+    }
+  },
+  {
+    "Act": {
+      "Play": 27
+    }
+  },
+  {
+    "Act": {
+      "Play": 28
+    }
+  },
+  {
+    "Act": {
+      "Play": 31
+    }
+  },
+  {
+    "Act": {
+      "Play": 2
+    }
+  },
+  {
+    "Act": {
+      "Play": 8
+    }
+  },
+  {
+    "Act": {
+      "Play": 22
+    }
+  },
+  {
+    "Act": {
+      "Play": 11
+    }
+  },
+  {
+    "Act": {
+      "Play": 3
+    }
+  },
+  "NextGame",
+  {
+    "Act": "Pass"
+  }
+]

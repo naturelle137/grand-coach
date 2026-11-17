@@ -86,9 +86,10 @@ fn frozen_complete_deals_legal_order_every_completion_and_exact_feed_key() {
         // Farbspiel exclusions now belong to #185's independently gated
         // family; this updates current admission, not that historical oracle.
         let suit_now_supported = matches!(c.id, "A-suit" | "A-suit-corrected");
+        let early_now_supported = c.id == "B-early-master-can-be-trumped";
         assert_eq!(
             feed,
-            c.supported || suit_now_supported,
+            c.supported || suit_now_supported || early_now_supported,
             "{} applicability",
             c.id
         );
@@ -97,19 +98,20 @@ fn frozen_complete_deals_legal_order_every_completion_and_exact_feed_key() {
         }
         if c.id == "B-declarer-ahead" {
             assert_eq!(l.as_ref().unwrap().rule.branch, Branch::WinLast);
-        } else if !c.supported && !suit_now_supported {
+        } else if !c.supported && !suit_now_supported && !early_now_supported {
             assert!(l.is_none(), "{} exclusion", c.id);
         }
         if feed {
             let l = l.unwrap();
-            assert_eq!(l.remaining, None);
-            assert!(l.rule.partner_ahead && l.rule.last);
+            assert_eq!(l.remaining, early_now_supported.then_some(Seat::Hinterhand));
+            assert!(l.rule.partner_ahead);
+            assert_eq!(l.rule.last, !early_now_supported);
             assert_eq!(
                 l.rule.candidates,
                 c.legal.iter().map(|&n| card(n)).collect::<Vec<_>>()
             );
             assert!(l.check(Step::Orient, Answer::Seat(Some(Seat::from_index(c.winner)))));
-            assert!(l.check(Step::Check, Answer::Seat(None)));
+            assert!(l.check(Step::Check, Answer::Seat(l.remaining)));
             for &n in c.legal {
                 assert!(l.check(Step::Narrow, Answer::Card(card(n))));
             }

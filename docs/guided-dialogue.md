@@ -10,7 +10,7 @@ remain unmeasured.
 
 The card-play scope includes `UnderPartner`, `WinLast`, non-Ouvert Grand `WinEarly` and
 [non-Ouvert Farbspiel `WinEarly`](#farbspiel-winearly-178) on the human's own current second turn,
-last-seat Grand and [Farbspiel `FeedPartner`](#farbspiel-last-seat-feedpartner-185), [Grand `LeadMaster`](#grand-lead-with-a-follow-class-master-171),
+[early Grand `FeedPartner`](#grand-second-seat-feedpartner-131), last-seat Grand and [Farbspiel `FeedPartner`](#farbspiel-last-seat-feedpartner-185), [Grand `LeadMaster`](#grand-lead-with-a-follow-class-master-171),
 and Null declarer play [last](#null-declarer-last-to-the-current-trick-165)
 or [second](#null-declarer-acting-second-169), and the [opening lead](#null-opening-lead-176). These are bounded heuristic
 dialogues, not new solver-approved mechanisms in the six-lesson catalogue.
@@ -142,7 +142,7 @@ the last seat: see #159 below). Grand `LeadMaster` is supported within its
 play [last](#null-declarer-last-to-the-current-trick-165) or
 [second](#null-declarer-acting-second-169). Non-Ouvert Farbspiel `WinEarly`
 follows the [#178 guards](#farbspiel-winearly-178). Unsupported remain Grand
-`DrawTrumpf`, early `FeedPartner`, Farbspiel `FeedPartner` outside the
+`DrawTrumpf`, early Farbspiel `FeedPartner`, Farbspiel `FeedPartner` outside the
 [#185 guards](#farbspiel-last-seat-feedpartner-185), fallback, single legal moves
 and Ouvert Grand. Older Farbspiel families, including Ouvert, keep their
 shipped scope; #178 does not add Ouvert WinEarly. A core-offered Kontra
@@ -1007,3 +1007,54 @@ review, at most one findings fix, final CI, protected integration and actual
 new-main/both-OS archive and personal visual acceptance. #131 later phases
 remain open; #175/#182 remain finally deferred. No learner/UAT, transfer,
 training, persistence, interactive Windows 11, packaging or release claim.
+
+## Grand second-seat FeedPartner (#131)
+
+The new `guided-grand-early-feed@1` rule dialogue supports non-Ouvert Grand,
+acting defender CURRENT SECOND, partner leading, at least two pure Play actions
+in exact core order, consistent Hand/pickup information and the actual shared
+`FeedPartner` branch with `table_master=true`. Other new roles/contracts,
+Ouvert, restricted/mixed/reordered actions, off-turn and single choices are
+excluded; older families retain their admission. #175/#182 remain finally
+deferred, with no retry or implementation.
+
+`Knowledge::is_master` excludes own and publicly played higher cards when
+checking the follow class; it does not locate unknown cards or exclude trumping.
+The current partner card may even be overtaken by a higher card in the own hand.
+All legal cards remain candidates. The unchanged Easy rule maximises
+`(!is_trump, Augen)`, retaining the LAST exact legal-order tie without power.
+This is a heuristic, not an optimality or game-win claim. Only Grand's four
+Buben are Trumpf. A side master can be trumped by the remaining declarer.
+
+The original independent #163 full-deal witness
+`B-early-master-can-be-trumped` remains unchanged in
+`crates/skat-coach/tests/support/feed_partner.rs`: partner CA, defender CT/CQ,
+then a Kreuz-void declarer. `guided_early_feed` checks both choices and all ten
+legal replies per choice: CJ/SJ win for the declarer, the other eight leave
+the partner ahead. New source-informed handwritten boundary cases cover a
+Bube lead with an exact HJ/DJ tie and a CK lead with own CA/CT; these are not
+retrospectively labelled independent #163 evidence. Full non-absent lesson,
+memory and dialogue equality across hidden swaps, including God Mode and
+original permitted-view estimates, are checked in coach/app tests.
+
+### Ordinary walkthrough
+
+Start ordinary `SessionConfig` seed **22**, fixed three games, Easy opponents,
+Kontra/Re off and closed display. The complete human commands live in
+`crates/gui-egui/tests/fixtures/early-feed-route.json` and are replayed through
+real widgets, without an injected session. In game3/trick1 the human is physical
+Mittelhand; partner Vorhand leads Pik-Ass15. Legal cards are Pik8/9/Dame
+(indices9/10/13). Easy chooses Dame13. Any of these choices is followed by the
+declarer's actual Karo-Bube28; Hinterhand wins. The dialogue observes that
+actual third card and proves a void in plain Pik, without placing a hidden card
+beforehand.
+
+Answer the current-winner and remaining-seat questions, try a legal candidate
+or deliberately reveal, inspect the worked rule and optional collapsed details,
+then play any legal card. Wrong/retry, unknown/reveal, initially hidden memory,
+separate requested figures and free return retain the shared controls. The
+bilingual `early_feed` widget test exercises both Easy and free Pik8 at
+1440×1000 and 960×640. Sixteen `guided-grand-early-feed-*` ordinary screenshots
+show orientation, rule, observation question and feedback in both languages
+and sizes. These are technical checks, not learner or transfer observations;
+the wider #131 later-phase criterion remains open.
