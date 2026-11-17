@@ -162,6 +162,7 @@ mod tests {
             include_str!("recording.rs"),
             include_str!("guided.rs"),
             include_str!("learning.rs"),
+            include_str!("live_abstich.rs"),
             include_str!("training.rs"),
         ] {
             for literal in source.split('"').skip(1).step_by(2) {

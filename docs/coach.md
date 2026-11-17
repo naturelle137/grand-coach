@@ -574,3 +574,11 @@ Source-derived `null-lead-inventory.json` joins the existing both-OS gallery.
 Push gate and the configured workspace non-GPU/include-ignored suite remain
 required, including nn-train and vulkan-search. Terminal owns review and final
 actual-main/both-OS archive/hash/visual acceptance. No learner results follow.
+
+## Explicit live Abstich responses (#13)
+
+A separate deliberate [live question](live-abstich.md) uses shared positive
+Abstich evidence for a learner-selected hypothetical legal card. It conceals
+answers until an explicit response or help, preserves the game and records
+assistance-aware observations separately from counting and catalogue training.
+Empty analysis is unsupported, never an absence reference or strategic diagnosis.
