@@ -570,6 +570,24 @@ impl Session {
         self.coach.budget = budget;
     }
 
+    /// Opt-in learned ordering of queued debriefing reviews. `None` restores
+    /// Classic FIFO. No decision is dropped, and every displayed moment still
+    /// requires ordinary analysis. Pending ordinary results remain valid.
+    pub fn set_debrief_model(&mut self, model: Option<std::sync::Arc<skat_nn::NeuralModel>>) {
+        self.coach.set_review_model(model);
+    }
+
+    /// Enables optional ordering with the bundled model, or restores Classic
+    /// FIFO. A missing/invalid model leaves Classic active.
+    pub fn set_learned_debrief(&mut self, enabled: bool) {
+        self.set_debrief_model(enabled.then(crate::neural_model).and_then(Result::ok));
+    }
+
+    /// Whether a learned review-ordering model is selected (default: false).
+    pub fn debrief_model_enabled(&self) -> bool {
+        self.coach.review_model_enabled()
+    }
+
     /// Work budget of coach analyses.
     pub fn coach_budget(&self) -> Budget {
         self.coach.budget

@@ -454,7 +454,8 @@ Reconstructing the display from the final deal would leak later information.
   (`CoachView::last_move`) and the debriefing (`CoachView::debriefing`,
   once the game is over). A decision played before its analysis finished
   is queued with its view; `coach_job` hands out the current decision
-  first, then the oldest queued one (`CoachJob::is_review`), and the
+  first, then the oldest queued one (`CoachJob::is_review`) by default.
+  The optional learned ordering below changes only review priority. The
   frontend cancels a running review when the current decision needs an
   analysis. A cancelled review stays queued; the next game drops the
   queue. `Session::coach_result` exposes the full analysis for tools and
@@ -525,6 +526,85 @@ kind:
 ```sh
 cargo run --locked --release -p skat-app --example coach_latency
 ```
+
+## Experimental learned debrief ordering (#78)
+
+Settings → Coach offers **Experimental: prioritize debriefing with model
+estimates**, off by default. It uses the existing bundled CPU model and
+changes only which queued review runs next. `NeuralModel::review_priority`
+uses the estimated own Seeger-Fabian score difference between the best legal
+option and the recorded action. This number is an uncalibrated model estimate,
+never a fact, mistake, human choice, Monte-Carlo sample or lesson predicate.
+No learned numbers are displayed or passed to `Explanation`, lesson evidence,
+`exact` or `Comparison::Reliable`; ordinary analysis supplies every shown moment.
+The bilingual setting and tooltip state that boundary. Existing exact facts,
+voids, lessons and D-49/D-60 staged figures remain authoritative.
+
+No decision is filtered out, including small estimated gaps. Unsupported,
+invalid and privileged views retain FIFO priority ahead of estimated cases;
+God Mode never sends privileged cards to the network. Equal estimates retain
+original queue order. Missing models leave Classic selected. Each captured
+view/action has one cached priority under the selected model SHA-256; changing
+models or disabling the option clears those priorities. Ordinary analysis jobs
+and results contain no learned values and stay valid across an ordering-model
+switch. Decision, lineage and budget checks, cancellations, current-decision
+priority and next-game queue disposal retain D-59's lifecycle. A cancelled
+review remains queued. No new training, weights, arena or compute permission
+is introduced.
+
+While either queue drains, the debriefing shows up to three **already analysed**
+moments, with their original snapshots and a bilingual notice that selection
+can change. These use the unchanged lesson/focus/diversity selection over the
+finished reviews. The complete selection is identical to FIFO on the same
+trace; an early shortlist is not the final selection. This classical incremental
+presentation is the scheduling control for the learned experiment.
+
+### Fast-play measurement
+
+The original benchmark waits at every decision. The additional command below
+plays a complete game without waiting for any coach analysis, then drains the
+actual backlog. Each pair clones the same captured session; opponents are Easy,
+the human passes in Reizen and otherwise takes the first legal action. It
+reports peak pending decisions, one explicitly scripted cancelled review,
+time from trace start to the first visible supported moment and to the complete
+debriefing. No-moment traces report `none`, not zero latency. Order alternates
+between modes across seeds. All decisions must finish and the complete moments,
+snapshots and evidence must compare exactly equal. This maximal-backlog control
+does not simulate human think time, worker overlap or a cancellation rate.
+
+```sh
+cargo run --locked --release -p skat-app --example coach_latency -- --fast-play 6 20000
+```
+
+Measured on 2026-11-18 in `skat-dev`, Linux x86-64, CPU release build, bundled
+PPO v2 4×384 model SHA-256
+`6eeb33593eb1e0a8fc91eb2774488a3e9729fb28a45e76b8812e37bf569def75`.
+Host workload and CPU scheduling were not isolated. The explicit bounded diagnostic budget was 24 samples × 20,000 nodes/task,
+not the interactive 100,000,000-node budget; budget-exhausted results retain
+ordinary uncertainty. Model load was 25.682 ms, excluded from the paired times;
+trace capture, priority inference, cancellation, analysis and view building are
+included. Six paired seeds each queued 11 decisions and completed three moments,
+with zero missed final moments and exact final-evidence equality.
+
+| Seed | Classic first / full (ms) | Learned first / full (ms) |
+|------|---------------------------|--------------------------|
+| 1 | 5.415 / 27.988 | 6.548 / 28.678 |
+| 2 | 4.923 / 23.260 | 6.735 / 25.822 |
+| 3 | 5.036 / 28.170 | 6.835 / 29.644 |
+| 4 | 5.225 / 25.936 | 6.341 / 26.650 |
+| 5 | 5.348 / 25.151 | 6.828 / 26.880 |
+| 6 | 4.820 / 27.644 | 6.325 / 29.416 |
+
+Before incremental presentation, a separate original-FIFO process on seeds
+1–3 measured first/full 335.364/335.367, 278.172/278.180 and
+375.825/375.829 ms at the same bounded budget. That process includes different
+cold-start/scheduling effects; it does not establish a speedup ratio. Within
+any paired row, the former final-only presentation would first show a moment
+at that row's full-debrief time. Incremental Classic therefore already supplies
+the early moment without network inference. **Learned ordering was slower on
+these short traces and stays opt-in and off by default.** This diagnostic
+establishes the implementation and no-drop behaviour, not reference-machine
+interactive latency, model calibration, learner efficacy or a general speedup.
 
 ## Experimental live preview
 

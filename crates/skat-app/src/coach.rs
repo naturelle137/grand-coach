@@ -12,6 +12,8 @@
 //! result is accepted only for the position it was computed for. Before
 //! the move the view carries only [`Hints`], never the ranking (D-49).
 
+use std::sync::{Arc, OnceLock};
+
 use serde::{Deserialize, Serialize};
 use skat_ai::{Budget, Cancel};
 use skat_coach::{
@@ -374,6 +376,9 @@ pub enum Debriefing {
     Computing {
         /// Decisions left.
         remaining: u32,
+        /// Already verified moments; selection can change as reviews finish.
+        #[serde(default)]
+        moments: Vec<DebriefingMoment>,
     },
     /// Zero to three primary moments with a supported lesson, one per
     /// concept, in game order, each with its decision's snapshot.
@@ -428,6 +433,7 @@ impl CoachView {
 /// An own decision played before its analysis finished.
 #[derive(Clone, Debug)]
 pub(crate) struct Queued {
+    priority: OnceLock<Option<f64>>,
     key: DecisionKey,
     view: Box<PlayerView>,
     all: Option<Box<OmniscientView>>,
@@ -446,6 +452,7 @@ pub(crate) struct Reviewed {
 /// Coach state of a session.
 #[derive(Clone, Debug)]
 pub(crate) struct CoachState {
+    review_model: Option<Arc<skat_nn::NeuralModel>>,
     experimental: bool,
     pub(crate) settings: CoachSettings,
     pub(crate) budget: Budget,
@@ -474,6 +481,7 @@ pub(crate) struct CoachState {
 impl CoachState {
     pub(crate) fn new(seed: u64, experimental: bool) -> CoachState {
         CoachState {
+            review_model: None,
             experimental,
             settings: CoachSettings::default(),
             budget: Budget::INTERACTIVE,
@@ -618,6 +626,7 @@ impl CoachState {
             Some(Err(Unavailable::Failed)) => last.note = Some(Note::Uncertain),
             // Cancelled or still running: analysed again after the move.
             Some(Err(Unavailable::Cancelled)) | None => self.queue.push(Queued {
+                priority: OnceLock::new(),
                 key,
                 view: Box::new(view.clone()),
                 all: all.map(Box::new),
@@ -652,12 +661,50 @@ impl CoachState {
         self.queue.len()
     }
 
-    /// The oldest queued review job.
+    /// The next queued review: FIFO by default, learned priority when selected.
     pub(crate) fn review_job(&self) -> Option<CoachJob> {
-        let q = self.queue.first()?;
+        let q = match &self.review_model {
+            None => self.queue.first()?,
+            Some(model) => {
+                // Unknown/unsupported estimates go first, in FIFO order. No
+                // confidence threshold may silently discard a decision.
+                let priority = |q: &Queued| {
+                    *q.priority.get_or_init(|| {
+                        if q.all.is_some() {
+                            return None;
+                        }
+                        model.review_priority(&q.view, q.context.action).ok()
+                    })
+                };
+                self.queue
+                    .iter()
+                    .enumerate()
+                    .max_by(|(ai, a), (bi, b)| {
+                        let score = |q| priority(q).unwrap_or(f64::INFINITY);
+                        score(a).total_cmp(&score(b)).then_with(|| bi.cmp(ai))
+                    })?
+                    .1
+            }
+        };
         let mut job = self.job(q.key, (*q.view).clone(), q.all.as_deref().cloned());
         job.review = true;
         Some(job)
+    }
+
+    /// Changing the ordering model invalidates only its priority cache. All
+    /// explanations still come from ordinary analysis and remain valid.
+    pub(crate) fn set_review_model(&mut self, model: Option<Arc<skat_nn::NeuralModel>>) {
+        if self.review_model.as_ref().map(|m| m.sha256()) == model.as_ref().map(|m| m.sha256()) {
+            return;
+        }
+        self.review_model = model;
+        for q in &mut self.queue {
+            q.priority = OnceLock::new();
+        }
+    }
+
+    pub(crate) fn review_model_enabled(&self) -> bool {
+        self.review_model.is_some()
     }
 
     /// Accepts a result for a queued decision; `false` if it belongs to
@@ -695,22 +742,25 @@ impl CoachState {
         if !self.queue.is_empty() {
             return Debriefing::Computing {
                 remaining: self.queue.len() as u32,
+                moments: self.reviewed_moments(),
             };
         }
+        Debriefing::Ready(self.reviewed_moments())
+    }
+
+    fn reviewed_moments(&self) -> Vec<DebriefingMoment> {
         let mut reviewed: Vec<&Reviewed> = self.reviews.iter().collect();
         reviewed.sort_by_key(|r| r.key.actions);
         let reviews: Vec<MoveReview> = reviewed.iter().map(|r| r.review.clone()).collect();
         // Each moment keeps the snapshot of its own decision, matched by
         // its position in `reviews`.
-        Debriefing::Ready(
-            moments(&reviews, self.settings.focus)
-                .into_iter()
-                .map(|moment| DebriefingMoment {
-                    context: (*reviewed[moment.index].context).clone(),
-                    moment,
-                })
-                .collect(),
-        )
+        moments(&reviews, self.settings.focus)
+            .into_iter()
+            .map(|moment| DebriefingMoment {
+                context: (*reviewed[moment.index].context).clone(),
+                moment,
+            })
+            .collect()
     }
 
     pub(crate) fn job(

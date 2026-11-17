@@ -1126,7 +1126,8 @@ fn queued_and_interrupted_reviews_keep_their_own_snapshots() {
         assert_eq!(
             s.view().coach.debriefing,
             Some(Debriefing::Computing {
-                remaining: jobs.len() as u32
+                remaining: jobs.len() as u32,
+                moments: Vec::new(),
             })
         );
         // Interrupted: a cancelled analysis keeps its decision queued.
@@ -1137,7 +1138,7 @@ fn queued_and_interrupted_reviews_keep_their_own_snapshots() {
         }
         assert!(matches!(
             s.view().coach.debriefing,
-            Some(Debriefing::Computing { remaining }) if remaining as usize == jobs.len()
+            Some(Debriefing::Computing { remaining, .. }) if remaining as usize == jobs.len()
         ));
         // Finished newest first: each still meets its own decision.
         for job in jobs.iter().rev() {
@@ -1202,4 +1203,74 @@ fn reviews_never_cross_into_the_next_game() {
     };
     check_moments(&moments, &seen);
     assert!(moments.iter().all(|m| m.context.game_number == number + 1));
+}
+
+#[test]
+fn learned_review_order_keeps_every_decision_and_classic_evidence() {
+    use skat_nn::{NeuralModel, Phases, fixture_model, sha256};
+    use std::sync::Arc;
+    let model = |seed, phases| {
+        let bytes = fixture_model(seed, phases);
+        Arc::new(NeuralModel::load(&bytes, &sha256(&bytes)).unwrap())
+    };
+    let mut classic = session(2, true);
+    classic.set_coach_budget(TINY);
+    set(&mut classic, CoachLevel::EveryMove, false);
+    assert!(!classic.debrief_model_enabled());
+    let (_, jobs) = play_unanalysed(&mut classic);
+    let mut learned = classic.clone();
+    learned.set_debrief_model(Some(model(12, Phases::SPIEL)));
+    assert!(learned.debrief_model_enabled());
+    // Unsupported pre-play keeps the oldest ordinary job, without dropping it.
+    assert!(learned.coach_job().unwrap().same_decision(&jobs[0]));
+    let cancel = Cancel::new();
+    cancel.cancel();
+    let first = learned.coach_job().unwrap();
+    learned.finish_coach(first.run(Some(&cancel))).unwrap();
+    assert!(learned.coach_job().unwrap().same_decision(&first));
+    // Changing the ordering model does not invalidate ordinary analysis.
+    let ready = first.run(None);
+    let switched = model(13, Phases::ALL);
+    let mut fresh = classic.clone();
+    fresh.set_debrief_model(Some(switched.clone()));
+    fresh.finish_coach(ready.clone()).unwrap();
+    learned.set_debrief_model(Some(switched));
+    learned.finish_coach(ready.clone()).unwrap();
+    assert!(
+        learned
+            .coach_job()
+            .unwrap()
+            .same_decision(&fresh.coach_job().unwrap()),
+        "model switch must not reuse cached priorities from the previous model"
+    );
+    assert_eq!(learned.finish_coach(ready), Err(AppError::StaleCoachResult));
+    let mut checked = vec![first];
+    let mut intermediate = false;
+    while let Some(job) = learned.coach_job() {
+        assert!(!checked.iter().any(|old| job.same_decision(old)));
+        learned.finish_coach(job.run(None)).unwrap();
+        checked.push(job);
+        if let Some(Debriefing::Computing { moments, .. }) = learned.view().coach.debriefing {
+            intermediate |= !moments.is_empty();
+        }
+    }
+    assert_eq!(checked.len(), jobs.len());
+    assert!(
+        intermediate,
+        "verified moments are visible before the entire queue finishes"
+    );
+    for job in &jobs {
+        classic.finish_coach(job.run(None)).unwrap();
+    }
+    assert_eq!(
+        learned.view().coach.debriefing,
+        classic.view().coach.debriefing
+    );
+    learned.set_debrief_model(None);
+    assert!(!learned.debrief_model_enabled());
+    learned.execute(Command::NextGame).unwrap();
+    assert_eq!(
+        learned.finish_coach(jobs[0].run(None)),
+        Err(AppError::StaleCoachResult)
+    );
 }

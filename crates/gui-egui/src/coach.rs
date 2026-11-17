@@ -1457,13 +1457,22 @@ pub fn debriefing(i18n: &I18n, view: &TableView, d: &Debriefing, figures: bool) 
     let mut lines = vec![line(i18n.t("coach-debriefing-title"), Style::Heading)];
     let mut moments = Vec::new();
     match d {
-        Debriefing::Computing { remaining } => lines.push(line(
-            i18n.tf(
-                "coach-debriefing-computing",
-                &[("count", (*remaining).into())],
-            ),
-            Style::Weak,
-        )),
+        Debriefing::Computing {
+            remaining,
+            moments: all,
+        } => {
+            moments = all.iter().map(|m| moment(i18n, view, m, figures)).collect();
+            if !all.is_empty() {
+                lines.push(line(i18n.t("coach-debriefing-partial"), Style::Weak));
+            }
+            lines.push(line(
+                i18n.tf(
+                    "coach-debriefing-computing",
+                    &[("count", (*remaining).into())],
+                ),
+                Style::Weak,
+            ));
+        }
         Debriefing::Ready(all) if all.is_empty() => {
             lines.push(line(i18n.t("coach-debriefing-none"), Style::Normal));
         }

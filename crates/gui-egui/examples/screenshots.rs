@@ -528,6 +528,13 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("trick-complete", trick_complete),
     ("result", result),
     ("settings", settings),
+    ("settings-learned-debrief", settings_learned_debrief),
+    ("settings-learned-debrief-en", settings_learned_debrief_en),
+    ("settings-learned-debrief-narrow", settings_learned_debrief),
+    (
+        "settings-learned-debrief-en-narrow",
+        settings_learned_debrief_en,
+    ),
     ("new-series", new_series),
     ("new-series-seed", new_series_seed),
     ("coach", coach),
@@ -1083,6 +1090,36 @@ fn trick_complete(harness: &mut Harness<'_, GrandCoachApp>) {
 /// The first game is over and its result is shown.
 fn result(harness: &mut Harness<'_, GrandCoachApp>) {
     play_until(harness, |view, _| view.acting.is_none());
+}
+
+/// Opt in through the real checkbox; its label distinguishes estimates.
+fn settings_learned_debrief(h: &mut Harness<'_, GrandCoachApp>) {
+    settle(h);
+    click(h, Role::Button, "Einstellungen");
+    h.get_by_role_and_label(
+        Role::CheckBox,
+        "Experimentell: Nachbesprechung mit Modellschätzungen priorisieren",
+    )
+    .click();
+    h.run_steps(4);
+    assert!(h.state().session().debrief_model_enabled());
+    // Checkbox activation closes this menu; reopen it for visible evidence.
+    click(h, Role::Button, "Einstellungen");
+    h.get_by_role_and_label(
+        Role::CheckBox,
+        "Experimentell: Nachbesprechung mit Modellschätzungen priorisieren",
+    );
+}
+
+fn settings_learned_debrief_en(h: &mut Harness<'_, GrandCoachApp>) {
+    settings_learned_debrief(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
+    let label = "Experimental: prioritize debriefing with model estimates";
+    if h.query_by_role_and_label(Role::CheckBox, label).is_none() {
+        click(h, Role::Button, "Settings");
+    }
+    h.get_by_role_and_label(Role::CheckBox, label);
 }
 
 /// The settings menu with the pointer on the developer option "Seed

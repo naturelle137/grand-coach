@@ -13,13 +13,16 @@
 //! cargo run --locked --release -p skat-app --example coach_latency
 //! ```
 //!
-//! Optional argument: positions per kind (default 10).
+//! Optional argument: positions per kind (default 10). `--fast-play GAMES
+//! [NODES_PER_TASK]` compares FIFO and learned review ordering on identical
+//! maximal-backlog traces (24 samples; default interactive node budget).
 
 use std::time::{Duration, Instant};
 
 use skat_app::coach_model::Decision;
 use skat_app::{
-    CoachLevel, CoachSettings, Command, Level, Opponents, SeriesLength, Session, SessionConfig,
+    Action, Budget, Cancel, CoachLevel, CoachSettings, Command, Debriefing, Level, Opponents,
+    Phase, SeriesLength, Session, SessionConfig,
 };
 
 const KINDS: [&str; 8] = [
@@ -55,6 +58,10 @@ fn percentile(sorted: &[Duration], p: f64) -> Duration {
 }
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--fast-play") {
+        fast_play();
+        return;
+    }
     let per_kind: usize = std::env::args()
         .nth(1)
         .and_then(|a| a.parse().ok())
@@ -132,6 +139,127 @@ fn main() {
             percentile(t, 0.9).as_secs_f64(),
             t.last().unwrap().as_secs_f64(),
             incomplete[k],
+        );
+    }
+}
+
+/// A no-wait trace: every own decision remains queued while the game runs.
+/// This is a deliberately maximal backlog, not a simulated human think time.
+fn fast_play() {
+    let games: u64 = std::env::args()
+        .nth(2)
+        .map(|s| s.parse().unwrap())
+        .unwrap_or(3);
+    let nodes: u64 = std::env::args()
+        .nth(3)
+        .map(|s| s.parse().unwrap())
+        .unwrap_or(Budget::INTERACTIVE.nodes_per_task);
+    let budget = Budget {
+        samples: 24,
+        nodes_per_task: nodes,
+    };
+    let loading = Instant::now();
+    let model =
+        skat_app::neural_model().expect("paired learned measurement requires a usable model");
+    println!(
+        "model SHA-256: {:02x?}; load {:.6} s (excluded below)",
+        model.sha256(),
+        loading.elapsed().as_secs_f64()
+    );
+    println!("maximal no-wait backlog; Easy opponents; Pass/first-legal human; budget={budget:?}");
+    println!(
+        "times include trace capture, review ordering, scripted cancellation, analysis and view building"
+    );
+    println!(
+        "| Seed | Mode | Queue peak | Cancellations | First useful | Full debrief | Moments | Missed |"
+    );
+    println!("|---|---|---|---|---|---|---|---|---|");
+    for seed in 1..=games {
+        let mut session = Session::new(SessionConfig {
+            seed,
+            series: SeriesLength::Fixed(1),
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
+        });
+        session.set_coach_budget(budget);
+        session
+            .execute(Command::SetCoach(CoachSettings {
+                level: CoachLevel::EveryMove,
+                ..CoachSettings::default()
+            }))
+            .unwrap();
+        let capture = Instant::now();
+        let mut decisions = 0;
+        loop {
+            session.run_opponents();
+            let view = session.view();
+            if view.legal_actions.is_empty() {
+                break;
+            }
+            let action =
+                if view.phase == Phase::Reizen && view.legal_actions.contains(&Action::Pass) {
+                    Action::Pass
+                } else {
+                    view.legal_actions[0]
+                };
+            session.execute(Command::Act(action)).unwrap();
+            decisions += 1;
+        }
+        let capture_time = capture.elapsed();
+        let Some(Debriefing::Computing { remaining, .. }) = session.view().coach.debriefing else {
+            panic!("no-wait trace must build a review queue");
+        };
+        assert_eq!(remaining, decisions);
+        let mut results = Vec::new();
+        // Alternate measurement order to avoid always warming the same mode.
+        let modes = if seed % 2 == 0 {
+            [true, false]
+        } else {
+            [false, true]
+        };
+        for learned in modes {
+            let mut run = session.clone();
+            let start = Instant::now();
+            run.set_debrief_model(learned.then(|| model.clone()));
+            let cancel = Cancel::new();
+            cancel.cancel();
+            run.finish_coach(run.coach_job().unwrap().run(Some(&cancel)))
+                .unwrap();
+            let mut first = None;
+            let mut reviews = 0;
+            while let Some(job) = run.coach_job() {
+                assert!(job.is_review());
+                run.finish_coach(job.run(None)).unwrap();
+                reviews += 1;
+                let moments = match run.view().coach.debriefing.unwrap() {
+                    Debriefing::Computing { moments, .. } | Debriefing::Ready(moments) => moments,
+                };
+                if !moments.is_empty() && first.is_none() {
+                    first = Some(capture_time + start.elapsed());
+                }
+            }
+            assert_eq!(reviews, decisions, "no review may be dropped");
+            let full = capture_time + start.elapsed();
+            let Some(Debriefing::Ready(moments)) = run.view().coach.debriefing else {
+                panic!("finished");
+            };
+            let first =
+                first.map_or_else(|| "none".into(), |t| format!("{:.6} s", t.as_secs_f64()));
+            let mode = if learned {
+                "learned order"
+            } else {
+                "Classic FIFO"
+            };
+            println!(
+                "| {seed} | {mode} | {remaining} | 1 (scripted) | {first} | {:.6} s | {} | 0 |",
+                full.as_secs_f64(),
+                moments.len()
+            );
+            results.push(moments);
+        }
+        assert_eq!(
+            results[0], results[1],
+            "identical complete moments and evidence on the same trace"
         );
     }
 }

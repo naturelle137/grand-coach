@@ -1124,3 +1124,7 @@ live-response-understated = Sicherheit unterschätzt
 live-response-skipped = Übersprungen; keine Antwort bewertet
 live-response-unsupported = Unbelegt; keine Antwort bewertet
 live-abstich-definition = Möglich bedeutet: mindestens eine, aber nicht alle erlaubten verdeckten Verteilungen. Sicher bedeutet: alle. Beides sagt das tatsächliche Spiel nicht voraus und verrät keinen verborgenen Kartenbesitzer. Die Frage empfiehlt keine Karte.
+
+setting-debrief-model = Experimentell: Nachbesprechung mit Modellschätzungen priorisieren
+setting-debrief-model-description = Nur die Reihenfolge ändert sich. Jede Entscheidung wird klassisch geprüft. Modellschätzungen sind keine Fakten oder Fehlerbeweise. Ohne nutzbares Modell bleibt die klassische Reihenfolge aktiv.
+coach-debriefing-partial = Bereits geprüfte Momente. Die Auswahl kann sich mit weiteren Analysen ändern.

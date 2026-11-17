@@ -839,6 +839,15 @@ impl GrandCoachApp {
             .on_hover_text(self.t("setting-coach-warnings-description"));
         let label = self.t("setting-coach-figures");
         ui.checkbox(&mut settings.show_figures, label);
+        let mut learned = self.session.debrief_model_enabled();
+        let label = self.t("setting-debrief-model");
+        if ui
+            .checkbox(&mut learned, label)
+            .on_hover_text(self.t("setting-debrief-model-description"))
+            .changed()
+        {
+            self.session.set_learned_debrief(learned);
+        }
         // One optional focus, chosen by the player only.
         ui.label(self.t("setting-coach-focus"))
             .on_hover_text(self.t("setting-coach-focus-description"));
@@ -1186,7 +1195,14 @@ impl GrandCoachApp {
             for (player, card) in &s.trick {
                 ui.vertical(|ui| {
                     self.card_image(ui, *card, MOMENT_CARD);
-                    ui.label(RichText::new(player).small());
+                    let caption = self.i18n.tf(
+                        "coach-context-card",
+                        &[
+                            ("player", player.clone().into()),
+                            ("card", text::card(&self.i18n, *card).into()),
+                        ],
+                    );
+                    ui.label(RichText::new(caption).small());
                 });
             }
         });
@@ -2252,6 +2268,7 @@ impl GrandCoachApp {
             });
         if start && let Some(seed) = seed {
             let coach = self.session.coach_settings();
+            let learned = self.session.debrief_model_enabled();
             self.session = Session::new(SessionConfig {
                 seed,
                 series: if draft.free {
@@ -2283,6 +2300,7 @@ impl GrandCoachApp {
             self.learning_attempt = None;
             // Coach settings belong to the player, not to the series.
             let _ = self.session.execute(Command::SetCoach(coach));
+            self.session.set_learned_debrief(learned);
             self.next_move_at = now + self.opponent_delay;
             self.new_series = None;
         } else if cancel || !open {
@@ -2944,6 +2962,92 @@ mod tests {
             assert!(area.contains_rect(*a), "{i} leaves the area");
             for b in &all[i + 1..] {
                 assert!(!a.intersects(*b), "{a:?} overlaps {b:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn debrief_progress_widgets_show_only_verified_moments() {
+        use egui_kittest::{Harness, kittest::Queryable};
+        let mut session = Session::new(SessionConfig {
+            seed: 2,
+            series: SeriesLength::Fixed(1),
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
+        });
+        session.set_coach_budget(skat_app::Budget {
+            samples: 2,
+            nodes_per_task: 20_000,
+        });
+        session
+            .execute(Command::SetCoach(CoachSettings {
+                level: CoachLevel::EveryMove,
+                ..CoachSettings::default()
+            }))
+            .unwrap();
+        loop {
+            session.run_opponents();
+            let view = session.view();
+            let Some(&first) = view.legal_actions.first() else {
+                break;
+            };
+            let action = if view.phase == skat_app::Phase::Reizen
+                && view.legal_actions.contains(&Action::Pass)
+            {
+                Action::Pass
+            } else {
+                first
+            };
+            session.execute(Command::Act(action)).unwrap();
+        }
+        loop {
+            let job = session.coach_job().expect("a review remains");
+            session.finish_coach(job.run(None)).unwrap();
+            if matches!(session.view().coach.debriefing, Some(skat_app::Debriefing::Computing { moments, .. }) if !moments.is_empty())
+            {
+                break;
+            }
+        }
+        let out = std::env::var_os("SKAT_DEBRIEF_PROGRESS_OUT");
+        if let Some(out) = &out {
+            std::fs::create_dir_all(out).unwrap();
+        }
+        for language in [Language::De, Language::En] {
+            for (size_label, size) in [("desktop", [1280.0, 820.0]), ("narrow", [960.0, 640.0])] {
+                // Freeze the real partially drained session at an outstanding
+                // worker boundary, so rendering never races the next result.
+                let (sender, receiver) = std::sync::mpsc::channel();
+                let builder = Harness::builder().with_size(size);
+                let builder = if out.is_some() {
+                    builder.wgpu()
+                } else {
+                    builder
+                };
+                let mut h = builder.build_eframe(|cc| {
+                    let mut app = GrandCoachApp::new(&cc.egui_ctx, session.config());
+                    app.session = session.clone();
+                    app.i18n.language = language;
+                    app.coach_thinking = Some(CoachThinking {
+                        job: app.session.coach_job().unwrap(),
+                        result: receiver,
+                        cancel: Cancel::new(),
+                    });
+                    app
+                });
+                h.run_steps(4);
+                h.get_by_label(&h.state().i18n.t("coach-debriefing-partial"));
+                assert_eq!(h.state().session.view(), session.view());
+                if let Some(out) = &out {
+                    let lang = if language == Language::De { "de" } else { "en" };
+                    h.render()
+                        .unwrap()
+                        .save(
+                            std::path::Path::new(out)
+                                .join(format!("debrief-progress-{lang}-{size_label}.png")),
+                        )
+                        .unwrap();
+                }
+                drop(sender);
             }
         }
     }
