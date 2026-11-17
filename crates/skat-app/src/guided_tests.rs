@@ -3372,13 +3372,22 @@ fn lead_master_full_non_absent_dialogue_privacy_including_god_mode() {
                     declarer: false,
                 })),
                 Some(G::Answer(A::Card(lead_fixture::card(3)))),
+                // CA is a valid master, but loses the exact last tie to SA.
                 Some(G::Answer(A::Card(lead_fixture::card(7)))),
+                Some(G::Retry),
+                Some(G::Answer(A::Card(lead_fixture::card(15)))),
                 Some(G::Memory(true)),
                 Some(G::Memory(false)),
             ] {
                 if let Some(a) = a {
                     respond(&mut x, a).unwrap();
                     respond(&mut y, a).unwrap();
+                }
+                if a == Some(G::Answer(A::Card(lead_fixture::card(7)))) {
+                    let g = x.guided().unwrap();
+                    assert_eq!(g.step, S::Narrow);
+                    assert_eq!(g.correct, Some(false));
+                    assert!(g.rule.is_none());
                 }
                 let gx = x.guided().unwrap();
                 let mut gy = y.guided().unwrap();

@@ -225,7 +225,8 @@ impl Lesson {
                 (Step::Orient, Answer::Lead { seat, declarer }) => {
                     seat == self.seat && declarer == role
                 }
-                (Step::Check | Step::Narrow, Answer::Card(c)) => self.rule.candidates.contains(&c),
+                (Step::Check, Answer::Card(c)) => self.rule.candidates.contains(&c),
+                (Step::Narrow, Answer::Card(c)) => c == self.rule.card,
                 _ => false,
             };
         }

@@ -737,7 +737,10 @@ declarer `DrawTrumpf`, fallback, single cards, mixed calls and restricted or
 inconsistent views remain excluded. No policy or Easy tie changes.
 
 The learner identifies their public role/lead, then a legal side master,
-then attempts Easy's largest-Augen choice. A correct candidate attempt or
+then attempts Easy's largest-Augen choice. Master identification accepts every
+shared master; the rule-choice question checks Easy's actual selected card,
+including the last exact tie. Another master can still be played freely.
+A correct rule-choice attempt or
 explicit reveal shows the candidates, selected card and **last exact tie in
 core legal order**. This is a bounded heuristic, not an optimum. Every legal
 card remains freely playable, including a nonmaster. Wrong/retry, worked

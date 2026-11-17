@@ -44,7 +44,11 @@ fn lead_master_whole_lesson_role_master_attempt_and_memory() {
             for step in [Step::Check, Step::Narrow] {
                 assert_eq!(
                     l.check(step, Answer::Card(*card)),
-                    c.expected.candidates.contains(card)
+                    if step == Step::Check {
+                        c.expected.candidates.contains(card)
+                    } else {
+                        *card == c.expected.card
+                    }
                 );
             }
         }
