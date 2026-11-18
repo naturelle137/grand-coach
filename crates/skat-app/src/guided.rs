@@ -127,7 +127,7 @@ pub struct GuidedView {
     pub step: GuidedStep,
     /// Immediate branch task after orientation; contains no selected card.
     pub task: Option<GuidedBranch>,
-    /// Public partner seat for an admitted Farbspiel last-seat defender.
+    /// Public partner seat for an admitted Farbspiel last-seat or Grand defender.
     /// Available during orientation without disclosing the rule or its card.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feed_partner: Option<Seat>,
@@ -222,23 +222,14 @@ impl GuidedState {
         let mut id = GuidedId::from(key);
         id.generation = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let result = result.filter(|r| {
-            !lesson.as_ref().is_some_and(|l| {
-                matches!(l.game, skat_core::GameType::Farbe(_))
-                    && matches!(
-                        l.rule.branch,
-                        GuidedBranch::WinEarly | GuidedBranch::FeedPartner
-                    )
-            }) || r.permitted_only()
+            !lesson
+                .as_ref()
+                .is_some_and(Self::requires_permitted_estimates)
+                || r.permitted_only()
         });
         let permitted_input = lesson
             .as_ref()
-            .filter(|l| {
-                matches!(l.game, skat_core::GameType::Farbe(_))
-                    && matches!(
-                        l.rule.branch,
-                        GuidedBranch::WinEarly | GuidedBranch::FeedPartner
-                    )
-            })
+            .filter(|l| Self::requires_permitted_estimates(l))
             .map(|_| Box::new(view.clone()));
         Self {
             permitted_input,
@@ -278,14 +269,21 @@ impl GuidedState {
         }
     }
 
-    pub(crate) fn permitted_suit_dialogue(&self) -> bool {
-        self.lesson.as_ref().is_some_and(|l| {
-            matches!(l.game, skat_core::GameType::Farbe(_))
-                && matches!(
-                    l.rule.branch,
-                    GuidedBranch::WinEarly | GuidedBranch::FeedPartner
-                )
-        })
+    fn requires_permitted_estimates(l: &Lesson) -> bool {
+        (matches!(l.game, skat_core::GameType::Farbe(_))
+            && matches!(
+                l.rule.branch,
+                GuidedBranch::WinEarly | GuidedBranch::FeedPartner
+            ))
+            || (l.game == skat_core::GameType::Grand
+                && l.rule.branch == GuidedBranch::FeedPartner
+                && !l.rule.last)
+    }
+
+    pub(crate) fn permitted_dialogue(&self) -> bool {
+        self.lesson
+            .as_ref()
+            .is_some_and(Self::requires_permitted_estimates)
     }
 
     pub(crate) fn permitted_estimate_input(&self) -> Option<(DecisionKey, PlayerView)> {
@@ -318,7 +316,7 @@ impl GuidedState {
     pub(crate) fn capture(&mut self, result: &CoachResult, budget: crate::Budget) -> bool {
         if result.guided_key() != self.key
             || result.guided_budget() != budget
-            || (self.permitted_suit_dialogue() && !result.permitted_only())
+            || (self.permitted_dialogue() && !result.permitted_only())
         {
             return false;
         }
@@ -345,9 +343,8 @@ impl GuidedState {
                 .as_ref()
                 .and_then(|l| l.lead_declarer.map(|_| l.seat)),
             feed_partner: self.lesson.as_ref().and_then(|l| {
-                (matches!(l.game, skat_core::GameType::Farbe(_))
-                    && l.rule.branch == GuidedBranch::FeedPartner
-                    && l.rule.last)
+                (l.rule.branch == GuidedBranch::FeedPartner
+                    && (matches!(l.game, skat_core::GameType::Farbe(_)) || !l.rule.last))
                     .then_some(l.rule.winner)
                     .flatten()
             }),
@@ -676,9 +673,9 @@ impl Session {
         self.guided.as_ref().map(|s| {
             s.view(
                 self.coach.settings.show_figures,
-                // These Farbspiel families use the permitted player view,
+                // These families use the permitted player view,
                 // including its basis label on a privileged God Mode table.
-                if s.permitted_suit_dialogue() {
+                if s.permitted_dialogue() {
                     crate::CoachBasis::OwnView
                 } else {
                     self.config().coach_basis()

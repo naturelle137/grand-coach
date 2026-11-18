@@ -25,7 +25,8 @@
 //!
 //! Prints a Markdown summary: the mean per-deal difference of Seeger-Fabian
 //! points per seat-game (A minus B) with its standard error and 95 %
-//! interval, plus declarer and defender results per profile.
+//! interval, plus declarer/defender results, bidding action rates,
+//! Einpassen participation and declarer contract mix per profile.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -249,6 +250,35 @@ fn row(name: &str, t: &Tally) {
     );
 }
 
+fn behaviour(name: &str, t: &Tally) -> String {
+    let actions = t.bidding_actions();
+    format!(
+        "| {name} | {actions} | {} ({}) | {} ({}) | {} ({}) | {} / {} ({}) |",
+        t.bids,
+        rate(t.bids, actions),
+        t.holds,
+        rate(t.holds, actions),
+        t.passes,
+        rate(t.passes, actions),
+        t.thrown_in(),
+        t.seat_games,
+        rate(t.thrown_in(), t.seat_games),
+    )
+}
+
+fn contracts(name: &str, t: &Tally) -> String {
+    let counts = t.contracts.into_iter().chain([
+        t.hand,
+        t.schneider_announced,
+        t.schwarz_announced,
+        t.ouvert,
+    ]);
+    let cells: Vec<_> = counts
+        .map(|n| format!("{n} ({})", rate(n, t.declarer_games)))
+        .collect();
+    format!("| {name} | {} | {} |", t.declarer_games, cells.join(" | "))
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let suite = args.first().map_or("tuning", String::as_str);
@@ -353,11 +383,69 @@ fn main() {
     println!("|---|---|---|---|---|---|---|---|");
     row(&format!("A `{name_a}`"), &ta);
     row(&format!("B `{name_b}`"), &tb);
+    println!();
+    println!(
+        "Bidding rates use all Reizen actions (Bid + Hold + Pass). Einpassen uses seat-games; mixed-table participation does not assign causation."
+    );
+    println!();
+    println!("| Profile | Reizen actions | Bid | Hold | Pass | Einpassen seat-games |");
+    println!("|---|---|---|---|---|---|");
+    println!("{}", behaviour(&format!("A `{name_a}`"), &ta));
+    println!("{}", behaviour(&format!("B `{name_b}`"), &tb));
+    println!();
+    println!(
+        "Contract rates use declarer games only. Hand and announcements overlap the six contract bins; Schneider/Schwarz mean announced, not achieved."
+    );
+    println!();
+    println!(
+        "| Profile | Declarer games | Kreuz | Pik | Herz | Karo | Grand | Null | Hand | Schneider announced | Schwarz announced | Ouvert |"
+    );
+    println!("|---|---|---|---|---|---|---|---|---|---|---|---|");
+    println!("{}", contracts(&format!("A `{name_a}`"), &ta));
+    println!("{}", contracts(&format!("B `{name_b}`"), &tb));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn behavioural_rows_show_counts_denominators_and_absent_contracts() {
+        let passive = Tally {
+            seat_games: 9,
+            passes: 9,
+            ..Tally::default()
+        };
+        assert_eq!(
+            behaviour("passive", &passive),
+            "| passive | 9 | 0 (0.0 %) | 0 (0.0 %) | 9 (100.0 %) | 9 / 9 (100.0 %) |"
+        );
+        assert_eq!(
+            contracts("passive", &passive),
+            "| passive | 0 | 0 (–) | 0 (–) | 0 (–) | 0 (–) | 0 (–) | 0 (–) | 0 (–) | 0 (–) | 0 (–) | 0 (–) |"
+        );
+        let active = Tally {
+            seat_games: 9,
+            declarer_games: 2,
+            defender_games: 7,
+            bids: 1,
+            holds: 1,
+            passes: 2,
+            contracts: [1, 0, 0, 0, 0, 1],
+            hand: 1,
+            ouvert: 1,
+            ..Tally::default()
+        };
+        assert_eq!(
+            behaviour("active", &active),
+            "| active | 4 | 1 (25.0 %) | 1 (25.0 %) | 2 (50.0 %) | 0 / 9 (0.0 %) |"
+        );
+        assert_eq!(
+            contracts("active", &active),
+            "| active | 2 | 1 (50.0 %) | 0 (0.0 %) | 0 (0.0 %) | 0 (0.0 %) | 0 (0.0 %) | 1 (50.0 %) | 1 (50.0 %) | 0 (0.0 %) | 0 (0.0 %) | 1 (50.0 %) |"
+        );
+        assert_eq!(rate(0, 0), "–");
+    }
 
     #[test]
     fn hybrid_spec_loads_the_named_model_and_preserves_the_seed() {

@@ -430,7 +430,7 @@ fn defender_under_partner_c7_c8_lose_ct_overtakes_and_actual_declarer_reply() {
 }
 
 #[test]
-fn own_higher_kreuz_make_ck_a_follow_class_master_and_feed_partner_stays_out() {
+fn own_higher_kreuz_make_ck_a_follow_class_master_and_early_feed_partner_applies() {
     // CA swaps with MH's C7: MH holds CA C8 CT, so every higher Kreuz is
     // own and VH's CK is a follow-class master (not immunity to trumping).
     let g = grand(
@@ -443,7 +443,14 @@ fn own_higher_kreuz_make_ck_a_follow_class_master_and_feed_partner_stays_out() {
     let r = rule(&v).unwrap();
     assert!(r.partner_ahead && !r.last && r.table_master);
     assert_eq!(r.branch, Branch::FeedPartner);
-    assert_eq!(lesson(&v).is_some(), r.last);
+    // #131 now admits this earlier #159 exclusion; preserve its complete
+    // deal and baseline assertions, and check the newly supported lesson.
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule, r);
+    assert_eq!(l.remaining, Some(Seat::Hinterhand));
+    assert_eq!(l.rule.candidates, vec![card("C8"), card("CT"), card("CA")]);
+    assert_eq!(l.rule.card, card("CA"));
+    assert!(l.check(Step::Check, Answer::Seat(Some(Seat::Hinterhand))));
 }
 
 #[test]

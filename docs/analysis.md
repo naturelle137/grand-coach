@@ -479,3 +479,11 @@ The [walkthrough](guided-dialogue.md#farbspiel-last-seat-feedpartner-185) separa
 the accepted independent physical predictions from source-informed API metadata.
 The cloud-owned default-feature policy target covers all 37 represented legal
 completions, four terminal paths and two full-view-equal hidden pairs.
+
+The [second-seat Grand feeding dialogue](guided-dialogue.md#grand-second-seat-feedpartner-131)
+uses unchanged `baseline::rule`: `FeedPartner`, `partner_ahead`, `table_master`,
+not `last`; all legal candidates, maximum nontrump/Augen and last exact tie.
+A table master excludes higher cards outside own/played sets in its follow
+class only. It predicts neither the remaining declarer's reply nor the winner.
+The original #163 core witness covers every represented reply; the coach/app
+check complete permitted-view equality and actual observations separately.

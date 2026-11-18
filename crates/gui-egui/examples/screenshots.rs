@@ -195,6 +195,46 @@ const OPEN_DISPLAY: &[&str] = &[
 ];
 
 const SCENARIOS: &[(&str, Scenario)] = &[
+    ("guided-grand-early-feed-orient-de", early_feed_orient_de),
+    (
+        "guided-grand-early-feed-orient-de-narrow",
+        early_feed_orient_de,
+    ),
+    ("guided-grand-early-feed-rule-de", early_feed_rule_de),
+    ("guided-grand-early-feed-rule-de-narrow", early_feed_rule_de),
+    ("guided-grand-early-feed-observe-de", early_feed_observe_de),
+    (
+        "guided-grand-early-feed-observe-de-narrow",
+        early_feed_observe_de,
+    ),
+    (
+        "guided-grand-early-feed-complete-de",
+        early_feed_complete_de,
+    ),
+    (
+        "guided-grand-early-feed-complete-de-narrow",
+        early_feed_complete_de,
+    ),
+    ("guided-grand-early-feed-orient-en", early_feed_orient_en),
+    (
+        "guided-grand-early-feed-orient-en-narrow",
+        early_feed_orient_en,
+    ),
+    ("guided-grand-early-feed-rule-en", early_feed_rule_en),
+    ("guided-grand-early-feed-rule-en-narrow", early_feed_rule_en),
+    ("guided-grand-early-feed-observe-en", early_feed_observe_en),
+    (
+        "guided-grand-early-feed-observe-en-narrow",
+        early_feed_observe_en,
+    ),
+    (
+        "guided-grand-early-feed-complete-en",
+        early_feed_complete_en,
+    ),
+    (
+        "guided-grand-early-feed-complete-en-narrow",
+        early_feed_complete_en,
+    ),
     ("live-abstich-entry-de", live_entry_de),
     ("live-abstich-entry-en", live_entry_en),
     ("live-abstich-candidate-de", live_candidate_de),
@@ -1834,7 +1874,9 @@ fn main() {
                     GrandCoachApp::new(
                         &cc.egui_ctx,
                         SessionConfig {
-                            seed: if name.starts_with("guided-null-last-") {
+                            seed: if name.starts_with("guided-grand-early-feed-") {
+                                22
+                            } else if name.starts_with("guided-null-last-") {
                                 6
                             } else if name.starts_with("guided-grand-feed-") {
                                 15
@@ -2653,6 +2695,8 @@ fn replay_none_en(h: &mut Harness<'_, GrandCoachApp>) {
     h.run_steps(4);
 }
 
+#[path = "../tests/support/early_feed.rs"]
+mod early_feed_support;
 #[path = "../tests/support/guided.rs"]
 mod guided_support;
 
@@ -3484,6 +3528,31 @@ fn guided_null_return_de(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn guided_null_return_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_support::null_flow(h, Language::En, 9, 16);
+}
+
+fn early_feed_orient_de(h: &mut Harness<'_, GrandCoachApp>) {
+    early_feed_support::flow(h, Language::De, 0, 9);
+}
+fn early_feed_rule_de(h: &mut Harness<'_, GrandCoachApp>) {
+    early_feed_support::flow(h, Language::De, 1, 9);
+}
+fn early_feed_observe_de(h: &mut Harness<'_, GrandCoachApp>) {
+    early_feed_support::flow(h, Language::De, 2, 9);
+}
+fn early_feed_complete_de(h: &mut Harness<'_, GrandCoachApp>) {
+    early_feed_support::flow(h, Language::De, 3, 9);
+}
+fn early_feed_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    early_feed_support::flow(h, Language::En, 0, 9);
+}
+fn early_feed_rule_en(h: &mut Harness<'_, GrandCoachApp>) {
+    early_feed_support::flow(h, Language::En, 1, 9);
+}
+fn early_feed_observe_en(h: &mut Harness<'_, GrandCoachApp>) {
+    early_feed_support::flow(h, Language::En, 2, 9);
+}
+fn early_feed_complete_en(h: &mut Harness<'_, GrandCoachApp>) {
+    early_feed_support::flow(h, Language::En, 3, 9);
 }
 
 fn live_entry_de(h: &mut Harness<'_, GrandCoachApp>) {
