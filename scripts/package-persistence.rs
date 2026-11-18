@@ -3,12 +3,59 @@
 //! RC test helper, linked against the same skat-app build as the package.
 //! Uses actual training events; never included inside the application archive.
 
-use skat_app::{AssistanceLevel, LearningHistory, TrainingCommand, TrainingSession, TrainingTopic};
+use skat_app::{
+    AssistanceLevel, Command, LearningHistory, OpponentEngine, SeriesLength, Session,
+    SessionConfig, TrainingCommand, TrainingSession, TrainingTopic,
+};
 use std::path::PathBuf;
 
 fn main() {
     let mut args = std::env::args().skip(1);
     let mode = args.next().expect("create or check");
+    if mode == "neural" || mode == "fallback" {
+        let mut session = Session::new(SessionConfig {
+            seed: 7,
+            series: SeriesLength::Fixed(2),
+            engine: OpponentEngine::Neural,
+            ..SessionConfig::default()
+        });
+        let provenance = session.neural_provenance().expect("Neural session");
+        assert_eq!(provenance.model.is_ok(), mode == "neural");
+        let mut observed = false;
+        for _ in 0..512 {
+            if session.view().series_finished {
+                break;
+            }
+            if let Some(job) = session.opponent_job() {
+                let (action, reason) = job.run_explained(None);
+                if mode == "neural" && reason.is_none() {
+                    observed = true;
+                }
+                if mode == "fallback" {
+                    assert!(format!("{reason:?}").contains("HashMismatch"), "{reason:?}");
+                    observed = true;
+                }
+                session.finish_opponent(action).unwrap();
+            } else {
+                let command = session
+                    .view()
+                    .legal_actions
+                    .first()
+                    .copied()
+                    .map_or(Command::NextGame, Command::Act);
+                session.execute(command).unwrap();
+            }
+            if observed {
+                break;
+            }
+        }
+        assert!(
+            observed,
+            "expected Neural model decision or corrupt-model fallback"
+        );
+        println!("{mode}: decision verified");
+        return;
+    }
     let path = PathBuf::from(args.next().expect("history path"));
     if mode == "create" {
         assert!(!path.exists(), "probe only creates a new scratch history");

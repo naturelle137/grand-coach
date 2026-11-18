@@ -23,7 +23,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use eframe::egui;
 use gui_egui::GrandCoachApp;
-use skat_app::SessionConfig;
+use skat_app::{OpponentEngine, SessionConfig};
 
 /// Wraps the app to take one screenshot and close (smoke test).
 struct Screenshot {
@@ -69,6 +69,8 @@ fn main() -> eframe::Result {
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs())
     });
+    let package_neural = std::env::var_os("GRAND_COACH_SCREENSHOT").is_some()
+        && std::env::var("GRAND_COACH_PACKAGE_NEURAL").as_deref() == Ok("1");
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Grand-Coach")
@@ -84,6 +86,11 @@ fn main() -> eframe::Result {
                 &cc.egui_ctx,
                 SessionConfig {
                     seed,
+                    engine: if package_neural {
+                        OpponentEngine::Neural
+                    } else {
+                        OpponentEngine::Classic
+                    },
                     ..SessionConfig::default()
                 },
             );
@@ -93,7 +100,7 @@ fn main() -> eframe::Result {
             }
             if std::env::var("GRAND_COACH_VALIDATION").as_deref() == Ok("1") {
                 app.prepare_validation();
-            } else {
+            } else if !package_neural {
                 app.show_new_series();
             }
             Ok(match std::env::var_os("GRAND_COACH_SCREENSHOT") {

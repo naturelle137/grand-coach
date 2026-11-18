@@ -246,14 +246,19 @@ def smoke(args):
         data.mkdir()
         history = data / "learning-history.json"
         probe = (args.archive.parent / ("persistence-probe.exe" if manifest["binary"].endswith(".exe") else "persistence-probe")).resolve()
+        installed_probe = install / probe.name
+        shutil.copy2(probe, installed_probe)
         subprocess.run([str(probe), "create", str(history)], check=True)
+        probe_env = dict(os.environ)
+        probe_env.pop("GRAND_COACH_MODELS", None)
+        subprocess.run([str(installed_probe), "neural"], cwd=root, env=probe_env, check=True, timeout=90)
         preserved = history.read_bytes()
         valid_history_hash = digest(preserved)
-        for stage in ("install", "restart", "upgrade", "damaged-history", "corrupt-model"):
+        for stage in ("install", "restart", "upgrade", "corrupt-model", "damaged-history"):
             if stage == "corrupt-model":
-                # Classic fallback: the app must still start and keep the history.
                 model = install / manifest["models"][0]
                 model.write_bytes(b"corrupt" + model.read_bytes()[7:])
+                subprocess.run([str(installed_probe), "fallback"], cwd=root, env=probe_env, check=True, timeout=90)
             if stage == "upgrade":
                 binary.unlink()
                 binary.write_bytes(files[manifest["binary"]])
@@ -263,7 +268,9 @@ def smoke(args):
                 history.write_bytes(preserved)
             screenshot = (args.out / f"{stage}.ppm").resolve()
             screenshot.unlink(missing_ok=True)
-            env = dict(os.environ, GRAND_COACH_DATA=str(data), GRAND_COACH_SEED="13", GRAND_COACH_SCREENSHOT=str(screenshot))
+            env = dict(os.environ, GRAND_COACH_DATA=str(data), GRAND_COACH_SEED="13", GRAND_COACH_SCREENSHOT=str(screenshot), GRAND_COACH_PACKAGE_NEURAL="1")
+            env.pop("GRAND_COACH_MODELS", None)
+            env.pop("GRAND_COACH_VALIDATION", None)
             # cwd has no checkout/assets; models come only from the install directory.
             log_path = args.out / f"{stage}.log"
             with log_path.open("w") as log:
@@ -278,7 +285,7 @@ def smoke(args):
                 raise ValueError("native packaged launch did not produce a screenshot")
             if history.read_bytes() != preserved:
                 raise ValueError("packaged launch changed user history")
-            if stage not in ("damaged-history", "corrupt-model"):
+            if stage != "damaged-history":
                 subprocess.run([str(probe), "check", str(history)], check=True)
         shutil.rmtree(install)
         if history.read_bytes() != preserved:
@@ -288,8 +295,8 @@ def smoke(args):
         "os": platform.platform(), "result": "passed",
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
-        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "shipped model beside executable, corrupt model keeps launch and history", "uninstall retains data"],
-        "limitations": "History creation/check uses linked app API probe, not GUI interaction. No cross-version migration or interactive flows; no clean OS or Windows 11 claim.",
+        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API uses shipped model and exercises corrupt-model fallback with valid history", "uninstall retains data"],
+        "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. No cross-version migration or interactive flows; no clean OS or Windows 11 claim.",
     }, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
