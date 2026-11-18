@@ -58,6 +58,10 @@ fn percentile(sorted: &[Duration], p: f64) -> Duration {
 }
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--paced-play") {
+        paced_play();
+        return;
+    }
     if std::env::args().nth(1).as_deref() == Some("--fast-play") {
         fast_play();
         return;
@@ -171,7 +175,7 @@ fn fast_play() {
         "times include trace capture, review ordering, scripted cancellation, analysis and view building"
     );
     println!(
-        "| Seed | Mode | Queue peak | Cancellations | First useful | Full debrief | Moments | Missed |"
+        "| Seed | Mode | Queue peak | Cancellations | First useful | Full debrief | Review execution | Moments | Missed |"
     );
     println!("|---|---|---|---|---|---|---|---|---|");
     for seed in 1..=games {
@@ -227,9 +231,15 @@ fn fast_play() {
                 .unwrap();
             let mut first = None;
             let mut reviews = 0;
+            let mut analysis_time = std::time::Duration::ZERO;
+            let mut identities = std::collections::HashSet::new();
             while let Some(job) = run.coach_job() {
                 assert!(job.is_review());
-                run.finish_coach(job.run(None)).unwrap();
+                identities.insert(job.input_identity());
+                let analysis_start = Instant::now();
+                let result = job.run(None);
+                analysis_time += analysis_start.elapsed();
+                run.finish_coach(result).unwrap();
                 reviews += 1;
                 let moments = match run.view().coach.debriefing.unwrap() {
                     Debriefing::Computing { moments, .. } | Debriefing::Ready(moments) => moments,
@@ -239,6 +249,11 @@ fn fast_play() {
                 }
             }
             assert_eq!(reviews, decisions, "no review may be dropped");
+            println!(
+                "seed {seed}: {} distinct review inputs of {reviews} (reusable: {})",
+                identities.len(),
+                reviews as usize - identities.len()
+            );
             let full = capture_time + start.elapsed();
             let Some(Debriefing::Ready(moments)) = run.view().coach.debriefing else {
                 panic!("finished");
@@ -251,8 +266,9 @@ fn fast_play() {
                 "Classic FIFO"
             };
             println!(
-                "| {seed} | {mode} | {remaining} | 1 (scripted) | {first} | {:.6} s | {} | 0 |",
+                "| {seed} | {mode} | {remaining} | 1 (scripted) | {first} | {:.6} s | {:.6} s | {} | 0 |",
                 full.as_secs_f64(),
+                analysis_time.as_secs_f64(),
                 moments.len()
             );
             results.push(moments);
@@ -260,6 +276,86 @@ fn fast_play() {
         assert_eq!(
             results[0], results[1],
             "identical complete moments and evidence on the same trace"
+        );
+    }
+}
+
+/// Compare the same fixed actions with immediate and deferred reviews.
+fn paced_play() {
+    let games: u64 = std::env::args()
+        .nth(2)
+        .map(|s| s.parse().unwrap())
+        .unwrap_or(6);
+    let nodes: u64 = std::env::args()
+        .nth(3)
+        .map(|s| s.parse().unwrap())
+        .unwrap_or(20_000);
+    let budget = Budget {
+        samples: 24,
+        nodes_per_task: nodes,
+    };
+    for seed in 1..=games {
+        let mut outcomes = Vec::new();
+        for paced in [false, true] {
+            let mut session = Session::new(SessionConfig {
+                seed,
+                series: SeriesLength::Fixed(1),
+                opponents: Opponents::Levels([Level::Easy; 2]),
+                ..SessionConfig::default()
+            });
+            session.set_coach_budget(budget);
+            session
+                .execute(Command::SetCoach(CoachSettings {
+                    level: CoachLevel::EveryMove,
+                    ..CoachSettings::default()
+                }))
+                .unwrap();
+            let start = Instant::now();
+            let mut identities = std::collections::HashSet::new();
+            let mut decisions = 0;
+            loop {
+                session.run_opponents();
+                let view = session.view();
+                if view.legal_actions.is_empty() {
+                    break;
+                }
+                let job = session.coach_job().expect("current decision");
+                assert!(!job.is_review());
+                identities.insert(job.input_identity());
+                let action =
+                    if view.phase == Phase::Reizen && view.legal_actions.contains(&Action::Pass) {
+                        Action::Pass
+                    } else {
+                        view.legal_actions[0]
+                    };
+                session.execute(Command::Act(action)).unwrap();
+                if paced {
+                    session.finish_coach(job.run(None)).unwrap();
+                }
+                decisions += 1;
+            }
+            let mut pending = 0;
+            while let Some(job) = session.coach_job() {
+                assert!(job.is_review());
+                session.finish_coach(job.run(None)).unwrap();
+                pending += 1;
+            }
+            assert_eq!(pending, if paced { 0 } else { decisions });
+            let Some(Debriefing::Ready(moments)) = session.view().coach.debriefing else {
+                panic!("finished")
+            };
+            println!(
+                "seed {seed} {}: {decisions} decisions, {} unique inputs, {pending} deferred, {:.6} s, {} moments",
+                if paced { "paced" } else { "fast" },
+                identities.len(),
+                start.elapsed().as_secs_f64(),
+                moments.len()
+            );
+            outcomes.push((identities, moments));
+        }
+        assert_eq!(
+            outcomes[0], outcomes[1],
+            "paced and fast inputs and final evidence"
         );
     }
 }

@@ -609,6 +609,56 @@ these short traces and stays opt-in and off by default.** This diagnostic
 establishes the implementation and no-drop behaviour, not reference-machine
 interactive latency, model calibration, learner efficacy or a general speedup.
 
+### Classical bottleneck diagnostic (#72)
+
+The fast-play command also reports the sum of wall time inside completed
+`CoachJob::run` calls, excluding the scripted cancellation. On 2026-11-18,
+at source `910971c` plus the diagnostic timers, the same six-seed,
+24 × 20,000-node command ran in
+`skat-dev` on an i9-10900K with an unisolated host. Classic execution and
+full trace times in milliseconds were respectively: 109.826/117.160,
+79.534/87.659, 103.070/110.427, 85.403/93.472, 95.049/103.660 and
+91.416/97.601. All eleven reviews completed in each trace, with three final
+moments and exact equality to the paired learned-order results. The execution
+interval includes analysis and explanation; it does not isolate their costs.
+The full interval also includes game capture, cancellation and view building.
+These are wall times, not CPU time, and timer calls add measurement overhead.
+
+The command also counts distinct review inputs (`CoachJob::input_identity`:
+permitted view, God-Mode deal only when present, budget, seed and mode,
+without the decision key). On the same six seeds each trace had 11 distinct
+inputs of 11 reviews, so zero results were reusable. A repeated rerun of the
+command in the same unisolated environment later measured Classic review
+execution of 22.8–33.8 ms per trace (full 24.7–35.8 ms), so the host noise
+between runs exceeds 3×; neither set of wall times supports a ratio.
+
+A second paired, serial control can be run with `cargo run --locked --release -p
+skat-app --example coach_latency -- --paced-play 6 20000`. On 2026-11-18,
+for seeds 1–6, each pair used the same fixed actions and produced exactly equal
+final moments and evidence. All 11 inputs per game were distinct in both
+modes. The fast mode deferred all 11 reviews; the paced mode completed each
+review after its action, leaving none pending at the end. Fast total times were
+23.297–27.862 ms; paced times were 22.931–28.747 ms. This serial approximation
+does not model a human delay, worker overlap or the GUI. A separate warm repeat
+of the whole paired process under `/usr/bin/time -v` used 1.33 s user and
+0.14 s system CPU and peaked at 9,488 KiB RSS; these are process totals for
+both modes, not per-mode resource comparisons. The host was not isolated and
+other builds were active, so no speed ratio is inferred.
+
+**Decision (bounded no-go for identical-input reuse, #72):** The measured
+trace contains no duplicate work for a cache of completed immutable analyses
+to remove: every review has a different permitted history. Cache hits could
+arise only when an identical position is analysed again (a replay with
+identical actions), which is not a measured bottleneck and would need a key over
+the full permitted history, perspective, seed, budget, versions and rules plus
+stale-result and hidden-card tests that no measured gain justifies. A worker or
+scheduling policy has no demonstrated target either: execution is serial and
+dominates, and the first visible moment (about 5 ms) already precedes the full
+debrief. Classic, moment selection and results stay unchanged. Real paced worker overlap, CPU-contention, per-mode RSS and GUI-responsiveness
+comparisons were not run. This no-go covers identical-input reuse in these
+traces, not other candidate optimizations; it is reopened if repeated identical
+inputs appear.
+
 ## Experimental live preview
 
 With the Experimental opponents selected, card play and Kontra/Re use a
