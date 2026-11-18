@@ -14,9 +14,9 @@ import package
 class PackageTests(unittest.TestCase):
     def setUp(self):
         self.names = package.resources(package.ROOT)
-        self.files = {name: (package.ROOT / name).read_bytes() for name in (*package.LEGAL, *self.names)}
+        self.files = {name: (package.ROOT / name).read_bytes() for name in (*package.LEGAL, *self.names, *package.MODELS)}
         self.files.update({"grand-coach": b"test executable", "INSTALL.md": b"install", "THIRD-PARTY.md": b"sources"})
-        self.manifest = {"binary": "grand-coach", "embedded_resources": self.names,
+        self.manifest = {"binary": "grand-coach", "embedded_resources": self.names, "models": list(package.MODELS),
                          "files": {k: package.digest(v) for k, v in self.files.items()}}
 
     def write(self, directory, files, windows=False):
@@ -44,6 +44,18 @@ class PackageTests(unittest.TestCase):
                 missing = next(n for n in self.names if n.startswith("assets/cards/french2/"))
             files = dict(self.files)
             del files[missing]
+            self.manifest["files"] = {k: package.digest(v) for k, v in files.items()}
+            with tempfile.TemporaryDirectory() as directory:
+                with self.assertRaises((ValueError, FileNotFoundError)):
+                    package.verify(self.write(directory, self.with_manifest(files)))
+
+    def test_missing_or_mismatching_model_fails_even_with_rehashed_manifest(self):
+        for name, content in ((package.MODELS[0], None), (package.MODELS[0], b"corrupt"), (package.MODELS[1], None)):
+            files = dict(self.files)
+            if content is None:
+                del files[name]
+            else:
+                files[name] = content
             self.manifest["files"] = {k: package.digest(v) for k, v in files.items()}
             with tempfile.TemporaryDirectory() as directory:
                 with self.assertRaises((ValueError, FileNotFoundError)):

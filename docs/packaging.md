@@ -39,11 +39,17 @@ Cards (all three faces, God/Mephisto styles and backs), 24 portraits and de/en
 Fluent translations are compiled into the executable by `gui-egui`. Copies
 are included as an auditable inventory, not runtime lookup dependencies.
 The archive also carries EUPL, CC BY-SA, dependency notices, Cargo.lock and
-the third-party asset inventory. No model is shipped: Classic is the default
-offline engine; selecting Neural without a valid model falls back to Strong.
-The development executable can still find models in its original checkout;
-do not mistake that for a shipped model. Optional model distribution requires
-a separately verified manifest/hash and runtime/fallback evidence.
+the third-party asset inventory. The archive ships the card-play model
+(`assets/models/card-play.gcnn`, its training manifest and model card, D-63);
+keep its `assets/models` directory beside the executable; the app
+searches first after `GRAND_COACH_MODELS`. Build and `verify` fail unless the
+model matches the SHA-256 and size in its manifest. Classic stays the default;
+a missing or corrupt model makes Neural fall back to Classic Strong without
+touching user data. The smoke test launches with the model installed and again
+with a corrupted one, checking valid history is unchanged. A same-build app API probe beside the executable verifies an actual Neural decision and a corrupt-model fallback; these decisions are not GUI interactions. Neural levels stay
+experimental; no target-machine latency/RSS measurement is recorded yet (no
+six-core integrated-graphics hardware available to agents), and results from
+other machines are only proxies.
 
 ## Reproduce and inspect
 
