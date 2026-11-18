@@ -233,8 +233,7 @@ shows which options had fewer.
 
 ## Hybrid proposals (experimental, #76)
 
-`hybrid::analyze_hybrid` is an opt-in backend increment, not a shipped
-engine choice. From the original permitted `PlayerView`, the loaded model
+`hybrid::analyze_hybrid` is an opt-in experimental backend and engine choice. From the original permitted `PlayerView`, the loaded model
 proposes its two highest policy probabilities (stable legal-order ties).
 The existing shared rule card is included, giving two or three candidates.
 The ordinary `analyze` evaluates these in original legal order using the
@@ -262,15 +261,9 @@ estimates. No filesystem/network IO occurs here. `skat-ai::HybridOpponent`
 provides a thin `Player` adapter with the selected Classic level for model
 fallback and legal rule fallback when verification cannot finish. No coach strategy is duplicated.
 
-This proposal strategy is an implementation candidate, pending the short
-comparative measurement required by #76. No quality or latency measurement
-against Strong and neural-only has been performed in this increment: the
-existing [compute hold](neural-operational-selection.md) authorises no new
-arenas. Tiny random-weight fixture tests establish API behaviour, not strength
-or a speedup. The selector from [#77](learned-engine-selection.md) now offers
-Hybrid experimentally. Separately admitted `calibrate`/`latency` evidence
-remains required before full issue acceptance. Classic regressions and defaults
-are unchanged; no training, weights or model provenance were added.
+The [paired quality comparison](ai.md#hybrid-neural-and-strong-comparison)
+did not establish a strength ordering. Classic remains the default; no
+training, weights or model provenance were added by that measurement.
 
 ## Two-stage card play (experimental, #104)
 
@@ -408,6 +401,34 @@ At the interactive budget, pre-play estimates can have large standard
 errors. Inspect sample counts, screening and uncertainty before comparing
 close options. The analysis tests compare Monte Carlo with exact
 enumeration on known positions.
+
+### Hybrid latency comparison
+
+On 2026-11-18 the release `skat-ai` latency example ran ten seeded positions
+per kind on the same i9-10900K/Fedora 44 Distrobox as the
+[quality comparison](ai.md#hybrid-neural-and-strong-comparison), using the
+same frozen model and Strong fallback. It measures decisions sequentially;
+other host activity was not controlled. Median / p90 are milliseconds:
+
+| Decision | Strong | Hybrid | Neural |
+|---|---:|---:|---:|
+| Kontra | 89 / 620 | 90 / 613 | 0.138 / 0.187 |
+| Card play, trick 1 | 258 / 491 | 150 / 194 | 0.135 / 0.142 |
+| Card play, trick 2 | 30 / 180 | 20 / 95 | 0.134 / 0.139 |
+| Card play, trick 3 | 7.267 / 11 | 5.825 / 9.089 | 0.134 / 0.140 |
+| Card play, trick 4 | 3.104 / 6.287 | 5.063 / 6.379 | 0.142 / 0.145 |
+| Card play, trick 8 | 1.075 / 1.550 | 1.955 / 2.754 | 0.134 / 0.140 |
+
+All three reported zero incomplete decisions in every phase; model read,
+hash and load took 42.7 ms separately. Pre-play uses the Classic fallback
+and was below 0.01 ms median and p90 for each player in this sample. Ten
+positions are descriptive and do not establish a general speedup. Neural's
+Kontra path differs from Hybrid's Classic fallback; late exact positions can
+also follow different paths.
+
+```sh
+cargo run --locked --release -p skat-ai --example latency -- 10 nn:assets/models/card-play.gcnn
+```
 
 ## Exact retrieval counts (#48)
 
