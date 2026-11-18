@@ -26,6 +26,7 @@ pub struct RecordingContext {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub neural: Option<crate::NeuralProvenance>,
     /// Original series configuration (its seed is not the game's seed).
+    #[serde(deserialize_with = "crate::session::deserialize_recorded_config")]
     pub session: SessionConfig,
     /// One-based game number in that series.
     pub number: u32,
@@ -233,12 +234,21 @@ impl GameRecording {
             });
         }
         let c = &self.context;
-        if c.session.validate().is_err()
+        let legacy_levels = c
+            .neural
+            .as_ref()
+            .is_some_and(|p| p.policy_revision == "greedy-policy-1")
+            && c.session.engine == crate::OpponentEngine::Neural
+            && matches!(c.session.opponents, Opponents::Levels(_));
+        if (c.session.validate().is_err() && !legacy_levels)
             || (self.format == 1
                 && (c.neural.is_some() || c.session.engine != crate::OpponentEngine::Classic))
             || (self.format == RECORDING_FORMAT && (c.neural.is_none() || !c.session.uses_neural()))
             || c.neural.as_ref().is_some_and(|p| {
-                p.policy_revision != "greedy-policy-1" || p.fallback != crate::Level::Strong
+                (p.policy_revision != "greedy-policy-1"
+                    && (p.policy_revision != skat_nn::PolicyLevel::REVISION
+                        || c.session.engine != crate::OpponentEngine::Neural))
+                    || p.fallback != crate::Level::Strong
             })
         {
             return Err(RecordingError::InvalidContext);

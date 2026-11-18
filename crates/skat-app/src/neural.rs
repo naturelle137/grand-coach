@@ -92,10 +92,17 @@ pub struct NeuralIdentity {
 pub struct NeuralProvenance {
     /// Loaded model identity or structured load failure.
     pub model: Result<NeuralIdentity, ModelError>,
-    /// Greedy legal-order policy, before learned levels are implemented.
+    /// Frozen policy revision; legacy recordings retain greedy-policy-1.
     pub policy_revision: String,
-    /// All unsupported decisions use this existing Classic profile.
+    /// Legacy fallback. Temperature profiles use the per-seat SessionConfig levels.
     pub fallback: crate::Level,
+}
+
+impl NeuralProvenance {
+    /// Whether the recorded policy uses the per-seat levels in SessionConfig.
+    pub fn uses_levels(&self) -> bool {
+        self.policy_revision == skat_nn::PolicyLevel::REVISION
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -127,14 +134,32 @@ impl FrozenNeural {
         }
     }
 
+    pub fn configured(mut self, config: &crate::SessionConfig) -> Self {
+        if config.engine == crate::OpponentEngine::Neural {
+            self.provenance.policy_revision = skat_nn::PolicyLevel::REVISION.into();
+        }
+        self
+    }
+
     pub fn for_practice(recorded: Option<&NeuralProvenance>) -> Self {
         // Legacy recordings have unknown identity: do not silently claim that
         // the currently installed model is the historical opponent.
-        let loaded = Self::load();
+        let mut loaded = Self::load();
+        if recorded.is_some_and(|p| p.policy_revision == skat_nn::PolicyLevel::REVISION) {
+            loaded.provenance.policy_revision = skat_nn::PolicyLevel::REVISION.into();
+        }
         match recorded {
             Some(p) if p == &loaded.provenance => loaded,
-            Some(p) if p.model.is_err() => Self::new(Err(p.model.as_ref().unwrap_err().clone())),
-            Some(_) => Self::new(Err(ModelError::HashMismatch)),
+            Some(p) if p.model.is_err() => {
+                let mut failed = Self::new(Err(p.model.as_ref().unwrap_err().clone()));
+                failed.provenance.policy_revision = p.policy_revision.clone();
+                failed
+            }
+            Some(p) => {
+                let mut failed = Self::new(Err(ModelError::HashMismatch));
+                failed.provenance.policy_revision = p.policy_revision.clone();
+                failed
+            }
             None => Self::new(Err(ModelError::Missing)),
         }
     }

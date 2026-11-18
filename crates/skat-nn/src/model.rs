@@ -24,6 +24,8 @@
 use burn::module::Module;
 use burn::store::ModuleRecord;
 use burn::tensor::{Bytes, Device, Tensor, TensorData};
+use rand_chacha::ChaCha8Rng;
+use rand_chacha::rand_core::{Rng, SeedableRng};
 use sha2::{Digest, Sha256};
 use skat_core::{Action, Phase, PlayerView};
 
@@ -168,6 +170,34 @@ pub enum Choice {
     Policy,
     /// The action with the highest expected points of the option heads.
     Score,
+    /// Versioned experimental temperature profile, using an explicit decision seed.
+    Level(PolicyLevel),
+}
+
+/// Candidate controls, not measured strength ordering or Classic equivalence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum PolicyLevel {
+    /// Temperature 2.
+    Easy,
+    /// Temperature 1.
+    Medium,
+    /// Greedy policy, preserving the first legal tie.
+    Strong,
+}
+
+impl PolicyLevel {
+    /// Frozen parameter and sampling revision, recorded with the model identity.
+    pub const REVISION: &'static str = "temperature-policy-1";
+
+    /// Policy-logit temperature. Zero keeps the historical greedy policy.
+    pub fn temperature(self) -> f32 {
+        match self {
+            Self::Easy => 2.0,
+            Self::Medium => 1.0,
+            Self::Strong => 0.0,
+        }
+    }
 }
 
 /// The option heads' estimate for one legal action.
@@ -439,6 +469,19 @@ impl NeuralModel {
     /// As [`NeuralModel::evaluate`]; a non-finite option estimate of a
     /// legal action also falls back.
     pub fn evaluate_with(&self, view: &PlayerView, choice: Choice) -> Result<Evaluation, Fallback> {
+        self.evaluate_seeded(view, choice, 0)
+    }
+
+    /// As [`Self::evaluate_with`], with an explicit sampling seed.
+    ///
+    /// # Errors
+    /// The same structured fallbacks as [`Self::evaluate_with`].
+    pub fn evaluate_seeded(
+        &self,
+        view: &PlayerView,
+        choice: Choice,
+        seed: u64,
+    ) -> Result<Evaluation, Fallback> {
         if view.legal_actions.is_empty() {
             return Err(Fallback::NoDecision);
         }
@@ -454,7 +497,16 @@ impl NeuralModel {
         if !raw.value.is_finite() {
             return Err(Fallback::NonFinite);
         }
-        let policy = masked_softmax(&raw.logits, &indices).ok_or(Fallback::NonFinite)?;
+        let temperature = match choice {
+            Choice::Level(level) => level.temperature(),
+            _ => 0.0,
+        };
+        let policy = if temperature > 0.0 {
+            temperature_softmax(&raw.logits, &indices, temperature)
+        } else {
+            masked_softmax(&raw.logits, &indices)
+        }
+        .ok_or(Fallback::NonFinite)?;
         let options: Vec<OptionEstimate> = view
             .legal_actions
             .iter()
@@ -472,11 +524,15 @@ impl NeuralModel {
             return Err(Fallback::NonFinite);
         }
         let ranking: Vec<f32> = match choice {
-            Choice::Policy => policy.clone(),
+            Choice::Policy | Choice::Level(_) => policy.clone(),
             Choice::Score => options.iter().map(|o| o.score).collect(),
         };
         Ok(Evaluation {
-            action: choose(view, &ranking, &indices)?,
+            action: if temperature > 0.0 {
+                view.legal_actions[sample_policy(&policy, seed)]
+            } else {
+                choose(view, &ranking, &indices)?
+            },
             policy: view.legal_actions.iter().copied().zip(policy).collect(),
             value: raw.value,
             options,
@@ -495,6 +551,37 @@ pub fn masked_softmax(logits: &[f32], indices: &[usize]) -> Option<Vec<f32>> {
     let exp: Vec<f32> = legal.iter().map(|&x| (x - max).exp()).collect();
     let total: f32 = exp.iter().sum();
     Some(exp.into_iter().map(|e| e / total).collect())
+}
+
+// Subtract in f64 before scaling: even opposite finite f32 extremes stay finite.
+fn temperature_softmax(logits: &[f32], indices: &[usize], temperature: f32) -> Option<Vec<f32>> {
+    let legal: Vec<f64> = indices.iter().map(|&i| f64::from(logits[i])).collect();
+    if legal.iter().any(|x| !x.is_finite()) {
+        return None;
+    }
+    let max = legal.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let exp: Vec<f64> = legal
+        .iter()
+        .map(|x| ((x - max) / f64::from(temperature)).exp())
+        .collect();
+    let total: f64 = exp.iter().sum();
+    Some(exp.into_iter().map(|x| (x / total) as f32).collect())
+}
+
+fn sample_policy(policy: &[f32], seed: u64) -> usize {
+    let mut rng = ChaCha8Rng::seed_from_u64(seed);
+    let mut remaining = f64::from(rng.next_u32()) / (f64::from(u32::MAX) + 1.0);
+    let mut last_positive = 0;
+    for (i, &probability) in policy.iter().enumerate() {
+        if probability > 0.0 {
+            last_positive = i;
+        }
+        remaining -= f64::from(probability);
+        if remaining < 0.0 {
+            return i;
+        }
+    }
+    last_positive
 }
 
 /// The legal action ranked highest (ties: first in the view's order),
@@ -528,6 +615,26 @@ mod tests {
         assert!(p[0] > p[1] && p[1] == p[2]);
         assert_eq!(masked_softmax(&logits, &[0, 1]), None);
         assert_eq!(masked_softmax(&logits, &[3]), None);
+    }
+
+    #[test]
+    fn temperature_mask_is_stable_for_extreme_finite_logits() {
+        let logits = [f32::MAX, f32::NAN, -f32::MAX, f32::MAX];
+        for temperature in [1.0, 2.0] {
+            assert_eq!(
+                temperature_softmax(&logits, &[0, 2, 3], temperature),
+                Some(vec![0.5, 0.0, 0.5])
+            );
+            assert!(temperature_softmax(&logits, &[1], temperature).is_none());
+        }
+        assert_eq!(sample_policy(&[0.0, 1.0, 0.0], 7), 1);
+        let logits = [0.0, 4.0_f32.ln(), f32::NAN];
+        for (temperature, expected) in [(1.0, [0.2, 0.8]), (2.0, [1.0 / 3.0, 2.0 / 3.0])] {
+            let actual = temperature_softmax(&logits, &[0, 1], temperature).unwrap();
+            for (actual, expected) in actual.iter().zip(expected) {
+                assert!((actual - expected).abs() < 1e-6);
+            }
+        }
     }
 
     #[test]

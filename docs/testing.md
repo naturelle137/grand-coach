@@ -694,17 +694,21 @@ those technical models with `SKAT_SUIT_FEED_WIDGET_FIXTURES_OUT` set to their
 absolute path and that test; this never changes the accepted handwritten oracle.
 See the [scope and ordinary walkthrough](guided-dialogue.md#farbspiel-last-seat-feedpartner-185).
 
-## Learned engine selection (#77, increment A)
+## Learned engine selection (#77, increments A/B)
 
 `skat-app` engine lifecycle tests cover Classic JSON/default compatibility,
 invalid special-table combinations, frozen identity and format-2 round trips,
 legacy format-1 Neural practice, model mismatch, cancelled legal fallback through
 a two-game series and stale worker rejection. Existing Classic tests are retained.
-The egui headless test switches engines in de/en, preserves Classic draft levels,
+Tiny fixed-model tests check temperature repeatability/legal support, Strong
+greedy ties, finite-extreme masking and matching Classic fallback through a
+complete seeded series. App validation rejects Neural Rookie; legacy profiles
+stay readable. The calibrate parser tests inspect shared profiles without arenas.
+The egui headless test switches engines and levels independently in de/en, preserves draft levels,
 checks Cancel with a pending worker and checks Start cancellation/stale results.
 Screenshot scenarios `neural-selection`, `neural-selection-en`, `neural-fallback`
 and `neural-fallback-en` show the controls and live notice; the `-narrow` variants
-also check the 960 × 640 minimum. Fallback scenarios
+also check the 960 × 640 minimum; both now include `-en-narrow`. Fallback scenarios
 require a process started with an unavailable/corrupt model override. These are
 technical lifecycle checks, not learned-strength or human-learning evidence.
 

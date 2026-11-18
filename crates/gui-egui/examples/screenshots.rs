@@ -579,9 +579,11 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("neural-selection", neural_selection),
     ("neural-selection-en", neural_selection_en),
     ("neural-selection-narrow", neural_selection),
+    ("neural-selection-en-narrow", neural_selection_en),
     ("neural-fallback", neural_fallback),
     ("neural-fallback-en", neural_fallback_en),
     ("neural-fallback-narrow", neural_fallback),
+    ("neural-fallback-en-narrow", neural_fallback_en),
     ("new-series-seed", new_series_seed),
     ("coach", coach),
     ("coach-situation", coach_situation),
@@ -1184,6 +1186,16 @@ fn neural_selection(h: &mut Harness<'_, GrandCoachApp>) {
     h.state_mut().show_new_series();
     h.run_steps(3);
     click(h, Role::RadioButton, "Neural (experimentell)");
+    h.get_all_by_role_and_label(Role::RadioButton, "Leicht")
+        .next()
+        .unwrap()
+        .click();
+    h.run_steps(3);
+    h.get_all_by_role_and_label(Role::RadioButton, "Stark")
+        .nth(1)
+        .unwrap()
+        .click();
+    h.run_steps(3);
 }
 
 fn neural_selection_en(h: &mut Harness<'_, GrandCoachApp>) {
@@ -1191,6 +1203,16 @@ fn neural_selection_en(h: &mut Harness<'_, GrandCoachApp>) {
     h.state_mut().show_new_series();
     h.run_steps(3);
     click(h, Role::RadioButton, "Neural (experimental)");
+    h.get_all_by_role_and_label(Role::RadioButton, "Easy")
+        .next()
+        .unwrap()
+        .click();
+    h.run_steps(3);
+    h.get_all_by_role_and_label(Role::RadioButton, "Strong")
+        .nth(1)
+        .unwrap()
+        .click();
+    h.run_steps(3);
 }
 
 // Run with a corrupt GRAND_COACH_MODELS fixture to demonstrate fallback.

@@ -115,7 +115,11 @@ impl NeuralOpponent {
             }
         };
         let evaluation = match &self.model {
-            Ok(model) => model.evaluate_with(view, self.choice),
+            Ok(model) => model.evaluate_seeded(
+                view,
+                self.choice,
+                crate::opponent::decision_seed(self.classic.seed, view),
+            ),
             Err(e) => Err(Fallback::Model(e.clone())),
         };
         match evaluation {
