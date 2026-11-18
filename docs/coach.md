@@ -263,7 +263,9 @@ with one seat still to play; Easy selects a losing card by nontrump, Augen,
 power, retaining the first exact tie. The latter wins in last seat by nontrump,
 power, retaining the first exact tie. Non-Ouvert Grand supports `WinLast`
 (#157), for a defender in the middle seat `UnderPartner` (#159), and
-`WinEarly` in Mittelhand (#161), and last-seat `FeedPartner` (#163). Empty-trick Grand `LeadMaster` (#171)
+`WinEarly` in Mittelhand (#161), and last-seat `FeedPartner` (#163).
+[Second-seat Grand `FeedPartner`](guided-dialogue.md#grand-second-seat-feedpartner-131)
+also admits the acting defender after a partner follow-class master. Empty-trick Grand `LeadMaster` (#171)
 also supports both roles where Easy selects a nontrump master: own/played
 higher cards do not block it, known discarded higher cards still do.
 It takes maximum Augen, last exact legal-order tie, with no trick guarantee.
@@ -295,7 +297,8 @@ are named after disclosure and stay playable. No
 optimality, later lead or hidden holder is claimed. Other branches and Ouvert
 Grand/Null card play report unsupported and return to free play; Kontra/Re has its own
 dialogue below. In particular, a side master is
-not safe against trumping: the early `FeedPartner` branch is excluded.
+not safe against trumping: second-seat Grand `FeedPartner` explicitly teaches
+this limit and observes the remaining declarer. Early Farbspiel feeding stays excluded.
 
 One active prompt has at most two supporting facts. Rule conditions and
 candidates appear only after an attempt or deliberate reveal. Optional card
@@ -310,7 +313,7 @@ action, resulting step and sticky assisted flag. Consumers deduplicate by
 `(id, sequence)`; no mastery or retention inference follows.
 
 The app follows the originating trick across automated turns. For
-`UnderPartner`, `WinEarly` and second-seat Null, the later player's actual card is the observation; for
+`UnderPartner`, `WinEarly`, early Grand `FeedPartner` and second-seat Null, the later player's actual card is the observation; for
 `WinLast`, last-seat Null and last-seat `FeedPartner`, the human's actual completing card is. Evidence carries trick index,
 seat, led card, played card and the actual completed winner, even if the human
 chose a different card. Failure to follow establishes a void at that play;
