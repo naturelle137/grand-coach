@@ -48,14 +48,13 @@ fn classic_wire_and_default_are_unchanged_and_invalid_engines_rejected() {
         serde_json::from_str::<SessionConfig>(&serde_json::to_string(&c).unwrap()).unwrap(),
         c
     );
-    assert!(
-        serde_json::from_str::<SessionConfig>(
-            &serde_json::to_string(&c)
-                .unwrap()
-                .replace("Neural", "Hybrid")
-        )
-        .is_err()
-    );
+    let hybrid: SessionConfig = serde_json::from_str(
+        &serde_json::to_string(&c)
+            .unwrap()
+            .replace("Neural", "Hybrid"),
+    )
+    .unwrap();
+    assert_eq!(hybrid.engine, OpponentEngine::Hybrid);
 }
 
 #[test]
@@ -315,4 +314,38 @@ fn increment_a_greedy_recordings_keep_historical_fallback() {
     let mut invalid = recorded;
     invalid.context.neural.as_mut().unwrap().policy_revision = "unknown".into();
     assert!(invalid.reconstruct_privileged(0).is_err());
+}
+
+#[test]
+fn hybrid_roundtrip_and_missing_model_use_selected_classic() {
+    let config = SessionConfig {
+        engine: OpponentEngine::Hybrid,
+        ..config()
+    };
+    let mut session = Session::new(config);
+    session.neural = Some(FrozenNeural::new(Err(ModelError::Missing)).configured(&config));
+    session.recording.context.neural = session.neural_provenance().cloned();
+    let recording = recording(&session);
+    let decoded: GameRecording =
+        serde_json::from_str(&serde_json::to_string(&recording).unwrap()).unwrap();
+    decoded.reconstruct_privileged(0).unwrap();
+    assert_eq!(decoded.context.session.engine, OpponentEngine::Hybrid);
+    let job = session.opponent_job().unwrap();
+    let seat = session.game.current_seat().unwrap();
+    let player = PlayerId::on_seat(seat, session.dealer);
+    let classic = Opponent::new(
+        config.level(player).unwrap(),
+        session.ai_seeds[player.index() - 1],
+    );
+    assert_eq!(
+        job.run(None).action,
+        classic
+            .decide(&session.game.view(seat), None)
+            .unwrap()
+            .action
+    );
+    let practice = Session::new(SessionConfig::default())
+        .start_practice(&decoded)
+        .unwrap();
+    assert_eq!(practice.config().engine, OpponentEngine::Hybrid);
 }

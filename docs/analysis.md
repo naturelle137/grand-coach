@@ -259,17 +259,17 @@ card play (including Kontra/Re), and missing/broken/unsupported/non-finite
 models also keep Classic. Cancellation before inference skips the model;
 interrupted proposal verification reports its actual status without invented
 estimates. No filesystem/network IO occurs here. `skat-ai::HybridOpponent`
-provides a thin `Player` adapter with Classic Strong fallback and legal rule
-fallback when verification cannot finish. No coach strategy is duplicated.
+provides a thin `Player` adapter with the selected Classic level for model
+fallback and legal rule fallback when verification cannot finish. No coach strategy is duplicated.
 
 This proposal strategy is an implementation candidate, pending the short
 comparative measurement required by #76. No quality or latency measurement
 against Strong and neural-only has been performed in this increment: the
 existing [compute hold](neural-operational-selection.md) authorises no new
 arenas. Tiny random-weight fixture tests establish API behaviour, not strength
-or a speedup. The planned selector from [#77](learned-engine-selection.md),
-separately admitted `calibrate`/`latency` evidence
-remain required before full issue acceptance. Classic regressions and defaults
+or a speedup. The selector from [#77](learned-engine-selection.md) now offers
+Hybrid experimentally. Separately admitted `calibrate`/`latency` evidence
+remains required before full issue acceptance. Classic regressions and defaults
 are unchanged; no training, weights or model provenance were added.
 
 ## Two-stage card play (experimental, #104)

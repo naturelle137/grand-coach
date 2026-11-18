@@ -1134,3 +1134,6 @@ live-abstich-definition = Possible means at least one but not all permitted hidd
 setting-debrief-model = Experimental: prioritize debriefing with model estimates
 setting-debrief-model-description = Changes only the order. Every decision receives Classic analysis. Model estimates are not facts or proof of a mistake. Without a usable model, Classic ordering stays active.
 coach-debriefing-partial = Moments already checked. The selection may change as more analyses finish.
+
+mode-hybrid = Hybrid (experimental)
+mode-hybrid-description = Experimental proposals are verified by Classic search; Easy verifies with one sample. If the model is unavailable, the selected Classic level takes over. Quality and speed are unmeasured.

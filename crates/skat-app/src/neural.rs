@@ -102,6 +102,7 @@ impl NeuralProvenance {
     /// Whether the recorded policy uses the per-seat levels in SessionConfig.
     pub fn uses_levels(&self) -> bool {
         self.policy_revision == skat_nn::PolicyLevel::REVISION
+            || self.policy_revision == "hybrid-proposals-1"
     }
 }
 
@@ -135,7 +136,9 @@ impl FrozenNeural {
     }
 
     pub fn configured(mut self, config: &crate::SessionConfig) -> Self {
-        if config.engine == crate::OpponentEngine::Neural {
+        if config.engine == crate::OpponentEngine::Hybrid {
+            self.provenance.policy_revision = "hybrid-proposals-1".into();
+        } else if config.engine == crate::OpponentEngine::Neural {
             self.provenance.policy_revision = skat_nn::PolicyLevel::REVISION.into();
         }
         self
@@ -145,8 +148,8 @@ impl FrozenNeural {
         // Legacy recordings have unknown identity: do not silently claim that
         // the currently installed model is the historical opponent.
         let mut loaded = Self::load();
-        if recorded.is_some_and(|p| p.policy_revision == skat_nn::PolicyLevel::REVISION) {
-            loaded.provenance.policy_revision = skat_nn::PolicyLevel::REVISION.into();
+        if recorded.is_some_and(|p| p.uses_levels()) {
+            loaded.provenance.policy_revision = recorded.unwrap().policy_revision.clone();
         }
         match recorded {
             Some(p) if p == &loaded.provenance => loaded,

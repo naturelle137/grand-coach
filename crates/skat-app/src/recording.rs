@@ -240,14 +240,20 @@ impl GameRecording {
             .is_some_and(|p| p.policy_revision == "greedy-policy-1")
             && c.session.engine == crate::OpponentEngine::Neural
             && matches!(c.session.opponents, Opponents::Levels(_));
-        if (c.session.validate().is_err() && !legacy_levels)
+        if (c.session.engine == crate::OpponentEngine::Hybrid
+            && c.neural
+                .as_ref()
+                .is_some_and(|p| p.policy_revision != "hybrid-proposals-1"))
+            || (c.session.validate().is_err() && !legacy_levels)
             || (self.format == 1
                 && (c.neural.is_some() || c.session.engine != crate::OpponentEngine::Classic))
             || (self.format == RECORDING_FORMAT && (c.neural.is_none() || !c.session.uses_neural()))
             || c.neural.as_ref().is_some_and(|p| {
                 (p.policy_revision != "greedy-policy-1"
-                    && (p.policy_revision != skat_nn::PolicyLevel::REVISION
-                        || c.session.engine != crate::OpponentEngine::Neural))
+                    && !((p.policy_revision == skat_nn::PolicyLevel::REVISION
+                        && c.session.engine == crate::OpponentEngine::Neural)
+                        || (p.policy_revision == "hybrid-proposals-1"
+                            && c.session.engine == crate::OpponentEngine::Hybrid)))
                     || p.fallback != crate::Level::Strong
             })
         {

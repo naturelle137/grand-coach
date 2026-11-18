@@ -85,7 +85,7 @@ covers the next steps from guided play to independent practice.
 
 The game uses ISkO rules with optional Kontra/Re and Seeger-Fabian scoring.
 It supports fixed-length series and free play. Classic is the default opponent
-engine; an experimental Neural card policy can be selected for a new series,
+engine; experimental Neural and Hybrid engines can be selected for a new series,
 with independent experimental Easy/Medium/Strong controls and a visible
 Classic fallback at the chosen levels if its frozen model is unavailable.
 Learned level ordering and equivalence to Classic are unmeasured. The two UI languages are German

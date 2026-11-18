@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use skat_analysis::hybrid::{HybridAnalysis, analyze_hybrid};
+use skat_analysis::hybrid::{HybridAnalysis, HybridFallback, analyze_hybrid};
 use skat_analysis::{Budget, Cancel};
 use skat_core::{Action, Phase, PlayerView};
 use skat_nn::{ModelError, NeuralModel};
@@ -20,6 +20,8 @@ pub struct HybridOpponent {
     pub seed: u64,
     /// Ordinary per-world search budget (default: Strong's).
     pub budget: Budget,
+    /// Classic level for pre-play and model failure.
+    pub level: Level,
 }
 
 /// An experimental decision with inspectable screening/fallback provenance.
@@ -38,19 +40,28 @@ impl HybridOpponent {
             model,
             seed,
             budget: Budget::INTERACTIVE,
+            level: Level::Strong,
         }
     }
 
     /// Decide from the seat's permitted view and retain analysis provenance.
-    /// Pre-play and Kontra/Re retain Classic Strong behaviour. If no proposed
+    /// Pre-play and Kontra/Re retain the selected Classic level. If no proposed
     /// option finishes verification, use the ordinary rules' legal move.
     pub fn decide_explained(
         &self,
         view: &PlayerView,
         cancel: Option<&Cancel>,
     ) -> Option<HybridDecision> {
-        let mut classic = Opponent::new(Level::Strong, self.seed);
-        classic.profile.budget = Some(self.budget);
+        let mut classic = Opponent::new(self.level, self.seed);
+        if classic.profile.budget.is_some() {
+            classic.profile.budget = Some(self.budget);
+        }
+        if self.model.is_err() {
+            return classic.decide(view, cancel).map(|decision| HybridDecision {
+                decision,
+                analysis: None,
+            });
+        }
         if view.phase != Phase::Spiel
             || view
                 .legal_actions
@@ -62,7 +73,9 @@ impl HybridOpponent {
                 analysis: None,
             });
         }
-        let (_, seed) = classic.analysis_input(view)?;
+        let mut search = classic;
+        search.profile.budget = Some(self.budget);
+        let (_, seed) = search.analysis_input(view)?;
         let analysis = match analyze_hybrid(view, self.model.as_deref(), self.budget, seed, cancel)
         {
             Ok(a) => a,
@@ -73,6 +86,18 @@ impl HybridOpponent {
                 });
             }
         };
+        if matches!(
+            &analysis,
+            HybridAnalysis::Classic {
+                reason: HybridFallback::Model(_),
+                ..
+            }
+        ) {
+            return classic.decide(view, cancel).map(|decision| HybridDecision {
+                decision,
+                analysis: Some(analysis),
+            });
+        }
         let rules = crate::BaselineOpponent.decide(view)?;
         let (selected, status) = match &analysis {
             HybridAnalysis::Classic { analysis, .. } => (
