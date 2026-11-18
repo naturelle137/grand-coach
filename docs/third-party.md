@@ -38,6 +38,11 @@ self-play only (data hashes, seeds and commits in `card-play.json`, model
 card `card-play.md`, [model guide](learned-models.md#shipped-model-and-runtime)); it is
 CC BY-SA 4.0 as well.
 
+The experimental hybrid backend reuses `skat-nn` and its existing Burn CPU
+runtime below `skat-analysis`; it adds no external dependency, model file or
+training data. Tiny test models use the same project-generated random-weight
+fixtures and are not shipped.
+
 ## Rust dependencies
 
 All are used unchanged from crates.io; versions are pinned in `Cargo.lock`.
