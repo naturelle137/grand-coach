@@ -39,7 +39,22 @@ pairs. `nn-train validate-labels` also verified the shards and replayed the
 records. This checks storage and rule agreement, not strategic quality or
 Kontra/Re label quality; the original manifest predates the explicit
 `search_kontra` profile field and must not be treated as proof of that
-phase's teacher configuration.
+phase's teacher configuration on its own. The recorded engine commit
+`99c91300dee7` predates the Kontra rule change: its Strong profile searches
+all Spiel decisions, including Kontra/Re, with the recorded 24-sample budget;
+`teach` stores that decision and its analysis. This identifies the intended
+teacher from the source, subject to the manifest accurately identifying the
+generating binary.
+
+A read-only scan of every retained shard found 6,891 views offering Kontra:
+6,854 labels said Kontra and 37 played a card (99.46% Kontra). All were legal,
+all had recorded analysis options, none recorded a fallback, and 14 recorded
+`BudgetExhausted` rather than `Complete`. The resulting 6,854 Re views had
+2,550 Re and 4,304 KeinRe labels; all were legal, had options and no recorded
+fallback, with one `BudgetExhausted`. Counts describe recorded teacher output,
+not independent reproduction of each choice or proof of its strategic quality.
+The extreme Kontra rate agrees with the known D-40 concern and does not justify
+shipping a model trained on these labels without separate assessment.
 
 ## Open before a production claim
 
