@@ -298,8 +298,9 @@ existing shared encoder/head, with explicit recipe, cache and model phase
 coverage. Verification is limited to tiny fixture training/reload/legal
 inference and scripted visibility/Re schema tests. There are no production
 all-phase imitation weights, behavioural rates, contract/role statistics or
-playing-strength results yet. Independent label validation remains pending;
-the outcome-label pilot is postponed until it and imitation calibration are
+playing-strength results yet. Independent label validation exists (`nn-train validate-labels`; first
+result in the [pre-play model card](pre-play-model-card.md): 405/405 labels
+of a 40-deal Strong run equal the Classic rules, no leaks); the outcome-label pilot is postponed until it and imitation calibration are
 available. The existing Phase 2 compute hold remains binding. Classic and the
 shipped Neural model and Kontra behaviour are unchanged.
 

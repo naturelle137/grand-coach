@@ -15,6 +15,7 @@
 //!     [--teacher-samples 96|384]
 //!     [--table teacher|easy-mix|rookie-mix|medium-mix|level-mix]
 //! cargo run --locked --release -p nn-train -- verify DIR
+//! cargo run --locked --release -p nn-train -- validate-labels DIR
 //! cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR...
 //!     [--hidden N] [--batch N] [--lr X] [--epochs N] [--value-weight X]
 //!     [--value-mix X] [--soft-weight X] [--soft-temperature X]
@@ -1131,6 +1132,27 @@ fn main() {
                 }
             }
         }
+        Some("validate-labels") => {
+            let dir = args.get(1).expect("validate-labels DIR");
+            match nn_train::shards::validate_labels(std::path::Path::new(dir)) {
+                Ok(r) => {
+                    for (kind, (n, same, differ)) in &r.kinds {
+                        println!("{kind:?}: {n} labels, {same} equal to the rule, {differ} differ");
+                    }
+                    println!(
+                        "view leaks: {}, illegal discard pairs: {}",
+                        r.leaks, r.bad_pairs
+                    );
+                    if r.leaks + r.bad_pairs > 0 {
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{dir}: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Some("smoke") => {
             let kind = args.get(1).map_or("cpu", String::as_str);
             let device = device(kind);
@@ -1181,6 +1203,7 @@ fn main() {
                  [--table teacher|easy-mix|rookie-mix|medium-mix|level-mix]"
             );
             eprintln!("       nn-train verify DIR");
+            eprintln!("       nn-train validate-labels DIR");
             eprintln!("       nn-train evaluate MODEL DATA_DIR...");
             eprintln!(
                 "       nn-train probe MODEL DATA_DIR... [--belief FILE] [--rows N] [--samples N] \
