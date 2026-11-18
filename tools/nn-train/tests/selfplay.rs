@@ -30,9 +30,9 @@ const TEST_TEACHER: TeacherProfile = TeacherProfile {
 
 const SEED: RunSeed = RunSeed(70);
 
-fn teacher(deal: u64, seat: Seat) -> Opponent {
+fn teacher(profile: Profile, deal: u64, seat: Seat) -> Opponent {
     Opponent {
-        profile: TEST_TEACHER.profile,
+        profile,
         seed: SEED.teacher_seed(deal, seat),
     }
 }
@@ -87,9 +87,36 @@ fn substitute(deal: Deal, records: &[DecisionRecord], k: usize) -> Option<Deal> 
 #[test]
 #[ignore = "slow: CI only (docs/testing.md)"]
 fn hidden_cards_do_not_change_a_record() {
+    assert_hidden_cards_do_not_change(TEST_TEACHER.profile, 2, 40);
+}
+
+/// The higher-budget teachers (#71) see only the permitted view as well, and
+/// Strong's public profile is unchanged.
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn high_budget_teacher_uses_only_permitted_information() {
+    let strong = Level::Strong.profile();
+    assert_eq!(strong.budget, Some(Budget::INTERACTIVE));
+    assert_eq!(strong.budget.map(|b| b.samples), Some(24));
+    assert!(TeacherProfile::high_budget(100).is_none());
+    let high = TeacherProfile::high_budget(96).expect("96 samples");
+    assert_eq!(
+        high.profile,
+        Profile {
+            budget: Some(Budget {
+                samples: 96,
+                ..Budget::INTERACTIVE
+            }),
+            ..strong
+        }
+    );
+    assert_hidden_cards_do_not_change(high.profile, 1, 15);
+}
+
+fn assert_hidden_cards_do_not_change(profile: Profile, deals: u64, min_checked: usize) {
     let mut checked = 0;
-    for deal in 0..2 {
-        let records = play_deal(SEED, TEST_TEACHER.profile, Table::Teacher, deal);
+    for deal in 0..deals {
+        let records = play_deal(SEED, profile, Table::Teacher, deal);
         let original = Deal::from_seed(SEED.deal_seed(deal));
         for k in 0..records.len() {
             let Some(other) = substitute(original, &records, k) else {
@@ -108,7 +135,8 @@ fn hidden_cards_do_not_change_a_record() {
                 );
                 continue;
             }
-            let (action, taught) = teach(&view, &teacher(deal, seat)).expect("seat to move");
+            let (action, taught) =
+                teach(&view, &teacher(profile, deal, seat)).expect("seat to move");
             let again = DecisionRecord {
                 view,
                 action,
@@ -120,7 +148,7 @@ fn hidden_cards_do_not_change_a_record() {
             checked += 1;
         }
     }
-    assert!(checked > 40, "only {checked} decisions checked");
+    assert!(checked > min_checked, "only {checked} decisions checked");
 }
 
 /// Each record holds exactly the acting seat's permitted view: the Skat
@@ -270,7 +298,7 @@ const VH_HAND_AT_18: [Action; 5] = [
 ];
 
 fn teachers() -> [Opponent; 3] {
-    Seat::ALL.map(|s| teacher(99, s))
+    Seat::ALL.map(|s| teacher(TEST_TEACHER.profile, 99, s))
 }
 
 #[test]

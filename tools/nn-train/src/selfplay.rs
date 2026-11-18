@@ -24,7 +24,7 @@
 //! only model input is [`DecisionRecord::view`].
 
 use serde::{Deserialize, Serialize};
-use skat_ai::{Decision, Level, Opponent, OptionValue, Profile, Status};
+use skat_ai::{Budget, Decision, Level, Opponent, OptionValue, Profile, Status};
 use skat_core::{Action, Game, Phase, PlayerView, RuleConfig, Seat};
 
 /// Version of the record format; bumped on every incompatible change.
@@ -445,6 +445,21 @@ impl TeacherProfile {
         name: "strong",
         profile: Level::Strong.profile(),
     };
+
+    /// Strong with `samples` hypothetical deals per analysis instead of
+    /// Strong's 24 (#71). Training-only: the same permitted information and
+    /// node limit, only less sampling noise. `None` for a count other than
+    /// 96 or 384; the public Strong level stays unchanged.
+    pub fn high_budget(samples: u32) -> Option<TeacherProfile> {
+        let name = match samples {
+            96 => "strong-s96",
+            384 => "strong-s384",
+            _ => return None,
+        };
+        let mut profile = Level::Strong.profile();
+        profile.budget = profile.budget.map(|b| Budget { samples, ..b });
+        Some(TeacherProfile { name, profile })
+    }
 }
 
 /// The teacher's decision and option values for `view`; `None` if it is not

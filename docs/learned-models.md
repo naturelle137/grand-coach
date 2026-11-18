@@ -116,6 +116,29 @@ cargo run --locked --release -p nn-train -- generate DATA --deals 100 --table le
 cargo run --locked --release -p nn-train -- verify DATA
 ```
 
+## Higher-budget teacher (#71)
+
+`generate --teacher-samples 96|384` labels with Strong's profile but 96 or
+384 hypothetical deals per analysis instead of 24 (profile names
+`strong-s96`, `strong-s384` in the manifest). It is a training-only option of
+`nn-train`: `Level::Strong` and its golden decisions are unchanged and no
+public level exists. The teacher draws its samples from the acting seat's
+`PlayerView` like Strong; the ignored test
+`high_budget_teacher_uses_only_permitted_information` substitutes hidden
+cards and checks that records do not change. More samples reduce sampling
+noise only, not the double-dummy defender bias, and do not improve pre-play
+labels.
+
+Generation cost, measured once with `generate --deals 6 --shard-deals 6
+--seed 71 --cpus 4 --workers 4` (teacher table, same 6 deals, 269 records,
+4 CPUs): Strong (24) 26 s, 96 samples 96 s (3.7x),
+384 samples 454 s (17x), i.e. about 828, 226 and 48 games/hour. Only
+one run per setting was timed; the record bytes are about equal.
+
+Not performed: retraining the #73 model on such data and comparing it with
+`calibrate`. The #73 model therefore stays the default learned model; the
+option is available for that run once compute is admitted.
+
 ## Supervised training and diagnostics
 
 New supervised runs encode raw decisions with v2 (634 features). It extends
