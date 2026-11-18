@@ -1265,10 +1265,10 @@ impl GrandCoachApp {
                 Opponents::Experimental => Mode::Experimental,
                 Opponents::Neural => Mode::Levels,
             },
-            engine: if config.uses_neural() {
+            engine: if config.opponents == Opponents::Neural {
                 OpponentEngine::Neural
             } else {
-                OpponentEngine::Classic
+                config.engine
             },
             levels: match config.opponents {
                 Opponents::Levels(levels) => levels,
@@ -1354,7 +1354,14 @@ impl GrandCoachApp {
                         .neural_provenance()
                         .is_some_and(|p| p.uses_levels())
                     {
-                        format!("{} · {levels}", i.t("mode-neural"))
+                        format!(
+                            "{} · {levels}",
+                            i.t(if view.config.engine == OpponentEngine::Hybrid {
+                                "mode-hybrid"
+                            } else {
+                                "mode-neural"
+                            })
+                        )
                     } else {
                         i.tf("status-opponents", &[("mode", i.t("mode-neural").into())])
                     }
@@ -1638,7 +1645,12 @@ impl GrandCoachApp {
                 return i.tf("opponent-mode", &[("mode", i.t("mode-neural").into())]);
             }
             let level = view.config.level(player).unwrap_or(Level::Strong);
-            return format!("{} · {}", i.t("mode-neural"), i.t(level_message(level)));
+            let mode = if view.config.engine == OpponentEngine::Hybrid {
+                "mode-hybrid"
+            } else {
+                "mode-neural"
+            };
+            return format!("{} · {}", i.t(mode), i.t(level_message(level)));
         }
         match view.config.level(player) {
             Some(level) => i.tf(
@@ -2240,10 +2252,15 @@ impl GrandCoachApp {
                             OpponentEngine::Neural,
                             self.t("mode-neural"),
                         );
+                        ui.radio_value(
+                            &mut draft.engine,
+                            OpponentEngine::Hybrid,
+                            self.t("mode-hybrid"),
+                        );
                     });
                 }
                 {
-                    if draft.engine == OpponentEngine::Neural {
+                    if !draft.engine.is_classic() {
                         for level in &mut draft.levels {
                             if *level == Level::Rookie {
                                 *level = Level::Easy;
@@ -2255,9 +2272,7 @@ impl GrandCoachApp {
                             ui.horizontal(|ui| {
                                 ui.label(self.t(id));
                                 for level in Level::ALL {
-                                    if draft.engine == OpponentEngine::Neural
-                                        && level == Level::Rookie
-                                    {
+                                    if !draft.engine.is_classic() && level == Level::Rookie {
                                         continue;
                                     }
                                     let label = self.t(level_message(level));
@@ -2283,8 +2298,12 @@ impl GrandCoachApp {
                 );
                 let mut notes = Vec::new();
                 match draft.mode {
-                    Mode::Levels if draft.engine == OpponentEngine::Neural => {
-                        notes.push("mode-neural-description");
+                    Mode::Levels if !draft.engine.is_classic() => {
+                        notes.push(if draft.engine == OpponentEngine::Hybrid {
+                            "mode-hybrid-description"
+                        } else {
+                            "mode-neural-description"
+                        });
                         if !skat_app::neural_model_available() {
                             notes.push("mode-neural-missing");
                         }
@@ -2691,6 +2710,7 @@ mod tests {
             let old = h.state().session.opponent_job().unwrap().run(None);
             h.run_steps(3);
             let neural = h.state().t("mode-neural");
+            let hybrid = h.state().t("mode-hybrid");
             let classic = h.state().t("engine-classic");
             let cancel_label = h.state().t("button-cancel");
             let start = h.state().t("button-start");
@@ -2713,6 +2733,13 @@ mod tests {
                 [Level::Strong, Level::Medium]
             );
             assert_eq!(h.state().session.view(), before);
+            h.get_by_role_and_label(egui::Role::RadioButton, &hybrid)
+                .click();
+            h.run_steps(3);
+            assert_eq!(
+                h.state().new_series.as_ref().unwrap().engine,
+                OpponentEngine::Hybrid
+            );
             h.get_by_role_and_label(egui::Role::RadioButton, &classic)
                 .click();
             h.run_steps(3);
@@ -2728,7 +2755,7 @@ mod tests {
             assert!(h.state().thinking.is_some());
             h.state_mut().show_new_series();
             h.run_steps(3);
-            h.get_by_role_and_label(egui::Role::RadioButton, &neural)
+            h.get_by_role_and_label(egui::Role::RadioButton, &hybrid)
                 .click();
             h.run_steps(3);
             h.get_all_by_role_and_label(egui::Role::RadioButton, &strong)
@@ -2739,7 +2766,7 @@ mod tests {
             h.get_by_role_and_label(egui::Role::Button, &start).click();
             h.run_steps(1);
             assert!(observed.is_cancelled());
-            assert_eq!(h.state().session.config().engine, OpponentEngine::Neural);
+            assert_eq!(h.state().session.config().engine, OpponentEngine::Hybrid);
             assert_eq!(
                 h.state().session.config().opponents,
                 Opponents::Levels([Level::Easy, Level::Strong])

@@ -576,6 +576,8 @@ const SCENARIOS: &[(&str, Scenario)] = &[
         settings_learned_debrief_en,
     ),
     ("new-series", new_series),
+    ("hybrid-selection", hybrid_selection),
+    ("hybrid-selection-en", hybrid_selection_en),
     ("neural-selection", neural_selection),
     ("neural-selection-en", neural_selection_en),
     ("neural-selection-narrow", neural_selection),
@@ -1180,6 +1182,19 @@ fn settings(harness: &mut Harness<'_, GrandCoachApp>) {
         .hover();
     // Tooltips appear after a short delay.
     harness.run_steps(8);
+}
+
+fn hybrid_selection(h: &mut Harness<'_, GrandCoachApp>) {
+    h.state_mut().show_new_series();
+    h.run_steps(3);
+    click(h, Role::RadioButton, "Hybrid (experimentell)");
+}
+
+fn hybrid_selection_en(h: &mut Harness<'_, GrandCoachApp>) {
+    h.state_mut().set_language(Language::En);
+    h.state_mut().show_new_series();
+    h.run_steps(3);
+    click(h, Role::RadioButton, "Hybrid (experimental)");
 }
 
 fn neural_selection(h: &mut Harness<'_, GrandCoachApp>) {

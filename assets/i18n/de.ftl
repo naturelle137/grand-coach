@@ -1134,3 +1134,6 @@ live-abstich-definition = Möglich bedeutet: mindestens eine, aber nicht alle er
 setting-debrief-model = Experimentell: Nachbesprechung mit Modellschätzungen priorisieren
 setting-debrief-model-description = Nur die Reihenfolge ändert sich. Jede Entscheidung wird klassisch geprüft. Modellschätzungen sind keine Fakten oder Fehlerbeweise. Ohne nutzbares Modell bleibt die klassische Reihenfolge aktiv.
 coach-debriefing-partial = Bereits geprüfte Momente. Die Auswahl kann sich mit weiteren Analysen ändern.
+
+mode-hybrid = Hybrid (experimentell)
+mode-hybrid-description = Experimentelle Vorschläge werden mit Classic-Suche geprüft; Leicht prüft mit einem Sample. Bei fehlendem Modell übernimmt die gewählte Classic-Stufe. Qualität und Geschwindigkeit sind nicht gemessen.

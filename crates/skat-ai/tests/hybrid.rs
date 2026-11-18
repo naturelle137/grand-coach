@@ -196,3 +196,32 @@ fn equal_policy_priors_propose_first_two_and_the_shared_rule() {
     }
     panic!("a multi-card decision must exercise inference");
 }
+
+#[test]
+fn easy_hybrid_uses_model_and_missing_model_uses_easy_rules() {
+    let mut g = Game::new(7, RuleConfig { kontra_re: false });
+    while g.phase() != Phase::Spiel {
+        let v = g.view(g.current_seat().unwrap());
+        let a = match v.phase {
+            Phase::Reizen if v.bid == 0 => Action::Bid(18),
+            Phase::Reizen => Action::Pass,
+            Phase::Ansage => Action::Announce(Announcement::plain(GameType::Grand)),
+            _ => v.legal_actions[0],
+        };
+        g.apply(a).unwrap();
+    }
+    let view = g.view(g.current_seat().unwrap());
+    let mut hybrid = opponent(false);
+    hybrid.level = Level::Easy;
+    hybrid.budget.samples = 1;
+    assert!(matches!(
+        hybrid.decide_explained(&view, None).unwrap().analysis,
+        Some(HybridAnalysis::LearnedEstimate(_))
+    ));
+    let mut missing = opponent(true);
+    missing.level = Level::Easy;
+    assert_eq!(
+        missing.decide(&view, None),
+        Opponent::new(Level::Easy, missing.seed).decide(&view, None)
+    );
+}

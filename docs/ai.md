@@ -141,6 +141,8 @@ No training or arena was run for increment B. [Scope and holds](learned-engine-s
 
 ## Hybrid backend (experimental, #76)
 
+The independent engine selector offers Hybrid with per-seat levels. Easy verifies proposals with one sample; Medium and Strong use their respective Classic search budgets. Pre-play and unavailable models use the selected Classic level. Recordings freeze the model identity and hybrid revision; mismatches fall back to Classic. Quality and latency remain unmeasured.
+
 `HybridOpponent` is an opt-in `Player` adapter for the shared
 [learned-proposal verification](analysis.md#hybrid-proposals-experimental-76).
 It uses Classic Strong for pre-play, Kontra/Re and model failures; cheap

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
-use skat_ai::{Budget, Cancel, Level, Mephisto, NeuralOpponent, Opponent, Profile};
+use skat_ai::{Budget, Cancel, HybridOpponent, Level, Mephisto, NeuralOpponent, Opponent, Profile};
 use skat_core::{Action, Event, Game, OmniscientView, Phase, RuleConfig, RuleError, Seat};
 
 use crate::coach::{
@@ -98,6 +98,8 @@ pub enum OpponentEngine {
     Classic,
     /// Experimental temperature policy, with the corresponding Classic fallback.
     Neural,
+    /// Experimental learned proposals verified by search.
+    Hybrid,
 }
 
 impl OpponentEngine {
@@ -113,7 +115,7 @@ pub struct InvalidEngineConfig;
 
 impl std::fmt::Display for InvalidEngineConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Neural engine requires ordinary Easy, Medium or Strong levels")
+        f.write_str("Learned engines require ordinary Easy, Medium or Strong levels")
     }
 }
 
@@ -240,7 +242,7 @@ impl Default for SessionConfig {
 impl SessionConfig {
     /// Reject an independent engine on a special table (legacy Neural is retained).
     pub fn validate(&self) -> Result<(), InvalidEngineConfig> {
-        if self.engine == OpponentEngine::Neural
+        if !self.engine.is_classic()
             && !matches!(self.opponents,
             Opponents::Levels(levels) if !levels.contains(&Level::Rookie))
         {
@@ -251,7 +253,7 @@ impl SessionConfig {
 
     /// Includes the historical Neural table, whose semantics stay unchanged.
     pub fn uses_neural(&self) -> bool {
-        self.engine == OpponentEngine::Neural || self.opponents == Opponents::Neural
+        !self.engine.is_classic() || self.opponents == Opponents::Neural
     }
 
     /// `true` if the human's table shows every card: an explicitly open
@@ -431,6 +433,7 @@ enum Brain {
     Mephisto(Box<Game>),
     /// From its own seat's view with the learned model (D-07, D-23).
     Neural(Box<NeuralOpponent>, Box<skat_core::PlayerView>),
+    Hybrid(Box<HybridOpponent>, Box<skat_core::PlayerView>),
 }
 
 /// Identifies the position an opponent move was computed for.
@@ -494,6 +497,9 @@ impl OpponentJob {
                     Brain::Fair(opponent, view) => opponent.decide(view, cancel),
                     Brain::Mephisto(game) => Mephisto.decide(game, cancel),
                     Brain::Neural(..) => unreachable!(),
+                    Brain::Hybrid(opponent, view) => {
+                        opponent.decide_explained(view, cancel).map(|d| d.decision)
+                    }
                 }
                 .expect("an opponent always finds a legal action"),
                 None,
@@ -870,6 +876,17 @@ impl Session {
         // A fair opponent sees only its own seat's view (D-23).
         let fair = |opponent: Opponent| Brain::Fair(opponent, Box::new(self.game.view(seat)));
         let brain = match self.config.opponents {
+            Opponents::Levels(_) if self.config.engine == OpponentEngine::Hybrid => {
+                let level = self.config.level(player).unwrap();
+                let mut opponent =
+                    HybridOpponent::new(self.neural.as_ref().unwrap().model.clone(), seed);
+                opponent.level = level;
+                opponent.budget = level.profile().budget.unwrap_or(Budget {
+                    samples: 1,
+                    nodes_per_task: Budget::INTERACTIVE.nodes_per_task,
+                });
+                Brain::Hybrid(Box::new(opponent), Box::new(self.game.view(seat)))
+            }
             Opponents::Levels(_) if self.config.uses_neural() => self.neural_brain(seat, seed),
             Opponents::Levels(levels) => fair(Opponent::new(levels[player.index() - 1], seed)),
             Opponents::Goldfish if player == self.goldfish => fair(Opponent {
