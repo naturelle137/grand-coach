@@ -88,7 +88,7 @@ It supports fixed-length series and free play. Classic is the default opponent
 engine; experimental Neural and Hybrid engines can be selected for a new series,
 with independent experimental Easy/Medium/Strong controls and a visible
 Classic fallback at the chosen levels if its frozen model is unavailable.
-Learned level ordering and equivalence to Classic are unmeasured. The two UI languages are German
+Adjacent learned-level comparisons were inconclusive; equivalence to Classic is unmeasured. The two UI languages are German
 and English. Card legibility takes priority over animation. Multiplayer,
 mobile, Ramsch and Bock are outside the project scope.
 
