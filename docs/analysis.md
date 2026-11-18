@@ -371,9 +371,10 @@ machine was not idle (load average about 31 at the end), so times are
 indicative only.
 
 - Identical action: **361/400 = 90.25 %** (target ≥97 % **missed**).
-  Of the 39 differing decisions 15 have zero regret (equal reference
-  utility), 22 positive regret, 2 not comparable. Mean regret of the
-  differing ones 2.400, maximum 25.375 (mean over all 400: 0.234).
+  The retained summary reports 39 comparable differences, mean regret
+  2.400 and maximum 25.375 (mean over all 400: 0.234). The raw TSV was
+  not retained, so the individual regrets and their breakdown cannot be
+  independently audited.
   Identity by bucket (trick, role): 44–48 of 50, no bucket above 96 %.
 - Outcomes: Screened 246, Skipped(FewOptions) 105, AllSurvived 27,
   Skipped(KontraRe) 19. All analyses `Complete`, no fallback.
