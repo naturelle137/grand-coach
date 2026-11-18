@@ -2,8 +2,8 @@
 
 Status: **inconclusive** for the learned-model arm; **no-need** for a
 learned phrase selector. Fluent templates stay the default. A pinned model and runtime were obtained for a disposable development attempt.
-No benchmark, generation, fine-tuning or learner session has yet been
-completed, so no timing, RSS or readability figure exists. Issue #79 stays open with its checklist unticked.
+One CPU smoke test was run; no comparative benchmark, fine-tuning or learner
+session took place, so p95, incremental RSS and readability remain unknown. Issue #79 stays open with its checklist unticked.
 
 ## Bounded development attempt
 
@@ -24,10 +24,20 @@ The toolbox build command failed with `cmake: command not found` (exit 127).
 A temporary CMake and host compiler were then used; a first configuration
 failed because ccache could not write its cache, and disabling ccache allowed
 configuration. The attempted `llama-cli` build target failed because this
-revision has no such target. The `llama-completion` build was attempted as a
-replacement. No product dependency or model was added to the repository.
+revision has no such target. The `llama-completion` target built successfully as a replacement. No product dependency or model was added to the repository.
 These setup attempts do not establish a fully offline, linked standalone
 package on Linux or Windows.
+
+One unconstrained English smoke prompt supplied only `remaining_trumps=3`,
+`certainty=exact` and the allowed IDs `count_exact` and
+`insufficient_evidence`. With `/no_think`, greedy decoding, four CPU threads,
+a 512-token context and 16 output tokens, the model returned `count_exact`
+but also emitted `<think>` tags. A strict ID-only validator must reject that
+output; no validator was implemented or tested here. One process took 0.80 s
+wall time and peaked at 750,096 KiB RSS (`/usr/bin/time -v`); this single
+uncontrolled smoke run is neither cold/warm p95 nor incremental application
+RSS. It does not establish factual preservation, bilingual quality or a
+performance target.
 
 ## Approach 1: deterministic Fluent templates (current)
 
@@ -51,7 +61,7 @@ surface to keep consistent. **Result: a learned selector is not needed.**
 If variety is wanted later, a seeded variant choice reproduces under the
 existing determinism rule.
 
-## Approach 3: one small pretrained multilingual model (unmeasured)
+## Approach 3: one small pretrained multilingual model (not compared)
 
 Candidate per the issue: Qwen3-0.6B, non-thinking mode, in a linked local
 runtime (llama.cpp). Design constraints a future proof must meet:
@@ -97,7 +107,7 @@ and weights outside git or under the D-63 rule (D-63 caps model files at
 | Question | Result |
 |---|---|
 | Learned phrase selector | Not needed; seeded Fluent variants suffice if variety is wanted |
-| Model arm quality, latency, size, RSS, readability | Not measured: inconclusive |
+| Model arm comparison, p95, incremental RSS, readability | Not measured: inconclusive |
 | Go for production integration | No. No follow-up issue is justified yet |
 
 Complete the bounded prototype, corpus and measurements, audit the exact
