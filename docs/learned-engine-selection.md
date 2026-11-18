@@ -4,9 +4,9 @@
 
 Increment A, 2026-11-17: independent engine selection, frozen model provenance,
 bilingual fallback and legacy recording/practice compatibility are implemented.
-Classic remains unchanged, available and the default (D-07). Neural still has
-one greedy policy, without learned difficulty controls. Increment B below and
-fresh calibration remain open in [#77](https://github.com/naturelle137/grand-coach/issues/77).
+Classic remains unchanged, available and the default (D-07). Increment B, 2026-11-18, implements the seeded profiles, per-seat
+selection and calibration-runner plumbing described below. Fresh adjacent
+calibration remains open in [#77](https://github.com/naturelle137/grand-coach/issues/77).
 No training or arena run is authorised by this implementation.
 
 ## Historical starting point for the plan
@@ -43,7 +43,7 @@ Source audited at `63f0ce0bbfa90a52724798cc9f4265a482cd320d`:
 existing v2 features do not establish useful history-sensitive strategy.
 Do not repeat the encoder change or infer strength from its version.
 
-## Increment A: implemented selection, immutable configuration and provenance
+## Selection, immutable configuration and provenance (increments A/B)
 
 `SessionConfig::engine` selects Classic or Neural for ordinary level tables.
 Classic is default and omitted on the wire, preserving historical config bytes.
@@ -51,9 +51,9 @@ Deserialisation and `Session::try_new` reject independent Neural combined with
 a special table. The legacy `Opponents::Neural` variant remains readable with
 its greedy policy and Strong fallback. No Hybrid option is exposed.
 
-The bilingual GUI selects the engine separately from the retained Classic seat
-levels. Neural hides the Classic difficulty controls and explicitly offers one
-experimental policy without learned-level claims. Special tables remain
+The bilingual GUI selects the engine separately from per-seat levels. Neural
+shows Easy/Medium/Strong as experimental controls without measured ordering or
+Classic-equivalence claims; Rookie is Classic-only. Special tables remain
 Goldfish, Mephisto, God Mode and Experimental. Missing/corrupt/incompatible
 models have a translated fallback notice before Start and in live status.
 
@@ -65,8 +65,10 @@ workers; Cancel retains the game, sheet and pending decision. The lineage guard
 rejects stale results even for otherwise identical replacement settings.
 
 `NeuralProvenance` contains the actual SHA-256/encoder or structured load
-failure, `greedy-policy-1` revision and Strong fallback. Requested engine and
-retained levels remain in the plain serde SessionConfig. Decision diagnostics
+failure and policy revision. `greedy-policy-1` keeps Strong fallback;
+`temperature-policy-1` uses SessionConfig's per-seat levels. The legacy fallback
+field remains Strong for wire compatibility. Requested engine and levels stay
+in the plain serde SessionConfig. Decision diagnostics
 are exposed through `OpponentJob::run_explained`; a loaded model does not mean
 every decision used inference. Identity never enters deal RNG or model input.
 Classic and opponent seed streams are unchanged.
@@ -77,28 +79,31 @@ replay identifier are unchanged. Replay applies recorded actions without
 weights. Practice retains historical settings and compares model provenance:
 unknown identity gives Missing, mismatch gives HashMismatch, and a historical
 load failure keeps that fallback even if a model is now installed. All are
-visible Classic Strong fallbacks. Practice neither scores nor records and
+visible Classic fallbacks at recorded levels (Strong for historical greedy
+or unknown provenance). Old greedy records may retain unused Rookie settings;
+new Neural configurations reject Rookie. Practice neither scores nor records and
 leaves the parked live series untouched.
 
 ## Increment B: one seeded learned difficulty mechanism
 
-Add Easy/Medium/Strong as Neural choices; no Neural Rookie in this increment.
+Easy/Medium/Strong are Neural choices; no Neural Rookie in this increment.
 Reject unsupported combinations at the app boundary, including deserialised
 configuration. Healthy Neural difficulty affects only supported card/Re
 policy selection. Pre-play and Kontra rules remain unchanged. A failed model
 uses the corresponding Classic level, visibly labelled as fallback; the
 legacy Neural table continues using Strong.
 
-Use temperature sampling of legal policy logits in `skat-nn`, shared by all
+The implementation uses temperature sampling of legal policy logits in `skat-nn`, shared by all
 consumers. Strong uses the existing greedy path (temperature zero), preserving
-its tie rule. Easy and Medium use finite positive temperatures, initially
-larger for Easy, with values frozen in a versioned profile before evaluation.
+its tie rule. Easy and Medium use temperatures 2 and 1; `temperature-policy-1` freezes
+these values and the sampler before evaluation.
 These are candidate controls, not an established strength ordering. Use stable
 masked softmax and an explicit opponent decision seed. Illegal/non-finite
 outputs retain structured fallback; never alter hidden information, legal
 masks, exactness, Monte-Carlo sample counts or `Comparison::Reliable`.
 
-Extend `calibrate` to select these same profiles, not a second implementation.
+`calibrate` selects these shared profiles via `nn-easy:PATH`,
+`nn-medium:PATH` and `nn-strong:PATH`; legacy syntax stays unchanged.
 Record the full model hash, encoder/profile revision, temperatures, fallback,
 suite and first-deal range. Under separately authorised compute, tune first,
 then compare each adjacent pair on 200 fresh validation deals, six seatings
@@ -124,8 +129,9 @@ cannot calibrate these new profiles.
 Run the project gate through `skat-dev`, including the existing app integration,
 model/privacy and egui checks when code changes. Implementation PRs update
 D-07's concrete contract if needed, affected app/AI/testing docs and the roadmap.
-No additional dependency, model file, training or arena was needed for increment A.
-Selection alone does not deliver learned levels or calibrated strength.
+Neither increment adds a dependency/model file or authorises training/arenas.
+Tiny fixture and widget tests establish controls, legality and lifecycle only,
+not calibrated strength.
 
 ## Holds and delivery ownership
 
@@ -137,7 +143,7 @@ evidence owner before calibration. Keep #93's remaining data/history-quality
 acceptance separate from #77; load by actual model-header version, never by
 relabelled weights or generation-manifest metadata.
 
-The managed issue puller owns the remaining implementation increment, independent
-review and integration. This selection increment uses `Refs #77`; learned levels and calibrated
-strength remain incomplete. Remaining delivery is increment B and the
-separately admitted calibration evidence; no duplicate issue owner is needed.
+The managed issue puller owns independent review and integration. This
+increment uses `Refs #77`; learned controls are implemented but calibrated
+strength remains incomplete. Remaining delivery is separately admitted
+adjacent-level calibration evidence; no duplicate issue owner is needed.

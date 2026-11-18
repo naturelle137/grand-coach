@@ -90,13 +90,13 @@ pub struct SessionConfig {
     pub display: TableDisplay,
 }
 
-/// Ordinary-table engine; learned difficulty is a separate, future increment.
+/// Ordinary-table engine, selected independently of per-seat levels.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OpponentEngine {
     /// Existing rule/search opponents, unchanged.
     #[default]
     Classic,
-    /// Experimental greedy card policy, with Classic Strong fallback.
+    /// Experimental temperature policy, with the corresponding Classic fallback.
     Neural,
 }
 
@@ -113,7 +113,7 @@ pub struct InvalidEngineConfig;
 
 impl std::fmt::Display for InvalidEngineConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Neural engine requires an ordinary level table")
+        f.write_str("Neural engine requires ordinary Easy, Medium or Strong levels")
     }
 }
 
@@ -136,17 +136,32 @@ impl TryFrom<WireSessionConfig> for SessionConfig {
     type Error = InvalidEngineConfig;
 
     fn try_from(w: WireSessionConfig) -> Result<Self, Self::Error> {
-        let config = Self {
+        let config = w.into_config();
+        config.validate()?;
+        Ok(config)
+    }
+}
+
+impl WireSessionConfig {
+    fn into_config(self) -> SessionConfig {
+        let w = self;
+        SessionConfig {
             seed: w.seed,
             series: w.series,
             kontra_re: w.kontra_re,
             opponents: w.opponents,
             engine: w.engine,
             display: w.display,
-        };
-        config.validate()?;
-        Ok(config)
+        }
     }
+}
+
+// Recording headers validate the configuration together with historical policy
+// provenance, so old greedy records may retain their unused Rookie setting.
+pub(crate) fn deserialize_recorded_config<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<SessionConfig, D::Error> {
+    WireSessionConfig::deserialize(d).map(WireSessionConfig::into_config)
 }
 
 /// What the human's table shows (D-68).
@@ -225,7 +240,9 @@ impl Default for SessionConfig {
 impl SessionConfig {
     /// Reject an independent engine on a special table (legacy Neural is retained).
     pub fn validate(&self) -> Result<(), InvalidEngineConfig> {
-        if self.engine == OpponentEngine::Neural && !matches!(self.opponents, Opponents::Levels(_))
+        if self.engine == OpponentEngine::Neural
+            && !matches!(self.opponents,
+            Opponents::Levels(levels) if !levels.contains(&Level::Rookie))
         {
             return Err(InvalidEngineConfig);
         }
@@ -254,11 +271,8 @@ impl SessionConfig {
     }
 
     /// Level of `player` when every opponent has one; `None` for the
-    /// human and in the Goldfish, Mephisto, God and neural modes.
+    /// human and in special table modes.
     pub fn level(&self, player: PlayerId) -> Option<Level> {
-        if self.uses_neural() {
-            return None;
-        }
         match (self.opponents, player.0) {
             (Opponents::Levels(levels), 1 | 2) => Some(levels[player.index() - 1]),
             _ => None,
@@ -434,8 +448,8 @@ impl OpponentJob {
         PlayerId(self.position.player)
     }
 
-    /// Level of that player; `None` in the Goldfish, Mephisto and neural
-    /// modes.
+    /// Level of that player for ordinary Classic/Neural tables; `None` in
+    /// special table modes.
     pub fn level(&self) -> Option<Level> {
         self.level
     }
@@ -550,7 +564,9 @@ impl Session {
     /// Validated creation for directly constructed, potentially untrusted settings.
     pub fn try_new(config: SessionConfig) -> Result<Session, InvalidEngineConfig> {
         config.validate()?;
-        let neural = config.uses_neural().then(crate::neural::FrozenNeural::load);
+        let neural = config
+            .uses_neural()
+            .then(|| crate::neural::FrozenNeural::load().configured(&config));
         let mut rng = ChaCha8Rng::seed_from_u64(config.seed);
         let game_seed = rng.next_u64();
         let mut ai_rng = ChaCha8Rng::seed_from_u64(config.seed);
@@ -908,15 +924,36 @@ impl Session {
     }
 
     fn neural_brain(&self, seat: Seat, seed: u64) -> Brain {
+        let frozen = self.neural.as_ref().expect("frozen at creation");
+        let level = if frozen.provenance.uses_levels() {
+            self.config
+                .level(PlayerId::on_seat(seat, self.dealer))
+                .unwrap_or(Level::Strong)
+        } else {
+            Level::Strong
+        };
+        let choice = if frozen.provenance.uses_levels() {
+            skat_nn::Choice::Level(match level {
+                Level::Easy => skat_nn::PolicyLevel::Easy,
+                Level::Medium => skat_nn::PolicyLevel::Medium,
+                Level::Strong => skat_nn::PolicyLevel::Strong,
+                Level::Rookie => unreachable!("validated Neural level"),
+            })
+        } else {
+            skat_nn::Choice::Policy
+        };
         Brain::Neural(
-            Box::new(NeuralOpponent::new(
-                self.neural
-                    .as_ref()
-                    .expect("frozen at creation")
-                    .model
-                    .clone(),
-                Opponent::new(Level::Strong, seed),
-            )),
+            Box::new(
+                NeuralOpponent::new(
+                    self.neural
+                        .as_ref()
+                        .expect("frozen at creation")
+                        .model
+                        .clone(),
+                    Opponent::new(level, seed),
+                )
+                .with_choice(choice),
+            ),
             Box::new(self.game.view(seat)),
         )
     }

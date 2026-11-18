@@ -1334,7 +1334,30 @@ impl GrandCoachApp {
             ui.separator();
             ui.label(match view.config.opponents {
                 Opponents::Levels(_) if view.config.uses_neural() => {
-                    i.tf("status-opponents", &[("mode", i.t("mode-neural").into())])
+                    let levels = i.tf(
+                        "status-levels",
+                        &[
+                            (
+                                "left",
+                                i.t(level_message(view.config.level(PlayerId(1)).unwrap()))
+                                    .into(),
+                            ),
+                            (
+                                "right",
+                                i.t(level_message(view.config.level(PlayerId(2)).unwrap()))
+                                    .into(),
+                            ),
+                        ],
+                    );
+                    if self
+                        .session
+                        .neural_provenance()
+                        .is_some_and(|p| p.uses_levels())
+                    {
+                        format!("{} · {levels}", i.t("mode-neural"))
+                    } else {
+                        i.tf("status-opponents", &[("mode", i.t("mode-neural").into())])
+                    }
                 }
                 Opponents::Levels([left, right]) => i.tf(
                     "status-levels",
@@ -1607,7 +1630,15 @@ impl GrandCoachApp {
     fn strength(&self, view: &TableView, player: PlayerId) -> String {
         let i = &self.i18n;
         if view.config.uses_neural() {
-            return i.tf("opponent-mode", &[("mode", i.t("mode-neural").into())]);
+            if !self
+                .session
+                .neural_provenance()
+                .is_some_and(|p| p.uses_levels())
+            {
+                return i.tf("opponent-mode", &[("mode", i.t("mode-neural").into())]);
+            }
+            let level = view.config.level(player).unwrap_or(Level::Strong);
+            return format!("{} · {}", i.t("mode-neural"), i.t(level_message(level)));
         }
         match view.config.level(player) {
             Some(level) => i.tf(
@@ -2211,15 +2242,30 @@ impl GrandCoachApp {
                         );
                     });
                 }
-                if draft.engine == OpponentEngine::Classic || draft.mode != Mode::Levels {
+                {
+                    if draft.engine == OpponentEngine::Neural {
+                        for level in &mut draft.levels {
+                            if *level == Level::Rookie {
+                                *level = Level::Easy;
+                            }
+                        }
+                    }
                     for (k, id) in ["opponent-left", "opponent-right"].into_iter().enumerate() {
                         ui.add_enabled_ui(draft.mode == Mode::Levels, |ui| {
                             ui.horizontal(|ui| {
                                 ui.label(self.t(id));
                                 for level in Level::ALL {
+                                    if draft.engine == OpponentEngine::Neural
+                                        && level == Level::Rookie
+                                    {
+                                        continue;
+                                    }
                                     let label = self.t(level_message(level));
-                                    ui.radio_value(&mut draft.levels[k], level, label)
-                                        .on_hover_text(self.t(level_description(level)));
+                                    let response =
+                                        ui.radio_value(&mut draft.levels[k], level, label);
+                                    if draft.engine == OpponentEngine::Classic {
+                                        response.on_hover_text(self.t(level_description(level)));
+                                    }
                                 }
                             });
                         });
@@ -2656,12 +2702,23 @@ mod tests {
                 OpponentEngine::Neural
             );
             assert_eq!(h.state().session.view(), before);
+            let strong = h.state().t(level_message(Level::Strong));
+            h.get_all_by_role_and_label(egui::Role::RadioButton, &strong)
+                .next()
+                .unwrap()
+                .click();
+            h.run_steps(3);
+            assert_eq!(
+                h.state().new_series.as_ref().unwrap().levels,
+                [Level::Strong, Level::Medium]
+            );
+            assert_eq!(h.state().session.view(), before);
             h.get_by_role_and_label(egui::Role::RadioButton, &classic)
                 .click();
             h.run_steps(3);
             assert_eq!(
                 h.state().new_series.as_ref().unwrap().levels,
-                [Level::Easy, Level::Medium]
+                [Level::Strong, Level::Medium]
             );
             h.get_by_role_and_label(egui::Role::Button, &cancel_label)
                 .click();
@@ -2674,13 +2731,18 @@ mod tests {
             h.get_by_role_and_label(egui::Role::RadioButton, &neural)
                 .click();
             h.run_steps(3);
+            h.get_all_by_role_and_label(egui::Role::RadioButton, &strong)
+                .nth(1)
+                .unwrap()
+                .click();
+            h.run_steps(3);
             h.get_by_role_and_label(egui::Role::Button, &start).click();
             h.run_steps(1);
             assert!(observed.is_cancelled());
             assert_eq!(h.state().session.config().engine, OpponentEngine::Neural);
             assert_eq!(
                 h.state().session.config().opponents,
-                Opponents::Levels([Level::Easy, Level::Medium])
+                Opponents::Levels([Level::Easy, Level::Strong])
             );
             assert_eq!(
                 h.state_mut().session.finish_opponent(old),

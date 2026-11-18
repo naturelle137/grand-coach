@@ -117,9 +117,14 @@ use format 2, adding frozen model identity/load failure, policy revision and
 Classic fallback profile in `RecordingContext::neural`. Legacy format-1 Neural
 records have unknown model provenance. Replay needs no model. Neural practice
 compares this context to the loaded model; missing historical identity or a
-mismatch yields disclosed Strong fallback rather than substituting weights.
+mismatch yields disclosed Classic fallback at the recorded levels rather than
+substituting weights; legacy greedy/unknown provenance keeps Strong.
 `SessionConfig::engine` defaults to Classic and is omitted in Classic JSON;
-independent Neural is valid only with `Opponents::Levels`. Deserialisation and
+independent Neural is valid only with Easy/Medium/Strong `Opponents::Levels`.
+Temperature-policy-1 uses these recorded levels; greedy-policy-1 retains the
+historical selection and Strong fallback, including its unused retained Rookie
+setting. Nested recorded configuration is validated with the whole recording
+header; new Neural configuration still rejects Rookie. Deserialisation and
 `Session::try_new` validate this combination; `Session::new` requires validated
 configuration. Sessions and jobs share an immutable, app-loaded model via Arc;
 new-series settings cannot change an in-flight decision.

@@ -202,3 +202,34 @@ fn skat_and_ouvert_cards_appear_only_after_their_lawful_reveal() {
         "{roles:?}"
     );
 }
+
+#[test]
+fn seeded_levels_ignore_hidden_deal_substitutions() {
+    use skat_nn::{Choice, NeuralModel, Phases, PolicyLevel, fixture_model, sha256};
+    let bytes = fixture_model(18, Phases::ALL);
+    let model = NeuralModel::load(&bytes, &sha256(&bytes)).unwrap();
+    let mut compared = 0;
+    for seed in 0..2 {
+        let (deal, actions) = history(seed);
+        for n in (0..actions.len()).step_by(5) {
+            let game = replay(deal, &actions[..n]).unwrap();
+            let Some(seat) = game.current_seat() else {
+                continue;
+            };
+            let view = game.view(seat);
+            for alt in alternatives(deal, &actions[..n], seat, 1) {
+                for level in [PolicyLevel::Easy, PolicyLevel::Medium, PolicyLevel::Strong] {
+                    assert_eq!(
+                        model.evaluate_seeded(&view, Choice::Level(level), 123),
+                        model.evaluate_seeded(&alt.view(seat), Choice::Level(level), 123)
+                    );
+                    compared += 1;
+                }
+            }
+        }
+    }
+    assert!(
+        compared >= 12,
+        "non-vacuous hidden substitutions: {compared}"
+    );
+}

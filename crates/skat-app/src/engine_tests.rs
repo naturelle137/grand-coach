@@ -148,7 +148,7 @@ fn failures_and_cancelled_workers_keep_valid_seeded_series_and_restart() {
     ] {
         let mut a = Session::new(config());
         // Inject app-loader results; no global environment mutation or model IO.
-        a.neural = Some(FrozenNeural::new(Err(error.clone())));
+        a.neural = Some(FrozenNeural::new(Err(error.clone())).configured(&a.config));
         a.recording.context.neural = a.neural_provenance().cloned();
         let mut b = a.clone();
         let initial_identity = a.neural_provenance().cloned();
@@ -159,6 +159,13 @@ fn failures_and_cancelled_workers_keep_valid_seeded_series_and_restart() {
                 break;
             }
             if let Some(job) = a.opponent_job() {
+                let Brain::Neural(opponent, _) = &job.brain else {
+                    panic!("neural worker")
+                };
+                assert_eq!(
+                    opponent.classic.profile,
+                    a.config.level(job.player()).unwrap().profile()
+                );
                 let (mv, reason) = job.run_explained(Some(&cancel));
                 assert_eq!(reason, Some(Fallback::Model(error.clone())));
                 a.finish_opponent(mv).unwrap();
@@ -199,4 +206,113 @@ fn new_series_rejects_old_worker_even_with_identical_config() {
         Err(AppError::StaleOpponentMove)
     );
     assert_eq!(replacement.view(), before);
+}
+
+#[test]
+fn neural_rejects_rookie_but_classic_retains_it() {
+    for levels in [[Level::Rookie, Level::Easy], [Level::Strong, Level::Rookie]] {
+        let c = SessionConfig {
+            opponents: Opponents::Levels(levels),
+            ..config()
+        };
+        assert!(Session::try_new(c).is_err());
+        assert!(
+            serde_json::from_str::<SessionConfig>(&serde_json::to_string(&c).unwrap()).is_err()
+        );
+        assert!(
+            Session::try_new(SessionConfig {
+                engine: OpponentEngine::Classic,
+                ..c
+            })
+            .is_ok()
+        );
+    }
+}
+
+#[test]
+fn tiny_model_levels_repeat_a_complete_series_and_match_classic_fallbacks() {
+    let bytes = skat_nn::fixture_model(4, skat_nn::Phases::SPIEL);
+    let model = std::sync::Arc::new(NeuralModel::load(&bytes, &skat_nn::sha256(&bytes)).unwrap());
+    for level in [Level::Easy, Level::Medium, Level::Strong] {
+        let config = SessionConfig {
+            opponents: Opponents::Levels([level; 2]),
+            ..config()
+        };
+        let mut a = Session::new(config);
+        a.neural = Some(FrozenNeural::new(Ok(model.clone())).configured(&config));
+        a.recording.context.neural = a.neural_provenance().cloned();
+        let mut b = a.clone();
+        let mut model_moves = 0;
+        let cancel = Cancel::new();
+        cancel.cancel();
+        for _ in 0..512 {
+            if a.view().series_finished {
+                break;
+            }
+            if let Some(job) = a.opponent_job() {
+                let (mv, fallback) = job.run_explained(Some(&cancel));
+                if fallback.is_none() && a.game.phase() == Phase::Spiel {
+                    model_moves += 1;
+                }
+                if fallback.is_some() {
+                    let seat = a.game.current_seat().unwrap();
+                    let player = PlayerId::on_seat(seat, a.dealer);
+                    let expected = Opponent::new(level, a.ai_seeds[player.index() - 1])
+                        .decide(&a.game.view(seat), Some(&cancel))
+                        .unwrap();
+                    assert_eq!(mv.action, expected.action);
+                }
+                a.finish_opponent(mv).unwrap();
+                b.finish_opponent(b.opponent_job().unwrap().run(Some(&cancel)))
+                    .unwrap();
+            } else {
+                let command = a
+                    .view()
+                    .legal_actions
+                    .first()
+                    .copied()
+                    .map_or(Command::NextGame, Command::Act);
+                a.execute(command).unwrap();
+                b.execute(command).unwrap();
+            }
+            assert_eq!(a.view(), b.view());
+        }
+        assert!(a.view().series_finished);
+        assert!(model_moves > 0, "exercise actual model card choices");
+        for recording in a.completed_recordings_privileged() {
+            recording
+                .reconstruct_privileged(recording.actions.len())
+                .unwrap();
+        }
+    }
+}
+
+#[test]
+fn increment_a_greedy_recordings_keep_historical_fallback() {
+    let mut original = Session::new(config());
+    original.neural.as_mut().unwrap().provenance.policy_revision = "greedy-policy-1".into();
+    original.recording.context.neural = original.neural_provenance().cloned();
+    let mut recorded = recording(&original);
+    // Increment A retained Classic Rookie in config without using it.
+    recorded.context.session.opponents = Opponents::Levels([Level::Rookie, Level::Medium]);
+    let recorded: GameRecording =
+        serde_json::from_str(&serde_json::to_string(&recorded).unwrap()).unwrap();
+    let live = Session::new(SessionConfig::default());
+    let practice = live.start_practice(&recorded).unwrap();
+    assert_eq!(
+        practice.neural_provenance().unwrap().policy_revision,
+        "greedy-policy-1"
+    );
+    let Brain::Neural(player, _) = practice.opponent_job().unwrap().brain else {
+        panic!("neural")
+    };
+    assert_eq!(player.choice, skat_nn::Choice::Policy);
+    assert_eq!(player.classic.profile, Level::Strong.profile());
+    let mut invalid = recorded.clone();
+    invalid.context.neural.as_mut().unwrap().policy_revision =
+        skat_nn::PolicyLevel::REVISION.into();
+    assert!(invalid.reconstruct_privileged(0).is_err());
+    let mut invalid = recorded;
+    invalid.context.neural.as_mut().unwrap().policy_revision = "unknown".into();
+    assert!(invalid.reconstruct_privileged(0).is_err());
 }

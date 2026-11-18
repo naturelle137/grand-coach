@@ -27,8 +27,8 @@ pub use encoder::{BLOCKS, ENCODER_VERSION, FEATURES, encode, unseen_cards};
 pub use fixture::{FIXTURE_HIDDEN, fixture_model};
 pub use model::{
     Choice, Evaluation, FORMAT_VERSION, Fallback, HEADER_BYTES, ModelError, ModelHeader,
-    NeuralModel, OptionEstimate, Phases, RawOutputs, masked_softmax, read_header, sha256,
-    write_model,
+    NeuralModel, OptionEstimate, Phases, PolicyLevel, RawOutputs, masked_softmax, read_header,
+    sha256, write_model,
 };
 pub use net::{MAX_LAYERS, MIN_LAYERS, NetShape, Outputs, PolicyValueNet};
 

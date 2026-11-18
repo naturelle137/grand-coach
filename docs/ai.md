@@ -103,32 +103,41 @@ Table mode `Opponents::Mephisto` in `skat-app`, decided by
 
 ## Neural engine selection
 
-Both opponents use the [bundled card-play model](learned-models.md) with
-Classic Strong fallback. Bidding, pickup, discards, announcement and the
-default Kontra rule come from Classic. The model can choose cards and Re.
+Ordinary tables select Classic (default) or experimental Neural independently
+of each seat's level. Neural admits Easy, Medium and Strong; Rookie remains
+Classic-only (switching a Rookie draft to Neural selects Easy). All choices
+remain experimental: no adjacent-level calibration or Classic equivalence
+has been measured. The legacy `Opponents::Neural` table stays greedy/Strong.
 
-Ordinary tables select `OpponentEngine::Classic` (default) or experimental
-`Neural`, separately from the retained Classic seat levels. Neural currently
-uses one greedy policy and Strong fallback; it does not yet offer learned
-Easy/Medium/Strong levels. The bilingual new-series dialog hides Classic level
-controls while Neural is selected and preserves their draft values for switching
-back. Special tables do not accept this independent Neural engine.
+`skat-nn::PolicyLevel` freezes `temperature-policy-1`: Easy 2, Medium 1,
+Strong 0. Positive temperatures sample the stable legal-logit softmax using
+ChaCha8 and an explicit decision seed; zero preserves historical greedy policy
+and first legal tie. `NeuralOpponent` derives that seed from its opponent seed
+and permitted-view facts, using the existing decision-seed helper. Neither
+model inputs nor dealing/coach RNG change. Fixed bytes, revision, settings,
+seeds and human commands reproduce actions on the same build/CPU backend.
+Floating-point inference is not promised bit-identical across platforms;
+cancellation timing of Classic fallback search is excluded. Healthy models choose cards/Re;
+pre-play, Kontra and unsupported/unusable output use the selected Classic level.
 
-The app freezes the model load result, actual SHA-256, encoder version,
-`greedy-policy-1` revision and Strong fallback for the entire session. New Neural
-recordings store this context; replay applies recorded actions without weights.
-Practice uses the historical identity or visibly falls back to Strong for an
-unknown/different/unavailable model, including legacy Neural records. The new
-series dialog and live status disclose model failure. Loading success and
-failure are cached per process; retry requires an app restart. Settings apply
-only after Start; Cancel retains the series and pending workers.
-`OpponentJob::run_explained` exposes each decision's structured fallback reason.
+Sessions freeze bytes/load failure, actual hash, encoder and policy revision.
+Format-2 recordings retain these and per-seat levels in SessionConfig; replay
+needs no weights. Practice preserves the recorded supported revision, including
+`greedy-policy-1`, or visibly uses Classic for unknown/different/unavailable
+weights. Legacy unknown identity uses Strong. The provenance `fallback` field
+retains the historical Strong default; temperature profiles use SessionConfig's
+per-seat levels. Settings apply after Start; Cancel retains the series/workers.
+Loading success/failure is process-cached; retry requires restart.
+`OpponentJob::run_explained` exposes structured fallback reasons.
 
-[Remaining #77 work](learned-engine-selection.md#increment-b-one-seeded-learned-difficulty-mechanism)
-is shared seeded learned profiles and runner support, followed by separately
-authorised fresh adjacent-level calibration. No learned-level calibration was
-run for this selection increment; all Neural options remain experimental.
-Equal level names will not imply equal strength to Classic.
+`calibrate` accepts `nn-easy:PATH`, `nn-medium:PATH`, `nn-strong:PATH` using
+these exact profiles and matching Classic fallbacks. It prints full hash,
+encoder, revision, temperature and fallback along with the existing suite/range.
+Legacy `nn:PATH@LEVEL` and `nnq:` keep their semantics. Parser tests exercise
+plumbing without playing an arena. Fresh adjacent validation is still required
+under the [protocol](#calibration-protocol) and a separate compute admission
+naming model/profile, fresh ranges, resource/time limits and evidence owner.
+No training or arena was run for increment B. [Scope and holds](learned-engine-selection.md).
 
 ## Hybrid backend (experimental, #76)
 

@@ -580,8 +580,8 @@ fn neural_mode_plays_complete_games() {
     assert_eq!(records[0], records[1]);
 }
 
-/// Independent selection preserves the frozen legacy greedy policy through
-/// complete games, without assigning meaning to retained Classic levels.
+/// Strong temperature-zero selection preserves the legacy greedy policy
+/// through complete games, while recording its distinct profile revision.
 #[test]
 fn independent_neural_reproduces_legacy_actions_and_model_identity() {
     let mut histories = Vec::new();
@@ -589,7 +589,7 @@ fn independent_neural_reproduces_legacy_actions_and_model_identity() {
         (OpponentEngine::Classic, Opponents::Neural),
         (
             OpponentEngine::Neural,
-            Opponents::Levels([Level::Easy, Level::Medium]),
+            Opponents::Levels([Level::Strong; 2]),
         ),
     ] {
         let mut session = Session::new(SessionConfig {
@@ -602,7 +602,14 @@ fn independent_neural_reproduces_legacy_actions_and_model_identity() {
         while !session.view().series_finished {
             if let Some(job) = session.opponent_job() {
                 assert!(!job.sees_all_cards());
-                assert_eq!(job.level(), None);
+                assert_eq!(
+                    job.level(),
+                    if engine == OpponentEngine::Neural {
+                        Some(Level::Strong)
+                    } else {
+                        None
+                    }
+                );
                 session.finish_opponent(job.run(None)).unwrap();
             } else {
                 session.execute(human_command(&session, &mut rng)).unwrap();

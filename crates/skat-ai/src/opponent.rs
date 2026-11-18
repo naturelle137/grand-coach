@@ -505,7 +505,7 @@ pub(crate) fn select(
 
 /// Seed of one decision: the opponent's seed mixed with public facts of the
 /// view that change from decision to decision. It depends only on the view.
-fn decision_seed(seed: u64, view: &PlayerView) -> u64 {
+pub(crate) fn decision_seed(seed: u64, view: &PlayerView) -> u64 {
     let phase = match view.phase {
         Phase::Reizen => 0,
         Phase::SkatAufnahme => 1,

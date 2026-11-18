@@ -20,6 +20,8 @@
 //! points of the model's option heads instead of the policy. A trailing
 //! `+ak` lets the analysis or the model decide Kontra instead of the rules
 //! of thumb (`Profile::search_kontra`). Kontra/Re is on.
+//! `nn-easy:<path>`, `nn-medium:<path>` and `nn-strong:<path>` use the
+//! shared experimental app temperature profiles and matching Classic fallback.
 //! `hybrid:<path>` uses experimental learned proposals verified by Strong,
 //! with fixed Strong fallback; it accepts no level or `+ak` suffix.
 //!
@@ -39,7 +41,7 @@ use skat_ai::{
     Budget, Cancel, Decision, HybridOpponent, Level, NeuralOpponent, Opponent, Player, Profile,
 };
 use skat_core::{PlayerView, RuleConfig, Seat};
-use skat_nn::{Choice, NeuralModel};
+use skat_nn::{Choice, NeuralModel, PolicyLevel};
 
 /// Key of the deal seeds of each suite; tuning and validation never share
 /// deals.
@@ -130,6 +132,21 @@ impl Side {
             search_kontra,
             ..profile(spec)
         };
+        let learned = ["easy", "medium", "strong"].into_iter().find_map(|name| {
+            spec.strip_prefix(&format!("nn-{name}:"))
+                .map(|path| (path, name))
+        });
+        if let Some((path, name)) = learned {
+            assert!(!search_kontra, "learned levels retain app Kontra rules");
+            let level = match name {
+                "easy" => PolicyLevel::Easy,
+                "medium" => PolicyLevel::Medium,
+                _ => PolicyLevel::Strong,
+            };
+            let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+            let model = NeuralModel::load(&bytes, &skat_nn::sha256(&bytes)).unwrap();
+            return Side::Neural(Arc::new(model), profile(name), Choice::Level(level));
+        }
         let (rest, choice) = if let Some(rest) = spec.strip_prefix("nnq:") {
             (rest, Choice::Score)
         } else if let Some(rest) = spec.strip_prefix("nn:") {
@@ -174,12 +191,18 @@ impl Side {
             ),
             Side::Classic(p) => describe(p),
             Side::Neural(model, p, choice) => {
-                let hash: String = model.sha256()[..8]
-                    .iter()
-                    .map(|b| format!("{b:02x}"))
-                    .collect();
+                let hash: String = model.sha256().iter().map(|b| format!("{b:02x}")).collect();
+                let policy = match choice {
+                    Choice::Level(level) => format!(
+                        "{}, temperature {}",
+                        PolicyLevel::REVISION,
+                        level.temperature()
+                    ),
+                    _ => "greedy-policy-1".into(),
+                };
                 format!(
-                    "learned model {hash}…, {} hidden layers of width {}, choice {choice:?}, fallback {}",
+                    "learned model {hash}, encoder {}, {policy}, {} hidden layers of width {}, choice {choice:?}, fallback {}",
+                    model.header().encoder_version,
                     model.header().shape.layers,
                     model.header().shape.hidden,
                     describe(p)
@@ -445,6 +468,40 @@ mod tests {
             "| active | 2 | 1 (50.0 %) | 0 (0.0 %) | 0 (0.0 %) | 0 (0.0 %) | 0 (0.0 %) | 1 (50.0 %) | 1 (50.0 %) | 0 (0.0 %) | 0 (0.0 %) | 1 (50.0 %) |"
         );
         assert_eq!(rate(0, 0), "–");
+    }
+
+    #[test]
+    fn learned_level_specs_reuse_app_profiles_and_report_full_identity() {
+        let bytes = skat_nn::fixture_model(22, skat_nn::Phases::SPIEL);
+        let path =
+            std::env::temp_dir().join(format!("gc-level-calibrate-{}.gcnn", std::process::id()));
+        std::fs::write(&path, &bytes).unwrap();
+        for (name, level, fallback) in [
+            ("easy", PolicyLevel::Easy, Level::Easy),
+            ("medium", PolicyLevel::Medium, Level::Medium),
+            ("strong", PolicyLevel::Strong, Level::Strong),
+        ] {
+            let side = Side::parse(&format!("nn-{name}:{}", path.display()));
+            let Seated::Neural(player) = side.seat(123) else {
+                panic!("neural seat")
+            };
+            assert_eq!(player.choice, Choice::Level(level));
+            assert_eq!(player.classic.seed, 123);
+            assert_eq!(player.classic.profile, fallback.profile());
+            let hash: String = skat_nn::sha256(&bytes)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect();
+            assert!(side.describe().contains(&hash));
+            assert!(side.describe().contains(PolicyLevel::REVISION));
+            assert!(side.describe().contains("encoder 2"));
+        }
+        let Seated::Neural(legacy) = Side::parse(&format!("nn:{}@easy", path.display())).seat(123)
+        else {
+            panic!("legacy")
+        };
+        assert_eq!(legacy.choice, Choice::Policy);
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

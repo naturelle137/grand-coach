@@ -398,3 +398,38 @@ fn review_priorities_are_only_finite_opportunity_cost_estimates() {
         Err(Fallback::NonFinite)
     );
 }
+
+#[test]
+fn seeded_temperature_profiles_are_legal_repeatable_and_keep_greedy_ties() {
+    use skat_nn::PolicyLevel;
+    let model = model_with(Phases::ALL, |_| 0.0);
+    let view = decision_views(1)
+        .into_iter()
+        .find(|v| v.legal_actions.len() >= 3)
+        .unwrap();
+    let greedy = model.evaluate(&view).unwrap();
+    assert_eq!(greedy.action, view.legal_actions[0]);
+    for level in [PolicyLevel::Easy, PolicyLevel::Medium, PolicyLevel::Strong] {
+        let actions: Vec<_> = (0..32)
+            .map(|seed| {
+                let a = model
+                    .evaluate_seeded(&view, Choice::Level(level), seed)
+                    .unwrap();
+                assert_eq!(
+                    a,
+                    model
+                        .evaluate_seeded(&view, Choice::Level(level), seed)
+                        .unwrap()
+                );
+                assert!(view.legal_actions.contains(&a.action));
+                if level == PolicyLevel::Strong {
+                    assert_eq!(a, greedy);
+                }
+                a.action
+            })
+            .collect();
+        if level != PolicyLevel::Strong {
+            assert!(actions.iter().any(|a| *a != actions[0]));
+        }
+    }
+}
