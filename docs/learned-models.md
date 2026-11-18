@@ -230,8 +230,37 @@ and 4×896; KL to the reference grows from about 0.10 to 0.21-0.23. Against the
 mixed pool the mean result versus Strong improves from about -3.0/-3.1/-3.7
 to -1.7/-1.3/-1.8 (201-300); versus snapshots it stays near -2.5. These are
 on-policy training statistics against a moving pool with high per-iteration
-variance, not held-out strength. Selection on validation deals and a fresh
-`calibrate` run remain under the compute hold.
+variance, not held-out strength.
+
+### Fresh calibration and checkpoint selection (#75)
+
+Measured 2026-11-18 with the unchanged `calibrate` example (`nn:…@easy`,
+Kontra/Re on, six seat allocations per deal, paired A − B SF points per
+seat-game, nominal 95 % intervals). The v1 file is the supervised #73 model.
+Seeds: validation suite indices 9000000–9000299 (selection) and 9100000–9100599
+(final); both lie above every index in the Phase 2 seed audit
+(prior arena max 720399, held-out 8000000–8001999). Raw outputs stay in
+`grand-coach-data/studies/2026-11-18-selfplay-75/`.
+
+| Block | Comparison | Deals | A − B | 95 % interval |
+|---|---|---:|---:|---|
+| selection | 4×384 it175 − 4×512 it224 | 300 | -0.65 | [-2.67, +1.37] |
+| selection | 4×384 − v1 | 300 | +12.83 | [+9.89, +15.76] |
+| selection | 4×512 − v1 | 300 | +13.56 | [+10.31, +16.82] |
+| final | 4×384 − Easy | 600 | +18.21 | [+15.74, +20.69] |
+| final | 4×384 − Medium | 600 | +5.41 | [+3.64, +7.18] |
+| final | 4×384 − Strong | 600 | -0.83 | [-2.53, +0.87] |
+| final | 4×384 − v1 | 600 | +13.27 | [+11.19, +15.35] |
+
+Selection rule, fixed before the final block: keep the smaller shipped 4×384
+iteration 175 unless 4×512 beats it with a lower bound above 0 on the selection
+block. It did not (inconclusive), and 4×896 stays evaluation-only (D-63), so
+the shipped checkpoint is unchanged. It is clearly stronger than the supervised
+v1 model and Easy/Medium, and statistically indistinguishable from Strong; no
+superiority over Strong is claimed. Deal counts are far below the predeclared
+2000, the tuning-selected checkpoint was not re-searched, and roles, contracts
+and PPO causality are not analysed here. The [model card](../assets/models/card-play.md)
+links this record.
 
 Tiny corruption and missing-file fixtures run with the existing Phase 2
 unittest discovery command in [AGENTS.md](../AGENTS.md).

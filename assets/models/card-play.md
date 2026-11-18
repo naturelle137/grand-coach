@@ -34,6 +34,11 @@ Supervised metrics describe the START, not the selected PPO snapshot.
 
 ## Evidence and limits
 
+Fresh 2026-11-18 `calibrate` blocks (600 deals): +13.27 vs v1, +5.41 vs Medium,
+-0.83 vs Strong (inconclusive), see
+[learned models](../../docs/learned-models.md#fresh-calibration-and-checkpoint-selection-75).
+The older exposed-sample numbers below remain.
+
 On 1,300 completed paired deals: v2 minus v1 +13.354 SF/seat-game,
 nominal 95% interval [+12.005,+14.704]; descriptive six-comparison interval
 [+11.541,+15.167]. Against own start: +5.074 [+3.911,+6.237].
