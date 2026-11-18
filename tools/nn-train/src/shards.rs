@@ -371,6 +371,71 @@ pub fn verify(dir: &Path) -> Result<Verified, ShardError> {
     Ok(out)
 }
 
+/// Agreement of pre-play teacher labels with the shared Classic rules of
+/// thumb ([`validate_labels`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LabelReport {
+    /// Per pre-play kind: (labelled decisions, equal to the rule recomputed
+    /// from the stored permitted view, differing).
+    pub kinds: BTreeMap<DecisionKind, (u64, u64, u64)>,
+    /// Stored views that carry another seat's cards or a result:
+    /// a leak. Always zero for a valid run.
+    pub leaks: u64,
+    /// Discards whose label is not a legal pair of the twelve cards.
+    pub bad_pairs: u64,
+}
+
+/// Independent pre-play label validation (#74): every complete shard passes
+/// [`verify`]'s replay, then each Reizen, pickup, Drücken and Ansage label
+/// is compared with the decision the shared Classic rule of `skat-analysis`
+/// recomputes from the stored permitted view alone. Differing labels are
+/// counted, not hidden: a legitimate teacher may deviate (for example when
+/// Strong analyses), so the caller judges the agreement. Kontra/Re and card
+/// play are outside this check.
+pub fn validate_labels(dir: &Path) -> Result<LabelReport, ShardError> {
+    verify(dir)?;
+    let manifest = read_manifest(dir)?;
+    let mut out = LabelReport::default();
+    for index in 0..manifest.shards() {
+        check_labels(&read_shard(dir, index)?, &mut out);
+    }
+    Ok(out)
+}
+
+/// Adds the pre-play labels of `records` to `out` ([`validate_labels`]).
+pub fn check_labels(records: &[DecisionRecord], out: &mut LabelReport) {
+    use skat_analysis::policy;
+    use skat_core::{Action, Phase};
+    for r in records {
+        let kind = DecisionKind::of(&r.view);
+        if r.view.result.is_some() {
+            out.leaks += 1;
+        }
+        let rule = match r.view.phase {
+            Phase::Reizen => policy::bid_rule(&r.view).map(|b| b.action),
+            Phase::SkatAufnahme => policy::pickup_rule(&r.view).map(|b| b.action),
+            Phase::Druecken => policy::discard_rule(&r.view).map(|b| b.action),
+            Phase::Ansage => policy::announce_rule(&r.view).map(|b| b.action),
+            _ => continue,
+        };
+        if r.view.phase == Phase::Druecken {
+            // The declarer's twelve cards: own hand plus the known Skat.
+            let twelve = r.view.hand;
+            let ok = matches!(r.action, Action::Discard(c) if c.len() == 2 && c.is_subset(twelve));
+            if !ok {
+                out.bad_pairs += 1;
+            }
+        }
+        let e = out.kinds.entry(kind).or_default();
+        e.0 += 1;
+        if rule == Some(r.action) {
+            e.1 += 1;
+        } else {
+            e.2 += 1;
+        }
+    }
+}
+
 /// Serialises records as JSON lines.
 pub fn to_jsonl(records: &[DecisionRecord]) -> Vec<u8> {
     let mut out = Vec::new();
@@ -639,5 +704,27 @@ mod replay_tests {
         assert!(check_games(&manifest, 0, &rows).is_err());
         rows.remove(0);
         assert!(check_games(&manifest, 0, &rows).is_err());
+    }
+
+    #[test]
+    fn label_validation_counts_agreement_and_flags_bad_labels() {
+        let bytes = include_bytes!("../fixtures/selfplay/shard-00000.jsonl");
+        let mut rows = parse_records(bytes).unwrap();
+        let mut report = LabelReport::default();
+        check_labels(&rows, &mut report);
+        let labels: u64 = report.kinds.values().map(|k| k.0).sum();
+        assert!(labels > 0);
+        assert!(report.kinds.values().all(|k| k.0 == k.1 + k.2));
+        assert_eq!((report.leaks, report.bad_pairs), (0, 0));
+        // A discard that is not a pair of the twelve cards is flagged.
+        let i = rows
+            .iter()
+            .position(|r| r.view.phase == skat_core::Phase::Druecken)
+            .expect("fixture has a discard");
+        rows[i].action = skat_core::Action::Pass;
+        let mut bad = LabelReport::default();
+        check_labels(&rows[i..=i], &mut bad);
+        assert_eq!(bad.bad_pairs, 1);
+        assert_eq!(bad.kinds[&DecisionKind::Druecken].2, 1);
     }
 }
