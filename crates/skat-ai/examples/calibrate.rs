@@ -22,6 +22,7 @@
 //! of thumb (`Profile::search_kontra`). Kontra/Re is on.
 //! `nn-easy:<path>`, `nn-medium:<path>` and `nn-strong:<path>` use the
 //! shared experimental app temperature profiles and matching Classic fallback.
+//! `two-stage` uses the opt-in two-stage Strong proposal.
 //! `hybrid:<path>` uses experimental learned proposals verified by Strong,
 //! with fixed Strong fallback; it accepts no level or `+ak` suffix.
 //!
@@ -89,6 +90,7 @@ fn profile(spec: &str) -> Profile {
 /// a Classic fallback profile.
 #[derive(Clone)]
 enum Side {
+    TwoStage,
     Experimental,
     Classic(Profile),
     Neural(Arc<NeuralModel>, Profile, Choice),
@@ -96,6 +98,7 @@ enum Side {
 }
 
 enum Seated {
+    TwoStage(Opponent),
     Experimental(skat_ai::ExperimentalOpponent),
     Classic(Opponent),
     Neural(NeuralOpponent),
@@ -105,6 +108,9 @@ enum Seated {
 impl Player for Seated {
     fn decide(&self, view: &PlayerView, cancel: Option<&Cancel>) -> Option<Decision> {
         match self {
+            Seated::TwoStage(o) => o
+                .decide_two_stage(view, cancel, skat_analysis::TwoStage::PROPOSAL)
+                .map(|(decision, _, _)| decision),
             Seated::Hybrid(o) => Player::decide(o, view, cancel),
             Seated::Experimental(o) => o.decide(view, cancel),
             Seated::Classic(o) => Player::decide(o, view, cancel),
@@ -120,6 +126,9 @@ impl Side {
             let model = NeuralModel::load(&bytes, &skat_nn::sha256(&bytes))
                 .unwrap_or_else(|e| panic!("{path}: {e:?}"));
             return Side::Hybrid(Arc::new(model));
+        }
+        if spec == "two-stage" {
+            return Side::TwoStage;
         }
         if spec == "experimental" {
             return Side::Experimental;
@@ -163,6 +172,7 @@ impl Side {
 
     fn seat(&self, seed: u64) -> Seated {
         match self {
+            Side::TwoStage => Seated::TwoStage(Opponent::new(Level::Strong, seed)),
             Side::Hybrid(model) => Seated::Hybrid(HybridOpponent::new(Ok(model.clone()), seed)),
             Side::Experimental => Seated::Experimental(skat_ai::ExperimentalOpponent {
                 seed,
@@ -178,6 +188,7 @@ impl Side {
 
     fn describe(&self) -> String {
         match self {
+            Side::TwoStage => "experimental two-stage Strong proposal".into(),
             Side::Hybrid(model) => {
                 let hash: String = model.sha256().iter().map(|b| format!("{b:02x}")).collect();
                 format!(
@@ -522,5 +533,33 @@ mod tests {
         };
         assert_eq!(player.seed, 123);
         assert_eq!(player.budget, Budget::INTERACTIVE);
+    }
+}
+
+#[cfg(test)]
+mod two_stage_tests {
+    use super::*;
+    use skat_ai::BaselineOpponent;
+    use skat_core::{Game, Phase};
+
+    #[test]
+    fn two_stage_profile_dispatches_the_actual_candidate() {
+        let mut game = Game::new(17, RuleConfig { kontra_re: false });
+        while let Some(seat) = game.current_seat() {
+            let view = game.view(seat);
+            if view.phase == Phase::Spiel {
+                let expected = Opponent::new(Level::Strong, 42)
+                    .decide_two_stage(&view, None, skat_analysis::TwoStage::PROPOSAL)
+                    .unwrap()
+                    .0;
+                assert_eq!(
+                    Side::parse("two-stage").seat(42).decide(&view, None),
+                    Some(expected)
+                );
+                return;
+            }
+            game.apply(BaselineOpponent.decide(&view).unwrap()).unwrap();
+        }
+        panic!("fixture must reach card play");
     }
 }

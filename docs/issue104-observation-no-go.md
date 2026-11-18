@@ -1,5 +1,8 @@
 # Issue #104 observation/tool admission: no-go
 
+This records the earlier baseline and admission decision. Subsequent opt-in
+measurement tools and results are described in [analysis](analysis.md#two-stage-card-play-experimental-104); the earlier compute halt was superseded for the current bounded job.
+
 HQ531 selects the explicitly permitted unsupported-mode stop after the
 HQ520 diagnostic, rather than shipping a subset of the required four-tool
 increment. This is a tool-capability no-go, not evidence that two-stage

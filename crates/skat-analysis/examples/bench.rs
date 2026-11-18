@@ -9,7 +9,9 @@
 //! ```
 //!
 //! Optional arguments: number of deals per phase (default 10), samples and
-//! nodes per task (default `Budget::INTERACTIVE`).
+//! nodes per task (default `Budget::INTERACTIVE`). `--two-stage` adds a
+//! same-seed paired analysis; `--repeat=N` changes the deterministic order.
+//! Paired rows include full analyses, screening report, nodes and times.
 //!
 //! Estimation quality: every position is analysed a second time with
 //! another seed. `se` is the median standard error of the best option's
@@ -92,7 +94,16 @@ fn advance(view: &PlayerView) -> Action {
 }
 
 fn main() {
-    let mut args = std::env::args().skip(1);
+    let paired = std::env::args().any(|a| a == "--two-stage");
+    let repeat = std::env::args()
+        .find_map(|a| {
+            a.strip_prefix("--repeat=")
+                .map(|n| n.parse::<usize>().expect("repeat"))
+        })
+        .unwrap_or(0);
+    let mut args = std::env::args()
+        .skip(1)
+        .filter(|a| a != "--two-stage" && !a.starts_with("--repeat="));
     let deals: usize = args.next().and_then(|a| a.parse().ok()).unwrap_or(10);
     let mut budget = Budget::INTERACTIVE;
     if let Some(samples) = args.next().and_then(|a| a.parse().ok()) {
@@ -116,9 +127,45 @@ fn main() {
                 && times[k].len() < deals
                 && !(k == 0 && view.bidding.len() > 1)
             {
-                let start = Instant::now();
-                let analysis = analyze(&view, budget, seed, None).expect("consistent view");
-                times[k].push(start.elapsed());
+                let reference = || {
+                    let start = Instant::now();
+                    let result = analyze(&view, budget, seed, None).expect("consistent view");
+                    (result, start.elapsed())
+                };
+                let candidate = || {
+                    let start = Instant::now();
+                    let result = skat_analysis::analyze_two_stage(
+                        &view,
+                        budget,
+                        seed,
+                        None,
+                        skat_analysis::Kernel::Classic,
+                        skat_analysis::TwoStage::PROPOSAL,
+                    )
+                    .expect("consistent view");
+                    (result, start.elapsed())
+                };
+                let (analysis, elapsed) = if paired {
+                    let first = (seed as usize + times[k].len() + repeat).is_multiple_of(2);
+                    let (r, c) = if first {
+                        let r = reference();
+                        (r, candidate())
+                    } else {
+                        let c = candidate();
+                        (reference(), c)
+                    };
+                    println!(
+                        "paired {k} {seed} repeat={repeat} ref_first={first} ref_ms={} candidate_ms={} ref={:?} candidate={:?}",
+                        r.1.as_secs_f64() * 1000.0,
+                        c.1.as_secs_f64() * 1000.0,
+                        r.0,
+                        c.0
+                    );
+                    r
+                } else {
+                    reference()
+                };
+                times[k].push(elapsed);
                 nodes[k].push(analysis.effort.nodes);
                 if analysis.status != Status::Complete {
                     incomplete[k] += 1;
