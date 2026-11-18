@@ -142,3 +142,25 @@ cargo run --locked --release -p skat-ai --example calibrate -- tuning nn:RL/mode
 recipe and start model to restore weights, optimiser and snapshot pool.
 Select on tuning deals and reserve a fresh block for final validation.
 Use the [role tournament](ai.md#role-tournament) for mixed defender pairs.
+
+### Read-only campaign revalidation (#75)
+
+Before considering any new self-play work, run
+`python3 scripts/phase2/revalidate.py EVALUATION` against the frozen evaluation
+folder containing `manifest.json`. It prints JSON and writes no archive files.
+It verifies frozen model hashes and sizes, the campaign STOP marker, latest
+checkpoint weights and optimiser hashes, and retained snapshot hashes for all
+three shapes. Mutable original model paths are reported separately; their
+mismatch does not invalidate the frozen copy (the original v1 deployment path
+now contains the operational replacement).
+
+The 2026-11-18 revalidation found all seven frozen models intact and verified
+checkpoints 315/306/358 with 31/30/35 snapshots for 4×384/4×512/4×896.
+This is artifact integrity evidence only, not deserialisation, resumability,
+strength or completion of #75. No training was started. The Phase 2 compute
+hold remains binding. Full fresh calibration, learning-curve/pool reporting
+and the remaining issue acceptance evidence still require an admitted owner;
+Issue #74 currently supplies preparation only, not a production pre-play model.
+
+Tiny corruption and missing-file fixtures run with the existing Phase 2
+unittest discovery command in [AGENTS.md](../AGENTS.md).
