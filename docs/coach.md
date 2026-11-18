@@ -715,3 +715,58 @@ Abstich evidence for a learner-selected hypothetical legal card. It conceals
 answers until an explicit response or help, preserves the game and records
 assistance-aware observations separately from counting and catalogue training.
 Empty analysis is unsupported, never an absence reference or strategic diagnosis.
+
+### Worker and contention probe
+
+`coach_latency --worker-play DELAY_MS GAMES NODES_PER_TASK` runs fixed
+Pass/first-legal actions with a real coach thread. Before each action it waits
+for the chosen delay; an unfinished worker continues while the foreground runs
+Easy opponents. At the next decision the probe requests cancellation, waits
+for that worker and later drains the reviews. It counts actual overlaps of the
+worker execution and foreground opponent intervals, cancellation **requests**
+(which can race completion), and reviews drained at game end. Unlike egui it
+joins a cancelled worker and does not run queued reviews between turns. Thus it
+is an application-API probe, not a measurement of the GUI scheduler or actual
+human think times. `COACH_TRACE_EVIDENCE=1` additionally prints the complete
+final moments as JSON for equality checks; it includes the ordinary permitted
+snapshots and is intended for local diagnostic data only.
+
+On 2026-11-18, a release build in `skat-dev`, i9-10900K, seeds 1–6,
+24 samples and 20,000 nodes/task ran on one CPU. A second Python busy loop
+pinned to that same CPU supplied the controlled contention; other host activity
+was not isolated. Each cell is one process for six games, measured by
+`/usr/bin/time`; CPU is user + system, RSS is peak process RSS. First/full are
+ranges in ms from trace start to first visible moment at or after game end and
+complete debrief; opponent time is the sum per game, not GUI input latency.
+
+| Delay | Extra load | Overlaps per game | Cancel requests per game | Drained per game | First / full ms | CPU s | RSS KiB | Opponent ms/game |
+|---|---|---|---|---|---|---|---|---|
+| 0 ms | none | 0–1 | 11 | 11 | 29.9–59.4 / 76.1–152.4 | 0.63 | 4,924 | 0.085–0.164 |
+| 5 ms | none | 4–7 | 4–7 | 4–6 | 56.7–69.7 / 112.7–174.9 | 0.63 | 5,016 | 0.094–0.162 |
+| 0 ms | busy loop | 0 | 11 | 11 | 66.4–106.0 / 172.1–317.0 | 0.74 | 5,056 | 0.086–0.130 |
+| 5 ms | busy loop | 6–9 | 6–9 | 6–8 | 64.1–94.7 / 237.6–331.7 | 0.77 | 4,924 | 0.109–0.162 |
+
+A separate unpinned run compared all six fast and paced final moments as JSON
+and found them exactly equal. This checks these schedules only, not every
+possible interruption. The short fixed pauses and pinned single-core experiment
+are synthetic; a single run per cell does not support general speed ratios.
+No cache or changed scheduler was measured, and CPU/RSS are not before/after
+an optimization.
+
+For the real egui coach path, the ignored headless test
+`app::tests::debrief_headless_frame_timing` starts a queued debrief through the
+frontend and times 100 harness steps at 1280 × 820 with the same reduced budget.
+On the same unisolated host, the worker was present for 46 steps; median, p95
+and maximum were 0.830, 0.972 and 2.978 ms. Worker presence does not prove it
+was executing during each step. These are headless test-step times, not input,
+presentation or physical-display latency. The existing
+`window_stays_responsive_while_the_coach_analyses` test also exercises an action
+while live analysis is active. Neither measurement establishes responsiveness
+at interactive budget on a reference machine.
+
+The completed-input cache no-go remains bounded to these distinct inputs. The
+new probe shows cancellation requests and contention, but cannot establish
+whether changing the egui scheduler would safely reduce restart work. Real egui
+paced/fast lifecycle measurements, a scheduler candidate comparison and
+starvation under sustained foreground work remain open; no general no-benefit
+claim or deployment decision follows from this probe.

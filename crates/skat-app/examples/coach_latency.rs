@@ -58,6 +58,10 @@ fn percentile(sorted: &[Duration], p: f64) -> Duration {
 }
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--worker-play") {
+        worker_play();
+        return;
+    }
     if std::env::args().nth(1).as_deref() == Some("--paced-play") {
         paced_play();
         return;
@@ -356,6 +360,114 @@ fn paced_play() {
         assert_eq!(
             outcomes[0], outcomes[1],
             "paced and fast inputs and final evidence"
+        );
+    }
+}
+
+/// Exercise a single background coach worker while fixed actions and opponents run.
+fn worker_play() {
+    let delay = std::env::args().nth(2).unwrap().parse::<u64>().unwrap();
+    let games = std::env::args().nth(3).unwrap().parse::<u64>().unwrap();
+    let nodes = std::env::args().nth(4).unwrap().parse::<u64>().unwrap();
+    for seed in 1..=games {
+        let mut session = Session::new(SessionConfig {
+            seed,
+            series: SeriesLength::Fixed(1),
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
+        });
+        session.set_coach_budget(Budget {
+            samples: 24,
+            nodes_per_task: nodes,
+        });
+        session
+            .execute(Command::SetCoach(CoachSettings {
+                level: CoachLevel::EveryMove,
+                ..CoachSettings::default()
+            }))
+            .unwrap();
+        let start = Instant::now();
+        let mut restarts = 0;
+        let mut overlap = 0;
+        let mut opponent_time = Duration::ZERO;
+        let mut first = None;
+        loop {
+            let opponent_start = Instant::now();
+            session.run_opponents();
+            opponent_time += opponent_start.elapsed();
+            let view = session.view();
+            if view.legal_actions.is_empty() {
+                break;
+            }
+            let job = session.coach_job().unwrap();
+            assert!(!job.is_review());
+            let cancel = Cancel::new();
+            let stop = cancel.clone();
+            let (sender, receiver) = std::sync::mpsc::channel();
+            let worker = std::thread::spawn(move || {
+                let began = Instant::now();
+                let result = job.run(Some(&stop));
+                let _ = sender.send((result, began, Instant::now()));
+            });
+            std::thread::sleep(Duration::from_millis(delay));
+            let action =
+                if view.phase == Phase::Reizen && view.legal_actions.contains(&Action::Pass) {
+                    Action::Pass
+                } else {
+                    view.legal_actions[0]
+                };
+            if let Ok((result, _, _)) = receiver.try_recv() {
+                session.finish_coach(result).unwrap();
+                session.execute(Command::Act(action)).unwrap();
+            } else {
+                session.execute(Command::Act(action)).unwrap();
+                let opponent_start = Instant::now();
+                session.run_opponents();
+                let opponent_end = Instant::now();
+                opponent_time += opponent_end - opponent_start;
+                let result = match receiver.try_recv() {
+                    Ok(result) => result,
+                    Err(_) => {
+                        cancel.cancel();
+                        restarts += 1;
+                        receiver.recv().unwrap()
+                    }
+                };
+                overlap += usize::from(result.1 < opponent_end && result.2 > opponent_start);
+                session.finish_coach(result.0).unwrap();
+            }
+            worker.join().unwrap();
+        }
+        let (pending, existing) = match session.view().coach.debriefing.unwrap() {
+            Debriefing::Computing { remaining, moments } => (remaining, moments),
+            Debriefing::Ready(moments) => (0, moments),
+        };
+        if !existing.is_empty() {
+            first = Some(start.elapsed());
+        }
+        let mut drained = 0;
+        while let Some(job) = session.coach_job() {
+            assert!(job.is_review());
+            session.finish_coach(job.run(None)).unwrap();
+            drained += 1;
+            let moments = match session.view().coach.debriefing.unwrap() {
+                Debriefing::Computing { moments, .. } | Debriefing::Ready(moments) => moments,
+            };
+            if !moments.is_empty() && first.is_none() {
+                first = Some(start.elapsed());
+            }
+        }
+        let Some(Debriefing::Ready(moments)) = session.view().coach.debriefing else {
+            panic!("unfinished")
+        };
+        assert_eq!(drained, pending);
+        if std::env::var_os("COACH_TRACE_EVIDENCE").is_some() {
+            println!("evidence={}", serde_json::to_string(&moments).unwrap());
+        }
+        println!(
+            "seed={seed} delay_ms={delay} overlap={overlap} cancel_requests={restarts} drained={drained} first_after_finish={first:?} total={:?} foreground_opponents={opponent_time:?} moments={}",
+            start.elapsed(),
+            moments.len()
         );
     }
 }
