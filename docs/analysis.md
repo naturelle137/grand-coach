@@ -351,11 +351,44 @@ The audit checked 509 source files. Raw TSV SHA-256, runs 1–3:
 - `b76ee65dbfaaf3e199c9aff85d2bfd3b89cdae18ae49bec7d803aeb0ae33d2d8`
 - `cf190eda966f27222dbd70d63190d73f912eeaca8011759ae48b46476b8b0801`
 
-The allowed observation/tool increment has an explicit
-[unsupported-mode no-go and frozen conditional budgets](issue104-observation-no-go.md).
-The existing `two_stage` example remains a diagnostic TSV tool, not an
-admitted holdout runner. Issue #104 stays open with all unsatisfied criteria
-unticked; no further compute campaign is authorised.
+The earlier observation/tool no-go and frozen budgets are recorded in
+[issue104-observation-no-go.md](issue104-observation-no-go.md).
+
+### Paired holdout measurement (job 2124)
+
+The `two_stage` example now alternates the order deterministically
+(reference first iff `(position + repeat)` is even), takes
+`--repeats=N`, and prints seat, order, analysis status, fallback flag,
+chosen actions and every option's utility and sample count for both paths;
+decisions must be identical in every repeat. Rules-only decisions show
+`unavailable`, never `Complete`. Latency/bench/generator/calibrate tools
+and teacher-label capture are still not paired (see the no-go document).
+
+Fresh holdout, once, no tuning: `two_stage holdout 50 24 --repeats=3`,
+proposal (8, 2.5, 2, 2, 4), 24 samples, seeds from 2,000,001, 400
+distinct role/trick positions (tricks 1–4), pinned to four CPUs. The
+machine was not idle (load average about 31 at the end), so times are
+indicative only.
+
+- Identical action: **361/400 = 90.25 %** (target ≥97 % **missed**).
+  Of the 39 differing decisions 15 have zero regret (equal reference
+  utility), 22 positive regret, 2 not comparable. Mean regret of the
+  differing ones 2.400, maximum 25.375 (mean over all 400: 0.234).
+  Identity by bucket (trick, role): 44–48 of 50, no bucket above 96 %.
+- Outcomes: Screened 246, Skipped(FewOptions) 105, AllSurvived 27,
+  Skipped(KontraRe) 19. All analyses `Complete`, no fallback.
+- Nodes (three repeats): reference 12,407,924,919, two-stage
+  8,809,132,689 (0.71).
+- Summed wall-time ratio two-stage/reference per repeat: 0.854, 0.896,
+  0.924. Per-decision median 33.6 → 29.0, 30.3 → 28.2, 28.0 → 26.3 ms;
+  p90 535.9 → 462.3, 504.7 → 435.1, 361.2 → 374.6 ms.
+
+Result: the frozen proposal saves roughly 8–15 % wall time (29 % nodes)
+but misses the 97 % decision-equivalence target on fresh positions: a
+**measured no-go for the proposal as a default**; the tuning-suite result
+(39/40) did not carry over. Defaults stay single-stage. Strength,
+generator throughput and label agreement were not measured. Retuning
+needs the tuning suite only, with a new deliberate decision.
 
 ## Budgets and determinism
 
