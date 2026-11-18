@@ -176,8 +176,10 @@ Tiny checked-in fixtures exercise training, model reload and legal inference
 across the recorded phases. Scripted schema tests additionally exercise Hand,
 pickup, discard, immediate Re and Ouvert reveal; they are not strategic
 labels. No production all-phase model or strength measurement is delivered.
-A production imitation run, independent label validation, model card and
-behavioural calibration remain open in #74. The outcome-label pilot is
+`nn-train validate-labels DIR` now provides independent pre-play label
+validation (rule recomputation from stored views, leak and pair checks) and
+the [pre-play model card](pre-play-model-card.md) records its first small
+result. A production imitation run and behavioural calibration remain open in #74. The outcome-label pilot is
 postponed because those prerequisites are absent and the Phase 2 no-go
 allows no further training or arenas. Long compute requires separate
 admission as a shell job; this tooling change does not grant it.
