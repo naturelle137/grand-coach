@@ -1,0 +1,822 @@
+[
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-orient-de",
+    "stage": "orient",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-wrong-de",
+    "stage": "wrong",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-remaining-de",
+    "stage": "remaining",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-candidate-de",
+    "stage": "candidate",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-attempt-de",
+    "stage": "attempt",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-reveal-de",
+    "stage": "reveal",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-memory-de",
+    "stage": "memory",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-observe-de",
+    "stage": "observe",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-complete-de",
+    "stage": "complete",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-return-de",
+    "stage": "return",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-details-de",
+    "stage": "details",
+    "width": 1440
+  },
+  {
+    "case": "mixed-hand",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-mixed-hand-rule-de",
+    "stage": "rule",
+    "width": 1440
+  },
+  {
+    "case": "mixed-hand",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-mixed-hand-observe-de",
+    "stage": "observe",
+    "width": 1440
+  },
+  {
+    "case": "mixed-hand",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-mixed-hand-complete-de",
+    "stage": "complete",
+    "width": 1440
+  },
+  {
+    "case": "mixed-pickup",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-mixed-pickup-rule-de",
+    "stage": "rule",
+    "width": 1440
+  },
+  {
+    "case": "mixed-pickup",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-mixed-pickup-memory-de",
+    "stage": "memory",
+    "width": 1440
+  },
+  {
+    "case": "changed-leading-rank",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-changed-leading-rank-rule-de",
+    "stage": "rule",
+    "width": 1440
+  },
+  {
+    "case": "all-loser-follow",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-all-loser-follow-rule-de",
+    "stage": "rule",
+    "width": 1440
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-rule-de",
+    "stage": "rule",
+    "width": 1440
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-observe-de",
+    "stage": "observe",
+    "width": 1440
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-complete-de",
+    "stage": "complete",
+    "width": 1440
+  },
+  {
+    "case": "no-loser",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-no-loser-unsupported-de",
+    "stage": "unsupported",
+    "width": 1440
+  },
+  {
+    "case": "single-legal",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-single-legal-unsupported-de",
+    "stage": "unsupported",
+    "width": 1440
+  },
+  {
+    "case": "ouvert",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-ouvert-unsupported-de",
+    "stage": "unsupported",
+    "width": 1440
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-orient-de-narrow",
+    "stage": "orient",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-wrong-de-narrow",
+    "stage": "wrong",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-remaining-de-narrow",
+    "stage": "remaining",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-candidate-de-narrow",
+    "stage": "candidate",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-attempt-de-narrow",
+    "stage": "attempt",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-reveal-de-narrow",
+    "stage": "reveal",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-memory-de-narrow",
+    "stage": "memory",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-observe-de-narrow",
+    "stage": "observe",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-complete-de-narrow",
+    "stage": "complete",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-return-de-narrow",
+    "stage": "return",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "de",
+    "name": "guided-null-middle-details-de-narrow",
+    "stage": "details",
+    "width": 960
+  },
+  {
+    "case": "mixed-hand",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-mixed-hand-rule-de-narrow",
+    "stage": "rule",
+    "width": 960
+  },
+  {
+    "case": "mixed-hand",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-mixed-hand-observe-de-narrow",
+    "stage": "observe",
+    "width": 960
+  },
+  {
+    "case": "mixed-hand",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-mixed-hand-complete-de-narrow",
+    "stage": "complete",
+    "width": 960
+  },
+  {
+    "case": "mixed-pickup",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-mixed-pickup-rule-de-narrow",
+    "stage": "rule",
+    "width": 960
+  },
+  {
+    "case": "mixed-pickup",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-mixed-pickup-memory-de-narrow",
+    "stage": "memory",
+    "width": 960
+  },
+  {
+    "case": "changed-leading-rank",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-changed-leading-rank-rule-de-narrow",
+    "stage": "rule",
+    "width": 960
+  },
+  {
+    "case": "all-loser-follow",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-all-loser-follow-rule-de-narrow",
+    "stage": "rule",
+    "width": 960
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-rule-de-narrow",
+    "stage": "rule",
+    "width": 960
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-observe-de-narrow",
+    "stage": "observe",
+    "width": 960
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-complete-de-narrow",
+    "stage": "complete",
+    "width": 960
+  },
+  {
+    "case": "no-loser",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-no-loser-unsupported-de-narrow",
+    "stage": "unsupported",
+    "width": 960
+  },
+  {
+    "case": "single-legal",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-single-legal-unsupported-de-narrow",
+    "stage": "unsupported",
+    "width": 960
+  },
+  {
+    "case": "ouvert",
+    "height": 640,
+    "kind": "fixture",
+    "language": "de",
+    "name": "guided-null-middle-fixture-ouvert-unsupported-de-narrow",
+    "stage": "unsupported",
+    "width": 960
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-orient-en",
+    "stage": "orient",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-wrong-en",
+    "stage": "wrong",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-remaining-en",
+    "stage": "remaining",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-candidate-en",
+    "stage": "candidate",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-attempt-en",
+    "stage": "attempt",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-reveal-en",
+    "stage": "reveal",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-memory-en",
+    "stage": "memory",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-observe-en",
+    "stage": "observe",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-complete-en",
+    "stage": "complete",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-return-en",
+    "stage": "return",
+    "width": 1440
+  },
+  {
+    "height": 1000,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-details-en",
+    "stage": "details",
+    "width": 1440
+  },
+  {
+    "case": "mixed-hand",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-mixed-hand-rule-en",
+    "stage": "rule",
+    "width": 1440
+  },
+  {
+    "case": "mixed-hand",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-mixed-hand-observe-en",
+    "stage": "observe",
+    "width": 1440
+  },
+  {
+    "case": "mixed-hand",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-mixed-hand-complete-en",
+    "stage": "complete",
+    "width": 1440
+  },
+  {
+    "case": "mixed-pickup",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-mixed-pickup-rule-en",
+    "stage": "rule",
+    "width": 1440
+  },
+  {
+    "case": "mixed-pickup",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-mixed-pickup-memory-en",
+    "stage": "memory",
+    "width": 1440
+  },
+  {
+    "case": "changed-leading-rank",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-changed-leading-rank-rule-en",
+    "stage": "rule",
+    "width": 1440
+  },
+  {
+    "case": "all-loser-follow",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-all-loser-follow-rule-en",
+    "stage": "rule",
+    "width": 1440
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-rule-en",
+    "stage": "rule",
+    "width": 1440
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-observe-en",
+    "stage": "observe",
+    "width": 1440
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-complete-en",
+    "stage": "complete",
+    "width": 1440
+  },
+  {
+    "case": "no-loser",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-no-loser-unsupported-en",
+    "stage": "unsupported",
+    "width": 1440
+  },
+  {
+    "case": "single-legal",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-single-legal-unsupported-en",
+    "stage": "unsupported",
+    "width": 1440
+  },
+  {
+    "case": "ouvert",
+    "height": 1000,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-ouvert-unsupported-en",
+    "stage": "unsupported",
+    "width": 1440
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-orient-en-narrow",
+    "stage": "orient",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-wrong-en-narrow",
+    "stage": "wrong",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-remaining-en-narrow",
+    "stage": "remaining",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-candidate-en-narrow",
+    "stage": "candidate",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-attempt-en-narrow",
+    "stage": "attempt",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-reveal-en-narrow",
+    "stage": "reveal",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-memory-en-narrow",
+    "stage": "memory",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-observe-en-narrow",
+    "stage": "observe",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-complete-en-narrow",
+    "stage": "complete",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-return-en-narrow",
+    "stage": "return",
+    "width": 960
+  },
+  {
+    "height": 640,
+    "kind": "ordinary",
+    "language": "en",
+    "name": "guided-null-middle-details-en-narrow",
+    "stage": "details",
+    "width": 960
+  },
+  {
+    "case": "mixed-hand",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-mixed-hand-rule-en-narrow",
+    "stage": "rule",
+    "width": 960
+  },
+  {
+    "case": "mixed-hand",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-mixed-hand-observe-en-narrow",
+    "stage": "observe",
+    "width": 960
+  },
+  {
+    "case": "mixed-hand",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-mixed-hand-complete-en-narrow",
+    "stage": "complete",
+    "width": 960
+  },
+  {
+    "case": "mixed-pickup",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-mixed-pickup-rule-en-narrow",
+    "stage": "rule",
+    "width": 960
+  },
+  {
+    "case": "mixed-pickup",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-mixed-pickup-memory-en-narrow",
+    "stage": "memory",
+    "width": 960
+  },
+  {
+    "case": "changed-leading-rank",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-changed-leading-rank-rule-en-narrow",
+    "stage": "rule",
+    "width": 960
+  },
+  {
+    "case": "all-loser-follow",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-all-loser-follow-rule-en-narrow",
+    "stage": "rule",
+    "width": 960
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-rule-en-narrow",
+    "stage": "rule",
+    "width": 960
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-observe-en-narrow",
+    "stage": "observe",
+    "width": 960
+  },
+  {
+    "case": "void-last-exact-tie",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-void-last-exact-tie-complete-en-narrow",
+    "stage": "complete",
+    "width": 960
+  },
+  {
+    "case": "no-loser",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-no-loser-unsupported-en-narrow",
+    "stage": "unsupported",
+    "width": 960
+  },
+  {
+    "case": "single-legal",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-single-legal-unsupported-en-narrow",
+    "stage": "unsupported",
+    "width": 960
+  },
+  {
+    "case": "ouvert",
+    "height": 640,
+    "kind": "fixture",
+    "language": "en",
+    "name": "guided-null-middle-fixture-ouvert-unsupported-en-narrow",
+    "stage": "unsupported",
+    "width": 960
+  }
+]
