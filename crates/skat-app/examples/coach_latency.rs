@@ -228,8 +228,10 @@ fn fast_play() {
             let mut first = None;
             let mut reviews = 0;
             let mut analysis_time = std::time::Duration::ZERO;
+            let mut identities = std::collections::HashSet::new();
             while let Some(job) = run.coach_job() {
                 assert!(job.is_review());
+                identities.insert(job.input_identity());
                 let analysis_start = Instant::now();
                 let result = job.run(None);
                 analysis_time += analysis_start.elapsed();
@@ -243,6 +245,11 @@ fn fast_play() {
                 }
             }
             assert_eq!(reviews, decisions, "no review may be dropped");
+            println!(
+                "seed {seed}: {} distinct review inputs of {reviews} (reusable: {})",
+                identities.len(),
+                reviews as usize - identities.len()
+            );
             let full = capture_time + start.elapsed();
             let Some(Debriefing::Ready(moments)) = run.view().coach.debriefing else {
                 panic!("finished");

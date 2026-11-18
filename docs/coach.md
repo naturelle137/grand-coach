@@ -624,13 +624,27 @@ interval includes analysis and explanation; it does not isolate their costs.
 The full interval also includes game capture, cancellation and view building.
 These are wall times, not CPU time, and timer calls add measurement overhead.
 
-The measured execution dominates this bounded, serial backlog. Queue/cache
-and worker changes have no demonstrated benefit from this measurement alone:
-there is no paired classical candidate, paced trace, cold/warm cache comparison,
-contention, CPU/RSS, foreground or GUI responsiveness measurement. Keep the
-existing Classic control and do not claim a speedup. The classical optimization
-decision remains inconclusive until those comparisons and lifecycle regressions
-are available; this diagnostic does not establish that no safe optimization exists.
+The command also counts distinct review inputs (`CoachJob::input_identity`:
+permitted view, God-Mode deal only when present, budget, seed and mode,
+without the decision key). On the same six seeds each trace had 11 distinct
+inputs of 11 reviews, so zero results were reusable. A repeated rerun of the
+command in the same unisolated environment later measured Classic review
+execution of 22.8–33.8 ms per trace (full 24.7–35.8 ms), so the host noise
+between runs exceeds 3×; neither set of wall times supports a ratio.
+
+**Decision (no-go, #72): no classical optimization is adopted.** The measured
+trace contains no duplicate work for a cache of completed immutable analyses
+to remove: every review has a different permitted history. Cache hits could
+arise only when an identical position is analysed again (a replay with
+identical actions), which is not a measured bottleneck and would need a key over
+the full permitted history, perspective, seed, budget, versions and rules plus
+stale-result and hidden-card tests that no measured gain justifies. A worker or
+scheduling policy has no demonstrated target either: execution is serial and
+dominates, and the first visible moment (about 5 ms) already precedes the full
+debrief. Classic, moment selection and results stay unchanged. The paced-trace,
+CPU-contention, RSS and GUI-responsiveness comparisons were not run; this
+no-go rests on the absent reuse and on the scope limit, not on a measured
+speed-up, and is reopened if a trace with repeated identical inputs appears.
 
 ## Experimental live preview
 
