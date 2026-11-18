@@ -39,6 +39,40 @@ No further training or arenas are authorised by this outcome. Original data,
 run logs and checkpoints remain outside git. Unresolved history, option-quality
 and learning-efficacy evidence remains open in #75/#93 and the neural epic.
 
+## History and void evidence (#93)
+
+Encoder v2 keeps the 294 v1 inputs as a prefix and adds chronological play
+order and public follow-class voids (`PlayerView::proven_voids()`; Buben
+count as Trumpf in Farbspiel/Grand, as their suit in Null). Raw records are
+re-encoded at load time, so existing shards are used unchanged; v1 weights
+are rejected by v2 consumers and never relabelled.
+
+Measured on 2026-11-18 (source `c0718db`), on `T-8-11k` (verified, 1,089
+shards, 461,003 records, manifests untouched). Neither compared supervised
+model saw this set (v1: T-2/T-3; v2: T-2..T-5). Teacher labels are Strong.
+
+| Model (2×512, supervised) | Test agreement | Test policy loss | Test value RMSE |
+|---|---|---|---|
+| `v1-sl-2x512-01` (294 inputs) | 75.05 % | 0.6533 | 45.6 |
+| `v2-sl-2x512-01` (634 inputs) | 79.65 % | 0.5381 | 40.5 |
+
+Both are over 34,876 test rows; train/validation rows agree within 0.4
+points. Teacher-option agreement is 60.2 % (v1) against 58.3 % (v2): v2
+is better at the teacher's chosen card and slightly worse at its argmax
+over option scores, so option quality is not uniformly improved. Gains
+combine history features with more training data and the larger input;
+this table does not isolate them.
+
+Ablation (`nn-train probe`, v2, 30,029 validation rows of 959 deals): zeroing
+the `play_order` block raises policy loss by +0.0247 and lowers agreement
+by 1.5 points (+0.120 loss at eight completed tricks); zeroing `voids`
+gives +0.0217 and −1.1 points (+0.050 at eight tricks). Both effects grow
+with the number of completed tricks and are far below unseen-card or Trumpf
+blocks. The model therefore uses the added evidence, modestly. Zeroing is a
+distribution shift, not proof of correct strategy. Seeded arena strength
+against v1 is in the [operational selection](neural-operational-selection.md).
+Raw outputs: `grand-coach-data/studies/2026-11-18-history-93/`.
+
 ## Training data
 
 `generate` records permitted views and teacher actions with the real game
