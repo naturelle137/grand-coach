@@ -130,6 +130,32 @@ authorised fresh adjacent-level calibration. No learned-level calibration was
 run for this selection increment; all Neural options remain experimental.
 Equal level names will not imply equal strength to Classic.
 
+## Hybrid backend (experimental, #76)
+
+`HybridOpponent` is an opt-in `Player` adapter for the shared
+[learned-proposal verification](analysis.md#hybrid-proposals-experimental-76).
+It uses Classic Strong for pre-play, Kontra/Re and model failures; cheap
+exact analysis retains all options. In screened decisions it selects only
+ordinary verified proposals, or a legal rule fallback if none finishes.
+The explained result retains learned provenance; a screened choice never
+sets the Classic decision status to `Complete`. No shipped level, app table
+or coach uses this experimental path yet.
+
+Quality and latency against neural-only and Strong are **unmeasured**.
+This increment ran only tiny fixture behaviour tests, not `calibrate` or
+`latency` comparisons. The operational compute hold remains binding; no
+strength, calibrated level or performance advantage is claimed. The #77
+selector integration, an admitted bounded strategy comparison and actual
+quality/latency evidence remain open in #76.
+
+The existing `calibrate` parser accepts `hybrid:<path>` with fixed Strong
+budget/fallback and reports the full model hash and encoder. Its fixture test
+checks parsing/loading/seating without running an arena. `latency` adds Hybrid
+alongside Neural when given its existing `nn:<path>` argument; `neural-only`
+keeps its old meaning and `hybrid-only` filters to the new adapter. These
+interfaces prepare future authorised comparisons; compilation/tests do not
+constitute measured results.
+
 ## Calibration protocol
 
 - **Runner**: `cargo run --locked --release -p skat-ai --example

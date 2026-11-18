@@ -16,18 +16,23 @@
 //! the phases it covers, the Classic level Strong every other one (its
 //! rows then measure that fallback).
 //! A third argument `neural-only` omits the other opponents when measuring
-//! several frozen files. Loading is timed separately on stderr.
+//! several frozen files. `hybrid-only` instead measures only the hybrid.
+//! Without either filter, `nn:<path>` adds both Neural and Hybrid rows.
+//! Loading is timed separately on stderr.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use skat_ai::{BaselineOpponent, Level, Mephisto, NeuralOpponent, Opponent, Profile, Status};
+use skat_ai::{
+    BaselineOpponent, HybridOpponent, Level, Mephisto, NeuralOpponent, Opponent, Profile, Status,
+};
 use skat_core::{Action, Game, Phase, PlayerView, RuleConfig};
 use skat_nn::NeuralModel;
 
 enum Measured {
     Classic(Opponent),
     Neural(NeuralOpponent),
+    Hybrid(HybridOpponent),
     Mephisto,
 }
 
@@ -214,12 +219,23 @@ fn main() {
         let model = NeuralModel::load(&bytes, &skat_nn::sha256(&bytes))
             .unwrap_or_else(|e| panic!("{path}: {e:?}"));
         eprintln!("model read, hash and load: {:?}", loading.elapsed());
-        let neural = NeuralOpponent::new(Ok(Arc::new(model)), Opponent::new(Level::Strong, 1));
+        let model = Arc::new(model);
+        let hash: String = model.sha256().iter().map(|b| format!("{b:02x}")).collect();
+        eprintln!("model {hash}, encoder {}", model.header().encoder_version);
+        players.push((
+            "Hybrid (experimental)".to_owned(),
+            Measured::Hybrid(HybridOpponent::new(Ok(model.clone()), 1)),
+        ));
+        let neural = NeuralOpponent::new(Ok(model), Opponent::new(Level::Strong, 1));
         players.push(("Neural".to_owned(), Measured::Neural(neural)));
     }
     if std::env::args().nth(3).as_deref() == Some("neural-only") {
         players.retain(|(_, opponent)| matches!(opponent, Measured::Neural(_)));
         assert_eq!(players.len(), 1, "neural-only needs nn:<path>");
+    }
+    if std::env::args().nth(3).as_deref() == Some("hybrid-only") {
+        players.retain(|(_, opponent)| matches!(opponent, Measured::Hybrid(_)));
+        assert_eq!(players.len(), 1, "hybrid-only needs nn:<path>");
     }
     for (name, opponent) in &players {
         for (k, games) in positions.iter().enumerate() {
@@ -228,7 +244,16 @@ fn main() {
             for game in games {
                 let view = game.view(game.current_seat().expect("a decision"));
                 let start = Instant::now();
+                let mut hybrid_incomplete = false;
                 let d = match opponent {
+                    Measured::Hybrid(o) => o.decide_explained(&view, None).map(|d| {
+                        if let Some(skat_analysis::hybrid::HybridAnalysis::LearnedEstimate(p)) =
+                            d.analysis
+                        {
+                            hybrid_incomplete = p.search_status != Status::Complete;
+                        }
+                        d.decision
+                    }),
                     Measured::Classic(o) => o.decide(&view, None),
                     Measured::Neural(o) => o.decide_explained(&view, None).map(|d| d.decision),
                     Measured::Mephisto => Mephisto.decide(game, None),
@@ -236,7 +261,10 @@ fn main() {
                 .expect("a decision");
                 times.push(start.elapsed());
                 assert!(view.legal_actions.contains(&d.action), "illegal decision");
-                if d.fallback || d.status.is_some_and(|s| s != Status::Complete) {
+                if hybrid_incomplete
+                    || d.fallback
+                    || d.status.is_some_and(|s| s != Status::Complete)
+                {
                     incomplete += 1;
                 }
             }
