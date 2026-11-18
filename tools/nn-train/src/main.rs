@@ -12,6 +12,7 @@
 //! cargo run --locked --release -p nn-train -- generate OUT_DIR [--deals N]
 //!     [--shard-deals N] [--seed N] [--minutes N] [--max-mb N] [--cpus N]
 //!     [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4]
+//!     [--teacher-samples 96|384]
 //!     [--table teacher|easy-mix|rookie-mix|medium-mix|level-mix]
 //! cargo run --locked --release -p nn-train -- verify DIR
 //! cargo run --locked --release -p nn-train -- validate-labels DIR
@@ -365,6 +366,16 @@ fn generate(args: &[String]) {
             _ => panic!("invalid search backend or rest-tricks"),
         },
         ..TeacherProfile::STRONG
+    };
+    let teacher = match flag(args, "--teacher-samples", 0u32) {
+        0 => teacher,
+        n => {
+            assert!(
+                teacher.name == "strong",
+                "--teacher-samples needs the cpu backend"
+            );
+            TeacherProfile::high_budget(n).expect("--teacher-samples needs 96 or 384")
+        }
     };
     let table_name = text_flag(args, "--table", "teacher");
     let table = Table::parse(table_name).unwrap_or_else(|| {
@@ -1188,7 +1199,7 @@ fn main() {
             eprintln!("       nn-train fixture SEED OUT_FILE");
             eprintln!(
                 "       nn-train generate OUT_DIR [--deals N] [--shard-deals N] [--seed N] \
-                 [--minutes N] [--max-mb N] [--cpus N] [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4] \
+                 [--minutes N] [--max-mb N] [--cpus N] [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4] [--teacher-samples 96|384] \
                  [--table teacher|easy-mix|rookie-mix|medium-mix|level-mix]"
             );
             eprintln!("       nn-train verify DIR");
