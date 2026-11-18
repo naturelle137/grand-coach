@@ -10,7 +10,7 @@
 //! the other and in pairs. Duplicate play on the same cards removes most of
 //! the luck of the deal.
 
-use skat_core::{Game, GameResult, RuleConfig, Seat};
+use skat_core::{Call, Game, GameType, RuleConfig, Seat, Suit};
 
 use crate::{Opponent, Player, Profile};
 
@@ -55,6 +55,16 @@ pub const SEATINGS: [[bool; 3]; 6] = [
     [true, true, false],
 ];
 
+/// Contract bins in [`Tally::contracts`], in display order.
+pub const CONTRACT_TYPES: [GameType; 6] = [
+    GameType::Farbe(Suit::Kreuz),
+    GameType::Farbe(Suit::Pik),
+    GameType::Farbe(Suit::Herz),
+    GameType::Farbe(Suit::Karo),
+    GameType::Grand,
+    GameType::Null,
+];
+
 /// Totals of one profile over some seat-games.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Tally {
@@ -75,17 +85,51 @@ pub struct Tally {
     pub defender_won: u32,
     /// Seeger-Fabian points as defender.
     pub defender_points: i64,
+    /// Bid calls, including Vorhand's acceptance at 18; not Hold calls.
+    pub bids: u32,
+    /// Hold calls during Reizen.
+    pub holds: u32,
+    /// Pass calls during Reizen.
+    pub passes: u32,
+    /// Declarer games by [`CONTRACT_TYPES`]; excludes defender seat-games
+    /// and Einpassen. The sum equals `declarer_games`.
+    pub contracts: [u32; 6],
+    /// Declarer Hand games (overlaps the contract bins).
+    pub hand: u32,
+    /// Declarer games with Schneider announced, not merely achieved.
+    pub schneider_announced: u32,
+    /// Declarer games with Schwarz announced, not merely achieved.
+    pub schwarz_announced: u32,
+    /// Declarer Ouvert games.
+    pub ouvert: u32,
 }
 
 impl Tally {
-    fn add(&mut self, seat: Seat, result: Option<&GameResult>) {
+    fn add(&mut self, seat: Seat, game: &Game) {
         self.seat_games += 1;
-        let Some(result) = result else {
+        for record in game.bidding_history().iter().filter(|r| r.seat == seat) {
+            match record.call {
+                Call::Bid(_) => self.bids += 1,
+                Call::Hold(_) => self.holds += 1,
+                Call::Pass => self.passes += 1,
+            }
+        }
+        let Some(result) = game.result() else {
             return;
         };
         let points = i64::from(result.seeger_fabian()[seat.index()]);
         self.points += points;
         if result.outcome.declarer == seat {
+            let contract = result.outcome.contract;
+            let bin = CONTRACT_TYPES
+                .iter()
+                .position(|&g| g == contract.game)
+                .unwrap();
+            self.contracts[bin] += 1;
+            self.hand += u32::from(contract.hand);
+            self.schneider_announced += u32::from(contract.schneider);
+            self.schwarz_announced += u32::from(contract.schwarz);
+            self.ouvert += u32::from(contract.ouvert);
             self.declarer_games += 1;
             self.declarer_won += u32::from(result.won);
             self.declarer_points += points;
@@ -106,6 +150,27 @@ impl Tally {
         self.defender_games += other.defender_games;
         self.defender_won += other.defender_won;
         self.defender_points += other.defender_points;
+        self.bids += other.bids;
+        self.holds += other.holds;
+        self.passes += other.passes;
+        for (count, other) in self.contracts.iter_mut().zip(other.contracts) {
+            *count += other;
+        }
+        self.hand += other.hand;
+        self.schneider_announced += other.schneider_announced;
+        self.schwarz_announced += other.schwarz_announced;
+        self.ouvert += other.ouvert;
+    }
+
+    /// Reizen actions: denominator for bid, hold and pass action rates.
+    pub fn bidding_actions(&self) -> u32 {
+        self.bids + self.holds + self.passes
+    }
+
+    /// Seat-games ending in Einpassen, including participation in mixed
+    /// tables. This is not a count of games caused by this profile alone.
+    pub fn thrown_in(&self) -> u32 {
+        self.seat_games - self.declarer_games - self.defender_games
     }
 
     /// Mean Seeger-Fabian points per seat-game.
@@ -180,7 +245,7 @@ pub fn compare_with<A: Player, B: Player>(
             } else {
                 &mut out.b
             };
-            tally.add(seat, result);
+            tally.add(seat, &game);
         }
     }
     out
@@ -253,12 +318,163 @@ mod tests {
             let c = compare(deal, rules, easy, easy, |g, s| (g * 3 + s.index()) as u64);
             assert_eq!(c.a.seat_games, 9);
             assert_eq!(c.b.seat_games, 9);
+            assert_eq!(c.a, c.b);
             // The baseline ignores seeds: each seating plays the same game.
             assert!(c.thrown_in == 0 || c.thrown_in == 6);
             assert!(c.difference().abs() < 1e-9, "deal {deal}: {c:?}");
             let again = compare(deal, rules, easy, easy, |g, s| (g * 3 + s.index()) as u64);
             assert_eq!(c, again);
         }
+    }
+
+    #[test]
+    fn passive_players_expose_einpassen_in_each_profiles_tally() {
+        struct Passer;
+        impl Player for Passer {
+            fn decide(
+                &self,
+                view: &skat_core::PlayerView,
+                _: Option<&crate::Cancel>,
+            ) -> Option<crate::Decision> {
+                assert!(view.legal_actions.contains(&skat_core::Action::Pass));
+                Some(crate::Decision {
+                    action: skat_core::Action::Pass,
+                    status: None,
+                    fallback: false,
+                })
+            }
+        }
+        let c = compare_with(
+            42,
+            RuleConfig { kontra_re: true },
+            |_, _| Passer,
+            |_, _| Passer,
+        );
+        assert_eq!(c.thrown_in, 6);
+        assert_eq!(c.a, c.b);
+        assert_eq!(c.a.seat_games, 9);
+        assert_eq!(c.a.thrown_in(), 9);
+        assert_eq!(c.a.bidding_actions(), 9);
+        assert_eq!((c.a.bids, c.a.holds, c.a.passes), (0, 0, 9));
+        assert_eq!(c.a.declarer_games + c.a.defender_games, 0);
+        assert_eq!(c.a.contracts, [0; 6]);
+        assert_eq!(c.a.mean(), 0.0);
+        let mut merged = c.a;
+        merged.merge(&c.b);
+        assert_eq!(merged.thrown_in(), 18);
+        assert_eq!(merged.bidding_actions(), 18);
+    }
+
+    #[test]
+    fn contract_and_bidding_counts_follow_the_actual_seat_and_announcement() {
+        use skat_core::{Action, Announcement, Phase};
+        let mut combined = Tally::default();
+        for (bin, game_type) in CONTRACT_TYPES.into_iter().enumerate() {
+            // Include plain pickup games and Hand/Ouvert announcements.
+            for special in [false, true] {
+                let mut game = Game::new(42, RuleConfig { kontra_re: true });
+                // Mittelhand bids, Vorhand holds, then both other seats pass.
+                for action in [Action::Bid(18), Action::Hold, Action::Pass, Action::Pass] {
+                    game.apply(action).unwrap();
+                }
+                game.apply(if special {
+                    Action::Hand
+                } else {
+                    Action::TakeSkat
+                })
+                .unwrap();
+                let announcement = Announcement {
+                    game: game_type,
+                    schneider: special && game_type != GameType::Null,
+                    schwarz: special && game_type != GameType::Null,
+                    ouvert: special,
+                };
+                while game.current_seat().is_some() {
+                    let actions = game.legal_actions();
+                    let action = if game.phase() == Phase::Ansage {
+                        Action::Announce(announcement)
+                    } else {
+                        *actions
+                            .iter()
+                            .find(|a| {
+                                matches!(
+                                    a,
+                                    Action::Play(_)
+                                        | Action::Discard(_)
+                                        | Action::KeinKontra
+                                        | Action::KeinRe
+                                )
+                            })
+                            .unwrap()
+                    };
+                    game.apply(action).unwrap();
+                }
+                let result = game.result().unwrap();
+                assert_eq!(result.outcome.declarer, Seat::Vorhand);
+                let mut tallies = [Tally::default(); 3];
+                for seat in Seat::ALL {
+                    let t = &mut tallies[seat.index()];
+                    t.add(seat, &game);
+                    assert_eq!(t.thrown_in(), 0);
+                    assert_eq!(t.points, i64::from(result.seeger_fabian()[seat.index()]));
+                    if seat == Seat::Vorhand {
+                        let mut bins = [0; 6];
+                        bins[bin] = 1;
+                        assert_eq!(t.contracts, bins);
+                        assert_eq!((t.bids, t.holds, t.passes), (0, 1, 0));
+                        assert_eq!(t.declarer_games, 1);
+                        assert_eq!(t.declarer_won, u32::from(result.won));
+                        assert_eq!(t.declarer_points, t.points);
+                        assert_eq!(t.hand, u32::from(special));
+                        assert_eq!(t.ouvert, u32::from(special));
+                        assert_eq!(t.schneider_announced, u32::from(announcement.schneider));
+                        assert_eq!(t.schwarz_announced, u32::from(announcement.schwarz));
+                    } else {
+                        assert_eq!(t.contracts, [0; 6]);
+                        assert_eq!(t.defender_games, 1);
+                        assert_eq!(t.defender_won, u32::from(!result.won));
+                        assert_eq!(t.defender_points, t.points);
+                        assert_eq!(
+                            (t.hand, t.ouvert, t.schneider_announced, t.schwarz_announced),
+                            (0, 0, 0, 0)
+                        );
+                    }
+                    combined.merge(t);
+                }
+                assert_eq!(
+                    (tallies[1].bids, tallies[1].holds, tallies[1].passes),
+                    (1, 0, 1)
+                );
+                assert_eq!(
+                    (tallies[2].bids, tallies[2].holds, tallies[2].passes),
+                    (0, 0, 1)
+                );
+            }
+        }
+        assert_eq!(combined.seat_games, 36);
+        assert_eq!(combined.contracts, [2; 6]);
+        assert_eq!(
+            (combined.bids, combined.holds, combined.passes),
+            (12, 12, 24)
+        );
+        assert_eq!(combined.bidding_actions(), 48);
+        assert_eq!(
+            (
+                combined.hand,
+                combined.ouvert,
+                combined.schneider_announced,
+                combined.schwarz_announced
+            ),
+            (6, 6, 5, 5)
+        );
+        assert_eq!(
+            (
+                combined.declarer_games,
+                combined.defender_games,
+                combined.thrown_in()
+            ),
+            (12, 24, 0)
+        );
     }
 
     #[test]
