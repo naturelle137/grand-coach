@@ -31,6 +31,16 @@ the pipeline stores the rule's choice, unleaked and legal. It is a 40-deal sampl
 quality, rare contracts, Kontra/Re labels or double-dummy bias (D-40), and a
 production dataset must be validated again.
 
+A further read-only validation of the retained Strong `T-2-10k` dataset
+(seed 73, engine `99c91300dee7`, 10,000 deals) found 82,866/82,866
+Reizen, 9,931/9,931 Hand/pickup, 9,908/9,908 Drücken and 9,931/9,931
+Ansage labels equal the current rules, with zero view leaks or illegal
+pairs. `nn-train validate-labels` also verified the shards and replayed the
+records. This checks storage and rule agreement, not strategic quality or
+Kontra/Re label quality; the original manifest predates the explicit
+`search_kontra` profile field and must not be treated as proof of that
+phase's teacher configuration.
+
 ## Open before a production claim
 
 Production dataset and training run (separate admission), behavioural

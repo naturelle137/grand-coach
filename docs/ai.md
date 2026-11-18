@@ -304,6 +304,21 @@ of a 40-deal Strong run equal the Classic rules, no leaks); the outcome-label pi
 available. The existing Phase 2 compute hold remains binding. Classic and the
 shipped Neural model and Kontra behaviour are unchanged.
 
+A baseline on validation deals 10000–10199 (six seatings each, Kontra/Re
+on) compared the shipped card-play model, greedy policy with Easy fallback,
+against Classic Easy. A − B was +19.04 SF points per seat-game, standard
+error 2.04, 95 % interval [+15.04, +23.05]. The model's declarers won
+84.8 % of 600 games and defenders won 31.2 % of 1,200 games; Easy's
+respective rates were 63.2 % and 20.8 %. Both sides bid in 43.3 %, held in
+32.7 % and passed in 24.0 % of 5,004 Reizen actions; neither participated in
+an Einpassen. The identical contract mix per 600 declarer games was Kreuz
+177, Pik 153, Herz 102, Karo 72, Grand 90 and Null 6, including six Hand
+and no Schneider, Schwarz or Ouvert announcements. This is a baseline for
+card play only: both sides use Classic for pre-play, and it does not evaluate
+an all-phase imitation model. Command: `calibrate validation
+nn:assets/models/card-play.gcnn@easy easy 200 4 10000`. Model SHA-256:
+`6eeb33593eb1e0a8fc91eb2774488a3e9729fb28a45e76b8812e37bf569def75`.
+
 `calibrate` now records the required behavioural counts alongside the existing
 role-separated scores. Deterministic rule-engine tests exercise a fully
 passive table (six Einpassen games, nine Pass actions and nine thrown-in
