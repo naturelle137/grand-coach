@@ -44,8 +44,9 @@ and learning-efficacy evidence remains open in #75/#93 and the neural epic.
 Encoder v2 keeps the 294 v1 inputs as a prefix and adds chronological play
 order and public follow-class voids (`PlayerView::proven_voids()`; Buben
 count as Trumpf in Farbspiel/Grand, as their suit in Null). Raw records are
-re-encoded at load time, so existing shards are used unchanged; v1 weights
-are rejected by v2 consumers and never relabelled.
+re-encoded at load time, so existing shards are used unchanged. The runtime
+accepts v1 weights only with their original v1 encoder and input shape; it
+does not relabel them as v2.
 
 Measured on 2026-11-18 (source `c0718db`), on `T-8-11k` (verified, 1,089
 shards, 461,003 records, manifests untouched). Neither compared supervised
@@ -72,6 +73,29 @@ blocks. The model therefore uses the added evidence, modestly. Zeroing is a
 distribution shift, not proof of correct strategy. Seeded arena strength
 against v1 is in the [operational selection](neural-operational-selection.md).
 Raw outputs: `grand-coach-data/studies/2026-11-18-history-93/`.
+
+The original Strong-only `T-2-10k` is a representative sample of the
+historical format-1 teacher data, not of all possible Skat play. On source
+`29fea4e`, `nn-train verify` replayed all 1,000 shards (424,247 records,
+none incomplete), checking views, deal splits, actions and final scores.
+The manifest SHA-256 was `fcfe0ca63e8012252a0b24d305045ecfc3d0eeee410ac593224d6478408c2a14`;
+the ordered shard-hash aggregate was
+`1f5f82f231ce5efbf32adeaf3aac81dce9dc3c9661e1f08c1f99f1d4d91fb04d`,
+matching the retained v2 training recipe. Evaluation with the v2 model
+loaded the original files and encoded 248,098 train, 31,934 validation and
+30,958 test card-play decisions. This was training data, not a held-out
+quality measurement. The manifest and model hashes were unchanged afterwards.
+
+A separate completed `calibrate` validation run on indices 9000000–9000199
+compared these same supervised models over 200 deals and six seat allocations
+per deal: v2 minus v1 was +3.45 Seeger-Fabian points per seat-game, 95% interval
+[+0.49, +6.41]. Twelve of 1,200 games were thrown in; no Null game occurred.
+The 200 distinct deal seeds did not collide with the declared seed ranges in
+the v2 supervised recipe (which include v1's training sets); unrecorded data
+and equal deals from different seeds were not excluded. This single comparison
+does not isolate the history features or establish general strength. The
+previous Phase 2 matrix and its no-go remain unchanged. Commands and outputs
+are retained in HQ `var/jobs/2108/tmp/`.
 
 ## Training data
 
