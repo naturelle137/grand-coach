@@ -125,6 +125,17 @@ pub struct CoachJob {
 }
 
 impl CoachJob {
+    /// Diagnostic identity of the analysed input: the permitted view (and the
+    /// whole deal only in God Mode), budget, seed and mode, without the
+    /// decision key. Equal identities would allow reusing a result.
+    #[doc(hidden)]
+    pub fn input_identity(&self) -> String {
+        format!(
+            "{:?}|{:?}|{:?}|{}|{}|{}",
+            self.view, self.all, self.budget, self.seed, self.review, self.experimental
+        )
+    }
+
     /// Analyses and explains the decision. `cancel` stops the analysis; a
     /// cancelled result is never presented as advice.
     pub fn run(&self, cancel: Option<&Cancel>) -> CoachResult {
