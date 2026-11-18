@@ -5,9 +5,9 @@
 Increment A, 2026-11-17: independent engine selection, frozen model provenance,
 bilingual fallback and legacy recording/practice compatibility are implemented.
 Classic remains unchanged, available and the default (D-07). Increment B, 2026-11-18, implements the seeded profiles, per-seat
-selection and calibration-runner plumbing described below. Fresh adjacent
-calibration remains open in [#77](https://github.com/naturelle137/grand-coach/issues/77).
-No training or arena run is authorised by this implementation.
+selection and calibration-runner plumbing described below. A subsequent admitted job ran the adjacent calibration; the inconclusive
+results are recorded in [the opponent guide](ai.md#neural-engine-selection).
+The implementation itself authorised no training or arena run.
 
 ## Historical starting point for the plan
 
@@ -145,5 +145,5 @@ relabelled weights or generation-manifest metadata.
 
 The managed issue puller owns independent review and integration. This
 increment uses `Refs #77`; learned controls are implemented but calibrated
-strength remains incomplete. Remaining delivery is separately admitted
-adjacent-level calibration evidence; no duplicate issue owner is needed.
+strength remains incomplete. The subsequent admitted adjacent-level calibration is recorded in the opponent guide;
+no duplicate issue owner is needed.
