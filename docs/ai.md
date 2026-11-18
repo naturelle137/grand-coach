@@ -106,8 +106,8 @@ Table mode `Opponents::Mephisto` in `skat-app`, decided by
 Ordinary tables select Classic (default) or experimental Neural independently
 of each seat's level. Neural admits Easy, Medium and Strong; Rookie remains
 Classic-only (switching a Rookie draft to Neural selects Easy). All choices
-remain experimental: no adjacent-level calibration or Classic equivalence
-has been measured. The legacy `Opponents::Neural` table stays greedy/Strong.
+remain experimental: adjacent-level calibration did not establish an ordering;
+Classic equivalence has not been measured. The legacy `Opponents::Neural` table stays greedy/Strong.
 
 `skat-nn::PolicyLevel` freezes `temperature-policy-1`: Easy 2, Medium 1,
 Strong 0. Positive temperatures sample the stable legal-logit softmax using
@@ -134,10 +134,23 @@ Loading success/failure is process-cached; retry requires restart.
 these exact profiles and matching Classic fallbacks. It prints full hash,
 encoder, revision, temperature and fallback along with the existing suite/range.
 Legacy `nn:PATH@LEVEL` and `nnq:` keep their semantics. Parser tests exercise
-plumbing without playing an arena. Fresh adjacent validation is still required
-under the [protocol](#calibration-protocol) and a separate compute admission
-naming model/profile, fresh ranges, resource/time limits and evidence owner.
-No training or arena was run for increment B. [Scope and holds](learned-engine-selection.md).
+plumbing without playing an arena. The following validation used the bundled
+PPO v2 model (SHA-256 `6eeb33593eb1e0a8fc91eb2774488a3e9729fb28a45e76b8812e37bf569def75`,
+encoder 2, 4 × 384), `temperature-policy-1` and each level's corresponding
+Classic fallback. On 2026-11-18, job 2089 ran the protocol with six parallel
+deals, validation indices 0–199, 200 deals and six seatings per pair, with
+Kontra/Re enabled. No tuning or training was run.
+
+| Comparison (A − B) | Points per seat-game | Standard error | Paired 95% interval | Result |
+|---|---:|---:|---:|---|
+| Neural Medium − Easy | +3.01 | 1.77 | [−0.47, +6.49] | Inconclusive |
+| Neural Strong − Medium | +0.48 | 1.34 | [−2.15, +3.10] | Inconclusive |
+
+Each comparison included 24 thrown-in games out of 1,200. These intervals do
+not establish an ordering or equivalence to Classic; the controls remain
+experimental. Any further tuning and fresh validation follow the
+[protocol](#calibration-protocol) and applicable compute holds. Historical
+implementation scope and holds are in [the selection record](learned-engine-selection.md).
 
 ## Hybrid backend (experimental, #76)
 
