@@ -9,8 +9,9 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use skat_app::{
     Action, Advice, Announcement, AppError, AppEvent, AssistSettings, Cancel, Card, CardSet,
     CoachBasis, CoachJob, CoachLevel, CoachResult, CoachSettings, Command, CountingState, Event,
-    GameRecording, GameType, Level, OpenCards, OpponentMove, Opponents, Pending, Phase, PlayedCard,
-    PlayerId, SeriesLength, Session, SessionConfig, Suit, TableDisplay, TableView, reizwerte,
+    GameRecording, GameType, Level, OpenCards, OpponentEngine, OpponentMove, Opponents, Pending,
+    Phase, PlayedCard, PlayerId, SeriesLength, Session, SessionConfig, Suit, TableDisplay,
+    TableView, reizwerte,
 };
 
 use skat_app::coach_model::{Concept, Stage};
@@ -73,6 +74,7 @@ struct NewSeries {
     kontra_re: bool,
     mode: Mode,
     levels: [Level; 2],
+    engine: OpponentEngine,
     /// Open display (D-68); implied in God Mode.
     open: bool,
     seed: String,
@@ -85,7 +87,6 @@ enum Mode {
     Goldfish,
     Mephisto,
     God,
-    Neural,
     Experimental,
 }
 
@@ -149,7 +150,7 @@ struct Practice {
 
 /// Practice lifecycle request from this frame, applied after drawing.
 enum PracticeRequest {
-    Start(GameRecording),
+    Start(Box<GameRecording>),
     Restart,
     Return,
 }
@@ -393,7 +394,7 @@ impl GrandCoachApp {
     fn apply_practice_request(&mut self) {
         match self.practice_request.take() {
             Some(PracticeRequest::Start(recording)) => {
-                if self.start_practice(recording).is_err() {
+                if self.start_practice(*recording).is_err() {
                     self.recording.practice_failed();
                 }
             }
@@ -1246,7 +1247,12 @@ impl GrandCoachApp {
                 Opponents::Mephisto => Mode::Mephisto,
                 Opponents::GodMode => Mode::God,
                 Opponents::Experimental => Mode::Experimental,
-                Opponents::Neural => Mode::Neural,
+                Opponents::Neural => Mode::Levels,
+            },
+            engine: if config.uses_neural() {
+                OpponentEngine::Neural
+            } else {
+                OpponentEngine::Classic
             },
             levels: match config.opponents {
                 Opponents::Levels(levels) => levels,
@@ -1311,6 +1317,9 @@ impl GrandCoachApp {
             }
             ui.separator();
             ui.label(match view.config.opponents {
+                Opponents::Levels(_) if view.config.uses_neural() => {
+                    i.tf("status-opponents", &[("mode", i.t("mode-neural").into())])
+                }
                 Opponents::Levels([left, right]) => i.tf(
                     "status-levels",
                     &[
@@ -1333,6 +1342,14 @@ impl GrandCoachApp {
                     i.tf("status-opponents", &[("mode", i.t("mode-neural").into())])
                 }
             });
+            if !self.recording.active()
+                && self
+                    .session
+                    .neural_provenance()
+                    .is_some_and(|p| p.model.is_err())
+            {
+                ui.label(RichText::new(i.t("mode-neural-missing")).strong());
+            }
             // Display versus coach basis (D-68), always named apart.
             if view.config.display == TableDisplay::Open {
                 ui.separator();
@@ -1573,6 +1590,9 @@ impl GrandCoachApp {
     /// Strength or table mode of an opponent, shown apart from its name.
     fn strength(&self, view: &TableView, player: PlayerId) -> String {
         let i = &self.i18n;
+        if view.config.uses_neural() {
+            return i.tf("opponent-mode", &[("mode", i.t("mode-neural").into())]);
+        }
         match view.config.level(player) {
             Some(level) => i.tf(
                 "opponent-strength",
@@ -2143,12 +2163,14 @@ impl GrandCoachApp {
         let mut cancel = false;
         let seed = parse_seed(&draft.seed);
         egui::Window::new(self.t("new-series-title"))
+            .default_width(680.0)
             .pivot(egui::Align2::CENTER_CENTER)
             .default_pos(ctx.content_rect().center())
             .collapsible(false)
             .resizable(false)
             .open(&mut open)
             .show(ctx, |ui| {
+                ui.set_max_width(680.0);
                 ui.radio_value(&mut draft.free, false, self.t("series-fixed"));
                 ui.add_enabled(
                     !draft.free,
@@ -2158,17 +2180,34 @@ impl GrandCoachApp {
                 ui.checkbox(&mut draft.kontra_re, self.t("option-kontra-re"));
                 ui.separator();
                 ui.radio_value(&mut draft.mode, Mode::Levels, self.t("mode-levels"));
-                for (k, id) in ["opponent-left", "opponent-right"].into_iter().enumerate() {
-                    ui.add_enabled_ui(draft.mode == Mode::Levels, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(self.t(id));
-                            for level in Level::ALL {
-                                let label = self.t(level_message(level));
-                                ui.radio_value(&mut draft.levels[k], level, label)
-                                    .on_hover_text(self.t(level_description(level)));
-                            }
-                        });
+                if draft.mode == Mode::Levels {
+                    ui.horizontal(|ui| {
+                        ui.label(self.t("opponent-engine"));
+                        ui.radio_value(
+                            &mut draft.engine,
+                            OpponentEngine::Classic,
+                            self.t("engine-classic"),
+                        );
+                        ui.radio_value(
+                            &mut draft.engine,
+                            OpponentEngine::Neural,
+                            self.t("mode-neural"),
+                        );
                     });
+                }
+                if draft.engine == OpponentEngine::Classic || draft.mode != Mode::Levels {
+                    for (k, id) in ["opponent-left", "opponent-right"].into_iter().enumerate() {
+                        ui.add_enabled_ui(draft.mode == Mode::Levels, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(self.t(id));
+                                for level in Level::ALL {
+                                    let label = self.t(level_message(level));
+                                    ui.radio_value(&mut draft.levels[k], level, label)
+                                        .on_hover_text(self.t(level_description(level)));
+                                }
+                            });
+                        });
+                    }
                 }
                 ui.radio_value(&mut draft.mode, Mode::Goldfish, self.t("mode-goldfish"))
                     .on_hover_text(self.t("mode-goldfish-description"));
@@ -2180,10 +2219,14 @@ impl GrandCoachApp {
                     Mode::Experimental,
                     self.t("mode-experimental"),
                 );
-                ui.radio_value(&mut draft.mode, Mode::Neural, self.t("mode-neural"))
-                    .on_hover_text(self.t("mode-neural-description"));
                 let mut notes = Vec::new();
                 match draft.mode {
+                    Mode::Levels if draft.engine == OpponentEngine::Neural => {
+                        notes.push("mode-neural-description");
+                        if !skat_app::neural_model_available() {
+                            notes.push("mode-neural-missing");
+                        }
+                    }
                     Mode::Levels => {
                         notes.push(level_description(draft.levels[0]));
                         if draft.levels[1] != draft.levels[0] {
@@ -2194,12 +2237,6 @@ impl GrandCoachApp {
                     Mode::Mephisto => {}
                     Mode::God => notes.push("mode-god-description"),
                     Mode::Experimental => notes.push("mode-experimental-description"),
-                    Mode::Neural => {
-                        notes.push("mode-neural-description");
-                        if !skat_app::neural_model_available() {
-                            notes.push("mode-neural-missing");
-                        }
-                    }
                 }
                 for note in notes {
                     ui.label(RichText::new(self.t(note)).small().weak());
@@ -2266,7 +2303,11 @@ impl GrandCoachApp {
                     Mode::Mephisto => Opponents::Mephisto,
                     Mode::God => Opponents::GodMode,
                     Mode::Experimental => Opponents::Experimental,
-                    Mode::Neural => Opponents::Neural,
+                },
+                engine: if draft.mode == Mode::Levels {
+                    draft.engine
+                } else {
+                    OpponentEngine::Classic
                 },
                 display: if draft.open && draft.mode != Mode::God {
                     TableDisplay::Open
@@ -2536,7 +2577,7 @@ impl eframe::App for GrandCoachApp {
         };
         self.i18n.cast = Some(view.cast);
         if let Some(recording) = started {
-            self.practice_request = Some(PracticeRequest::Start(recording));
+            self.practice_request = Some(PracticeRequest::Start(Box::new(recording)));
         }
         self.learning_window(&ctx);
         if self.practice_request.is_some() {
@@ -2554,6 +2595,82 @@ impl eframe::App for GrandCoachApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn engine_draft_cancel_and_start_preserve_worker_boundaries_in_both_languages() {
+        use egui_kittest::{Harness, kittest::Queryable};
+        for language in Language::ALL {
+            let (sender, receiver) = std::sync::mpsc::channel();
+            let cancel = Cancel::new();
+            let observed = cancel.clone();
+            let mut h = Harness::builder()
+                .with_size([1280.0, 900.0])
+                .build_eframe(move |cc| {
+                    let mut app = GrandCoachApp::new(
+                        &cc.egui_ctx,
+                        SessionConfig {
+                            seed: 7,
+                            opponents: Opponents::Levels([Level::Easy, Level::Medium]),
+                            ..SessionConfig::default()
+                        },
+                    );
+                    app.set_language(language);
+                    app.next_move_at = 1e9;
+                    app.thinking = Some(Thinking {
+                        result: receiver,
+                        cancel,
+                    });
+                    app.show_new_series();
+                    app
+                });
+            let before = h.state().session.view();
+            let old = h.state().session.opponent_job().unwrap().run(None);
+            h.run_steps(3);
+            let neural = h.state().t("mode-neural");
+            let classic = h.state().t("engine-classic");
+            let cancel_label = h.state().t("button-cancel");
+            let start = h.state().t("button-start");
+            h.get_by_role_and_label(egui::Role::RadioButton, &neural)
+                .click();
+            h.run_steps(3);
+            assert_eq!(
+                h.state().new_series.as_ref().unwrap().engine,
+                OpponentEngine::Neural
+            );
+            assert_eq!(h.state().session.view(), before);
+            h.get_by_role_and_label(egui::Role::RadioButton, &classic)
+                .click();
+            h.run_steps(3);
+            assert_eq!(
+                h.state().new_series.as_ref().unwrap().levels,
+                [Level::Easy, Level::Medium]
+            );
+            h.get_by_role_and_label(egui::Role::Button, &cancel_label)
+                .click();
+            h.run_steps(3);
+            assert_eq!(h.state().session.view(), before);
+            assert!(!observed.is_cancelled());
+            assert!(h.state().thinking.is_some());
+            h.state_mut().show_new_series();
+            h.run_steps(3);
+            h.get_by_role_and_label(egui::Role::RadioButton, &neural)
+                .click();
+            h.run_steps(3);
+            h.get_by_role_and_label(egui::Role::Button, &start).click();
+            h.run_steps(1);
+            assert!(observed.is_cancelled());
+            assert_eq!(h.state().session.config().engine, OpponentEngine::Neural);
+            assert_eq!(
+                h.state().session.config().opponents,
+                Opponents::Levels([Level::Easy, Level::Medium])
+            );
+            assert_eq!(
+                h.state_mut().session.finish_opponent(old),
+                Err(AppError::StaleOpponentMove)
+            );
+            drop(sender);
+        }
+    }
 
     fn rect(player: PlayerId) -> egui::Rect {
         egui::Rect::from_min_size(egui::Pos2::ZERO + trick_slot(player), CARD)

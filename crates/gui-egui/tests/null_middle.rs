@@ -24,6 +24,7 @@ fn null_middle_ordinary_widgets_all_legal_cards_bilingual_both_sizes() {
                             opponents: Opponents::Levels([Level::Easy; 2]),
                             kontra_re: false,
                             display: TableDisplay::Closed,
+                            ..SessionConfig::default()
                         },
                     )
                 });

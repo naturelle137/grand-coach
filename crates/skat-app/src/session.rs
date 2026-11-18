@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
-use skat_ai::{Budget, Cancel, Level, Mephisto, NeuralOpponent, Opponent, Player, Profile};
+use skat_ai::{Budget, Cancel, Level, Mephisto, NeuralOpponent, Opponent, Profile};
 use skat_core::{Action, Event, Game, OmniscientView, Phase, RuleConfig, RuleError, Seat};
 
 use crate::coach::{
@@ -68,6 +68,7 @@ pub enum SeriesLength {
 
 /// Settings of a new session.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "WireSessionConfig")]
 pub struct SessionConfig {
     /// Seed of the series; it fixes every deal (D-06, D-22).
     pub seed: u64,
@@ -77,6 +78,9 @@ pub struct SessionConfig {
     pub kontra_re: bool,
     /// The opponents.
     pub opponents: Opponents,
+    /// Independent engine for ordinary tables; Classic is omitted on the wire.
+    #[serde(default, skip_serializing_if = "OpponentEngine::is_classic")]
+    pub engine: OpponentEngine,
     /// What the human's table shows (D-68). Display only: it never changes
     /// the opponents, their seeds, the coach's analysis input or the
     /// scores. Missing in files written before it existed, which were all
@@ -84,6 +88,65 @@ pub struct SessionConfig {
     /// their exact bytes.
     #[serde(default, skip_serializing_if = "TableDisplay::is_closed")]
     pub display: TableDisplay,
+}
+
+/// Ordinary-table engine; learned difficulty is a separate, future increment.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OpponentEngine {
+    /// Existing rule/search opponents, unchanged.
+    #[default]
+    Classic,
+    /// Experimental greedy card policy, with Classic Strong fallback.
+    Neural,
+}
+
+impl OpponentEngine {
+    /// Whether this is the backwards-compatible default.
+    pub fn is_classic(&self) -> bool {
+        *self == Self::Classic
+    }
+}
+
+/// Invalid pairing of an ordinary engine with a special table.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InvalidEngineConfig;
+
+impl std::fmt::Display for InvalidEngineConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Neural engine requires an ordinary level table")
+    }
+}
+
+impl std::error::Error for InvalidEngineConfig {}
+
+// Validate untrusted configuration at deserialisation, including recordings.
+#[derive(Deserialize)]
+struct WireSessionConfig {
+    seed: u64,
+    series: SeriesLength,
+    kontra_re: bool,
+    opponents: Opponents,
+    #[serde(default)]
+    engine: OpponentEngine,
+    #[serde(default)]
+    display: TableDisplay,
+}
+
+impl TryFrom<WireSessionConfig> for SessionConfig {
+    type Error = InvalidEngineConfig;
+
+    fn try_from(w: WireSessionConfig) -> Result<Self, Self::Error> {
+        let config = Self {
+            seed: w.seed,
+            series: w.series,
+            kontra_re: w.kontra_re,
+            opponents: w.opponents,
+            engine: w.engine,
+            display: w.display,
+        };
+        config.validate()?;
+        Ok(config)
+    }
 }
 
 /// What the human's table shows (D-68).
@@ -153,12 +216,27 @@ impl Default for SessionConfig {
             series: SeriesLength::Fixed(36),
             kontra_re: false,
             opponents: Opponents::Levels([Level::Medium; 2]),
+            engine: OpponentEngine::Classic,
             display: TableDisplay::Closed,
         }
     }
 }
 
 impl SessionConfig {
+    /// Reject an independent engine on a special table (legacy Neural is retained).
+    pub fn validate(&self) -> Result<(), InvalidEngineConfig> {
+        if self.engine == OpponentEngine::Neural && !matches!(self.opponents, Opponents::Levels(_))
+        {
+            return Err(InvalidEngineConfig);
+        }
+        Ok(())
+    }
+
+    /// Includes the historical Neural table, whose semantics stay unchanged.
+    pub fn uses_neural(&self) -> bool {
+        self.engine == OpponentEngine::Neural || self.opponents == Opponents::Neural
+    }
+
     /// `true` if the human's table shows every card: an explicitly open
     /// display or God Mode (D-62, D-68).
     pub fn shows_all_cards(&self) -> bool {
@@ -178,6 +256,9 @@ impl SessionConfig {
     /// Level of `player` when every opponent has one; `None` for the
     /// human and in the Goldfish, Mephisto, God and neural modes.
     pub fn level(&self, player: PlayerId) -> Option<Level> {
+        if self.uses_neural() {
+            return None;
+        }
         match (self.opponents, player.0) {
             (Opponents::Levels(levels), 1 | 2) => Some(levels[player.index() - 1]),
             _ => None,
@@ -379,17 +460,38 @@ impl OpponentJob {
     /// is then chosen from what was finished, or by the rules of thumb,
     /// and is always legal.
     pub fn run(&self, cancel: Option<&Cancel>) -> OpponentMove {
-        let decision = match &self.brain {
-            Brain::Experimental(o, v) => o.decide(v, cancel),
-            Brain::Fair(opponent, view) => opponent.decide(view, cancel),
-            Brain::Mephisto(game) => Mephisto.decide(game, cancel),
-            Brain::Neural(opponent, view) => opponent.decide(view, cancel),
-        }
-        .expect("an opponent always finds a legal action");
-        OpponentMove {
-            position: self.position,
-            action: decision.action,
-        }
+        self.run_explained(cancel).0
+    }
+
+    /// Computes a move and exposes its decision-level Neural fallback reason.
+    pub fn run_explained(
+        &self,
+        cancel: Option<&Cancel>,
+    ) -> (OpponentMove, Option<skat_nn::Fallback>) {
+        let (decision, neural_fallback) = if let Brain::Neural(opponent, view) = &self.brain {
+            let explained = opponent
+                .decide_explained(view, cancel)
+                .expect("legal decision");
+            (explained.decision, explained.fallback)
+        } else {
+            (
+                match &self.brain {
+                    Brain::Experimental(o, v) => o.decide(v, cancel),
+                    Brain::Fair(opponent, view) => opponent.decide(view, cancel),
+                    Brain::Mephisto(game) => Mephisto.decide(game, cancel),
+                    Brain::Neural(..) => unreachable!(),
+                }
+                .expect("an opponent always finds a legal action"),
+                None,
+            )
+        };
+        (
+            OpponentMove {
+                position: self.position,
+                action: decision.action,
+            },
+            neural_fallback,
+        )
     }
 }
 
@@ -405,6 +507,7 @@ pub struct OpponentMove {
 #[derive(Clone, Debug)]
 pub struct Session {
     config: SessionConfig,
+    neural: Option<crate::neural::FrozenNeural>,
     /// Source of the per-deal seeds.
     rng: ChaCha8Rng,
     /// Source of the opponents' seeds: another stream, so they reveal
@@ -441,6 +544,13 @@ impl Session {
     /// Starts a series and deals its first game. In the first game the
     /// human is Vorhand (player 2 deals).
     pub fn new(config: SessionConfig) -> Session {
+        Self::try_new(config).expect("valid session configuration")
+    }
+
+    /// Validated creation for directly constructed, potentially untrusted settings.
+    pub fn try_new(config: SessionConfig) -> Result<Session, InvalidEngineConfig> {
+        config.validate()?;
+        let neural = config.uses_neural().then(crate::neural::FrozenNeural::load);
         let mut rng = ChaCha8Rng::seed_from_u64(config.seed);
         let game_seed = rng.next_u64();
         let mut ai_rng = ChaCha8Rng::seed_from_u64(config.seed);
@@ -454,7 +564,8 @@ impl Session {
         // Another stream for the quiz.
         let mut quiz_rng = ChaCha8Rng::seed_from_u64(config.seed);
         quiz_rng.set_stream(3);
-        Session {
+        Ok(Session {
+            neural: neural.clone(),
             config,
             rng,
             ai_rng,
@@ -469,6 +580,7 @@ impl Session {
             recording: GameRecording::start(
                 RecordingContext {
                     application_version: env!("CARGO_PKG_VERSION").into(),
+                    neural: neural.as_ref().map(|n| n.provenance.clone()),
                     session: config,
                     number: 1,
                     dealer: PlayerId(2),
@@ -489,7 +601,12 @@ impl Session {
             quiz: QuizState::new(quiz_rng.next_u64()),
             guided: None,
             live_abstich: Default::default(),
-        }
+        })
+    }
+
+    /// Frozen model identity or load failure; absent for a Classic/special table.
+    pub fn neural_provenance(&self) -> Option<&crate::NeuralProvenance> {
+        self.neural.as_ref().map(|n| &n.provenance)
     }
 
     /// Settings of this session.
@@ -719,6 +836,7 @@ impl Session {
         // A fair opponent sees only its own seat's view (D-23).
         let fair = |opponent: Opponent| Brain::Fair(opponent, Box::new(self.game.view(seat)));
         let brain = match self.config.opponents {
+            Opponents::Levels(_) if self.config.uses_neural() => self.neural_brain(seat, seed),
             Opponents::Levels(levels) => fair(Opponent::new(levels[player.index() - 1], seed)),
             Opponents::Goldfish if player == self.goldfish => fair(Opponent {
                 profile: Profile::GOLDFISH,
@@ -732,13 +850,7 @@ impl Session {
                 },
                 Box::new(self.game.view(seat)),
             ),
-            Opponents::Neural => Brain::Neural(
-                Box::new(NeuralOpponent::new(
-                    crate::neural::neural_model(),
-                    Opponent::new(Level::Strong, seed),
-                )),
-                Box::new(self.game.view(seat)),
-            ),
+            Opponents::Neural => self.neural_brain(seat, seed),
             Opponents::Mephisto | Opponents::GodMode => {
                 let declarer = self.game.declarer();
                 let partner = self.game.phase() == Phase::Spiel
@@ -775,6 +887,20 @@ impl Session {
             Some(_) => Err(AppError::StaleOpponentMove),
             None => Err(AppError::NoOpponentToMove),
         }
+    }
+
+    fn neural_brain(&self, seat: Seat, seed: u64) -> Brain {
+        Brain::Neural(
+            Box::new(NeuralOpponent::new(
+                self.neural
+                    .as_ref()
+                    .expect("frozen at creation")
+                    .model
+                    .clone(),
+                Opponent::new(Level::Strong, seed),
+            )),
+            Box::new(self.game.view(seat)),
+        )
     }
 
     /// Runs opponent moves until the human has to act or the game is over.
@@ -1092,6 +1218,7 @@ impl Session {
         self.recording = GameRecording::start(
             RecordingContext {
                 application_version: env!("CARGO_PKG_VERSION").into(),
+                neural: self.neural.as_ref().map(|n| n.provenance.clone()),
                 session: self.config,
                 number: self.number,
                 dealer: self.dealer,
@@ -1162,6 +1289,9 @@ impl Session {
         quiz.set(self.quiz.settings);
         quiz.take_events();
         let mut practice = Session {
+            neural: config
+                .uses_neural()
+                .then(|| crate::neural::FrozenNeural::for_practice(context.neural.as_ref())),
             config,
             // Never advanced: a practice attempt deals no further game.
             rng: stream(0),
@@ -1273,6 +1403,10 @@ mod tests {
 #[cfg(test)]
 #[path = "guided_tests.rs"]
 mod guided_tests;
+
+#[cfg(test)]
+#[path = "engine_tests.rs"]
+mod engine_tests;
 
 #[cfg(test)]
 #[path = "live_abstich_tests.rs"]

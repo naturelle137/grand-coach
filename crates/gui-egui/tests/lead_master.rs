@@ -34,6 +34,7 @@ fn lead_master_ordinary_widgets_every_legal_move_and_immediate_return() {
                                 opponents: Opponents::Levels([Level::Easy; 2]),
                                 kontra_re: false,
                                 display: TableDisplay::Closed,
+                                ..SessionConfig::default()
                             },
                         )
                     })

@@ -569,6 +569,12 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("result", result),
     ("settings", settings),
     ("new-series", new_series),
+    ("neural-selection", neural_selection),
+    ("neural-selection-en", neural_selection_en),
+    ("neural-selection-narrow", neural_selection),
+    ("neural-fallback", neural_fallback),
+    ("neural-fallback-en", neural_fallback_en),
+    ("neural-fallback-narrow", neural_fallback),
     ("new-series-seed", new_series_seed),
     ("coach", coach),
     ("coach-situation", coach_situation),
@@ -1135,6 +1141,30 @@ fn settings(harness: &mut Harness<'_, GrandCoachApp>) {
         .hover();
     // Tooltips appear after a short delay.
     harness.run_steps(8);
+}
+
+fn neural_selection(h: &mut Harness<'_, GrandCoachApp>) {
+    h.state_mut().show_new_series();
+    h.run_steps(3);
+    click(h, Role::RadioButton, "Neural (experimentell)");
+}
+
+fn neural_selection_en(h: &mut Harness<'_, GrandCoachApp>) {
+    h.state_mut().set_language(Language::En);
+    h.state_mut().show_new_series();
+    h.run_steps(3);
+    click(h, Role::RadioButton, "Neural (experimental)");
+}
+
+// Run with a corrupt GRAND_COACH_MODELS fixture to demonstrate fallback.
+fn neural_fallback(h: &mut Harness<'_, GrandCoachApp>) {
+    neural_selection(h);
+    click(h, Role::Button, "Starten");
+}
+
+fn neural_fallback_en(h: &mut Harness<'_, GrandCoachApp>) {
+    neural_selection_en(h);
+    click(h, Role::Button, "Start");
 }
 
 /// The "new series" dialog by default: no seed.
@@ -1857,6 +1887,7 @@ fn main() {
                             kontra_re: false,
                             opponents: Opponents::Levels([Level::Easy; 2]),
                             display: TableDisplay::Closed,
+                            ..SessionConfig::default()
                         },
                     )
                 })
@@ -1918,6 +1949,7 @@ fn harness(
         kontra_re: !guided || kontra,
         opponents,
         display,
+        ..SessionConfig::default()
     };
     let mut harness = Harness::builder()
         .with_size(SIZE)

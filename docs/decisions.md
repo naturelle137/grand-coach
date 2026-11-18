@@ -37,7 +37,7 @@ PRs and the focused references (architecture, analysis, AI, coach, testing).
 
 | No | Changed | Current contract |
 |----|---------|------------------|
-| D-07 | 2026-11-01 | Classic is the default. Learned engines use permitted views and fall back to Classic. Calibrate engine strength by level and label uncalibrated options experimental. |
+| D-07 | 2026-11-17 | Classic is the default. Ordinary tables select the engine independently of retained Classic levels; experimental Neural currently has one greedy policy and Strong fallback. Freeze model identity/load failure per session and record it in format 2; keep legacy format 1 readable and fall back visibly in practice if identity is unknown or different. Learned engines use permitted views. Calibrate learned strength by level before claiming ordering; uncalibrated options remain experimental. [Selection and remaining work](learned-engine-selection.md). |
 | D-35 | 2026-11-01 | The frontend paces opponents through AdvanceOpponent. The baseline uses the shared rules of thumb and plays legal actions. |
 | D-37 | 2026-10-29 | Sample deals consistent with public constraints, weight bidding evidence, evaluate continuations and settle through skat-core. [Analysis](analysis.md). |
 | D-38 | 2026-10-29 | Bound each search task by nodes and combine parallel results in deterministic order. Deadlines are an explicit cancellation mechanism. [Budgets](analysis.md#budgets-and-determinism). |

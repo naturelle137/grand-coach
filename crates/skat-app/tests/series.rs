@@ -10,7 +10,8 @@ use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{Rng, SeedableRng};
 use skat_app::{
     Action, AppError, AppEvent, Cancel, Command, FigurePool, GameType, KontraLevel, Level,
-    Opponents, Phase, PlayerId, RuleError, SeriesCast, SeriesLength, Session, SessionConfig,
+    OpponentEngine, Opponents, Phase, PlayerId, RuleError, SeriesCast, SeriesLength, Session,
+    SessionConfig,
 };
 
 fn config(seed: u64, series: SeriesLength, kontra_re: bool) -> SessionConfig {
@@ -577,6 +578,52 @@ fn neural_mode_plays_complete_games() {
         records.push(session.view().sheet.records);
     }
     assert_eq!(records[0], records[1]);
+}
+
+/// Independent selection preserves the frozen legacy greedy policy through
+/// complete games, without assigning meaning to retained Classic levels.
+#[test]
+fn independent_neural_reproduces_legacy_actions_and_model_identity() {
+    let mut histories = Vec::new();
+    for (engine, opponents) in [
+        (OpponentEngine::Classic, Opponents::Neural),
+        (
+            OpponentEngine::Neural,
+            Opponents::Levels([Level::Easy, Level::Medium]),
+        ),
+    ] {
+        let mut session = Session::new(SessionConfig {
+            engine,
+            opponents,
+            ..config(5, SeriesLength::Fixed(2), true)
+        });
+        let identity = session.neural_provenance().unwrap().clone();
+        let mut rng = ChaCha8Rng::seed_from_u64(5);
+        while !session.view().series_finished {
+            if let Some(job) = session.opponent_job() {
+                assert!(!job.sees_all_cards());
+                assert_eq!(job.level(), None);
+                session.finish_opponent(job.run(None)).unwrap();
+            } else {
+                session.execute(human_command(&session, &mut rng)).unwrap();
+            }
+            assert_eq!(session.neural_provenance(), Some(&identity));
+        }
+        let records = session.completed_recordings_privileged();
+        assert_eq!(records.len(), 2);
+        for r in records {
+            assert_eq!(r.context.neural.as_ref(), Some(&identity));
+            r.reconstruct_privileged(r.actions.len()).unwrap();
+        }
+        histories.push((
+            session.view().sheet.records,
+            records
+                .iter()
+                .map(|r| r.actions.clone())
+                .collect::<Vec<_>>(),
+        ));
+    }
+    assert_eq!(histories[0], histories[1]);
 }
 
 /// Mephisto and God Mode: every computer decision before card play sees
