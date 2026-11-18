@@ -280,10 +280,52 @@ iteration 175 unless 4×512 beats it with a lower bound above 0 on the selection
 block. It did not (inconclusive), and 4×896 stays evaluation-only (D-63), so
 the shipped checkpoint is unchanged. It is clearly stronger than the supervised
 v1 model and Easy/Medium, and statistically indistinguishable from Strong; no
-superiority over Strong is claimed. Deal counts are far below the predeclared
-2000, the tuning-selected checkpoint was not re-searched, and roles, contracts
+superiority over Strong is claimed. Deal counts of that block are below the predeclared
+2000 (see the 2,000-deal matrix below), the tuning-selected checkpoint was not re-searched, and roles, contracts
 and PPO causality are not analysed here. The [model card](../assets/models/card-play.md)
 links this record.
+
+### 30-minute pilot (#75)
+
+Measured 2026-11-18 on a shared, loaded workstation (load average 20-30 on 20
+cores; the job was limited to `--cpus 4`, 4 parallel games × 1 analysis thread)
+with the campaign recipe (`--games 1500 --batch 512 --passes 2 --lr 1e-4
+--clip 0.2 --reference-weight 0.01 --snapshot-every 10 --pool-snapshots 8
+--seed 0`, the campaign `--pool` and `--mixed` weights), start model supervised
+4×384 and `--minutes 30`. The wall cap ended the run after four iterations
+(about 22,400 decisions each); play took 683/505/313/545 s and the update
+32/13/4/4 s, i.e. 5-12 min per iteration, strongly load dependent. Mean
+training reward per deal +19.0/+17.7/+20.1/+18.5, KL to the reference
+0.0042/0.0097/0.0150/0.0182, clipped fraction 4.7/1.6/1.6/1.2 %.
+
+Iterations 1-3 reproduce the stopped campaign's first three log lines exactly
+(same rewards, pool results and KL), so generation is reproducible from the seed
+independent of CPU count and machine load. A four-iteration pilot says nothing
+about strength; no checkpoint of it was evaluated. Resume after interruption
+was not exercised here (covered by the existing tests). Raw logs and the
+checkpoint stay in `grand-coach-data/studies/2026-11-18-selfplay-75-pilot/`.
+
+### 2,000-deal matrix (#75)
+
+Measured 2026-11-18 with the same `calibrate` binary and settings on a fresh
+block, validation indices 9200000-9201999 (above every earlier index), 2000
+deals × 6 seat allocations, A = shipped 4×384 iteration 175
+(sha256 `6eeb3359…def75`):
+
+| Comparison | Deals | A − B | 95 % interval |
+|---|---:|---:|---|
+| A − Strong | 2000 | +1.00 | [+0.17, +1.84] |
+| A − v1 (supervised #73) | 2000 | +13.61 | [+12.47, +14.74] |
+
+The clear gain over v1 is confirmed at the full size. Against Strong the
+interval now excludes zero narrowly, whereas the earlier 600-deal block gave
+-0.83 [-2.53, +0.87]; the two blocks disagree within noise, so only a small
+advantage over Strong at best is supported, not a stable ranking. Neither
+Medium/Easy nor the 4×512 and 4×896 shapes were re-run at 2000 deals, roles,
+contracts and PPO causality are not analysed, and the checkpoint remains the
+one selected on the earlier selection block. The model stays the shipped
+default learned model; v1 remains the fallback comparison. Raw outputs:
+`grand-coach-data/studies/2026-11-18-selfplay-75-matrix/`.
 
 Tiny corruption and missing-file fixtures run with the existing Phase 2
 unittest discovery command in [AGENTS.md](../AGENTS.md).
