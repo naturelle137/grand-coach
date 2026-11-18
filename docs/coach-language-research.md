@@ -1,20 +1,33 @@
 # Offline coach language alternatives (#79): inconclusive
 
 Status: **inconclusive** for the learned-model arm; **no-need** for a
-learned phrase selector. Fluent templates stay the default. No runtime,
-weights or tokenizer were downloaded, added or run. No benchmark, generation,
-fine-tuning or learner session took place, so no timing, RSS or readability
-figure exists. Issue #79 stays open with its checklist unticked.
+learned phrase selector. Fluent templates stay the default. A pinned model and runtime were obtained for a disposable development attempt.
+No benchmark, generation, fine-tuning or learner session has yet been
+completed, so no timing, RSS or readability figure exists. Issue #79 stays open with its checklist unticked.
 
-## Why nothing was measured
+## Bounded development attempt
 
-The issue forbids Ollama, external services and runtime downloads, and gives
-no authority to fetch weights. This worktree has neither a llama.cpp build
-nor a Qwen3 GGUF. Adding a linked llama.cpp crate also needs a licence and
-lockfile audit (`docs/third-party.md`, D-42). Measuring without these would
-mean inventing numbers, which the issue prohibits. Parameter count says
-nothing about speed on a given CPU, so the 2 s, 1 GiB and 2 GiB targets stay
-**unmeasured** and unreported as met or missed.
+The prohibition on runtime downloads applies to the delivered program, not to
+pinned development inputs. The previous assertion of a blanket download ban
+was incorrect. On an Intel Core i9-10900K, the official
+[Qwen3-0.6B-GGUF](https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/tree/23749fefcc72300e3a2ad315e1317431b06b590a)
+Q8_0 file was downloaded at revision `23749fefcc72300e3a2ad315e1317431b06b590a`:
+639,446,688 bytes, SHA-256
+`9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031`.
+This meets the weight-size target alone, not the package or memory targets.
+The official model repository states Apache-2.0; tokenizer provenance and
+licence still need verification separately.
+
+A disposable [llama.cpp](https://github.com/ggml-org/llama.cpp/tree/ffc87c3a7989cb657641a6459a186f303e176af8)
+checkout at `ffc87c3a7989cb657641a6459a186f303e176af8` has an MIT licence.
+The toolbox build command failed with `cmake: command not found` (exit 127).
+A temporary CMake and host compiler were then used; a first configuration
+failed because ccache could not write its cache, and disabling ccache allowed
+configuration. The attempted `llama-cli` build target failed because this
+revision has no such target. The `llama-completion` build was attempted as a
+replacement. No product dependency or model was added to the repository.
+These setup attempts do not establish a fully offline, linked standalone
+package on Linux or Windows.
 
 ## Approach 1: deterministic Fluent templates (current)
 
@@ -57,11 +70,9 @@ runtime (llama.cpp). Design constraints a future proof must meet:
 - **Budget**: fixed prompt and token caps, a cancellation point per token,
   and a seeded sampler, or greedy decoding for determinism.
 
-Facts recorded here are **not re-verified in this job**: llama.cpp is MIT
-licensed, and the Qwen3 model card lists Apache-2.0. Both are allowed
-licences (D-42), but exact weights, tokenizer and quantisation-source
-licences, hashes and sizes must be audited from the actual files before any
-inclusion. Feasibility of fully offline bundling is plausible but unproven:
+The pinned runtime and model-repository licences and the weight hash are
+recorded above. The tokenizer and quantisation provenance and licences still
+need a separate audit before inclusion. Feasibility of fully offline bundling is plausible but unproven:
 it needs a C/C++ toolchain on Linux and Windows 11 CI, a new notice entry,
 and weights outside git or under the D-63 rule (D-63 caps model files at
 10 MB, so a 0.6B model needs a new decision).
@@ -89,6 +100,6 @@ and weights outside git or under the D-63 rule (D-63 caps model files at
 | Model arm quality, latency, size, RSS, readability | Not measured: inconclusive |
 | Go for production integration | No. No follow-up issue is justified yet |
 
-Unblocking requires a maintainer decision to allow a pinned weights download
-and a linked runtime in a throw-away prototype crate. Until then, Fluent
-templates remain the only coach language path.
+Complete the bounded prototype, corpus and measurements, audit the exact
+tokenizer and quantisation provenance, and obtain actual learner readability
+observations. Fluent templates remain the only coach language path.
