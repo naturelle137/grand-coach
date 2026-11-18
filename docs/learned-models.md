@@ -162,5 +162,18 @@ hold remains binding. Full fresh calibration, learning-curve/pool reporting
 and the remaining issue acceptance evidence still require an admitted owner;
 Issue #74 currently supplies preparation only, not a production pre-play model.
 
+### Training learning curve (#75)
+
+`python3 scripts/phase2/learning_curve.py TRAIN_LOG [WINDOW]` summarises a
+campaign `train.log` read-only (no compute). The 2026-11-18 run over the three
+campaign logs (100-iteration windows) shows mean training reward per deal
+18.8-19.0 (iterations 1-100) rising to 19.5-19.7 (201-300) for 4×384, 4×512
+and 4×896; KL to the reference grows from about 0.10 to 0.21-0.23. Against the
+mixed pool the mean result versus Strong improves from about -3.0/-3.1/-3.7
+to -1.7/-1.3/-1.8 (201-300); versus snapshots it stays near -2.5. These are
+on-policy training statistics against a moving pool with high per-iteration
+variance, not held-out strength. Selection on validation deals and a fresh
+`calibrate` run remain under the compute hold.
+
 Tiny corruption and missing-file fixtures run with the existing Phase 2
 unittest discovery command in [AGENTS.md](../AGENTS.md).
