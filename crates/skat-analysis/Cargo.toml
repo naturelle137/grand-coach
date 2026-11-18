@@ -11,14 +11,16 @@ publish.workspace = true
 
 [features]
 endgame = []
-serde = ["dep:serde", "skat-core/serde"]
+serde = ["dep:serde", "skat-core/serde", "skat-nn/serde"]
 
 [dependencies]
 skat-core.workspace = true
+skat-nn.workspace = true
 rand_chacha.workspace = true
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
+skat-nn = { workspace = true, features = ["fixture"] }
 serde_json.workspace = true
 
 [lints]

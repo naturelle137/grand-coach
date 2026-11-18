@@ -16,12 +16,14 @@
 
 pub mod arena;
 mod baseline;
+mod hybrid;
 mod mephisto;
 mod neural;
 mod opponent;
 mod rookie;
 
 pub use baseline::BaselineOpponent;
+pub use hybrid::{HybridDecision, HybridOpponent};
 pub use mephisto::Mephisto;
 pub use neural::{NeuralDecision, NeuralOpponent, Player};
 pub use opponent::{
