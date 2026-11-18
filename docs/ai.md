@@ -141,31 +141,45 @@ No training or arena was run for increment B. [Scope and holds](learned-engine-s
 
 ## Hybrid backend (experimental, #76)
 
-The independent engine selector offers Hybrid with per-seat levels. Easy verifies proposals with one sample; Medium and Strong use their respective Classic search budgets. Pre-play and unavailable models use the selected Classic level. Recordings freeze the model identity and hybrid revision; mismatches fall back to Classic. Quality and latency remain unmeasured.
-
-`HybridOpponent` is an opt-in `Player` adapter for the shared
+The independent engine selector offers Hybrid with per-seat levels. Easy verifies
+proposals with one sample; Medium and Strong use their respective Classic search
+budgets. Pre-play and unavailable models use the selected Classic level.
+Recordings freeze the model identity and hybrid revision; mismatches fall back
+to Classic. `HybridOpponent` uses the shared
 [learned-proposal verification](analysis.md#hybrid-proposals-experimental-76).
-It uses Classic Strong for pre-play, Kontra/Re and model failures; cheap
-exact analysis retains all options. In screened decisions it selects only
-ordinary verified proposals, or a legal rule fallback if none finishes.
-The explained result retains learned provenance; a screened choice never
-sets the Classic decision status to `Complete`. No shipped level, app table
-or coach uses this experimental path yet.
 
-Quality and latency against neural-only and Strong are **unmeasured**.
-This increment ran only tiny fixture behaviour tests, not `calibrate` or
-`latency` comparisons. The operational compute hold remains binding; no
-strength, calibrated level or performance advantage is claimed. The #77
-selector integration, an admitted bounded strategy comparison and actual
-quality/latency evidence remain open in #76.
+### Hybrid, Neural and Strong comparison
 
-The existing `calibrate` parser accepts `hybrid:<path>` with fixed Strong
-budget/fallback and reports the full model hash and encoder. Its fixture test
-checks parsing/loading/seating without running an arena. `latency` adds Hybrid
-alongside Neural when given its existing `nn:<path>` argument; `neural-only`
-keeps its old meaning and `hybrid-only` filters to the new adapter. These
-interfaces prepare future authorised comparisons; compilation/tests do not
-constitute measured results.
+On 2026-11-18, the release `calibrate` runner compared all three pairs on
+validation deals 0–199, six seatings per deal, Kontra/Re on, six parallel
+deals, on an Intel i9-10900K in Fedora 44 Distrobox. Hybrid uses Strong's
+budget and fallback; Neural uses `nn-strong` (greedy, Strong fallback); Strong
+uses 24 samples and 100,000,000 nodes per task. Both learned players used
+`assets/models/card-play.gcnn`, encoder 2, SHA-256
+`6eeb33593eb1e0a8fc91eb2774488a3e9729fb28a45e76b8812e37bf569def75`.
+All comparisons had 24 thrown-in games out of 1,200.
+
+| Pair (A − B) | Points per seat-game | Standard error | 95% interval |
+|---|---:|---:|---:|
+| Hybrid − Strong | +0.26 | 1.41 | [−2.51, +3.03] |
+| Hybrid − Neural | +1.65 | 1.12 | [−0.54, +3.83] |
+| Neural − Strong | +0.10 | 1.35 | [−2.55, +2.74] |
+
+All intervals include zero: none establishes an ordering or equivalence. These
+results apply to the measured Strong profiles, not the other learned levels.
+The per-pair games differ, so their point estimates need not add up. The
+paired-deal interval and scoring are defined by the protocol below.
+
+```sh
+cargo run --locked --release -p skat-ai --example calibrate -- validation hybrid:assets/models/card-play.gcnn strong 200 6 0
+cargo run --locked --release -p skat-ai --example calibrate -- validation hybrid:assets/models/card-play.gcnn nn-strong:assets/models/card-play.gcnn 200 6 0
+cargo run --locked --release -p skat-ai --example calibrate -- validation nn-strong:assets/models/card-play.gcnn strong 200 6 0
+```
+
+The same host's [latency comparison](analysis.md#hybrid-latency-comparison)
+measures decision time; it does not establish playing strength. This job's
+specific evaluation was admitted; the existing hold on other arenas and
+training remains in force.
 
 ## Calibration protocol
 
