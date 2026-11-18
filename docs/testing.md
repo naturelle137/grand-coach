@@ -459,7 +459,10 @@ Grand `UnderPartner` (#159): `guided-grand-under-orient`,
 use seed 119, third game, sixth trick, with the human defending in Mittelhand;
 each has an `-en` variant, plus `guided-grand-under-act-narrow` and
 `guided-grand-under-observed-narrow` at 960x640. The route comes from the
-bounded skat-app seed search (`guided-dialogue.md`).
+bounded skat-app seed search (`guided-dialogue.md`). The shared widget and
+screenshot route helper distinguishes the public feeding orientation from
+`UnderPartner`, passing earlier supported `FeedPartner` decisions without
+revealing a rule answer. The sixth-trick H8/H7/H9/HQ witness stays fixed.
 These are technical checks, not learner UAT.
 
 ## Platform verification (M2)
