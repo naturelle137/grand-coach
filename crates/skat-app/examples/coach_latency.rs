@@ -171,7 +171,7 @@ fn fast_play() {
         "times include trace capture, review ordering, scripted cancellation, analysis and view building"
     );
     println!(
-        "| Seed | Mode | Queue peak | Cancellations | First useful | Full debrief | Moments | Missed |"
+        "| Seed | Mode | Queue peak | Cancellations | First useful | Full debrief | Review execution | Moments | Missed |"
     );
     println!("|---|---|---|---|---|---|---|---|---|");
     for seed in 1..=games {
@@ -227,9 +227,13 @@ fn fast_play() {
                 .unwrap();
             let mut first = None;
             let mut reviews = 0;
+            let mut analysis_time = std::time::Duration::ZERO;
             while let Some(job) = run.coach_job() {
                 assert!(job.is_review());
-                run.finish_coach(job.run(None)).unwrap();
+                let analysis_start = Instant::now();
+                let result = job.run(None);
+                analysis_time += analysis_start.elapsed();
+                run.finish_coach(result).unwrap();
                 reviews += 1;
                 let moments = match run.view().coach.debriefing.unwrap() {
                     Debriefing::Computing { moments, .. } | Debriefing::Ready(moments) => moments,
@@ -251,8 +255,9 @@ fn fast_play() {
                 "Classic FIFO"
             };
             println!(
-                "| {seed} | {mode} | {remaining} | 1 (scripted) | {first} | {:.6} s | {} | 0 |",
+                "| {seed} | {mode} | {remaining} | 1 (scripted) | {first} | {:.6} s | {:.6} s | {} | 0 |",
                 full.as_secs_f64(),
+                analysis_time.as_secs_f64(),
                 moments.len()
             );
             results.push(moments);

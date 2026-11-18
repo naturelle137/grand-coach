@@ -609,6 +609,29 @@ these short traces and stays opt-in and off by default.** This diagnostic
 establishes the implementation and no-drop behaviour, not reference-machine
 interactive latency, model calibration, learner efficacy or a general speedup.
 
+### Classical bottleneck diagnostic (#72)
+
+The fast-play command also reports the sum of wall time inside completed
+`CoachJob::run` calls, excluding the scripted cancellation. On 2026-11-18,
+at source `910971c` plus the diagnostic timers, the same six-seed,
+24 × 20,000-node command ran in
+`skat-dev` on an i9-10900K with an unisolated host. Classic execution and
+full trace times in milliseconds were respectively: 109.826/117.160,
+79.534/87.659, 103.070/110.427, 85.403/93.472, 95.049/103.660 and
+91.416/97.601. All eleven reviews completed in each trace, with three final
+moments and exact equality to the paired learned-order results. The execution
+interval includes analysis and explanation; it does not isolate their costs.
+The full interval also includes game capture, cancellation and view building.
+These are wall times, not CPU time, and timer calls add measurement overhead.
+
+The measured execution dominates this bounded, serial backlog. Queue/cache
+and worker changes have no demonstrated benefit from this measurement alone:
+there is no paired classical candidate, paced trace, cold/warm cache comparison,
+contention, CPU/RSS, foreground or GUI responsiveness measurement. Keep the
+existing Classic control and do not claim a speedup. The classical optimization
+decision remains inconclusive until those comparisons and lifecycle regressions
+are available; this diagnostic does not establish that no safe optimization exists.
+
 ## Experimental live preview
 
 With the Experimental opponents selected, card play and Kontra/Re use a
