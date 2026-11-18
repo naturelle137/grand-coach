@@ -1130,3 +1130,7 @@ live-response-understated = Understated certainty
 live-response-skipped = Skipped; no answer scored
 live-response-unsupported = Unsupported; no answer scored
 live-abstich-definition = Possible means at least one but not all permitted hidden distributions; Certain means all. Neither predicts actual play or reveals a hidden card holder. This question recommends no card.
+
+setting-debrief-model = Experimental: prioritize debriefing with model estimates
+setting-debrief-model-description = Changes only the order. Every decision receives Classic analysis. Model estimates are not facts or proof of a mistake. Without a usable model, Classic ordering stays active.
+coach-debriefing-partial = Moments already checked. The selection may change as more analyses finish.

@@ -116,6 +116,11 @@ games (`crates/skat-core/tests/random_games.rs`). The lint tier checks tracked
 Markdown file/heading links offline and runs positive/negative fixtures.
 Document new commands here and in `CONTRIBUTING.md` only once verified.
 
+For the verified paired maximal-backlog debriefing diagnostic, run
+`cargo run --locked --release -p skat-app --example coach_latency -- --fast-play 6 20000`.
+See [coach measurements](docs/coach.md#fast-play-measurement) for its bounded
+budget and timing limits.
+
 For local setup, running the app, generated assets and licence notices, see
 [CONTRIBUTING.md](CONTRIBUTING.md#development-setup). For training and
 assessment commands, see the [model guide](docs/learned-models.md).

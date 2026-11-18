@@ -371,3 +371,30 @@ fn option_heads_estimate_every_legal_action_and_can_choose() {
         assert_eq!(by_score.policy, by_policy.policy);
     }
 }
+
+#[test]
+fn review_priorities_are_only_finite_opportunity_cost_estimates() {
+    let model = load(&fixture_model(4, Phases::ALL)).unwrap();
+    let view = &decision_views(1)[0];
+    let evaluation = model.evaluate_with(view, Choice::Score).unwrap();
+    assert_eq!(model.review_priority(view, evaluation.action), Ok(0.0));
+    for &action in &view.legal_actions {
+        let priority = model.review_priority(view, action).unwrap();
+        assert!(priority.is_finite() && priority >= 0.0);
+        assert_eq!(model.review_priority(view, action), Ok(priority));
+    }
+    let unsupported = load(&fixture_model(4, Phases::SPIEL)).unwrap();
+    assert_eq!(
+        unsupported.review_priority(view, view.legal_actions[0]),
+        Err(Fallback::UnsupportedPhase(view.phase))
+    );
+    assert_eq!(
+        model.review_priority(view, Action::TakeSkat),
+        Err(Fallback::IllegalChoice(Action::TakeSkat))
+    );
+    let invalid = model_with(Phases::ALL, |_| f32::NAN);
+    assert_eq!(
+        invalid.review_priority(view, view.legal_actions[0]),
+        Err(Fallback::NonFinite)
+    );
+}
