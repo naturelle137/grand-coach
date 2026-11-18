@@ -29,6 +29,7 @@ pub mod counting;
 pub mod double_dummy;
 pub mod evidence;
 pub mod hand;
+pub mod hybrid;
 mod knowledge;
 pub mod lesson;
 pub mod mechanism;
