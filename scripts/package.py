@@ -20,6 +20,8 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 LEGAL = ("LICENSE", "LICENSE-ASSETS", "THIRD-PARTY-NOTICES", "Cargo.lock")
+# Shipped beside the executable, where the app looks for `assets/models` (D-63).
+MODELS = ("assets/models/card-play.gcnn", "assets/models/card-play.json", "assets/models/card-play.md")
 
 
 def run(*args, cwd=ROOT, **kwargs):
@@ -58,6 +60,17 @@ def resources(root):
         if not path.is_file() or not path.read_bytes():
             raise ValueError(f"missing/empty resource: {path}")
     return sorted(path.relative_to(root).as_posix() for path in paths)
+
+
+def models(root):
+    """Require the model, its training manifest and card; the recorded hash must match."""
+    data = {name: (root / name).read_bytes() for name in MODELS}
+    if not all(data.values()):
+        raise ValueError("missing/empty model file")
+    recorded = json.loads(data[MODELS[1]])
+    if recorded["model_sha256"] != digest(data[MODELS[0]]) or recorded["model_bytes"] != len(data[MODELS[0]]):
+        raise ValueError("model differs from its training manifest")
+    return list(MODELS)
 
 
 def notices(root):
@@ -127,7 +140,7 @@ def verify(path):
     expected = manifest["files"]
     if {name: digest(data) for name, data in files.items()} != expected:
         raise ValueError("archive contents/hashes differ from manifest")
-    required = {*LEGAL, "INSTALL.md", "THIRD-PARTY.md", manifest["binary"], *manifest["embedded_resources"]}
+    required = {*LEGAL, "INSTALL.md", "THIRD-PARTY.md", manifest["binary"], *manifest["embedded_resources"], *manifest["models"]}
     if not required <= files.keys() or not all(files[name] for name in required):
         raise ValueError("missing/empty required package files")
     with tempfile.TemporaryDirectory() as directory:
@@ -138,6 +151,8 @@ def verify(path):
             dest.write_bytes(data)
         if resources(root) != manifest["embedded_resources"]:
             raise ValueError("incomplete resource inventory")
+        if models(root) != manifest["models"]:
+            raise ValueError("incomplete model inventory")
         notices(root)
     return manifest, files
 
@@ -153,6 +168,7 @@ def build(args):
         raise ValueError(f"unsupported native target: {target}")
     windows = target.endswith("msvc")
     names = resources(ROOT)
+    shipped = models(ROOT)
     notices(ROOT)
     sha = run("git", "rev-parse", "HEAD")
     epoch = int(run("git", "show", "-s", "--format=%ct", "HEAD"))
@@ -167,7 +183,7 @@ def build(args):
     if not target_dir.is_absolute():
         target_dir = ROOT / target_dir
     files = {binary: (target_dir / target / "release" / binary).read_bytes()}
-    for name in (*LEGAL, *names):
+    for name in (*LEGAL, *names, *shipped):
         files[name] = (ROOT / name).read_bytes()
     files["INSTALL.md"] = (ROOT / "docs/packaging.md").read_bytes().replace(
         b"(release-test-plan.md)",
@@ -178,7 +194,7 @@ def build(args):
         "commit": sha, "source_date_epoch": epoch, "target": target,
         "binary": binary, "rustc": identity, "cargo": run("cargo", "-V"),
         "os": platform.platform(), "python": platform.python_version(),
-        "build_command": command, "features": "default", "models": [],
+        "build_command": command, "features": "default", "models": shipped,
         "build_environment": {k: env.get(k, "") for k in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CC", "CXX", "CARGO_INCREMENTAL", "SOURCE_DATE_EPOCH", "GRAND_COACH_BUILD_COMMIT")},
         "runner_image": runner_image(env),
         "embedded_resources": names,
@@ -223,14 +239,26 @@ def smoke(args):
                 payload = (args.windows_mesa / name).read_bytes()
                 (install / name).write_bytes(payload)
                 runtime_dlls[name] = digest(payload)
+        for name in manifest["models"]:
+            (install / name).parent.mkdir(parents=True, exist_ok=True)
+            (install / name).write_bytes(files[name])
         data = root / "user-data"
         data.mkdir()
         history = data / "learning-history.json"
         probe = (args.archive.parent / ("persistence-probe.exe" if manifest["binary"].endswith(".exe") else "persistence-probe")).resolve()
+        installed_probe = install / probe.name
+        shutil.copy2(probe, installed_probe)
         subprocess.run([str(probe), "create", str(history)], check=True)
+        probe_env = dict(os.environ)
+        probe_env.pop("GRAND_COACH_MODELS", None)
+        subprocess.run([str(installed_probe), "neural"], cwd=root, env=probe_env, check=True, timeout=90)
         preserved = history.read_bytes()
         valid_history_hash = digest(preserved)
-        for stage in ("install", "restart", "upgrade", "damaged-history"):
+        for stage in ("install", "restart", "upgrade", "corrupt-model", "damaged-history"):
+            if stage == "corrupt-model":
+                model = install / manifest["models"][0]
+                model.write_bytes(b"corrupt" + model.read_bytes()[7:])
+                subprocess.run([str(installed_probe), "fallback"], cwd=root, env=probe_env, check=True, timeout=90)
             if stage == "upgrade":
                 binary.unlink()
                 binary.write_bytes(files[manifest["binary"]])
@@ -240,8 +268,10 @@ def smoke(args):
                 history.write_bytes(preserved)
             screenshot = (args.out / f"{stage}.ppm").resolve()
             screenshot.unlink(missing_ok=True)
-            env = dict(os.environ, GRAND_COACH_DATA=str(data), GRAND_COACH_SEED="13", GRAND_COACH_SCREENSHOT=str(screenshot))
-            # cwd has no checkout/assets and models are not shipped.
+            env = dict(os.environ, GRAND_COACH_DATA=str(data), GRAND_COACH_SEED="13", GRAND_COACH_SCREENSHOT=str(screenshot), GRAND_COACH_PACKAGE_NEURAL="1")
+            env.pop("GRAND_COACH_MODELS", None)
+            env.pop("GRAND_COACH_VALIDATION", None)
+            # cwd has no checkout/assets; models come only from the install directory.
             log_path = args.out / f"{stage}.log"
             with log_path.open("w") as log:
                 try:
@@ -265,8 +295,8 @@ def smoke(args):
         "os": platform.platform(), "result": "passed",
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
-        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "uninstall retains data"],
-        "limitations": "History creation/check uses linked app API probe, not GUI interaction. No cross-version migration or interactive flows; no clean OS or Windows 11 claim.",
+        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API uses shipped model and exercises corrupt-model fallback with valid history", "uninstall retains data"],
+        "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. No cross-version migration or interactive flows; no clean OS or Windows 11 claim.",
     }, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
