@@ -20,5 +20,8 @@ serde.workspace = true
 
 serde_json.workspace = true
 
+[dev-dependencies]
+skat-nn = { workspace = true, features = ["fixture"] }
+
 [lints]
 workspace = true

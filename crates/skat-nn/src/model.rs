@@ -411,6 +411,26 @@ impl NeuralModel {
         self.evaluate_with(view, Choice::Policy)
     }
 
+    /// Estimated opportunity cost of the recorded action, for review ordering
+    /// only. This is not lesson evidence, a reliable comparison or a mistake.
+    ///
+    /// # Errors
+    /// The same fallbacks as [`Self::evaluate`], or an action absent from the view.
+    pub fn review_priority(&self, view: &PlayerView, chosen: Action) -> Result<f64, Fallback> {
+        let evaluation = self.evaluate(view)?;
+        let chosen = evaluation
+            .options
+            .iter()
+            .find(|o| o.action == chosen)
+            .ok_or(Fallback::IllegalChoice(chosen))?;
+        let best = evaluation
+            .options
+            .iter()
+            .map(|o| f64::from(o.score))
+            .fold(f64::NEG_INFINITY, f64::max);
+        Ok(best - f64::from(chosen.score))
+    }
+
     /// The model's decision for `view`, picked by `choice`. Only the view
     /// is read (D-23).
     ///
