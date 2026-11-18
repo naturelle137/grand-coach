@@ -83,6 +83,7 @@ impl GameRecording {
             serde_json::from_slice(&bytes).map_err(|_| RecordingFileError::InvalidJson)?;
         // Inspect discriminators before decoding this build's typed payload.
         if let Some(format) = value.get("format").and_then(serde_json::Value::as_u64)
+            && format != 1
             && format != u64::from(RECORDING_FORMAT)
         {
             return Err(RecordingFileError::UnsupportedFormat);

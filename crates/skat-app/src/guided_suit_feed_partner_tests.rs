@@ -28,6 +28,7 @@ fn ordinary() -> Session {
         opponents: Opponents::Levels([Level::Easy; 2]),
         kontra_re: false,
         display: TableDisplay::Closed,
+        ..SessionConfig::default()
     });
     let commands: Vec<Command> = serde_json::from_str(include_str!(
         "../../gui-egui/tests/fixtures/suit-feed-partner-route.json"

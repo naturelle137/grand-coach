@@ -3290,6 +3290,7 @@ fn lead_ordinary() -> Session {
         opponents: Opponents::Levels([Level::Easy; 2]),
         kontra_re: false,
         display: TableDisplay::Closed,
+        ..SessionConfig::default()
     });
     s.run_opponents();
     s.execute(Command::Act(Action::Pass)).unwrap();
@@ -3669,3 +3670,6 @@ mod suit_win_early_tests;
 
 #[path = "guided_suit_feed_partner_tests.rs"]
 mod suit_feed_partner;
+
+#[path = "guided_early_feed_tests.rs"]
+mod early_feed;

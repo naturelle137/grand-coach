@@ -104,7 +104,7 @@ pub struct Lesson {
 /// Select only tested branches, with real alternatives and candidates:
 /// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus non-Ouvert Farbspiel/Grand WinEarly and non-Ouvert Farbspiel/Grand last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
-/// and at least one losing card; early FeedPartner and Fallback stay excluded.
+/// and at least one losing card; early FeedPartner requires a Grand follow-class master; Fallback stays excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. The shared
 /// `Branch::Null` is broader; defenders, later own leads, Ouvert and
@@ -258,6 +258,21 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .iter()
                 .map(Action::Play)
                 .collect::<Vec<_>>();
+    // Early feeding is not last-seat feeding: the remaining declarer can
+    // still trump a side master. Admit only a complete acting-defender view.
+    let grand_feed_early = grand
+        && view.declarer.is_some_and(|d| d != view.seat)
+        && view.current_seat == Some(view.seat)
+        && matches!(view.current_trick.cards, [Some(_), None, None])
+        && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+        && view.current_trick.leader != view.declarer
+        && view.hand_game == Some(contract.hand)
+        && view.own_skat.is_none()
+        && view.legal_actions
+            == skat_core::legal_cards(game, view.hand, view.current_trick.led())
+                .iter()
+                .map(Action::Play)
+                .collect::<Vec<_>>();
     view.declarer?;
     let rule = baseline::rule(view)?;
     if view.legal_actions.len() < 2
@@ -265,7 +280,9 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
         || !(matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
             || ((grand || suit_early) && rule.branch == Branch::WinEarly)
-            || ((grand || suit_feed) && rule.branch == Branch::FeedPartner && rule.last)
+            || (rule.branch == Branch::FeedPartner
+                && (((grand || suit_feed) && rule.last)
+                    || (grand_feed_early && rule.partner_ahead && rule.table_master)))
             || (null && rule.branch == Branch::Null && !rule.losers.is_empty()))
     {
         return None;

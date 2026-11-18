@@ -846,6 +846,7 @@ fn frames_stay_responsive_while_the_production_budget_review_works() {
                     kontra_re: true,
                     opponents: Opponents::Levels([Level::Easy; 2]),
                     display: TableDisplay::Open,
+                    ..SessionConfig::default()
                 },
             );
             app.opponent_delay = 0.0;

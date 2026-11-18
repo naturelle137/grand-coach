@@ -171,7 +171,10 @@ fn save_reopen_navigate_recover_and_close_preserve_live_decision_in_both_languag
         for (bytes, de, english) in [
             ("{".to_owned(), "Ungültige JSON-Datei", "Invalid JSON file"),
             (
-                wire.replace("\"format\": 1", "\"format\": 2"),
+                wire.replace(
+                    "\"format\": 1",
+                    &format!("\"format\": {}", skat_app::RECORDING_FORMAT + 1),
+                ),
                 "Diese Aufnahmeversion",
                 "This recording schema version",
             ),

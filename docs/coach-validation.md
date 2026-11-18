@@ -350,3 +350,20 @@ Source-derived `null-lead-inventory.json` joins the existing both-OS gallery.
 Push gate and the configured workspace non-GPU/include-ignored suite remain
 required, including nn-train and vulkan-search. Terminal owns review and final
 actual-main/both-OS archive/hash/visual acceptance. No learner results follow.
+
+## Grand second-seat feeding technical evidence (#131)
+
+Use the [scope and ordinary route](guided-dialogue.md#grand-second-seat-feedpartner-131).
+`guided_early_feed` checks the original #163 complete legal Kreuz-Ass fixture,
+both CT/CQ choices and all twenty actual third-card completions, plus separately
+authored Bube/tie and own-higher boundaries and exact-view exclusions. A master
+of the follow class is not a secured trick. Whole non-absent lessons, memory
+and dialogue models match across hidden substitutions; God Mode's cached
+privileged estimates are rejected in favour of the frozen permitted input.
+
+`grand_early_feed` app tests cover every ordinary legal alternative, consent,
+wrong/retry, stale re-entry, free return and actual Karo-Bube/Hinterhand evidence.
+`early_feed` GUI widgets use ordinary seed22/game3/trick1 in de/en at both
+1440×1000 and 960×640; the sixteen corresponding screenshots retain separate
+question and revealed observation states. No optional learner results or
+the #131 completion follow from these technical checks.

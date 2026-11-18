@@ -111,7 +111,18 @@ Ouvert knowledge is never injected into earlier permitted views. Neither
 records nor replay states enter `TableView`, ordinary opponent jobs or live
 coach/background analysis. Export explicitly discloses concealed cards.
 
-Only format 1 and `RECORDING_ENGINE` = `grand-coach-recording-1` are supported.
+Formats 1 and 2 use `RECORDING_ENGINE` = `grand-coach-recording-1`.
+Classic recordings retain format 1 and its exact bytes. New Neural recordings
+use format 2, adding frozen model identity/load failure, policy revision and
+Classic fallback profile in `RecordingContext::neural`. Legacy format-1 Neural
+records have unknown model provenance. Replay needs no model. Neural practice
+compares this context to the loaded model; missing historical identity or a
+mismatch yields disclosed Strong fallback rather than substituting weights.
+`SessionConfig::engine` defaults to Classic and is omitted in Classic JSON;
+independent Neural is valid only with `Opponents::Levels`. Deserialisation and
+`Session::try_new` validate this combination; `Session::new` requires validated
+configuration. Sessions and jobs share an immutable, app-loaded model via Arc;
+new-series settings cannot change an in-flight decision.
 Bump the engine discriminator for incompatible rule/deal/replay semantics;
 producer package version is descriptive. No cross-version seed stability is
 promised. The stored deal must match the seed under the supported engine,

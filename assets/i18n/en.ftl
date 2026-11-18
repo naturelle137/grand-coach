@@ -51,9 +51,9 @@ mode-goldfish-description = Goldfish: one opponent, chosen at random, plays stro
 mode-mephisto = Mephisto
 mode-god = God Mode
 mode-god-description = God Mode: you see every card, the Skat included, and play against Mephisto. The coach sees every card too; it still does not tell you the move but helps you think.
-mode-neural = Neural net (test)
-mode-neural-description = Neural net: both opponents play their cards with the trained neural network in its current state of development; bidding, Skat and announcements are played by the Strong level.
-mode-neural-missing = No model found (assets/models/card-play.gcnn): the opponents play Strong throughout.
+mode-neural = Neural (experimental)
+mode-neural-description = One experimental card policy without its own difficulty levels. Bidding, Skat, announcements, Kontra and unsupported decisions use Classic Strong. Classic level selections are retained for switching back. Model and settings apply to the whole new series; retrying model loading requires an app restart.
+mode-neural-missing = Model missing, damaged or different from the recording: this series uses Classic Strong.
 opponent-left = Left opponent:
 opponent-right = Right opponent:
 level-easy = Easy
@@ -677,6 +677,9 @@ guided-orient = Who is currently ahead in this trick?
 guided-check = Who still plays after you in this trick?
 guided-feed-role = You defend. Your partner is { $seat }. You play last to this trick; nobody follows you.
 guided-feed-attempt = Consider any legal card for feeding Augen to the defending party. It may also overtake your partner.
+guided-rule-feed-early = Your partner is ahead with a follow-class master: no higher card of that class remains outside your hand and the played cards. The declarer still follows and may trump a side master with a Bube; this does not secure the trick.
+guided-feed-early-details = Feeding rule: candidates and ordering
+guided-feed-early-order = Easy considers ALL legal cards: nontrump first, then MORE Augen; the LAST exact tie in legal order wins, with no rank tie-break. This is a heuristic, with no guarantee of optimal play or winning the game.
 guided-rule-feed = Your partner is currently ahead and you play last. Easy considers ALL legal cards: nontrump first, then MORE Augen; the LAST exact tie in legal card order wins, with no rank tie-break. A card may overtake your partner. This is a heuristic, with no guarantee of optimal play, winning the game or who leads later.
 guided-null-role = Null game: you are the declarer. There is no Trumpf; Buben follow their printed suit. Rank order: 7, 8, 9, 10, Bube, Dame, König, Ass. You play last to this trick; nobody follows you.
 guided-null-no-winners = No legal card takes this trick; all leave the current winner ahead.
@@ -1100,6 +1103,9 @@ guided-null-lead-empty = Every legal lead is a current-table winner only because
 
 guided-suit-early-trumpf = Easy’s selected card is trump: all four Jacks and the announced suit are trumps; a Jack never follows its printed suit. The remaining player may overtrump with a higher trump.
 guided-suit-early-master = Easy’s selected card is a master of its follow class: higher cards are known or in your hand. The remaining player may still trump if void in the side suit; all Jacks and the announced suit are trumps.
+
+opponent-engine = Opponent engine:
+engine-classic = Classic
 
 live-abstich-start = Consider a hypothetical Abstich
 live-abstich-title = Live Abstich question

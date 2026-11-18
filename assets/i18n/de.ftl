@@ -51,9 +51,9 @@ mode-goldfish-description = Goldfisch: Ein zufällig bestimmter Gegner spielt st
 mode-mephisto = Mephisto
 mode-god = God Mode
 mode-god-description = God Mode: Du siehst alle Karten, auch den Skat, und spielst gegen Mephisto. Auch der Coach sieht alle Karten; er sagt trotzdem nicht vor, sondern hilft beim Nachdenken.
-mode-neural = KI-Netz (Test)
-mode-neural-description = KI-Netz: Beide Gegner spielen ihre Karten mit dem trainierten neuronalen Netz im aktuellen Entwicklungsstand; Reizen, Skat und Ansagen übernimmt die Stufe Stark.
-mode-neural-missing = Kein Modell gefunden (assets/models/card-play.gcnn): Die Gegner spielen durchgehend auf Stark.
+mode-neural = Neural (experimentell)
+mode-neural-description = Eine experimentelle Karten-Policy ohne eigene Schwierigkeitsstufen. Reizen, Skat, Ansagen, Kontra und nicht unterstützte Entscheidungen verwenden Classic Stark. Die Classic-Stufen bleiben für einen späteren Wechsel erhalten. Modell und Einstellungen gelten für die ganze neue Serie; ein erneuter Ladeversuch erfordert einen App-Neustart.
+mode-neural-missing = Modell fehlt, ist beschädigt oder passt nicht zur Aufzeichnung: Diese Serie spielt mit Classic Stark.
 opponent-left = Gegner links:
 opponent-right = Gegner rechts:
 level-easy = Leicht
@@ -677,6 +677,9 @@ guided-orient = Wer liegt im Stich gerade vorn?
 guided-check = Wer spielt in diesem Stich nach dir noch?
 guided-feed-role = Du spielst Gegenpartei. Dein Partner ist { $seat }. Du spielst als Letzter zu diesem Stich; niemand folgt dir.
 guided-feed-attempt = Erwäge eine beliebige erlaubte Karte, um der Gegenpartei Augen zu geben. Sie darf auch deinen Partner überholen.
+guided-rule-feed-early = Dein Partner führt mit einer höchsten Karte ihrer Bedienklasse: Außerhalb deiner Hand und der gespielten Karten bleibt keine höhere dieser Klasse. Der Alleinspieler folgt noch und kann eine solche Beikarte mit einem Buben stechen; der Stich ist nicht gesichert.
+guided-feed-early-details = Schmierregel: Kandidaten und Reihenfolge
+guided-feed-early-order = Easy vergleicht ALLE erlaubten Karten: zuerst Nichttrumpf, dann MEHR Augen, beim exakten Gleichstand die LETZTE in der erlaubten Reihenfolge, ohne Rangvergleich. Das ist eine Heuristik, keine Garantie für bestes Spiel oder den Spielgewinn.
 guided-rule-feed = Dein Partner liegt gerade vorn und du spielst zuletzt. Easy betrachtet ALLE erlaubten Karten: zuerst Nichttrumpf, dann MEHR Augen; bei genau gleichem Schlüssel die LETZTE Karte in der erlaubten Kartenreihenfolge, ohne Rangvergleich. Eine Karte darf den Partner überholen. Das ist eine Faustregel, ohne Garantie für optimales Spiel, Spielgewinn oder späteres Ausspiel.
 guided-null-role = Nullspiel: Du bist Alleinspieler. Es gibt keinen Trumpf; Buben bedienen ihre aufgedruckte Farbe. Rangfolge: 7, 8, 9, 10, Bube, Dame, König, Ass. Du spielst als Letzter zu diesem Stich; niemand folgt dir.
 guided-null-no-winners = Keine legale Karte übernimmt diesen Stich; alle lassen den bisherigen Gewinner vorn.
@@ -1100,6 +1103,9 @@ guided-null-lead-empty = Jede legale Karte gilt nur wegen des leeren Tisches als
 
 guided-suit-early-trumpf = Easys gewählte Karte ist Trumpf: Alle vier Buben und die angesagte Farbe sind Trumpf; ein Bube bedient nie seine aufgedruckte Farbe. Ein höherer Trumpf beim verbleibenden Spieler kann überstechen.
 guided-suit-early-master = Easys gewählte Karte ist Meister ihrer Bedienklasse: Höhere Karten sind bekannt oder auf deiner Hand. Der verbleibende Spieler kann trotzdem abstechen, wenn er die Seitenfarbe nicht bedienen muss; alle Buben und die angesagte Farbe sind Trumpf.
+
+opponent-engine = Gegner-Engine:
+engine-classic = Classic
 
 live-abstich-start = Hypothetischen Abstich bedenken
 live-abstich-title = Live-Abstich-Frage

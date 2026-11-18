@@ -532,6 +532,7 @@ mod open_display {
             kontra_re: true,
             opponents,
             display,
+            ..SessionConfig::default()
         }
     }
 
