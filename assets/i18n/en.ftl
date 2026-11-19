@@ -1081,6 +1081,7 @@ guided-lead-defender = I lead as defender
 guided-lead-master = Which legal side card has no higher rank outside your hand and played cards?
 guided-lead-attempt = Which legal card would you try for Easy's largest-Augen master lead?
 guided-lead-definition = Own higher cards do not block a master; Grand Buben are Trumpf, never side-suit followers.
+guided-lead-suit-definition = Own higher cards do not block a master; Buben and the announced suit are Trumpf, never side-suit followers.
 guided-lead-risk = A void follower may trump. A side master does not guarantee the trick or game.
 guided-rule-lead = Easy: { $card }. Most Augen; LAST exact tie in core legal order (heuristic).
 guided-lead-details = Predicate and empty-table details

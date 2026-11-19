@@ -155,6 +155,8 @@ fn content(
     if g.lead.is_some() && matches!(g.step, GuidedStep::Check | GuidedStep::Narrow) {
         ui.label(i.t(if null {
             "guided-null-lead-ranks"
+        } else if matches!(table.contract.map(|c| c.game), Some(GameType::Farbe(_))) {
+            "guided-lead-suit-definition"
         } else {
             "guided-lead-definition"
         }));

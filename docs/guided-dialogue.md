@@ -46,7 +46,7 @@ separate factual oracles.
 - **FeedPartner:** non-Ouvert Grand (#163, below) or
   [Farbspiel](#farbspiel-last-seat-feedpartner-185) (#185), defender last to
   the current trick, partner ahead, at least two pure legal card actions.
-- **LeadMaster:** non-Ouvert Grand only (#171, below), own empty-trick
+- **LeadMaster:** non-Ouvert Grand (#171) and [Farbspiel](#farbspiel-lead-with-a-follow-class-master-182) (#182), own empty-trick
   lead, both roles where the actual shared branch permits it, at least two
   pure core-legal cards; no guarantee against trumping.
 - **Null declarer:** non-Ouvert Null acting [last](#null-declarer-last-to-the-current-trick-165)
@@ -1058,3 +1058,39 @@ bilingual `early_feed` widget test exercises both Easy and free Pik8 at
 show orientation, rule, observation question and feedback in both languages
 and sizes. These are technical checks, not learner or transfer observations;
 the wider #131 later-phase criterion remains open.
+
+## Farbspiel lead with a follow-class master (#182)
+
+Admission extends the Grand `LeadMaster` lesson (#171) to non-Ouvert Farbspiel:
+the human's own legal empty-trick lead with a valid declarer, consistent
+Hand/pickup information and at least two pure actions in exact core-legal
+order, when the shared Easy branch is `LeadMaster`. Declarer `DrawTrumpf`
+precedence is unchanged, so a declarer holding Trumpf while Trumpf are out gets
+no lesson. Candidates are nontrump legal cards with a conservative
+`Knowledge::is_master`; the announced suit and all Buben are Trumpf and never
+candidates. Easy takes maximum Augen, LAST exact tie in core order. A master of
+its follow class can still be trumped by a void opponent: no trick or game is
+guaranteed. Ouvert, Null, other lead branches and restricted or malformed views
+stay outside. Dialogue, texts (one Farbspiel definition key) and observation
+reuse the Grand lead flow.
+
+Evidence: `cargo test -p skat-analysis --test suit_lead_master_policy` holds
+fresh handwritten legal deals for all four trump suits (own-higher, Trumpf-Ass
+exclusion, maximum-Augen/last-tie, late lead after a won trick, void trumping,
+two hidden-deal substitutions) and an independent oracle that re-derives
+candidates, pick and the winner of all 1,803 legal next-trick completions
+(counts/digests frozen, calibrated from the oracle). `cargo test -p skat-coach
+--test guided_suit_lead_master` checks admission, every legal choice, boundary
+edits and declarer role. App `suit_lead_master` tests run all completions and
+the ordinary seed 2969 Pik route (human defends, all ten legal leads against
+Easy) through `Session`, with full dialogue equality over both hidden-deal
+pairs including God Mode. The ignored GUI target `guided_suit_lead_master` and
+the screenshots example render the ordinary route in de/en at 1440x1000 and
+960x640.
+
+Not claimed: the original preimplementation gate of #182 was never accepted by
+the CTO; this increment's oracle is author-written and source-informed, not an
+accepted independent manual oracle. Late terminal paths, God Mode screenshots
+and permitted-only estimates (Farbspiel `LeadMaster` uses the Grand
+`LeadMaster` estimate contract) are not part of this increment. This is
+technical evidence, not learner evidence.
