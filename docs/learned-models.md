@@ -18,6 +18,23 @@ If the manifest cannot be read, the loader uses the file's own hash.
 Burn runs inference on CPU. A missing or invalid model, unsupported phase
 or unusable output triggers the configured Classic fallback.
 
+## Supported phases, levels and limits
+
+| Aspect | Supported in the package | Not supported |
+|--------|--------------------------|---------------|
+| Phases | Card play in Spiel including Re | Bidding, Skat selection, game announcement and Kontra decisions stay Classic |
+| Engines | Neural (Easy, Medium, Strong) and Hybrid, chosen per table | Rookie is Classic-only; Classic stays the default |
+| Runtime | Offline CPU inference from the acting seat's `PlayerView` | GPU, network, first-run download, model server |
+| Failure | Missing, corrupt, format/encoder-incompatible or disabled model: translated notice, Classic level of the seat plays on, user data unchanged | No partial or silent use of a rejected model |
+
+Every learned level and engine keeps its experimental label. Removal needs
+calibration that supports the level: adjacent-level ordering and Classic
+equivalence are not established (see [ai.md](ai.md#neural-engine-selection)),
+and Phase 2 ended as a no-go. Neural estimates are model preferences, not
+exact values or win probabilities. Target-machine (six-core, integrated
+graphics) latency, RSS and package size are unmeasured because the hardware
+is unavailable to agents; i9-10900K figures are proxies only.
+
 ## Phase 2
 
 Phase 2 concluded on 2026-11-12 with a **no-go due to incomplete evidence**.
