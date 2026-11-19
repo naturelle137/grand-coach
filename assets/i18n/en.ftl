@@ -1091,6 +1091,13 @@ guided-lead-source = Trick { $trick }: { $seat } has the lead; no card or curren
 guided-lead-observe = Look at both actual replies. Does the last reply prove a void in the led suit?
 guided-lead-candidates-risk = Candidates: { $cards }. A void follower may trump; no trick or game win guaranteed.
 guided-lead-fixture-label = Fixture component: { $case } / { $stage } (not an ordinary route)
+guided-draw-trumpf = Which legal card is Trumpf? In Grand only the four Buben are Trumpf.
+guided-draw-trumpf-attempt = Which legal Trumpf would you try for Easy's highest-Trumpf lead?
+guided-draw-trumpf-definition = You lead as declarer with Trumpf in hand. Easy leads Trumpf when the policy counts Buben outside your hand and the played cards.
+guided-draw-trumpf-risk = This does not show that a defender holds Trumpf, nor any reply, trick or game result.
+guided-rule-draw-trumpf = Easy: { $card }. Highest Trumpf; first exact tie in legal order (heuristic, not optimal play).
+guided-draw-trumpf-candidates-risk = Trumpf candidates: { $cards }. Own Skat, unseen cards and defenders stay possible locations; nothing is guaranteed.
+guided-draw-trumpf-conservative = Own and played Buben are excluded from the count; known discarded Buben still count. An unknown Skat is a possible location, not a proven holder.
 
 # Null opening lead (#176)
 guided-null-lead-candidates = Which cards may you lead onto this empty table?

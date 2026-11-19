@@ -141,8 +141,8 @@ the last seat: see #159 below). Grand `LeadMaster` is supported within its
 [own scope](#grand-lead-with-a-follow-class-master-171), as is Null declarer
 play [last](#null-declarer-last-to-the-current-trick-165) or
 [second](#null-declarer-acting-second-169). Non-Ouvert Farbspiel `WinEarly`
-follows the [#178 guards](#farbspiel-winearly-178). Unsupported remain Grand
-`DrawTrumpf`, early Farbspiel `FeedPartner`, Farbspiel `FeedPartner` outside the
+follows the [#178 guards](#farbspiel-winearly-178). Grand declarer
+[`DrawTrumpf`](#grand-declarer-drawtrumpf-lead-175) is supported. Unsupported remain early Farbspiel `FeedPartner`, Farbspiel `FeedPartner` outside the
 [#185 guards](#farbspiel-last-seat-feedpartner-185), fallback, single legal moves
 and Ouvert Grand. Older Farbspiel families, including Ouvert, keep their
 shipped scope; #178 does not add Ouvert WinEarly. A core-offered Kontra
@@ -167,7 +167,8 @@ and Easy's documented `(is_trump, power)` first minimum:
 
 Swapping VH's unplayed H7 with the unknown Hand Skat's DK leaves HH's view,
 lesson, memory and observations identical. `WinLast` fixture exclusions: partner ahead (MH CT
-over the declarer's C9: `FeedPartner`), the declarer's lead (`DrawTrumpf`),
+over the declarer's C9: `FeedPartner`), the declarer's lead (`DrawTrumpf`, a separate
+[#175 lesson](#grand-declarer-drawtrumpf-lead-175)),
 not last (MH: `Fallback`), no winner (HH H8/HA under
 MH's SJ), a single winning CQ, Null Hand, Grand Ouvert and a Kontra-eligible
 defender. App tests drive both roles through every legal card, wrong/retry,
@@ -1058,3 +1059,29 @@ bilingual `early_feed` widget test exercises both Easy and free Pik8 at
 show orientation, rule, observation question and feedback in both languages
 and sizes. These are technical checks, not learner or transfer observations;
 the wider #131 later-phase criterion remains open.
+
+## Grand declarer DrawTrumpf lead (#175)
+
+Admission extends the Grand own empty-trick lead (#171) to the acting
+non-Ouvert declarer when the actual shared Easy branch is `DrawTrumpf`: own
+Trumpf (in Grand only the four Buben) and a nonempty conservative
+`Knowledge::trumps_out`. It needs consistent Hand/pickup information and at
+least two pure core-legal actions in exact order. Defenders, Farbspiel, Null,
+Ouvert, nonempty tricks, single legal cards, no own Trumpf and malformed or
+restricted views stay outside. Easy takes the highest-power own Trumpf (first
+exact tie, which Buben power keys never produce). `trumps_out` excludes own and
+played Buben but counts known discarded ones; it does not prove that a defender
+holds Trumpf, and an unknown Skat stays a possible location. The highest Trumpf
+is a heuristic, not optimal play, and no reply, trick or game result is implied.
+
+The learner states role, names a legal Trumpf (candidates are the own Buben), then
+tries Easy's card; every legal card stays playable, memory starts collapsed and
+both actual replies plus the individual trick winner are observed. A view-model
+flag `lead_trumpf` only selects the question type before disclosure.
+
+Evidence: `cargo test -p skat-coach --test guided_draw_trumpf` uses the
+handwritten legal deal and history of case 13 (Vorhand declarer, pickup,
+discard of two non-Buben) and checks the lesson, all legal answers, two
+same-view hidden defender substitutions and boundary edits. The
+widget-model fixture (`lead-master.json`) now holds its rule frame. This is
+author technical evidence, not learner evidence or an independent domain gate.
