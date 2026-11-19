@@ -19,7 +19,8 @@ The official model repository states Apache-2.0; tokenizer provenance and
 licence still need verification separately.
 
 The retained Q8_0 file was rehashed on 2026-11-19 and still matches that
-SHA-256. The retained llama.cpp checkout reports the revision above and its
+SHA-256, including the hash published on the pinned [weight file page](https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/blob/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf).
+The retained llama.cpp checkout reports the revision above and its
 `LICENSE` is MIT. The pinned [GGUF repository](https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/tree/23749fefcc72300e3a2ad315e1317431b06b590a)
 identifies Qwen as publisher and labels the model Apache-2.0; the
 [base model card](https://huggingface.co/Qwen/Qwen3-0.6B) also declares
@@ -28,6 +29,14 @@ tokenizer's exact source revision or its licence, nor the conversion and
 quantization procedure for these bytes. The retained Linux executable uses
 shared libraries: its presence does not prove a linked, standalone package
 or Windows support. No model was downloaded for this recheck.
+
+Inspection with that checkout's `gguf-py` reader found 197 Q8_0 and 113 F32
+tensors, quantization format version 2, and embedded tokenizer tokens,
+merges and chat template. The tokenizer metadata says `gpt2` with `qwen2`
+pre-tokenization, 151,936 tokens and 151,387 merges. These are file contents,
+not proof of the tokenizer source revision, conversion procedure or separate
+licence. The pinned GGUF repository includes an [Apache-2.0 licence file](https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/blob/23749fefcc72300e3a2ad315e1317431b06b590a/LICENSE);
+the runtime licence and the embedded tokenizer remain separate audit items.
 
 A disposable [llama.cpp](https://github.com/ggml-org/llama.cpp/tree/ffc87c3a7989cb657641a6459a186f303e176af8)
 checkout at `ffc87c3a7989cb657641a6459a186f303e176af8` has an MIT licence.
