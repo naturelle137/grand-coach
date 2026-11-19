@@ -47,8 +47,8 @@ pub struct PracticeCase {
     index: u8,
 }
 
-/// All twelve revision-1 cases, in family then introduction/changed/boundary order.
-pub const PRACTICE_CASES: [PracticeCase; 12] = [
+/// Revision-1 public cases; each family retains its original sequence.
+pub const PRACTICE_CASES: [PracticeCase; 14] = [
     PracticeCase { index: 0 },
     PracticeCase { index: 1 },
     PracticeCase { index: 2 },
@@ -61,6 +61,8 @@ pub const PRACTICE_CASES: [PracticeCase; 12] = [
     PracticeCase { index: 9 },
     PracticeCase { index: 10 },
     PracticeCase { index: 11 },
+    PracticeCase { index: 20 },
+    PracticeCase { index: 21 },
 ];
 
 /// A factual question, without its answer or an option-quality judgement.
@@ -154,6 +156,12 @@ impl PracticeCase {
             "partner-overtaking.changed",
             "partner-overtaking.boundary",
         ];
+        if self.index >= 20 {
+            return ["side-card.trumpf-risk", "side-card.trumpf-accounted"]
+                .get(usize::from(self.index - 20))
+                .copied()
+                .unwrap_or("unknown");
+        }
         if self.index >= 12 {
             return reserved::id(self.index);
         }
@@ -175,6 +183,9 @@ impl PracticeCase {
     /// Family, or None for an invalid catalogue index.
     pub fn family(self) -> Option<PracticeFamily> {
         use PracticeFamily::*;
+        if (20..=21).contains(&self.index) {
+            return Some(SideCardVulnerability);
+        }
         if self.index >= 12 {
             return [
                 RemainingTrumpf,
@@ -197,6 +208,9 @@ impl PracticeCase {
 
     /// Intended role, never proof that a learner has not seen the position.
     pub fn role(self) -> CaseRole {
+        if self.index >= 20 {
+            return CaseRole::Boundary;
+        }
         if self.index >= 12 {
             return CaseRole::Changed;
         }
@@ -227,7 +241,7 @@ impl PracticeCase {
     }
 
     fn definition(self) -> Result<Definition, CatalogueError> {
-        if self.index >= 12 {
+        if (12..20).contains(&self.index) {
             return reserved::definition(self.index);
         }
         use Rank::*;
@@ -446,6 +460,44 @@ impl PracticeCase {
                 d.played = vec![c(Kreuz, Bube)];
                 d.question = consequence(Pik, Bube, MechanismKind::Overtake);
             }
+            20 | 21 => {
+                d.game = GameType::Grand;
+                d.anchors[0] = set(&[
+                    (Kreuz, Zehn),
+                    (Kreuz, Ass),
+                    (Kreuz, Bube),
+                    (Pik, Bube),
+                    (Herz, Bube),
+                    (Karo, Sieben),
+                    (Karo, Acht),
+                    (Karo, Neun),
+                    (Karo, Zehn),
+                    if self.index == 20 {
+                        (Pik, Acht)
+                    } else {
+                        (Karo, Bube)
+                    },
+                ]);
+                d.anchors[1] = set(&[
+                    (Pik, Sieben),
+                    (Pik, Neun),
+                    (Pik, Zehn),
+                    (Pik, Dame),
+                    (Pik, Koenig),
+                    (Pik, Ass),
+                    (Herz, Sieben),
+                    (Herz, Acht),
+                    (Herz, Neun),
+                    if self.index == 20 {
+                        (Karo, Bube)
+                    } else {
+                        (Pik, Acht)
+                    },
+                ]);
+                d.anchors[2] = set(&[(Kreuz, Acht)]);
+                d.played = vec![c(Kreuz, Zehn), c(Pik, Sieben), c(Kreuz, Acht)];
+                d.question = consequence(Kreuz, Ass, MechanismKind::Abstich);
+            }
             _ => return Err(CatalogueError::UnknownCase),
         }
         Ok(d)
@@ -560,7 +612,7 @@ mod tests {
 
     #[test]
     fn mechanism_answers_match_independent_conditions_and_alternatives() {
-        for (index, case) in PRACTICE_CASES.iter().enumerate().skip(6) {
+        for (index, case) in PRACTICE_CASES.iter().take(12).enumerate().skip(6) {
             let p = case.position().unwrap();
             let PracticeFeedback::Consequences(found) = p.feedback() else {
                 panic!("mechanism")
@@ -622,6 +674,62 @@ mod tests {
                 mechanisms(&p.view, action).is_empty(),
                 "no card beats Kreuz J"
             );
+        }
+    }
+
+    #[test]
+    fn paired_side_aces_contrast_outstanding_trumpf_after_public_void() {
+        for (index, expected) in [(20, 1), (21, 0)] {
+            let case = PracticeCase { index };
+            let position = case.position().unwrap();
+            let view = position.view();
+            assert_eq!(view.seat, Vorhand);
+            assert_eq!(view.own_skat, None);
+            assert_eq!(PracticeCase::find(case.id(), 1), Some(case));
+            assert_eq!(PracticeCase::find(case.id(), 2), None);
+            assert_eq!(view.tricks.len(), 1);
+            assert_eq!(view.tricks[0].leader, Vorhand);
+            assert_eq!(view.tricks[0].winner, Vorhand);
+            assert_eq!(
+                view.tricks[0].cards,
+                [
+                    Card::new(Kreuz, Zehn),
+                    Card::new(Pik, Sieben),
+                    Card::new(Kreuz, Acht)
+                ]
+            );
+            assert!(view.proven_voids()[Mittelhand.index()].contains(Card::new(Kreuz, Ass)));
+            let count = derive(&Knowledge::from_view(view), QuestionKind::TrumpfOutside).unwrap();
+            assert_eq!(count.expected(), expected);
+            let PracticeFeedback::Consequences(found) = position.feedback() else {
+                panic!("mechanism")
+            };
+            if expected == 0 {
+                assert!(found.is_empty());
+            } else {
+                assert!(found.iter().any(|m| matches!(m, Mechanism::Abstich(a) if a.seat == Mittelhand && a.certainty == Certainty::Possible)));
+                let PracticeQuestion::Consequence { action, .. } = position.question() else {
+                    unreachable!()
+                };
+                assert!(can_complete(
+                    case.definition().unwrap().replay(case.seed()).unwrap(),
+                    action,
+                    Mittelhand,
+                    false
+                ));
+                let definition = case.definition().unwrap();
+                let deal = definition.deal(case.seed()).unwrap();
+                let negative = (deal.hand(Hinterhand) | deal.skat())
+                    .iter()
+                    .find_map(|card| {
+                        let alternative = definition
+                            .replay_deal(swapped(deal, Card::new(Karo, Bube), card))
+                            .ok()?;
+                        (alternative.view(Vorhand) == *view).then_some(alternative)
+                    })
+                    .expect("legal hidden distribution with Bube elsewhere");
+                assert!(!can_complete(negative, action, Mittelhand, false));
+            }
         }
     }
 
@@ -867,7 +975,7 @@ mod tests {
 
     #[test]
     fn identities_versions_and_seed_reconstruction_are_deterministic() {
-        for case in PRACTICE_CASES {
+        for case in PRACTICE_CASES.into_iter().take(12) {
             assert_eq!(PracticeCase::find(case.id(), 1), Some(case));
             assert_eq!(PracticeCase::find(case.id(), 2), None);
             assert_eq!(case.position(), case.position());

@@ -280,3 +280,48 @@ fn training_is_entered_answered_retried_continued_and_left_in_both_languages() {
         assert_eq!(live(&h), before);
     }
 }
+
+#[test]
+fn paired_side_ace_practice_is_accessible_in_both_languages() {
+    for language in Language::ALL {
+        let en = language == Language::En;
+        let t = |de, english| if en { english } else { de };
+        let temp = Temp::new();
+        let mut h = app(language, &temp.0.join("history.json"));
+        settle(&mut h);
+        let before = live(&h);
+        button(&mut h, t("Spiel", "Game"));
+        button(&mut h, t("Zähltraining …", "Counting training …"));
+        button(
+            &mut h,
+            t(
+                "Fokus: Abstich einer vollen Nebenkarte",
+                "Focus: Trumping a full side card",
+            ),
+        );
+        for _ in 0..3 {
+            button(&mut h, t("Überspringen", "Skip"));
+            button(&mut h, t("Nächste Stellung", "Next position"));
+        }
+        h.get_by_label(t("Stellung 4 von 5", "Position 4 of 5"));
+        h.get_by_label_contains(t(
+            "Angenommen, du spielst die legale Karte",
+            "Suppose you play the legal card",
+        ));
+        button(
+            &mut h,
+            t("Möglich, aber nicht sicher", "Possible, but not certain"),
+        );
+        button(&mut h, t("Nächste Stellung", "Next position"));
+        h.get_by_label(t("Stellung 5 von 5", "Position 5 of 5"));
+        button(
+            &mut h,
+            t(
+                "Dieser Mechanismus ist nicht vorhanden",
+                "This mechanism is absent",
+            ),
+        );
+        button(&mut h, t("Zurück zur Partie", "Back to the game"));
+        assert_eq!(live(&h), before);
+    }
+}

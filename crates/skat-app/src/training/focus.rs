@@ -169,7 +169,7 @@ pub struct FocusView {
     pub position: crate::PlayerView,
     /// Family chosen by the learner.
     pub family: PracticeFamily,
-    /// One-based position in this family's three cases.
+    /// One-based position in this family's sequence.
     pub number: usize,
     /// Feedback is inaccessible until answer/help/skip.
     pub feedback: Option<PracticeFeedback>,
@@ -571,7 +571,11 @@ impl TrainingSession {
                     if s.entry.validation.is_some() {
                         s.index + 1
                     } else {
-                        (s.index + 1) % 3
+                        (s.index + 1)
+                            % PRACTICE_CASES
+                                .iter()
+                                .filter(|c| c.family() == Some(s.family))
+                                .count()
                     }
                 } else {
                     s.index
