@@ -83,6 +83,21 @@ CI-server rendering at 1280 × 820 (Linux) and 1024 × 768 (Windows), not
 interactive play, native Windows 11 or hardware-accelerated evidence;
 answering, skipping and retrying remain widget-test coverage.
 
+Packaged series, open-table and recording-viewer smoke (2026-11-19, workflow
+[RC packages run 44584249665](https://github.com/naturelle137/grand-coach/actions/runs/44584249665),
+commit `ff3d0564789a`): both jobs passed on the exact archives Linux
+`fb0b64e985c4…` (Ubuntu 24.04, also in the clean runtime container) and
+Windows `3d780f2ef912…` (Server 2025). Per platform the extracted executable
+was launched ten times (`coach`, `training`, `series`, `open`, `replay` ×
+`de`/`en`); all ten screenshot hashes differ and the history stayed valid. The
+Windows English `open` and `replay` and the German/English Linux `series`
+screenshots were inspected: the open table shows both opponents' hands and the
+Skat, the viewer shows the saved first game read-only, and the series ends
+with the series result. Limits: the series has two games, not a full
+36-game series; replay review and practice buttons were not clicked; CI-server
+rendering, not Windows 11 hardware. Strategic classification/trends,
+release notes and the closing evidence of #13 remain open.
+
 ## Reproduce and inspect
 
 Use a clean committed checkout, Python 3.11+, native Rust 1.95.0, Cargo and
