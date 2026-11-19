@@ -169,8 +169,10 @@ pub struct FocusView {
     pub position: crate::PlayerView,
     /// Family chosen by the learner.
     pub family: PracticeFamily,
-    /// One-based position in this family's three cases.
+    /// One-based position in this family's cases.
     pub number: usize,
+    /// Number of catalogue cases in this family.
+    pub count: usize,
     /// Feedback is inaccessible until answer/help/skip.
     pub feedback: Option<PracticeFeedback>,
     /// A response or skip has settled this presentation.
@@ -364,6 +366,13 @@ impl LearningHistory {
     }
 }
 
+fn family_len(family: PracticeFamily) -> usize {
+    PRACTICE_CASES
+        .into_iter()
+        .filter(|c| c.family() == Some(family))
+        .count()
+}
+
 impl FocusSession {
     fn present(
         family: PracticeFamily,
@@ -475,6 +484,7 @@ impl TrainingSession {
                 .and_then(|c| c.family())
                 .unwrap_or(s.family),
             number: s.index + 1,
+            count: family_len(s.family),
             feedback: s.revealed.then(|| s.position.feedback()),
             settled: s.settled,
         })
@@ -571,7 +581,7 @@ impl TrainingSession {
                     if s.entry.validation.is_some() {
                         s.index + 1
                     } else {
-                        (s.index + 1) % 3
+                        (s.index + 1) % family_len(s.family)
                     }
                 } else {
                     s.index
