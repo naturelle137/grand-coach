@@ -230,18 +230,24 @@ def build(args):
 
 
 def block_windows_network(programs):
-    """Block outbound traffic of the given programs and prove it with a canary copy of Python."""
+    """Block outbound traffic and check a reachable endpoint is denied by Windows."""
     if platform.system() != "Windows":
         raise ValueError("--block-network is Windows-only; Linux uses a network-less container")
-    canary = programs[0].parent / "network-canary.exe"
-    shutil.copy2(sys.executable, canary)
-    for index, program in enumerate([*programs, canary]):
+    probe = "import socket;socket.create_connection(('1.1.1.1', 443), timeout=5)"
+    subprocess.run([sys.executable, "-c", probe], check=True, timeout=15)
+    for index, program in enumerate(programs):
         subprocess.run(["netsh", "advfirewall", "firewall", "add", "rule", f"name=grand-coach-offline-{index}-{os.getpid()}",
                         "dir=out", "action=block", f"program={program}", "enable=yes"], check=True)
-    probe = "import socket;socket.create_connection(('1.1.1.1', 443), timeout=5)"
-    if subprocess.run([str(canary), "-c", probe], stderr=subprocess.DEVNULL).returncode == 0:
-        raise ValueError("outbound network block is not effective")
-    canary.unlink()
+    name = f"grand-coach-offline-canary-{os.getpid()}"
+    subprocess.run(["netsh", "advfirewall", "firewall", "add", "rule", f"name={name}",
+                    "dir=out", "action=block", f"program={sys.executable}", "enable=yes"], check=True)
+    try:
+        denied = "import socket,sys\ntry:\n " + probe + "\nexcept OSError as e:\n sys.exit(42 if e.winerror == 10013 else 1)"
+        result = subprocess.run([sys.executable, "-c", denied], timeout=15)
+        if result.returncode != 42:
+            raise ValueError(f"outbound network block not proven (canary exit {result.returncode})")
+    finally:
+        subprocess.run(["netsh", "advfirewall", "firewall", "delete", "rule", f"name={name}"], check=True)
 
 
 def smoke(args):
