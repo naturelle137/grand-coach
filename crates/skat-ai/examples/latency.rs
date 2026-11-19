@@ -19,6 +19,9 @@
 //! several frozen files. `hybrid-only` instead measures only the hybrid.
 //! Without either filter, `nn:<path>` adds both Neural and Hybrid rows.
 //! Loading is timed separately on stderr.
+//! `two-stage [repeat]` instead measures Strong and the opt-in prototype
+//! on the same card-play positions, alternating order by position and repeat.
+//! Raw rows contain both decisions, analyses, effort and screening report.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -127,6 +130,64 @@ fn main() {
     println!();
     println!("| Level | Decision | Median | p90 | Max | Incomplete |");
     println!("|---|---|---|---|---|---|");
+    if std::env::args().nth(2).as_deref() == Some("two-stage") {
+        let repeat: usize = std::env::args()
+            .nth(3)
+            .map_or(0, |n| n.parse().expect("repeat"));
+        let strong = Opponent::new(Level::Strong, 1);
+        for k in [4, 5, 6, 7, 8, 9] {
+            let mut reference_times = Vec::new();
+            let mut candidate_times = Vec::new();
+            for (index, game) in positions[k].iter().enumerate() {
+                let view = game.view(game.current_seat().unwrap());
+                let reference = || {
+                    let start = Instant::now();
+                    let result = strong.decide_analysed(&view, None).unwrap();
+                    (result, start.elapsed())
+                };
+                let candidate = || {
+                    let start = Instant::now();
+                    let result = strong
+                        .decide_two_stage(&view, None, skat_analysis::TwoStage::PROPOSAL)
+                        .unwrap();
+                    (result, start.elapsed())
+                };
+                let first = (index + repeat).is_multiple_of(2);
+                let (r, c) = if first {
+                    let r = reference();
+                    (r, candidate())
+                } else {
+                    let c = candidate();
+                    (reference(), c)
+                };
+                println!(
+                    "paired {k} {index} {repeat} ref_first={first} ref_ms={} candidate_ms={} ref={:?} candidate={:?}",
+                    r.1.as_secs_f64() * 1000.0,
+                    c.1.as_secs_f64() * 1000.0,
+                    r.0,
+                    c.0
+                );
+                reference_times.push(r.1);
+                candidate_times.push(c.1);
+            }
+            for (name, times) in [
+                ("Strong", &mut reference_times),
+                ("Two-stage", &mut candidate_times),
+            ] {
+                times.sort();
+                if !times.is_empty() {
+                    println!(
+                        "| {name} | {} | {} | {} | {} | see paired rows |",
+                        KINDS[k],
+                        show(percentile(times, 0.5)),
+                        show(percentile(times, 0.9)),
+                        show(*times.last().unwrap())
+                    );
+                }
+            }
+        }
+        return;
+    }
     if std::env::args().nth(2).as_deref() == Some("strong") {
         let strong = Opponent::new(Level::Strong, 1);
         for k in [4, 5, 8, 9] {

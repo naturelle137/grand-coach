@@ -22,7 +22,7 @@
 //! alternates the order deterministically: the reference runs first iff
 //! `(position index + repeat) % 2 == 0`. The raw order, wall times, node
 //! counts, analysis status, fallback flag, chosen action and the full
-//! per-option utilities and sample counts of both paths are printed, so
+//! per-option estimates of both paths are printed, so
 //! equivalence is judged on estimates and not only on matching actions.
 //! Repeats are timing repeats, never additional positions: the decisions
 //! must be identical in every repeat (checked, the tool aborts otherwise).
@@ -39,22 +39,27 @@ use skat_ai::{Analysis, BaselineOpponent, Budget, Level, Opponent, Profile, util
 use skat_analysis::{StageOutcome, TwoStage};
 use skat_core::{Game, Phase, PlayerView, RuleConfig};
 
-/// Status, fallback, nodes and per-option `action=utility@samples` of one
+/// Status, fallback, effort and complete per-option estimates of one
 /// path. `analysis` is `None` for rules-only decisions and failed analyses:
 /// reported as unavailable, never as complete.
 fn describe(view: &PlayerView, analysis: &Option<Analysis>, fallback: bool) -> String {
     let Some(a) = analysis else {
-        return format!("unavailable\t{fallback}\t-");
+        return format!("unavailable\t{fallback}\t-\t-");
     };
     let options: Vec<String> = a
         .options
         .iter()
         .map(|o| match o.estimate {
-            Some(e) => format!("{:?}={:.3}@{}", o.action, utility(view, &e), e.samples),
+            Some(e) => format!("{:?}={e:?}:utility={}", o.action, utility(view, &e)),
             None => format!("{:?}=-", o.action),
         })
         .collect();
-    format!("{:?}\t{fallback}\t{}", a.status, options.join(";"))
+    format!(
+        "{:?}\t{fallback}\t{:?}\t{}",
+        a.status,
+        a.effort,
+        options.join(";")
+    )
 }
 
 /// Tricks 1–4, declarer and defender.
@@ -153,7 +158,7 @@ fn main() {
     println!(
         "key\tseed\trepeat\tseat\ttrick\trole\toptions\torder\toutcome\tsurvivors\tsame\tregret\t\
          ref_nodes\tts_nodes\tref_ms\tts_ms\tref_action\tts_action\t\
-         ref_status\tref_fallback\tref_estimates\tts_status\tts_fallback\tts_estimates"
+         ref_status\tref_fallback\tref_effort\tref_estimates\tts_status\tts_fallback\tts_effort\tts_estimates\tstage_report"
     );
     let (mut same, mut total, mut regrets) = (0, 0, Vec::new());
     let (mut ref_times, mut ts_times) = (Vec::new(), Vec::new());
@@ -230,7 +235,7 @@ fn main() {
                 "defender"
             };
             println!(
-                "{seed}-{}-{role}\t{seed}\t{repeat}\t{:?}\t{}\t{role}\t{}\t{}\t{outcome:?}\t{:?}\t{identical}\t{}\t{}\t{}\t{:.1}\t{:.1}\t{:?}\t{:?}\t{}\t{}",
+                "{seed}-{}-{role}\t{seed}\t{repeat}\t{:?}\t{}\t{role}\t{}\t{}\t{outcome:?}\t{:?}\t{identical}\t{}\t{}\t{}\t{:.1}\t{:.1}\t{:?}\t{:?}\t{}\t{}\t{:?}",
                 view.tricks.len() + 1,
                 view.seat,
                 view.tricks.len() + 1,
@@ -250,6 +255,7 @@ fn main() {
                 decision.action,
                 describe(view, &analysis, reference.fallback),
                 describe(view, &two_stage, decision.fallback),
+                report,
             );
         }
     }

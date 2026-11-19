@@ -361,8 +361,15 @@ The `two_stage` example now alternates the order deterministically
 `--repeats=N`, and prints seat, order, analysis status, fallback flag,
 chosen actions and every option's utility and sample count for both paths;
 decisions must be identical in every repeat. Rules-only decisions show
-`unavailable`, never `Complete`. Latency/bench/generator/calibrate tools
-and teacher-label capture are still not paired (see the no-go document).
+`unavailable`, never `Complete`. The optional `two-stage` argument of `skat-ai --example latency` and
+`--two-stage --repeat=N` of `skat-analysis --example bench` now emit paired
+same-input analyses and alternate order by position and repeat. Their raw
+rows include full estimates, effort and screening reports. The paired
+`two_stage` example also emits complete estimates and effort. `nn-train --example paired_labels` compares the real reference teacher
+record and candidate action, teacher options and analysis on the same
+reference-generated view, as diagnostic JSONL. It does not create training
+shards or measure a candidate trajectory. The `two-stage` calibration profile dispatches the same experimental opponent.
+Generator throughput remains unpaired (see the no-go document).
 
 Fresh holdout, once, no tuning: `two_stage holdout 50 24 --repeats=3`,
 proposal (8, 2.5, 2, 2, 4), 24 samples, seeds from 2,000,001, 400
@@ -390,6 +397,37 @@ but misses the 97 % decision-equivalence target on fresh positions: a
 (39/40) did not carry over. Defaults stay single-stage. Strength,
 generator throughput and label agreement were not measured. Retuning
 needs the tuning suite only, with a new deliberate decision.
+
+### Bounded tuning and tool diagnostic (job 2386)
+
+On the opt-in proposal, 25 tuning deals (seeds 10001–10025) supplied
+200 distinct role/trick positions, repeated three times on four CPUs. All
+repeats agreed on actions: 187/200 (93.5%) matched the reference; the 13
+differences had mean reference regret 3.828 and maximum 11.846 points.
+The proposal missed the 97% target on this tuning sample. Across repeats,
+reference/candidate nodes were 7,437,041,394 / 5,332,202,643. Outcomes per
+position: 122 screened, 18 all survived, 46 few options, 12 Kontra/Re and
+2 without a report. The reference trajectory's one-deal teacher diagnostic
+compared 37 records: 37 actions and 31 complete teacher records matched.
+This small sample does not establish dataset-wide label agreement.
+
+Three paired tool runs used three positions per kind. Pooling only card-play
+positions, reference → candidate median / p90 / maximum in milliseconds:
+
+| Run | Latency (15 positions) | Analysis bench (9 positions) |
+|---|---|---|
+| 1 | 13.2 / 1033.8 / 2474.2 → 7.0 / 848.3 / 1855.0 | 6.1 / 203.2 / 1781.4 → 4.7 / 120.5 / 1860.1 |
+| 2 | 6.1 / 635.4 / 1481.5 → 6.5 / 507.0 / 1148.9 | 2.9 / 191.3 / 1177.7 → 2.9 / 112.3 / 1240.9 |
+| 3 | 7.5 / 2455.6 / 2494.6 → 7.1 / 2369.2 / 3071.2 | 3.4 / 197.1 / 1324.1 → 2.9 / 123.9 / 1470.5 |
+
+Median averages the middle pair; p90 selects round((n−1) × 0.9). Host
+activity was uncontrolled (load around 10–25); these tiny samples establish
+no general speedup. The tuning TSV SHA-256 is
+`9c1fb7c5e255eb43267c8e8ee3df6f741ba23b7f36879647caaefcb3056332ce`;
+the teacher JSONL SHA-256 is
+`0bb6cb44803fe71a7444a6d145c5a1852a03551ff1dc86b3d3df490d3c1a27a9`.
+No paired generator throughput or strength interval was measured. Defaults
+and existing datasets remain unchanged.
 
 ## Budgets and determinism
 
