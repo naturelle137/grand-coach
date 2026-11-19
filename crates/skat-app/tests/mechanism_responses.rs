@@ -225,3 +225,37 @@ fn assisted_skip_windows_never_pool_with_unaided_or_other_versions() {
     assert!(h.record_focus(&invalid).is_err());
     assert_eq!(rows, reopen(&h).mechanism_responses());
 }
+
+#[test]
+fn side_ace_pair_follows_original_cases_and_requires_response() {
+    let mut h = LearningHistory::new();
+    let mut s = TrainingSession::catalogue(
+        F::SideCardVulnerability,
+        A::AnswerBeforeReveal,
+        &mut h,
+        true,
+    )
+    .unwrap();
+    for _ in 0..4 {
+        s.execute_focus(C::Skip, &mut h, true).unwrap();
+        s.execute_focus(C::Next, &mut h, true).unwrap();
+    }
+    for (id, answer) in [
+        ("side-card.trumpf-risk", R::Possible),
+        ("side-card.trumpf-accounted", R::Absent),
+    ] {
+        let view = s.focus_view().unwrap();
+        assert_eq!(view.entry.task.id, id);
+        assert!(view.feedback.is_none());
+        assert!(s.execute_focus(C::Next, &mut h, true).is_err());
+        s.execute_focus(C::Answer(answer), &mut h, true).unwrap();
+        assert!(s.focus_view().unwrap().feedback.is_some());
+        s.execute_focus(C::Retry, &mut h, true).unwrap();
+        assert!(s.focus_view().unwrap().feedback.is_none());
+        s.execute_focus(C::Help, &mut h, true).unwrap();
+        assert!(s.focus_view().unwrap().entry.assisted);
+        s.execute_focus(C::Answer(answer), &mut h, true).unwrap();
+        s.execute_focus(C::Next, &mut h, true).unwrap();
+    }
+    assert_eq!(s.focus_view().unwrap().entry.task.id, "side-card.intro");
+}

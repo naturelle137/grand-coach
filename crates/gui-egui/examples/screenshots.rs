@@ -517,6 +517,8 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("focus-help-en", focus_help_en),
     ("focus-mechanism", focus_mechanism),
     ("focus-mechanism-en", focus_mechanism_en),
+    ("side-risk", side_risk),
+    ("side-accounted-en", side_accounted_en),
     ("focus-feedback", focus_feedback),
     ("focus-feedback-en", focus_feedback_en),
     ("focus-certain", focus_certain),
@@ -3236,6 +3238,19 @@ fn focus_mechanism(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn focus_mechanism_en(h: &mut Harness<'_, GrandCoachApp>) {
     focus_mechanism(h);
+    english(h);
+}
+fn side_risk(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_mechanism(h);
+    for _ in 0..4 {
+        click(h, Role::Button, "Überspringen");
+        click(h, Role::Button, "Nächste Stellung");
+    }
+}
+fn side_accounted_en(h: &mut Harness<'_, GrandCoachApp>) {
+    side_risk(h);
+    click(h, Role::Button, "Möglich, aber nicht sicher");
+    click(h, Role::Button, "Nächste Stellung");
     english(h);
 }
 fn focus_feedback(h: &mut Harness<'_, GrandCoachApp>) {

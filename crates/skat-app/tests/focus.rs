@@ -267,12 +267,19 @@ fn side_card_family_ends_with_a_certain_case_without_disturbing_stable_ids_or_el
     let mut h = LearningHistory::new();
     let mut s = start(F::SideCardVulnerability, &mut h);
     let mut ids = Vec::new();
-    for (i, answer) in [R::Possible, R::Possible, R::Absent, R::Certain]
-        .into_iter()
-        .enumerate()
+    for (i, answer) in [
+        R::Possible,
+        R::Possible,
+        R::Absent,
+        R::Certain,
+        R::Possible,
+        R::Absent,
+    ]
+    .into_iter()
+    .enumerate()
     {
         let v = s.focus_view().unwrap();
-        assert_eq!((v.number, v.count), (i + 1, 4));
+        assert_eq!((v.number, v.count), (i + 1, 6));
         assert!(v.feedback.is_none(), "answer before feedback");
         ids.push(v.entry.task.id.clone());
         // Both changed cases are unseen; intro and boundary never are.
@@ -289,7 +296,9 @@ fn side_card_family_ends_with_a_certain_case_without_disturbing_stable_ids_or_el
             "side-card.intro",
             "side-card.changed",
             "side-card.boundary",
-            "side-card.certain"
+            "side-card.certain",
+            "side-card.trumpf-risk",
+            "side-card.trumpf-accounted"
         ]
     );
     // The cycle wraps to the original first case; ids/versions are unchanged.
