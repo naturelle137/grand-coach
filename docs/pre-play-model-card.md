@@ -2,9 +2,10 @@
 
 # Model card: learned pre-play imitation (#74)
 
-**Status: first imitation model trained, not shipped.** The 2026-11-19 run
-(below) plays complete games but is clearly weaker than Classic Easy and
-Strong. This card fixes what a model must cover and records label evidence
+**Status: imitation models trained, not shipped.** The 2026-11-19 runs
+(below) play complete games; the first was clearly weaker than Classic Easy and
+Strong, the improved recipe (W = 4) is indistinguishable from Easy and still
+weaker than Strong. This card fixes what a model must cover and records label evidence
 and measured results. Classic stays the default and supplies every pre-play
 decision.
 
@@ -67,9 +68,20 @@ against Strong per seat-game. It passes too rarely (14.9 % of 6,883 Reizen
 actions, Strong 23.5 %) and never declares Null, Hand or announcements
 (0 of 774 declarer games). It is a weak first result.
 
+## Improved recipe
+
+[Details](ai.md#improved-imitation-recipe-74): three times the data and
+`--preplay-weight 4`. Test agreement by phase (rows): Reizen 96.41 % (23,034),
+Hand/pickup 99.68 % (2,827), Drücken 79.29 % (2,815), Ansage 91.44 % (2,827),
+Kontra/Re 95.03 % (3,967), card play 73.28 % (84,803); model SHA-256
+`c7927678a16dd6e9151b4bb1c895617405bb39305fb76bc5c45493f596b58e1a`. In 1,200
+complete games: -2.10 [-6.40, +2.21] against Easy, -14.99 [-18.92, -11.07]
+against Strong; Pass 23.6 % of 5,099 Reizen actions (Strong 23.9 %), but Hand
+and announcements 0 of 599 declarer games and a 70.3 % declarer win rate
+against Strong's 86.6 %.
+
 ## Open before a production claim
 
-A stronger dataset/recipe (rare-class handling, per-phase accuracy),
-repeated [calibration](ai.md#calibration-protocol) after improvement,
-validated Kontra integration (#108), weights hashes, licence and provenance in
+Rare classes (Hand, announcements), declarer strength, more data (e.g. the
+larger Strong sets), repeat seeds, validated Kontra/Re integration (#108), weights hashes, licence and provenance in
 [third-party](third-party.md), and the outcome-label pilot (postponed).
