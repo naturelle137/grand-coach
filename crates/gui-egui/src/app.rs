@@ -262,6 +262,25 @@ impl GrandCoachApp {
         }
     }
 
+    /// Packaged smoke driver: takes the first legal human action until a
+    /// counting question is open. Returns `true` once it is (or the series
+    /// ended). Opponents move through the normal frame loop.
+    pub fn smoke_advance(&mut self, now: f64) -> bool {
+        let view = self.session.view();
+        if view.assist.quiz.question.is_some() || view.series_finished {
+            return true;
+        }
+        if !view.opponent_to_move {
+            let command = view
+                .legal_actions
+                .first()
+                .copied()
+                .map_or(Command::NextGame, Command::Act);
+            self.send(command, now);
+        }
+        false
+    }
+
     /// Leaves the training and returns to the waiting live table.
     pub fn exit_training(&mut self) {
         self.training.exit();
