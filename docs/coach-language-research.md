@@ -1,9 +1,82 @@
-# Offline coach language alternatives (#79): inconclusive
+# Offline coach language alternatives (#79): no-go for this model and scope
 
-Status: **inconclusive** for the learned-model arm; **no-need** for a
-learned phrase selector. Fluent templates stay the default. A pinned model and runtime were obtained for a disposable development attempt.
-One CPU smoke test was run; no comparative benchmark, fine-tuning or learner
-session took place, so p95, incremental RSS and readability remain unknown. Issue #79 stays open with its checklist unticked.
+Status: **no-go for production integration** of the tested Qwen3-0.6B Q8_0
+arm; **no-need** for a learned phrase selector. Fluent templates stay the
+default. The verdict covers exactly what was measured below (one model, one
+quantization, one task shape, one named CPU). Learner readability was **not**
+measured and no learner observation exists or was simulated. Issue #79's
+learner item stays open; nothing here is a claim about clarity or learning.
+
+## Comparison run (2026-11-19)
+
+Inputs: the retained Q8_0 file and llama.cpp `ffc87c3` build described below
+(hashes rechecked), CPU only, 4 threads, 512-token context, greedy decoding,
+Intel Core i9-10900K. Harness and corpus: `scripts/research79/` (disposable,
+not in the gate; raw results stay in `grand-coach-data/studies/`). The corpus
+was frozen and committed before any model output: 43 evidence records (4
+boundary, 19 supported, 5 uncertain, 5 conflicting, 4 incomplete, 6
+adversarial) rendered into German and English, 86 cases, SHA-256
+`9aeb384857022c7311558312fe781a7c6924f4310fea44c8837a42f81afcc7ab`.
+Concepts: remaining trumps (exact/estimated count) and proven void (suit).
+
+**Task.** From the evidence, pick one phrase ID and its parameter. Both arms
+render the same Fluent-style sentence from a validated `(ID, parameter)`, so
+wording is identical by construction; only the *selection* differs.
+**Templates arm**: the deterministic rule on the structured fields. It is the
+reference, so it is correct on all 86 cases by definition; that shows
+determinism, not an independent accuracy result. **Model arm**: Qwen3-0.6B
+chooses the pair; a post-check accepts it only if it equals the
+evidence-supported pair, otherwise the template result is shown (fallback).
+
+| Model mode | Output parses as `ID|PARAM` | Matches evidence | Wrong output if shown unchecked | Deterministic (2 runs) |
+|---|---|---|---|---|
+| Free text, `/no_think` | 0/86 (every output starts with an empty `<think>` block and a malformed answer) | 0/86 | n/a | 86/86 |
+| GBNF-grammar constrained | 86/86 | 19/86 (DE 8/43, EN 11/43) | 67/86 | 86/86 |
+
+By kind with grammar (matches/cases): boundary 3/8, supported 12/38,
+uncertain 0/10, conflicting 4/10, incomplete 0/8, adversarial 0/12. Typical
+failures were wrong digits (e.g. always `10`/`12` for other counts), picking
+`count_exact` for unknown or missing evidence, and following injected notes.
+
+**Enforcement and fallback.** The grammar guarantees syntax only; it did not
+make the model preserve facts. The post-check (equality with the evidence
+pair) rejected all 67 wrong grammar outputs and all 86 free outputs, so a
+shown sentence was never wrong in this corpus, and the system fell back to
+templates in 78% of cases (grammar) or 100% (free). That is corpus evidence
+only, not a proof. The check lives in the harness; no product validator,
+in-process per-token cancellation, or seeded fallback path was implemented.
+Process-level cancellation (SIGTERM during a 400-token generation) ended the
+process in about 11-13 ms. In-process token cancellation is untested.
+
+**Latency and memory** (single short request per process, `wait4` max RSS,
+page cache warm unless stated): grammar mode wall time p50 0.72 s, p95 0.85 s,
+max 1.02 s over 86 requests; free mode p50 0.84 s, p95 1.74 s, max 1.99 s
+(16-24 token cap). Cold (file pages evicted with `POSIX_FADV_DONTNEED`, 5
+runs): 0.94-1.31 s. Peak RSS about 0.75 GB (750,000-773,000
+KiB) per process, dominated by the mapped 639 MB weights. Incremental RSS of
+the application was not isolated; the whole process figure is an upper bound.
+Thread scaling, Windows and slower CPUs were not measured, so the targets
+still hold only for this machine.
+
+**Offline packaging and licences.** Weights 639,446,688 bytes plus about
+15 MB of shared libraries; this is above the D-63 10 MB model cap by a factor
+of ~64 and needs a new decision, not a quiet exception. The retained Linux
+build links `libssl.so.3` via `libllama-common` and ships RUNPATH-relative
+shared objects; no Windows build, static link or isolated offline package was
+produced. Licences recorded: llama.cpp MIT; Qwen publisher declares
+Apache-2.0 for GGUF repository and base card. Tokenizer source revision and
+conversion procedure remain unaudited (file metadata only, below).
+
+**Decision.** No-go. The model cannot improve on the template arm for this
+task: the ID and parameter are already determined by structured evidence, the
+model reproduced them correctly in 22% of cases, and every correct answer is
+identical to the template output. It adds about 0.75 GB RSS, a 639 MB
+package, a native runtime and unvalidated provenance, and wording (the only
+thing learners could perceive) does not change. A larger or fine-tuned model,
+free paraphrase with a richer enforcement design, or a different task would
+need a new issue with evidence; none is justified now. Reproduce with
+`python3 -B scripts/research79/run.py --runtime DIR --model FILE --out OUT`
+(about 10 minutes).
 
 ## Bounded development attempt
 
@@ -58,19 +131,6 @@ wall time and peaked at 750,096 KiB RSS (`/usr/bin/time -v`); this single
 uncontrolled smoke run is neither cold/warm p95 nor incremental application
 RSS. It does not establish factual preservation, bilingual quality or a
 performance target.
-
-## Availability recheck (2026-11-19)
-
-The bounded comparison was retried with already-available inputs only. The
-retained Qwen3-0.6B Q8_0 file and the disposable llama.cpp checkout and
-`llama-completion` build named above no longer exist on this machine (file
-search for `*.gguf`, `Qwen3-0.6B*`, `llama-*` executables and `libllama*`
-found no candidate). The only other GGUF files belong to an unrelated project,
-are different and much larger models, and have no recorded hash or provenance
-here. No model was downloaded, so the model arm cannot be run. The result
-stays **inconclusive** (not a measured no-go): production integration remains
-**no**, and Fluent templates remain the only coach language path. A later
-attempt needs an explicit decision to re-obtain the pinned inputs listed above.
 
 ## Approach 1: deterministic Fluent templates (current)
 
@@ -141,9 +201,10 @@ and weights outside git or under the D-63 rule (D-63 caps model files at
 | Question | Result |
 |---|---|
 | Learned phrase selector | Not needed; seeded Fluent variants suffice if variety is wanted |
-| Model arm comparison, p95, incremental RSS, readability | Not measured: inconclusive |
-| Go for production integration | No. No follow-up issue is justified yet |
+| Model arm vs templates (86 bilingual cases) | 19/86 correct with grammar, 0/86 free; every error caught and replaced by fallback |
+| Warm p95 / RSS | 0.85 s (grammar) / about 0.75 GB process peak, CPU named above |
+| Learner readability | Not measured; no learner data exists |
+| Go for production integration | No. No follow-up implementation issue |
 
-Complete the bounded prototype, corpus and measurements, audit the exact
-tokenizer and quantisation provenance, and obtain actual learner readability
-observations. Fluent templates remain the only coach language path.
+Fluent templates remain the only coach language path. Actual learner
+readability of the template wording stays an open, human-only question.
