@@ -12,7 +12,7 @@ use std::path::PathBuf;
 fn main() {
     let mut args = std::env::args().skip(1);
     let mode = args.next().expect("create or check");
-    if ["neural", "fallback", "format", "encoder"].contains(&mode.as_str()) {
+    if ["neural", "missing", "fallback", "format", "encoder"].contains(&mode.as_str()) {
         let mut session = Session::new(SessionConfig {
             seed: 7,
             series: SeriesLength::Fixed(2),
@@ -34,6 +34,7 @@ fn main() {
                 if mode != "neural" {
                     let expected = match mode.as_str() {
                         "fallback" => "Model(HashMismatch)",
+                        "missing" => "Model(Missing)",
                         "format" => "Model(Format { found: 65535 })",
                         "encoder" => "Model(Encoder { found: 65535 })",
                         _ => unreachable!(),
@@ -57,7 +58,7 @@ fn main() {
         }
         assert!(
             observed,
-            "expected Neural model decision or corrupt-model fallback"
+            "expected Neural model decision or model fallback"
         );
         println!("{mode}: decision verified");
         return;
