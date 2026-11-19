@@ -125,6 +125,11 @@ pub struct Hyper {
     /// False preserves the card-play recipe and #108 Kontra relabelling.
     #[serde(default, skip_serializing_if = "is_false")]
     pub all_phases: bool,
+    /// Policy-loss weight of every row that is not plain card play (Reizen,
+    /// Hand/pickup, Drücken, Ansage, Kontra/Re); only with `all_phases`.
+    /// Omitted from the recipe when 1.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub preplay_weight: f32,
     /// Width of every hidden layer.
     pub hidden: usize,
     /// Number of hidden layers; omitted from the recipe when it is
@@ -187,6 +192,7 @@ impl Default for Hyper {
     fn default() -> Hyper {
         Hyper {
             all_phases: false,
+            preplay_weight: 1.0,
             hidden: 256,
             layers: MIN_LAYERS,
             batch: 256,
@@ -203,6 +209,15 @@ impl Default for Hyper {
             plateau: None,
         }
     }
+}
+
+const fn one() -> f32 {
+    1.0
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde passes a reference
+fn is_one(x: &f32) -> bool {
+    (*x - 1.0).abs() < f32::EPSILON
 }
 
 #[allow(clippy::trivially_copy_pass_by_ref)] // serde passes a reference
@@ -596,6 +611,9 @@ impl Examples {
             for (x, e) in target.iter_mut().zip(exp) {
                 *x = (1.0 - w) * *x + w * (e / total) as f32;
             }
+        }
+        if hyper.all_phases && phase_of(&legal) != DecisionPhase::Cards {
+            target.iter_mut().for_each(|x| *x *= hyper.preplay_weight);
         }
         let final_points = r.final_points as f32;
         let value = if complete {
@@ -1048,6 +1066,102 @@ fn best(row: &[f32], legal: &[u32]) -> usize {
         }
     }
     best
+}
+
+/// Decision phase of a row, told from its legal action indices.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DecisionPhase {
+    /// Bid, Hold or Pass.
+    Reizen,
+    /// Hand or take the Skat.
+    Pickup,
+    /// Discard a pair.
+    Druecken,
+    /// Announce.
+    Ansage,
+    /// Kontra or Re offered (alongside cards).
+    KontraRe,
+    /// Plain card play.
+    Cards,
+}
+
+impl DecisionPhase {
+    /// All phases in reporting order.
+    pub const ALL: [DecisionPhase; 6] = [
+        DecisionPhase::Reizen,
+        DecisionPhase::Pickup,
+        DecisionPhase::Druecken,
+        DecisionPhase::Ansage,
+        DecisionPhase::KontraRe,
+        DecisionPhase::Cards,
+    ];
+
+    /// Report label.
+    pub const fn name(self) -> &'static str {
+        match self {
+            DecisionPhase::Reizen => "reizen",
+            DecisionPhase::Pickup => "hand/pickup",
+            DecisionPhase::Druecken => "druecken",
+            DecisionPhase::Ansage => "ansage",
+            DecisionPhase::KontraRe => "kontra/re",
+            DecisionPhase::Cards => "cards",
+        }
+    }
+}
+
+/// The phase of a row offering the actions with indices `legal`.
+pub fn phase_of(legal: &[u32]) -> DecisionPhase {
+    // Layout of `skat_nn::actions`: 63 bids, 4 calls, 496 discards, 22
+    // announcements, 32 cards, 4 Kontra/Re actions.
+    let kontra = ACTIONS - 4;
+    let cards = kontra - 32;
+    let announce = cards - 22;
+    let discard = announce - 496;
+    let calls = discard - 4;
+    let any = |lo: usize, hi: usize| legal.iter().any(|&a| (lo..hi).contains(&(a as usize)));
+    if any(kontra, ACTIONS) {
+        DecisionPhase::KontraRe
+    } else if any(announce, cards) {
+        DecisionPhase::Ansage
+    } else if any(discard, announce) {
+        DecisionPhase::Druecken
+    } else if any(calls + 2, discard) {
+        DecisionPhase::Pickup
+    } else if any(0, discard) {
+        DecisionPhase::Reizen
+    } else {
+        DecisionPhase::Cards
+    }
+}
+
+/// Per-phase `(rows, rows where the most probable legal action is the
+/// teacher's)` of `net` on `examples`, in [`DecisionPhase::ALL`] order.
+pub fn phase_agreement(net: &PolicyValueNet, examples: &Examples) -> [(usize, usize); 6] {
+    let device = net
+        .devices()
+        .into_iter()
+        .next()
+        .unwrap_or_else(Device::flex);
+    let inputs = net.inputs();
+    let mut out = [(0, 0); 6];
+    let all: Vec<usize> = (0..examples.rows()).collect();
+    for chunk in all.chunks(EVAL_BATCH) {
+        let l = losses(net, None, examples.batch(chunk, inputs, &device));
+        let logits = l.logits.into_data().try_to_vec::<f32>().expect("f32");
+        for (b, &r) in chunk.iter().enumerate() {
+            let legal = &examples.legal[examples.offsets[r]..examples.offsets[r + 1]];
+            let phase = phase_of(legal);
+            let slot = DecisionPhase::ALL
+                .iter()
+                .position(|&p| p == phase)
+                .expect("listed");
+            out[slot].0 += 1;
+            out[slot].1 += usize::from(
+                best(&logits[b * ACTIONS..][..ACTIONS], legal) == examples.chosen[r] as usize,
+            );
+        }
+    }
+    out
 }
 
 /// Metrics of `net` (no autodiff, on the device the net lives on) on `examples`.
@@ -1631,5 +1745,23 @@ mod tests {
             }
         }
         panic!("too few Kontra decisions: {relabelled} relabelled, {dropped} dropped");
+    }
+}
+
+#[cfg(test)]
+mod phase_tests {
+    use super::*;
+
+    #[test]
+    fn phase_is_told_from_legal_indices() {
+        let kontra = (ACTIONS - 4) as u32;
+        let cards = kontra - 32;
+        assert_eq!(phase_of(&[0, 63, 64]), DecisionPhase::Reizen);
+        assert_eq!(phase_of(&[65, 66]), DecisionPhase::Pickup);
+        assert_eq!(phase_of(&[67, 100]), DecisionPhase::Druecken);
+        assert_eq!(phase_of(&[cards - 22, cards - 1]), DecisionPhase::Ansage);
+        assert_eq!(phase_of(&[cards, cards + 5]), DecisionPhase::Cards);
+        assert_eq!(phase_of(&[cards + 5, kontra]), DecisionPhase::KontraRe);
+        assert_eq!(phase_of(&[cards + 5, kontra + 2]), DecisionPhase::KontraRe);
     }
 }
