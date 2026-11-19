@@ -278,6 +278,7 @@ impl GuidedState {
             || (l.game == skat_core::GameType::Grand
                 && l.rule.branch == GuidedBranch::FeedPartner
                 && !l.rule.last)
+            || (l.game == skat_core::GameType::Null && l.knowledge.declarer != Some(l.seat))
     }
 
     pub(crate) fn permitted_dialogue(&self) -> bool {
