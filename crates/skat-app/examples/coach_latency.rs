@@ -368,6 +368,18 @@ fn paced_play() {
     }
 }
 
+/// The GUI's preemption order: the old worker was told to cancel and is not
+/// joined; `start` runs while it may still be executing. Its receiver is kept
+/// to settle the worker's time later.
+fn start_after_cancel<T>(
+    abandoned: Option<std::sync::mpsc::Receiver<T>>,
+    settle_later: &mut Vec<std::sync::mpsc::Receiver<T>>,
+    start: impl FnOnce(),
+) {
+    start();
+    settle_later.extend(abandoned);
+}
+
 /// One background worker with the GUI's job policy (`drive_coach`): the current
 /// decision first, otherwise the oldest queued review. `cancel` mode drops a
 /// running analysis of an earlier decision when the current one needs analysis
@@ -426,6 +438,7 @@ fn review_play() {
             .unwrap();
         let start = Instant::now();
         let mut running: Option<Run> = None;
+        let mut cancelled_runs = Vec::new();
         let (mut cancelled, mut wasted, mut executed) = (0, Duration::ZERO, Duration::ZERO);
         let (mut waits, mut max_wait) = (Duration::ZERO, Duration::ZERO);
         let mut first = None;
@@ -438,16 +451,16 @@ fn review_play() {
             // The current decision needs analysis: an unfinished analysis of an
             // earlier decision is cancelled (baseline) or finishes first.
             let shown = Instant::now();
+            let mut abandoned = None;
             if let Some((job, cancel, rx)) = running.take() {
                 let stale = session
                     .coach_job()
                     .is_some_and(|n| !n.is_review() && !n.same_decision(&job));
                 if stale && preempt {
+                    // As in egui: request cancellation and start the current
+                    // analysis at once; the old worker may still be running.
                     cancel.cancel();
-                    let (_, spent) = rx.recv().unwrap();
-                    cancelled += 1;
-                    wasted += spent;
-                    executed += spent;
+                    abandoned = Some(rx);
                 } else {
                     let (result, spent) = rx.recv().unwrap();
                     executed += spent;
@@ -456,7 +469,9 @@ fn review_play() {
             }
             let current = session.coach_job().unwrap();
             assert!(!current.is_review());
-            running = Some(spawn_run(current));
+            start_after_cancel(abandoned, &mut cancelled_runs, || {
+                running = Some(spawn_run(current));
+            });
             let wait = shown.elapsed();
             waits += wait;
             max_wait = max_wait.max(wait);
@@ -490,6 +505,13 @@ fn review_play() {
             let (result, spent) = rx.recv().unwrap();
             executed += spent;
             let _ = session.finish_coach(result);
+        }
+        // Cancelled workers exit on their own; their time is wasted work.
+        for rx in cancelled_runs {
+            let (_, spent): (skat_app::CoachResult, Duration) = rx.recv().unwrap();
+            cancelled += 1;
+            wasted += spent;
+            executed += spent;
         }
         if has_moments(&session) {
             first = Some(start.elapsed());
@@ -624,5 +646,43 @@ fn worker_play() {
             start.elapsed(),
             moments.len()
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, atomic::AtomicBool, atomic::Ordering, mpsc};
+
+    /// A controlled worker that blocks after it was told to cancel: the new
+    /// analysis must start before the old worker exits (as in egui).
+    #[test]
+    fn current_analysis_starts_while_cancelled_worker_still_runs() {
+        let cancel = Cancel::new();
+        let stop = cancel.clone();
+        let (release, released) = mpsc::channel::<()>();
+        let (tx, rx) = mpsc::channel();
+        let exited = Arc::new(AtomicBool::new(false));
+        let flag = exited.clone();
+        let old = std::thread::spawn(move || {
+            while !stop.is_cancelled() {
+                std::thread::yield_now();
+            }
+            released.recv().unwrap(); // blocks after cancellation
+            flag.store(true, Ordering::SeqCst);
+            let _ = tx.send(());
+        });
+        cancel.cancel();
+        let mut later = Vec::new();
+        let mut started_while_running = false;
+        start_after_cancel(Some(rx), &mut later, || {
+            started_while_running = !exited.load(Ordering::SeqCst);
+        });
+        assert!(started_while_running, "new analysis waited for the old one");
+        assert_eq!(later.len(), 1);
+        release.send(()).unwrap();
+        later[0].recv().unwrap();
+        old.join().unwrap();
+        assert!(exited.load(Ordering::SeqCst));
     }
 }
