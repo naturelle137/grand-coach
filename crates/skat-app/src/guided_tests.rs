@@ -3674,3 +3674,6 @@ mod suit_feed_partner;
 
 #[path = "guided_early_feed_tests.rs"]
 mod early_feed;
+
+#[path = "guided_draw_trumpf_tests.rs"]
+mod draw_trumpf_tests;

@@ -134,3 +134,103 @@ fn draw_trumpf_rejects_defender_malformed_and_other_boundaries() {
         assert!(lesson(&x).is_none(), "edit{i}");
     }
 }
+
+/// Handwritten #175 witnesses (`draw_trumpf_policy.rs`), judged here by the
+/// coach admission only.
+#[allow(dead_code)]
+#[path = "../../skat-analysis/tests/draw_trumpf_policy.rs"]
+mod witnesses;
+
+#[test]
+fn draw_trumpf_independent_cases_admit_exactly_the_declarer_own_trumpf_leads() {
+    let mut admitted = 0;
+    for c in witnesses::cases() {
+        let v = c.game().view(c.viewer);
+        let l = lesson(&v);
+        // `lesson` here means a DrawTrumpf lesson; an existing LeadMaster
+        // lesson (#171) for the same viewer is a different family.
+        let draw = l.clone().filter(|l| l.rule.branch == Branch::DrawTrumpf);
+        assert_eq!(draw.is_some(), c.lesson, "{}", c.id);
+        if let Some(l) = draw {
+            admitted += 1;
+            assert_eq!(
+                l.rule,
+                skat_analysis::baseline::rule(&v).unwrap(),
+                "{}",
+                c.id
+            );
+            assert_eq!(l.rule.branch, Branch::DrawTrumpf, "{}", c.id);
+            // Candidates are exactly the own Buben; only Easy's card is the attempt.
+            for a in &v.legal_actions {
+                let Action::Play(x) = a else { panic!() };
+                assert_eq!(
+                    l.check(Step::Check, Answer::Card(*x)),
+                    c.candidates.contains(&x.index()),
+                    "{}",
+                    c.id
+                );
+                assert_eq!(
+                    l.check(Step::Narrow, Answer::Card(*x)),
+                    x.index() == c.card,
+                    "{}",
+                    c.id
+                );
+            }
+        }
+    }
+    assert_eq!(admitted, 8);
+}
+
+#[test]
+fn draw_trumpf_independent_hidden_substitutions_keep_the_lesson() {
+    for (id, a, b) in [
+        ("01-vh-hand", 1, 15),
+        ("03-hh-pickup-single-trumpf", 8, 15),
+        ("11-vh-side-master-competes", 8, 29),
+    ] {
+        let c = witnesses::cases().into_iter().find(|c| c.id == id).unwrap();
+        let v = c.game().view(c.viewer);
+        let mut o = witnesses::cases().into_iter().find(|c| c.id == id).unwrap();
+        for s in [Seat::Vorhand, Seat::Mittelhand, Seat::Hinterhand] {
+            if s != c.viewer {
+                o.deal[s.index()] = o.deal[s.index()]
+                    .iter()
+                    .map(|&n| {
+                        if n == a {
+                            b
+                        } else if n == b {
+                            a
+                        } else {
+                            n
+                        }
+                    })
+                    .collect();
+            }
+        }
+        assert_ne!(o.deal(), c.deal(), "{id}");
+        let w = o.game().view(c.viewer);
+        assert_eq!(w, v, "{id}");
+        assert_eq!(lesson(&w), lesson(&v), "{id}");
+    }
+}
+
+#[test]
+fn draw_trumpf_independent_malformed_and_single_card_views_are_excluded() {
+    let c = &witnesses::cases()[0];
+    let v = c.game().view(c.viewer);
+    assert!(lesson(&v).is_some());
+    type Edit = fn(&mut PlayerView);
+    let edits: &[Edit] = &[
+        |v| v.legal_actions.truncate(1),
+        |v| v.legal_actions.push(Action::Kontra),
+        |v| v.legal_actions.reverse(),
+        |v| v.own_skat = Some(skat_core::CardSet::EMPTY),
+        |v| v.hand_game = None,
+        |v| v.hand_game = Some(false),
+    ];
+    for (i, e) in edits.iter().enumerate() {
+        let mut x = v.clone();
+        e(&mut x);
+        assert!(lesson(&x).is_none(), "edit{i}");
+    }
+}
