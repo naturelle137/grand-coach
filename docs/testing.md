@@ -502,7 +502,7 @@ German/English widgets through answer/help/skip/retry/next/exit and restart;
 compares live game and recording before/after, and preserves corrupt/newer files.
 
 Screenshot scenarios `focus-count`, `focus-changed`, `focus-help`,
-`focus-mechanism`, `focus-feedback`, `focus-boundary`, `focus-practice` (and
+`focus-mechanism`, `focus-feedback`, `focus-certain`, `focus-boundary`, `focus-practice` (and
 `-en`) and `focus-void(-en)-narrow` show the actual session states. The existing
 Linux/Windows screenshot CI renders them and records individual PNG SHA-256
 hashes alongside the gallery. These are technical checks; optional learner
