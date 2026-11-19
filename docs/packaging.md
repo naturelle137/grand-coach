@@ -52,6 +52,17 @@ experimental; no target-machine latency/RSS measurement is recorded yet (no
 six-core integrated-graphics hardware available to agents), and results from
 other machines are only proxies.
 
+Local offline check (2026-11-19, Fedora 44, Rust 1.99.1 build identity, commit
+79d6255): the Linux package built from a clean checkout was extracted and the
+same-build probe ran in a network-less namespace (`unshare -rn`, only `lo`):
+`neural` verified an actual decision from the shipped model; corrupt-model,
+format-incompatible and encoder-incompatible files each fell back to Classic
+Strong (`fallback`, `format`, `encoder`: all exit 0). The GUI smoke could not
+run in that sandbox (`XOpenDisplayFailed`, also without the namespace), so GUI
+launch evidence stays with the CI runtime container (`--network=none`) and the
+Windows job. The six-core target machine is still unavailable: no latency,
+RSS or package-size result for it exists.
+
 ## Reproduce and inspect
 
 Use a clean committed checkout, Python 3.11+, native Rust 1.95.0, Cargo and
