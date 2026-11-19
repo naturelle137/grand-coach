@@ -1077,6 +1077,20 @@ reuse the Grand lead flow.
 Evidence: `cargo test -p skat-analysis --test suit_lead_master_policy` holds
 fresh handwritten legal deals for all four trump suits (own-higher, Trumpf-Ass
 exclusion, maximum-Augen/last-tie, late lead after a won trick, void trumping,
-two hidden-deal substitutions); `cargo test -p skat-coach --test
-guided_suit_lead_master` checks admission, every legal choice, boundary edits
-and declarer role. This is author technical evidence, not learner evidence.
+two hidden-deal substitutions) and an independent oracle that re-derives
+candidates, pick and the winner of all 1,803 legal next-trick completions
+(counts/digests frozen, calibrated from the oracle). `cargo test -p skat-coach
+--test guided_suit_lead_master` checks admission, every legal choice, boundary
+edits and declarer role. App `suit_lead_master` tests run all completions and
+the ordinary seed 2969 Pik route (human defends, all ten legal leads against
+Easy) through `Session`, with full dialogue equality over both hidden-deal
+pairs including God Mode. The ignored GUI target `guided_suit_lead_master` and
+the screenshots example render the ordinary route in de/en at 1440x1000 and
+960x640.
+
+Not claimed: the original preimplementation gate of #182 was never accepted by
+the CTO; this increment's oracle is author-written and source-informed, not an
+accepted independent manual oracle. Late terminal paths, God Mode screenshots
+and permitted-only estimates (Farbspiel `LeadMaster` uses the Grand
+`LeadMaster` estimate contract) are not part of this increment. This is
+technical evidence, not learner evidence.
