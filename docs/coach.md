@@ -764,9 +764,20 @@ presentation or physical-display latency. The existing
 while live analysis is active. Neither measurement establishes responsiveness
 at interactive budget on a reference machine.
 
+The separate ignored `app::tests::debrief_paced_gui_worker_probe` exercises the
+real egui worker driver, with 0 or 5 ms before each fixed action and Easy
+opponents without their usual delay. On the same unisolated host, each of six
+seeds played 11 actions per mode; a coach worker handle was present on 8–11
+of those actions. All paired final moments and evidence were exactly equal.
+The largest headless step per trace was 8.0–16.1 ms; total times were
+156.9–196.0 ms fast and 211.0–257.2 ms paced. The worker handle can outlive
+actual execution, and this probe does not count preemptions or CPU/RSS per
+mode. It does not establish physical UI latency, interactive-budget behaviour
+or sustained-foreground starvation.
+
 The completed-input cache no-go remains bounded to these distinct inputs. The
-new probe shows cancellation requests and contention, but cannot establish
-whether changing the egui scheduler would safely reduce restart work. Real egui
-paced/fast lifecycle measurements, a scheduler candidate comparison and
-starvation under sustained foreground work remain open; no general no-benefit
-claim or deployment decision follows from this probe.
+probes show cancellation requests and contention, but cannot establish whether
+changing the egui scheduler would safely reduce restart work. A scheduler
+candidate comparison and starvation under sustained foreground work remain
+open; no general no-benefit claim or deployment decision follows from these
+probes.
