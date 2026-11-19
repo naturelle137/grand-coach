@@ -46,7 +46,10 @@ searches first after `GRAND_COACH_MODELS`. Build and `verify` fail unless the
 model matches the SHA-256 and size in its manifest. Classic stays the default;
 a missing or corrupt model makes Neural fall back to Classic Strong without
 touching user data. The smoke test launches with the model installed and again
-with a corrupted one, checking valid history is unchanged. A same-build app API probe beside the executable verifies an actual Neural decision and a corrupt-model fallback; these decisions are not GUI interactions. Neural levels stay
+with a corrupted one, checking valid history is unchanged. A same-build app API probe beside the executable verifies an actual Neural decision and a corrupt-model fallback; these decisions are not GUI interactions. The loader rejects a model with an unsupported format or encoder version
+(`ModelError::Format`/`Encoder`, covered by `skat-app` loader tests on the bundled
+model) and falls back like a corrupt one. The shipped model covers card play only,
+so other phases (bidding, Skat, Kontra) stay Classic. Neural levels stay
 experimental; no target-machine latency/RSS measurement is recorded yet (no
 six-core integrated-graphics hardware available to agents), and results from
 other machines are only proxies.
