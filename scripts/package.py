@@ -338,7 +338,7 @@ def smoke(args):
             raise ValueError("uninstall removed user data")
     (args.out / "smoke.json").write_text(json.dumps({
         "commit": manifest["commit"], "archive_sha256": digest(args.archive.read_bytes()),
-        "os": platform.platform(), "result": "passed",
+        "os": platform.platform(), "result": "passed", "network_isolation": "not verified by this smoke",
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
         "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API exercises Neural and Hybrid card play, and missing, corrupt and incompatible format/encoder model fallback with valid history", "packaged coach+counting aid+quiz view (first counting question open) and focused counting training view, each in German and English, launched from the same extracted executable (the coach question records its presentation; history stays valid, training leaves it unchanged)", "uninstall retains data"],
