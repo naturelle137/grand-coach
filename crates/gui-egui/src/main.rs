@@ -47,6 +47,10 @@ impl eframe::App for Screenshot {
         let now = ctx.input(|i| i.time);
         if self.advancing {
             self.advancing = !self.app.smoke_advance(now);
+            if !self.advancing {
+                // Let the question window finish its fade-in before the screenshot.
+                self.delay = self.delay.max(now + 1.5);
+            }
             if self.advancing && now > 70.0 {
                 eprintln!("smoke: no counting question within 70 s");
                 std::process::exit(2);
