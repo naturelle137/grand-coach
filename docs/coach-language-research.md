@@ -132,6 +132,45 @@ uncontrolled smoke run is neither cold/warm p95 nor incremental application
 RSS. It does not establish factual preservation, bilingual quality or a
 performance target.
 
+## Provenance and offline feasibility audit (2026-11-19)
+
+The retained weight file was rehashed and matches the publisher's pinned
+Q8_0 file above. The publisher's [GGUF metadata](https://huggingface.co/api/models/Qwen/Qwen3-0.6B-GGUF/revision/23749fefcc72300e3a2ad315e1317431b06b590a)
+identifies `Qwen/Qwen3-0.6B` as its quantized base, but does not identify a
+base commit, tokenizer input commit, conversion tool version, command or
+quantization settings. Its `params` file contains generation settings, not
+conversion provenance. The publisher's [quantization guide](https://github.com/QwenLM/Qwen3/blob/main/docs/source/quantization/llama.cpp.md)
+describes conversion to F16 followed by `llama-quantize ... Q8_0` as an
+example; it does not establish that this exact file was produced that way.
+The 197 Q8_0 and 113 F32 tensors and quantization version 2 are observable
+file properties, not a reproducible build recipe. Thus the exact quantization
+chain remains unknown.
+
+The [base repository](https://huggingface.co/Qwen/Qwen3-0.6B/tree/c1899de289a04d12100db370d81485cdf75e47ca)
+contains `tokenizer.json`, `tokenizer_config.json`, `vocab.json` and
+`merges.txt` and declares Apache-2.0; its [tokenizer file](https://huggingface.co/Qwen/Qwen3-0.6B/blob/c1899de289a04d12100db370d81485cdf75e47ca/tokenizer.json)
+has published SHA-256 `aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4`.
+That declaration and the embedded GGUF vocabulary do not prove which revision
+or transformation produced the embedded tokenizer, nor independently establish
+rights for every component. The GGUF publisher also declares Apache-2.0;
+llama.cpp's retained runtime is MIT. Before distribution, verify the exact
+source and applicable notices for weights, tokenizer and all runtime libraries
+separately; do not treat a model-card label as a completed provenance chain.
+
+The retained Linux completion executable is an external process, so it does
+not meet the issue's linked-runtime constraint. `ldd` resolves its bundled
+llama/ggml libraries, but also host C/C++ runtime, OpenMP, OpenSSL and zlib;
+`$ORIGIN` alone is not a self-contained deployment. The `libllama` API offers
+a possible in-process integration, but no application integration, isolated
+package, network-denied execution or Windows build was tested in this audit.
+A distributable would need platform-specific builds and dependency/notice
+closure, packaged local weights and a verified offline run without a separate
+program or download. The 639,446,688-byte weights exceed D-63's 10 MB per
+model limit; changing that policy requires a separate decision. Therefore
+standalone bundling is technically plausible, **not demonstrated or currently
+permitted under the model-size rule**. No product dependency or weight was
+added; the measured no-go remains unchanged.
+
 ## Approach 1: deterministic Fluent templates (current)
 
 `skat-coach` already emits only structured data: text keys, parameters,
@@ -155,7 +194,7 @@ surface to keep consistent. **Result: a learned selector is not needed.**
 If variety is wanted later, a seeded variant choice reproduces under the
 existing determinism rule.
 
-## Approach 3: one small pretrained multilingual model (not compared)
+## Approach 3: one small pretrained multilingual model
 
 Candidate per the issue: Qwen3-0.6B, non-thinking mode, in a linked local
 runtime (llama.cpp). Design constraints a future proof must meet:

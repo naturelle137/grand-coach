@@ -93,6 +93,15 @@ fn content(
     let null = table
         .contract
         .is_some_and(|c| c.game == GameType::Null && !c.ouvert);
+    let null_defender = null && table.declarer != Some(skat_app::PlayerId::HUMAN);
+    if null_defender
+        && matches!(
+            g.step,
+            GuidedStep::Orient | GuidedStep::Check | GuidedStep::Narrow | GuidedStep::Act
+        )
+    {
+        ui.label(i.t("guided-null-defender-role"));
+    }
     if null
         && matches!(
             g.step,
@@ -214,6 +223,8 @@ fn content(
         } else if rule.branch == GuidedBranch::Null {
             if g.lead.is_some() {
                 "guided-rule-null-lead"
+            } else if null_defender {
+                "guided-rule-null-defender"
             } else if rule.last {
                 "guided-rule-null"
             } else {
@@ -253,7 +264,7 @@ fn content(
         let details = |ui: &mut egui::Ui| {
             let cards: Vec<_> = rule.candidates.iter().map(|&c| text::card(i, c)).collect();
             ui.label(i.tf("guided-candidates", &[("cards", cards.join(", ").into())]));
-            if rule.branch == GuidedBranch::Null && g.lead.is_none() {
+            if rule.branch == GuidedBranch::Null && g.lead.is_none() && !null_defender {
                 let winners: Vec<_> = rule.winners.iter().map(|&c| text::card(i, c)).collect();
                 ui.label(if winners.is_empty() {
                     i.t(if rule.last {
