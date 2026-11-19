@@ -64,7 +64,7 @@ lessons, a learning focus and a review of selected decisions. Optional focused
 retrieval asks for exact counts before feedback,
 with explicitly selected or restored help. It records support for the current
 opportunity without claiming mastery. Focused training retains the four original counting fixtures and adds
-catalogue sessions in four families with intro, changed and boundary cases.
+catalogue sessions in four families with intro, changed and boundary cases, including a paired side-Ass comparison with and without outstanding Trumpf.
 Learners answer counts or bounded mechanism judgements before feedback, can
 request help and return to the unchanged game. The single local history records
 exposure (including unanswered presentations), sticky assistance and supported
