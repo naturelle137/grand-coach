@@ -62,6 +62,10 @@ fn main() {
         worker_play();
         return;
     }
+    if std::env::args().nth(1).as_deref() == Some("--review-play") {
+        review_play();
+        return;
+    }
     if std::env::args().nth(1).as_deref() == Some("--paced-play") {
         paced_play();
         return;
@@ -360,6 +364,157 @@ fn paced_play() {
         assert_eq!(
             outcomes[0], outcomes[1],
             "paced and fast inputs and final evidence"
+        );
+    }
+}
+
+/// One background worker with the GUI's job policy (`drive_coach`): the current
+/// decision first, otherwise the oldest queued review. `cancel` mode drops a
+/// running analysis of an earlier decision when the current one needs analysis
+/// (baseline, as in egui); `finish` mode lets it complete first (candidate, no
+/// restart work). Usage: `--review-play cancel|finish DELAY_MS GAMES NODES`.
+fn review_play() {
+    type Run = (
+        skat_app::CoachJob,
+        Cancel,
+        std::sync::mpsc::Receiver<(skat_app::CoachResult, Duration)>,
+    );
+    fn spawn_run(job: skat_app::CoachJob) -> Run {
+        let cancel = Cancel::new();
+        let stop = cancel.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let run = job.clone();
+        std::thread::spawn(move || {
+            let began = Instant::now();
+            let result = run.run(Some(&stop));
+            let _ = tx.send((result, began.elapsed()));
+        });
+        (job, cancel, rx)
+    }
+    let args: Vec<String> = std::env::args().collect();
+    let preempt = match args[2].as_str() {
+        "cancel" => true,
+        "finish" => false,
+        _ => panic!("mode cancel|finish"),
+    };
+    let delay = args[3].parse::<u64>().unwrap();
+    let games = args[4].parse::<u64>().unwrap();
+    let nodes = args[5].parse::<u64>().unwrap();
+    let has_moments = |session: &Session| {
+        matches!(
+            session.view().coach.debriefing,
+            Some(Debriefing::Computing { ref moments, .. } | Debriefing::Ready(ref moments))
+                if !moments.is_empty()
+        )
+    };
+    for seed in 1..=games {
+        let mut session = Session::new(SessionConfig {
+            seed,
+            series: SeriesLength::Fixed(1),
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
+        });
+        session.set_coach_budget(Budget {
+            samples: 24,
+            nodes_per_task: nodes,
+        });
+        session
+            .execute(Command::SetCoach(CoachSettings {
+                level: CoachLevel::EveryMove,
+                ..CoachSettings::default()
+            }))
+            .unwrap();
+        let start = Instant::now();
+        let mut running: Option<Run> = None;
+        let (mut cancelled, mut wasted, mut executed) = (0, Duration::ZERO, Duration::ZERO);
+        let (mut waits, mut max_wait) = (Duration::ZERO, Duration::ZERO);
+        let mut first = None;
+        loop {
+            session.run_opponents();
+            let view = session.view();
+            if view.legal_actions.is_empty() {
+                break;
+            }
+            // The current decision needs analysis: an unfinished analysis of an
+            // earlier decision is cancelled (baseline) or finishes first.
+            let shown = Instant::now();
+            if let Some((job, cancel, rx)) = running.take() {
+                let stale = session
+                    .coach_job()
+                    .is_some_and(|n| !n.is_review() && !n.same_decision(&job));
+                if stale && preempt {
+                    cancel.cancel();
+                    let (_, spent) = rx.recv().unwrap();
+                    cancelled += 1;
+                    wasted += spent;
+                    executed += spent;
+                } else {
+                    let (result, spent) = rx.recv().unwrap();
+                    executed += spent;
+                    let _ = session.finish_coach(result);
+                }
+            }
+            let current = session.coach_job().unwrap();
+            assert!(!current.is_review());
+            running = Some(spawn_run(current));
+            let wait = shown.elapsed();
+            waits += wait;
+            max_wait = max_wait.max(wait);
+            // Human think time: the worker runs, then queued reviews follow.
+            let until = Instant::now() + Duration::from_millis(delay);
+            while Instant::now() < until {
+                if let Some((_, _, rx)) = running.as_ref()
+                    && let Ok((result, spent)) = rx.try_recv()
+                {
+                    executed += spent;
+                    running = None;
+                    let _ = session.finish_coach(result);
+                }
+                if running.is_none()
+                    && let Some(job) = session.coach_job()
+                {
+                    running = Some(spawn_run(job));
+                }
+                std::thread::sleep(Duration::from_micros(200));
+            }
+            let action =
+                if view.phase == Phase::Reizen && view.legal_actions.contains(&Action::Pass) {
+                    Action::Pass
+                } else {
+                    view.legal_actions[0]
+                };
+            session.execute(Command::Act(action)).unwrap();
+        }
+        // Game over: settle the worker, then drain the queue.
+        if let Some((_, _, rx)) = running.take() {
+            let (result, spent) = rx.recv().unwrap();
+            executed += spent;
+            let _ = session.finish_coach(result);
+        }
+        if has_moments(&session) {
+            first = Some(start.elapsed());
+        }
+        let mut drained = 0;
+        while let Some(job) = session.coach_job() {
+            let began = Instant::now();
+            session.finish_coach(job.run(None)).unwrap();
+            executed += began.elapsed();
+            drained += 1;
+            if first.is_none() && has_moments(&session) {
+                first = Some(start.elapsed());
+            }
+        }
+        let Some(Debriefing::Ready(moments)) = session.view().coach.debriefing else {
+            panic!("unfinished")
+        };
+        if std::env::var_os("COACH_TRACE_EVIDENCE").is_some() {
+            println!("evidence={}", serde_json::to_string(&moments).unwrap());
+        }
+        println!(
+            "seed={seed} mode={} delay_ms={delay} cancelled={cancelled} wasted={wasted:?} executed={executed:?} drained={drained} foreground_wait_total={waits:?} foreground_wait_max={max_wait:?} first={first:?} full={:?} moments={}",
+            args[2],
+            start.elapsed(),
+            moments.len()
         );
     }
 }

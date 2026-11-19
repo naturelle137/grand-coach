@@ -674,6 +674,11 @@ impl CoachState {
 
     /// The next queued review: FIFO by default, learned priority when selected.
     pub(crate) fn review_job(&self) -> Option<CoachJob> {
+        // Off shows no note or debriefing: queued work waits, unspent, until
+        // the coach is turned on again; the next game still drops it.
+        if self.settings.level == CoachLevel::Off {
+            return None;
+        }
         let q = match &self.review_model {
             None => self.queue.first()?,
             Some(model) => {

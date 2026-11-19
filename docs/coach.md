@@ -458,7 +458,10 @@ Reconstructing the display from the final deal would leak later information.
   once the game is over). A decision played before its analysis finished
   is queued with its view; `coach_job` hands out the current decision
   first, then the oldest queued one (`CoachJob::is_review`) by default.
-  The optional learned ordering below changes only review priority. The
+  While the level is **off**, queued reviews are not handed out (no work for
+  a hidden debriefing); they resume if the coach is turned on again and are
+  still dropped by the next game. The optional learned ordering below changes
+  only review priority. The
   frontend cancels a running review when the current decision needs an
   analysis. A cancelled review stays queued; the next game drops the
   queue. `Session::coach_result` exposes the full analysis for tools and
@@ -775,9 +778,72 @@ actual execution, and this probe does not count preemptions or CPU/RSS per
 mode. It does not establish physical UI latency, interactive-budget behaviour
 or sustained-foreground starvation.
 
-The completed-input cache no-go remains bounded to these distinct inputs. The
-probes show cancellation requests and contention, but cannot establish whether
-changing the egui scheduler would safely reduce restart work. A scheduler
-candidate comparison and starvation under sustained foreground work remain
-open; no general no-benefit claim or deployment decision follows from these
-probes.
+The completed-input cache no-go remains bounded to these distinct inputs.
+
+### Scheduler candidate study (#72)
+
+`coach_latency --review-play cancel|finish DELAY_MS GAMES NODES_PER_TASK` runs
+one real worker thread with the egui job policy (`drive_coach`): the current
+decision first, otherwise the oldest queued review. The human acts after a fixed
+delay. **cancel** is the shipped baseline: an unfinished analysis of an earlier
+decision is cancelled when the current decision needs analysis, and the
+cancelled decision stays queued and restarts from scratch. **finish** is the
+candidate: the foreground waits until the running analysis completes. Both end
+with a drained queue; with `COACH_TRACE_EVIDENCE=1` the complete final moments
+of all six seeds were exactly equal in the free and the contended cells at 5 ms
+and 20 ms and the free cell at 50 ms.
+
+Measured on 2026-11-19, release build in `skat-dev` (20 logical CPUs, host
+load average about 28 from concurrent work, not isolated), six seeds, 24 samples
+× 20,000 nodes/task. "Contended" pins the process to one CPU shared with a
+Python busy loop. Executed and wasted are sums of worker wall time per cell
+(six games), wasted being the time of cancelled runs; the largest foreground
+wait is the longest time from showing a decision to starting its analysis. CPU
+is user + system for the whole process.
+
+| Delay | Load | Policy | Cancelled | Wasted ms | Executed ms | Max fg wait ms | CPU s | RSS KiB |
+|---|---|---|---|---|---|---|---|---|
+| 5 ms | free | cancel | 60 | 497 | 957 | 20.5 | 1.50 | 9,440 |
+| 5 ms | free | finish | 0 | 0 | 455 | 15.1 | 0.89 | 9,316 |
+| 20 ms | free | cancel | 14 | 161 | 651 | 8.4 | 1.21 | 10,296 |
+| 20 ms | free | finish | 0 | 0 | 745 | 16.9 | 0.92 | 9,960 |
+| 50 ms | free | cancel | 0 | 0 | 776 | 1.1 | 0.96 | 9,508 |
+| 50 ms | free | finish | 0 | 0 | 780 | 4.8 | 0.96 | 9,764 |
+| 5 ms | contended | cancel | 60 | 401 | 2,008 | 7.6 | 1.01 | 5,260 |
+| 5 ms | contended | finish | 0 | 0 | 1,789 | 102.4 | 0.88 | 5,268 |
+| 20 ms | contended | cancel | 60 | 1,090 | 2,857 | 4.6 | 1.41 | 5,348 |
+| 20 ms | contended | finish | 0 | 0 | 1,970 | 107.5 | 0.88 | 5,212 |
+
+Findings. Restart work is real: with short think times 20–52 % of worker time
+was cancelled work, and the candidate saved up to about 0.6 s process CPU per
+six games. It disappears once the human takes longer than an analysis (50 ms
+row). The price is foreground latency: the candidate delayed the next decision's
+analysis by up to 107 ms on a contended core, against at most 20 ms for the
+baseline, and that wait is one review's length. At these deliberately small
+budgets a review takes milliseconds (about 8 ms per cancelled run here); at the
+interactive budget (100,000,000 nodes/task) it is orders of magnitude longer,
+and no progress signal exists to bound the wait. First/complete debrief times
+were within run-to-run noise. RSS differs by less than 4 % and is process-wide.
+Single-run cells on a shared host support no ratios; the delay is synthetic, not
+human think time, and no GUI, presentation or physical-display latency,
+cold-versus-warm cache or interactive-budget run was measured.
+
+**Decision (bounded no-go for a non-preemptive scheduler, #72):** the candidate
+saves CPU only for think times shorter than one review, and pays for it with
+an unbounded foreground wait, contradicting the current-decision-first rule
+(D-59). The shipped cancel-and-restart policy, Classic ordering and results
+stay unchanged. A bounded variant would need a progress or deadline signal from
+the analysis that does not exist and is not justified by these measurements; it
+is reopened if a measured session shows restart work dominating at the
+interactive budget. Together with the identical-input cache no-go this records
+a documented no-benefit result for these two candidates, not a general claim.
+
+Lifecycle tests (`skat-app/tests/coach.rs`): cancelled reviews stay queued and
+rerun identically, no newer decision overtakes the oldest queued review (one
+review is served per foreground decision, so queued work cannot starve), a
+cancel-and-restart game and a finish-first game end with identical evidence,
+and next-game, stale-result and snapshot tests existed already. Coach **off** now
+hands out no review work and resumes the retained backlog when turned on; this
+was a small fix, since reviews previously kept running for an invisible
+debriefing. Sustained-foreground starvation is covered by the bounded-service
+test, not measured on a physical display.
