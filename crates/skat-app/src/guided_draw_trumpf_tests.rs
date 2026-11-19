@@ -36,11 +36,18 @@ fn drive(seed: u64, hand: bool) -> Option<(Session, u32, usize)> {
                 return Some((s, game, pv.tricks.len()));
             }
             let legal = &v.legal_actions;
+            // Bid or hold only up to the plain Grand value 24, otherwise pass.
             let a = legal
                 .iter()
                 .copied()
-                .find(|a| matches!(a, Action::Hold))
-                .or_else(|| legal.iter().copied().find(|a| matches!(a, Action::Bid(_))))
+                .find(|a| matches!(a, Action::Hold) && v.bid <= 24)
+                .or_else(|| {
+                    legal
+                        .iter()
+                        .copied()
+                        .find(|a| matches!(a, Action::Bid(x) if *x <= 24))
+                })
+                .or_else(|| legal.iter().copied().find(|a| matches!(a, Action::Pass)))
                 .or_else(|| {
                     legal
                         .iter()
@@ -96,19 +103,21 @@ fn same(x: &Session, y: &Session, what: &str) {
 
 /// The first ordinary `Session::new` route found by the bounded search:
 /// seeds 0..32, at most three games each, Easy opponents, Kontra/Re off, human
-/// commands exactly as in `drive`. Seed 0 is the first hit.
+/// commands exactly as in `drive` (bid or hold up to 24, Hand, plain Grand,
+/// else the first legal card). Seed 1 is the first hit (seed 0 never
+/// reaches the lesson under this policy).
 #[test]
 fn ordinary_route_search_reports_the_first_hits() {
     let hits: Vec<_> = (0..32u64)
         .filter_map(|seed| drive(seed, true).map(|(_, game, tricks)| (seed, game, tricks)))
         .take(4)
         .collect();
-    assert_eq!(hits[0], (0, 1, 0), "{hits:?}");
+    assert_eq!(hits, [(1, 1, 0), (3, 1, 0), (4, 1, 0), (5, 1, 0)]);
 }
 
 #[test]
 fn ordinary_route_every_legal_card_replies_winner_and_free_return() {
-    let (route, _, _) = drive(0, true).unwrap();
+    let (route, _, _) = drive(1, true).unwrap();
     let legal: Vec<_> = route.view().legal_actions;
     assert_eq!(legal.len(), 10);
     for &a in &legal {
@@ -156,7 +165,7 @@ fn ordinary_route_every_legal_card_replies_winner_and_free_return() {
         s.run_opponents();
         assert_eq!(s.guided().unwrap(), frozen);
         eprintln!(
-            "ordinary seed0 lead={} easy={} replies={:?} winner={:?}",
+            "ordinary seed1 lead={} easy={} replies={:?} winner={:?}",
             played.index(),
             easy.index(),
             &t.cards.map(|c| c.index())[1..],

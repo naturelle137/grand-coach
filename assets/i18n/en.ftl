@@ -1098,6 +1098,7 @@ guided-draw-trumpf-risk = This does not show that a defender holds Trumpf, nor a
 guided-rule-draw-trumpf = Easy: { $card }. Highest Trumpf; first exact tie in legal order (heuristic, not optimal play).
 guided-draw-trumpf-candidates-risk = Trumpf candidates: { $cards }. Own Skat, unseen cards and defenders stay possible locations; nothing is guaranteed.
 guided-draw-trumpf-conservative = Own and played Buben are excluded from the count; known discarded Buben still count. An unknown Skat is a possible location, not a proven holder.
+guided-draw-trumpf-observe = Look at both actual replies. Does the last reply prove that hand cannot follow what you led (Trumpf or the led suit)?
 
 # Null opening lead (#176)
 guided-null-lead-candidates = Which cards may you lead onto this empty table?

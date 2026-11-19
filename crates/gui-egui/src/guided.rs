@@ -116,6 +116,7 @@ fn content(
         GuidedStep::Narrow if g.lead.is_some() && null => "guided-null-lead-attempt",
         GuidedStep::Narrow if g.lead_trumpf => "guided-draw-trumpf-attempt",
         GuidedStep::Narrow if g.lead.is_some() => "guided-lead-attempt",
+        GuidedStep::Observe if g.lead_trumpf => "guided-draw-trumpf-observe",
         GuidedStep::Observe if g.lead.is_some() => "guided-lead-observe",
         GuidedStep::Orient => "guided-orient",
         GuidedStep::Check => "guided-check",
