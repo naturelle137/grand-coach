@@ -280,9 +280,17 @@ def smoke(args):
                 subprocess.run([str(installed_probe), probe_mode], cwd=root, env=probe_env, check=True, timeout=90)
         model.write_bytes(original_model)
         model_manifest.write_bytes(original_manifest)
-        preserved = history.read_bytes()
+        preserved = history_valid = history.read_bytes()
         valid_history_hash = digest(preserved)
-        for stage in ("install", "restart", "upgrade", "corrupt-model", "damaged-history"):
+        stages = [(s, None, None) for s in ("install", "restart", "upgrade", "corrupt-model", "damaged-history")]
+        shots = {}
+        for stage, scenario, language in stages + [
+            (f"{scenario}-{language}", scenario, language)
+            for scenario in ("coach", "training") for language in ("de", "en")
+        ]:
+            if scenario:
+                # Valid history again; feature views must neither modify nor depend on damaged data.
+                preserved = history_valid
             if stage == "corrupt-model":
                 model = install / manifest["models"][0]
                 model.write_bytes(b"corrupt" + model.read_bytes()[7:])
@@ -295,11 +303,16 @@ def smoke(args):
             if stage == "damaged-history":
                 preserved = b"packaging smoke: preserve damaged history\n"
                 history.write_bytes(preserved)
+            if scenario:
+                history.write_bytes(history_valid)
             screenshot = (args.out / f"{stage}.ppm").resolve()
             screenshot.unlink(missing_ok=True)
             env = dict(os.environ, GRAND_COACH_DATA=str(data), GRAND_COACH_SEED="13", GRAND_COACH_SCREENSHOT=str(screenshot), GRAND_COACH_PACKAGE_NEURAL="1")
             env.pop("GRAND_COACH_MODELS", None)
             env.pop("GRAND_COACH_VALIDATION", None)
+            if scenario:
+                env.update(GRAND_COACH_SMOKE_SCENARIO=scenario, GRAND_COACH_LANGUAGE=language)
+                env.pop("GRAND_COACH_PACKAGE_NEURAL")
             # cwd has no checkout/assets; models come only from the install directory.
             log_path = args.out / f"{stage}.log"
             with log_path.open("w") as log:
@@ -312,10 +325,14 @@ def smoke(args):
             image = screenshot.read_bytes()
             if not image.startswith(b"P6\n") or len(image) < 100000:
                 raise ValueError("native packaged launch did not produce a screenshot")
-            if history.read_bytes() != preserved:
+            shots[stage] = digest(image)
+            # An open counting question legitimately records its presentation.
+            if scenario != "coach" and history.read_bytes() != preserved:
                 raise ValueError("packaged launch changed user history")
             if stage != "damaged-history":
                 subprocess.run([str(probe), "check", str(history)], check=True)
+        if len(set(shots[f"{c}-{l}"] for c in ("coach", "training") for l in ("de", "en"))) != 4:
+            raise ValueError("coach/training DE/EN smoke screenshots are not four distinct views")
         shutil.rmtree(install)
         if history.read_bytes() != preserved:
             raise ValueError("uninstall removed user data")
@@ -324,8 +341,9 @@ def smoke(args):
         "os": platform.platform(), "result": "passed", "network_isolation": "not verified by this smoke",
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
-        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API exercises Neural and Hybrid card play, and missing, corrupt and incompatible format/encoder model fallback with valid history", "uninstall retains data"],
-        "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. No cross-version migration or interactive flows; no clean OS or Windows 11 claim.",
+        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API exercises Neural and Hybrid card play, and missing, corrupt and incompatible format/encoder model fallback with valid history", "packaged coach+counting aid+quiz view (first counting question open) and focused counting training view, each in German and English, launched from the same extracted executable (the coach question records its presentation; history stays valid, training leaves it unchanged)", "uninstall retains data"],
+        "screenshot_sha256": shots,
+        "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. Coach/quiz/training scenarios open the real packaged views via smoke-only environment variables and a first-legal-action driver; answering, skipping and retry are covered by widget tests, not by the package. No cross-version migration; no clean OS or Windows 11 claim.",
     }, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
