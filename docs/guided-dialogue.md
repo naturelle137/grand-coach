@@ -12,7 +12,7 @@ The card-play scope includes `UnderPartner`, `WinLast`, non-Ouvert Grand `WinEar
 [non-Ouvert Farbspiel `WinEarly`](#farbspiel-winearly-178) on the human's own current second turn,
 [early Grand `FeedPartner`](#grand-second-seat-feedpartner-131), last-seat Grand and [Farbspiel `FeedPartner`](#farbspiel-last-seat-feedpartner-185), [Grand `LeadMaster`](#grand-lead-with-a-follow-class-master-171),
 and Null declarer play [last](#null-declarer-last-to-the-current-trick-165)
-or [second](#null-declarer-acting-second-169), and the [opening lead](#null-opening-lead-176). These are bounded heuristic
+or [second](#null-declarer-acting-second-169), the [opening lead](#null-opening-lead-176), and a [defender following the declarer](#null-defender-following-the-declarer-131). These are bounded heuristic
 dialogues, not new solver-approved mechanisms in the six-lesson catalogue.
 The original `UnderPartner` and `WinLast` source was the existing `BaselineOpponent::choose_card` on main
 `ecfb2fe1ff5a50ab2fb5f17a892dd9e5f68c6c80`, now shared in
@@ -52,6 +52,8 @@ separate factual oracles.
 - **Null declarer:** non-Ouvert Null acting [last](#null-declarer-last-to-the-current-trick-165)
   or [second](#null-declarer-acting-second-169), or the opening lead (#176), with at least two pure legal
   cards and a current loser; the linked sections define the full guards.
+- **Null defender:** non-Ouvert, second after the declarer leads, with at
+  least two exact legal card actions and a current loser.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
   early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
   single legal action, other Grand branches, Ouvert Grand, other Null card play or
@@ -1058,3 +1060,21 @@ bilingual `early_feed` widget test exercises both Easy and free Pik8 at
 show orientation, rule, observation question and feedback in both languages
 and sizes. These are technical checks, not learner or transfer observations;
 the wider #131 later-phase criterion remains open.
+
+## Null defender following the declarer (#131)
+
+A non-Ouvert Null defender acting second after the declarer's lead can
+compare legal cards that leave the declarer ahead for now. Easy chooses the
+highest Null rank among those cards, with the last exact tie in legal order;
+the partner may still overtake. All legal cards remain playable. This is a
+bounded heuristic, not a guarantee of winning or a claim about unseen cards.
+The lesson excludes partner leads, absent losing cards, restricted actions,
+Ouvert and other defender turns. It uses the public trick and own hand, and
+observes the actual third card and individual winner.
+
+For a reproducible ordinary route, use seed 2115 and a three-game series
+against Easy. Pass and play the first legal card throughout the first two
+games, then pass in game three. Vorhand's Kreuz-Sieben leads in Null; the
+Mittelhand defender is void in Kreuz and Easy selects Karo-Ass as the last
+highest-rank tie. Playing it is followed by Hinterhand's Kreuz-Bube, which
+wins the trick. The widget test reproduces this route in both languages.
