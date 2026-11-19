@@ -67,6 +67,22 @@ launch evidence stays with the CI runtime container (`--network=none`) and the
 Windows job. The six-core target machine is still unavailable: no latency,
 RSS or package-size result for it exists.
 
+Packaged coach/counting/quiz and training smoke (2026-11-19, workflow
+[RC packages run 44565081576](https://github.com/naturelle137/grand-coach/actions/runs/44565081576),
+commit `a59aacdbaaea`, `gh workflow run package-rc.yml --ref <branch>`): both jobs
+passed all smoke checks on the exact archives
+Linux `22f75d88…c7eb8` (Ubuntu 24.04, also in the `--network=none` runtime
+container) and Windows `632b51d2…7d79c` (Server 2025, declared Mesa software
+driver). Each launched the extracted executable four more times
+(`coach`/`training` × `de`/`en`); the eight native screenshots were inspected
+at reduced size: the German and English coach views show the open
+counting question over the table, and the training views show the focus and
+level choices in the matching language. The four screenshot hashes per
+platform differ and the history stayed valid. No defect was observed. This is
+CI-server rendering at 1280 × 820 (Linux) and 1024 × 768 (Windows), not
+interactive play, native Windows 11 or hardware-accelerated evidence;
+answering, skipping and retrying remain widget-test coverage.
+
 ## Reproduce and inspect
 
 Use a clean committed checkout, Python 3.11+, native Rust 1.95.0, Cargo and
