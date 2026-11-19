@@ -1138,3 +1138,5 @@ coach-debriefing-partial = Moments already checked. The selection may change as 
 
 mode-hybrid = Hybrid (experimental)
 mode-hybrid-description = Experimental proposals are verified by Classic search; Easy verifies with one sample. If the model is unavailable, the selected Classic level takes over. Quality and speed are unmeasured.
+guided-null-defender-role = You defend in Null. The declarer is ahead and your partner still plays. There is no Trumpf; Buben follow their printed suit.
+guided-rule-null-defender = Easy chooses the highest-ranked card that leaves the declarer ahead for now; on equal rank, the last in legal order. Your partner can still overtake. This heuristic does not guarantee winning the game.
