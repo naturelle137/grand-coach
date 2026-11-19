@@ -3257,4 +3257,63 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    #[ignore = "manual: timing diagnostic"]
+    fn debrief_headless_frame_timing() {
+        use egui_kittest::Harness;
+        let mut session = Session::new(SessionConfig {
+            seed: 2,
+            series: SeriesLength::Fixed(1),
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
+        });
+        session.set_coach_budget(skat_app::Budget {
+            samples: 24,
+            nodes_per_task: 20_000,
+        });
+        session
+            .execute(Command::SetCoach(CoachSettings {
+                level: CoachLevel::EveryMove,
+                ..CoachSettings::default()
+            }))
+            .unwrap();
+        loop {
+            session.run_opponents();
+            let view = session.view();
+            let Some(&first) = view.legal_actions.first() else {
+                break;
+            };
+            let action = if view.phase == skat_app::Phase::Reizen
+                && view.legal_actions.contains(&Action::Pass)
+            {
+                Action::Pass
+            } else {
+                first
+            };
+            session.execute(Command::Act(action)).unwrap();
+        }
+        assert!(session.coach_job().unwrap().is_review());
+        let mut h = Harness::builder()
+            .with_size([1280.0, 820.0])
+            .build_eframe(|cc| {
+                let mut app = GrandCoachApp::new(&cc.egui_ctx, session.config());
+                app.session = session;
+                app
+            });
+        let mut durations = Vec::new();
+        let mut active = 0;
+        for _ in 0..100 {
+            let start = std::time::Instant::now();
+            h.run_steps(1);
+            durations.push(start.elapsed());
+            active += usize::from(h.state().coach_thinking.is_some());
+        }
+        assert!(active > 0);
+        durations.sort();
+        println!(
+            "100 headless steps: worker present {active}; median {:?}; p95 {:?}; max {:?}",
+            durations[49], durations[94], durations[99]
+        );
+    }
 }

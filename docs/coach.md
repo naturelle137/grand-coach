@@ -609,6 +609,56 @@ these short traces and stays opt-in and off by default.** This diagnostic
 establishes the implementation and no-drop behaviour, not reference-machine
 interactive latency, model calibration, learner efficacy or a general speedup.
 
+### Classical bottleneck diagnostic (#72)
+
+The fast-play command also reports the sum of wall time inside completed
+`CoachJob::run` calls, excluding the scripted cancellation. On 2026-11-18,
+at source `910971c` plus the diagnostic timers, the same six-seed,
+24 × 20,000-node command ran in
+`skat-dev` on an i9-10900K with an unisolated host. Classic execution and
+full trace times in milliseconds were respectively: 109.826/117.160,
+79.534/87.659, 103.070/110.427, 85.403/93.472, 95.049/103.660 and
+91.416/97.601. All eleven reviews completed in each trace, with three final
+moments and exact equality to the paired learned-order results. The execution
+interval includes analysis and explanation; it does not isolate their costs.
+The full interval also includes game capture, cancellation and view building.
+These are wall times, not CPU time, and timer calls add measurement overhead.
+
+The command also counts distinct review inputs (`CoachJob::input_identity`:
+permitted view, God-Mode deal only when present, budget, seed and mode,
+without the decision key). On the same six seeds each trace had 11 distinct
+inputs of 11 reviews, so zero results were reusable. A repeated rerun of the
+command in the same unisolated environment later measured Classic review
+execution of 22.8–33.8 ms per trace (full 24.7–35.8 ms), so the host noise
+between runs exceeds 3×; neither set of wall times supports a ratio.
+
+A second paired, serial control can be run with `cargo run --locked --release -p
+skat-app --example coach_latency -- --paced-play 6 20000`. On 2026-11-18,
+for seeds 1–6, each pair used the same fixed actions and produced exactly equal
+final moments and evidence. All 11 inputs per game were distinct in both
+modes. The fast mode deferred all 11 reviews; the paced mode completed each
+review after its action, leaving none pending at the end. Fast total times were
+23.297–27.862 ms; paced times were 22.931–28.747 ms. This serial approximation
+does not model a human delay, worker overlap or the GUI. A separate warm repeat
+of the whole paired process under `/usr/bin/time -v` used 1.33 s user and
+0.14 s system CPU and peaked at 9,488 KiB RSS; these are process totals for
+both modes, not per-mode resource comparisons. The host was not isolated and
+other builds were active, so no speed ratio is inferred.
+
+**Decision (bounded no-go for identical-input reuse, #72):** The measured
+trace contains no duplicate work for a cache of completed immutable analyses
+to remove: every review has a different permitted history. Cache hits could
+arise only when an identical position is analysed again (a replay with
+identical actions), which is not a measured bottleneck and would need a key over
+the full permitted history, perspective, seed, budget, versions and rules plus
+stale-result and hidden-card tests that no measured gain justifies. A worker or
+scheduling policy has no demonstrated target either: execution is serial and
+dominates, and the first visible moment (about 5 ms) already precedes the full
+debrief. Classic, moment selection and results stay unchanged. Real paced worker overlap, CPU-contention, per-mode RSS and GUI-responsiveness
+comparisons were not run. This no-go covers identical-input reuse in these
+traces, not other candidate optimizations; it is reopened if repeated identical
+inputs appear.
+
 ## Experimental live preview
 
 With the Experimental opponents selected, card play and Kontra/Re use a
@@ -665,3 +715,58 @@ Abstich evidence for a learner-selected hypothetical legal card. It conceals
 answers until an explicit response or help, preserves the game and records
 assistance-aware observations separately from counting and catalogue training.
 Empty analysis is unsupported, never an absence reference or strategic diagnosis.
+
+### Worker and contention probe
+
+`coach_latency --worker-play DELAY_MS GAMES NODES_PER_TASK` runs fixed
+Pass/first-legal actions with a real coach thread. Before each action it waits
+for the chosen delay; an unfinished worker continues while the foreground runs
+Easy opponents. At the next decision the probe requests cancellation, waits
+for that worker and later drains the reviews. It counts actual overlaps of the
+worker execution and foreground opponent intervals, cancellation **requests**
+(which can race completion), and reviews drained at game end. Unlike egui it
+joins a cancelled worker and does not run queued reviews between turns. Thus it
+is an application-API probe, not a measurement of the GUI scheduler or actual
+human think times. `COACH_TRACE_EVIDENCE=1` additionally prints the complete
+final moments as JSON for equality checks; it includes the ordinary permitted
+snapshots and is intended for local diagnostic data only.
+
+On 2026-11-18, a release build in `skat-dev`, i9-10900K, seeds 1–6,
+24 samples and 20,000 nodes/task ran on one CPU. A second Python busy loop
+pinned to that same CPU supplied the controlled contention; other host activity
+was not isolated. Each cell is one process for six games, measured by
+`/usr/bin/time`; CPU is user + system, RSS is peak process RSS. First/full are
+ranges in ms from trace start to first visible moment at or after game end and
+complete debrief; opponent time is the sum per game, not GUI input latency.
+
+| Delay | Extra load | Overlaps per game | Cancel requests per game | Drained per game | First / full ms | CPU s | RSS KiB | Opponent ms/game |
+|---|---|---|---|---|---|---|---|---|
+| 0 ms | none | 0–1 | 11 | 11 | 29.9–59.4 / 76.1–152.4 | 0.63 | 4,924 | 0.085–0.164 |
+| 5 ms | none | 4–7 | 4–7 | 4–6 | 56.7–69.7 / 112.7–174.9 | 0.63 | 5,016 | 0.094–0.162 |
+| 0 ms | busy loop | 0 | 11 | 11 | 66.4–106.0 / 172.1–317.0 | 0.74 | 5,056 | 0.086–0.130 |
+| 5 ms | busy loop | 6–9 | 6–9 | 6–8 | 64.1–94.7 / 237.6–331.7 | 0.77 | 4,924 | 0.109–0.162 |
+
+A separate unpinned run compared all six fast and paced final moments as JSON
+and found them exactly equal. This checks these schedules only, not every
+possible interruption. The short fixed pauses and pinned single-core experiment
+are synthetic; a single run per cell does not support general speed ratios.
+No cache or changed scheduler was measured, and CPU/RSS are not before/after
+an optimization.
+
+For the real egui coach path, the ignored headless test
+`app::tests::debrief_headless_frame_timing` starts a queued debrief through the
+frontend and times 100 harness steps at 1280 × 820 with the same reduced budget.
+On the same unisolated host, the worker was present for 46 steps; median, p95
+and maximum were 0.830, 0.972 and 2.978 ms. Worker presence does not prove it
+was executing during each step. These are headless test-step times, not input,
+presentation or physical-display latency. The existing
+`window_stays_responsive_while_the_coach_analyses` test also exercises an action
+while live analysis is active. Neither measurement establishes responsiveness
+at interactive budget on a reference machine.
+
+The completed-input cache no-go remains bounded to these distinct inputs. The
+new probe shows cancellation requests and contention, but cannot establish
+whether changing the egui scheduler would safely reduce restart work. Real egui
+paced/fast lifecycle measurements, a scheduler candidate comparison and
+starvation under sustained foreground work remain open; no general no-benefit
+claim or deployment decision follows from this probe.
