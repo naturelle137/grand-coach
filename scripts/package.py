@@ -256,6 +256,9 @@ def smoke(args):
         model_manifest = install / manifest["models"][1]
         original_model = model.read_bytes()
         original_manifest = model_manifest.read_bytes()
+        model.unlink()
+        subprocess.run([str(installed_probe), "missing"], cwd=root, env=probe_env, check=True, timeout=90)
+        model.write_bytes(original_model)
         for mode, offset in (("format", 4), ("encoder", 6)):
             incompatible = bytearray(original_model)
             incompatible[offset:offset + 2] = b"\xff\xff"
@@ -309,7 +312,7 @@ def smoke(args):
         "os": platform.platform(), "result": "passed",
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
-        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API uses shipped model and exercises corrupt and incompatible format/encoder fallback with valid history", "uninstall retains data"],
+        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API uses shipped model and exercises missing, corrupt and incompatible format/encoder fallback with valid history", "uninstall retains data"],
         "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. No cross-version migration or interactive flows; no clean OS or Windows 11 claim.",
     }, indent=2) + "\n", encoding="utf-8", newline="\n")
 

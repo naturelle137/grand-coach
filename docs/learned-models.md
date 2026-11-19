@@ -10,7 +10,9 @@ recipe, provenance and limits. The [operational selection](neural-operational-se
 records the revised narrow rule, all 18 comparisons and v1 rollback.
 
 `skat-app` looks for `card-play.gcnn` in `GRAND_COACH_MODELS`, then
-`assets/models` beside the executable, then the workspace assets. It caches
+`assets/models` beside the executable, then the workspace assets only when
+running from its `target` directory. For a custom Cargo target directory, set
+`GRAND_COACH_MODELS` to the workspace's `assets/models`. It caches
 the first load result. A readable manifest must contain a matching SHA-256.
 If the manifest cannot be read, the loader uses the file's own hash.
 Burn runs inference on CPU. A missing or invalid model, unsupported phase

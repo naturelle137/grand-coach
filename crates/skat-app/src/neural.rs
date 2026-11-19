@@ -5,7 +5,8 @@
 //!
 //! Search order for the directory: the environment variable
 //! `GRAND_COACH_MODELS`, `assets/models` next to the executable, then the
-//! workspace's `assets/models` (development builds). The expected hash is
+//! workspace's `assets/models` (builds running from its `target` directory).
+//! The expected hash is
 //! the `model_sha256` of the training manifest `card-play.json`; without a
 //! manifest the file's own hash is used. A missing or broken model is not
 //! an error: the neural opponents then decide with their Classic fallback.
@@ -36,14 +37,27 @@ fn directories() -> Vec<PathBuf> {
     if let Some(dir) = std::env::var_os("GRAND_COACH_MODELS") {
         dirs.push(PathBuf::from(dir));
     }
+    let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     if let Some(exe_dir) = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(PathBuf::from))
     {
         dirs.push(exe_dir.join("assets/models"));
+        if is_workspace_build(&exe_dir, &workspace) {
+            dirs.push(workspace.join("assets/models"));
+        }
     }
-    dirs.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/models"));
     dirs
+}
+
+fn is_workspace_build(exe_dir: &std::path::Path, workspace: &std::path::Path) -> bool {
+    match (
+        exe_dir.canonicalize(),
+        workspace.join("target").canonicalize(),
+    ) {
+        (Ok(exe), Ok(target)) => exe.starts_with(target),
+        _ => false,
+    }
 }
 
 fn load() -> Result<Arc<NeuralModel>, ModelError> {
@@ -174,8 +188,20 @@ impl FrozenNeural {
 
 #[cfg(test)]
 mod tests {
-    use super::{MANIFEST, MODEL, load_from, recorded_hash};
+    use super::{MANIFEST, MODEL, is_workspace_build, load_from, recorded_hash};
     use skat_nn::ModelError;
+
+    #[test]
+    fn workspace_models_are_only_used_by_workspace_builds() {
+        let workspace = std::env::temp_dir().join(format!("gc-workspace-{}", std::process::id()));
+        std::fs::create_dir_all(workspace.join("target/debug")).unwrap();
+        assert!(is_workspace_build(
+            &workspace.join("target/debug"),
+            &workspace
+        ));
+        assert!(!is_workspace_build(&workspace, &workspace));
+        std::fs::remove_dir_all(workspace).unwrap();
+    }
 
     /// Copies the bundled model into a scratch directory with `patch` applied
     /// to the bytes; the manifest hash is re-recorded so only the header
