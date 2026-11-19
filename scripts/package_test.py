@@ -4,6 +4,7 @@
 
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -105,6 +106,28 @@ class PackageTests(unittest.TestCase):
         expected = {"ImageOS": "win25", "ImageVersion": "20261111.1"}
         self.assertEqual(package.runner_image(expected), expected)
         self.assertEqual(package.runner_image({k.upper(): v for k, v in expected.items()}), expected)
+
+    def test_windows_firewall_requires_reachable_endpoint_and_specific_denial(self):
+        program = Path("app.exe")
+        with patch.object(package.platform, "system", return_value="Windows"), \
+             patch.object(package.subprocess, "run") as run:
+            for exit_code in (0, 1, 42):
+                run.reset_mock()
+                run.return_value.returncode = exit_code
+                if exit_code == 42:
+                    package.block_windows_network([program])
+                else:
+                    with self.assertRaisesRegex(ValueError, "not proven"):
+                        package.block_windows_network([program])
+                self.assertEqual(run.call_count, 5)
+                self.assertEqual(run.call_args_list[0].kwargs, {"check": True, "timeout": 15})
+                self.assertIn(f"program={program.resolve()}", run.call_args_list[1].args[0])
+                self.assertEqual(run.call_args_list[-1].args[0][2:4], ["firewall", "delete"])
+            run.reset_mock()
+            run.side_effect = subprocess.CalledProcessError(1, "canary")
+            with self.assertRaises(subprocess.CalledProcessError):
+                package.block_windows_network([program])
+            self.assertEqual(run.call_count, 1)
 
 
 if __name__ == "__main__":
