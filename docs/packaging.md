@@ -44,9 +44,9 @@ the third-party asset inventory. The archive ships the card-play model
 keep its `assets/models` directory beside the executable; the app
 searches first after `GRAND_COACH_MODELS`. Build and `verify` fail unless the
 model matches the SHA-256 and size in its manifest. Classic stays the default;
-a missing or corrupt model makes Neural fall back to Classic Strong without
+a missing or corrupt model makes Neural and Hybrid fall back to the corresponding Classic level without
 touching user data. The smoke test launches with the model installed and again
-with a corrupted one, checking valid history is unchanged. A same-build app API probe beside the executable verifies an actual Neural decision and fallback for corrupt and incompatible format/encoder versions; these decisions are not GUI interactions. The incompatible files have their manifest hashes updated so the probe checks the version rejection rather than a hash mismatch. The shipped model covers card play only,
+with a corrupted one, checking valid history is unchanged. A same-build app API probe beside the executable checks Neural and Hybrid card-play decisions with the shipped model, missing-model fallback for both, and Neural fallback for corrupt and incompatible format/encoder versions; these decisions are not GUI interactions. The Hybrid missing-model probe compares its decisions with Classic Easy. The incompatible files have their manifest hashes updated so the probe checks the version rejection rather than a hash mismatch. The shipped model covers card play only,
 so other phases (bidding, Skat, Kontra) stay Classic. Neural levels stay
 experimental; no target-machine latency/RSS measurement is recorded yet (no
 six-core integrated-graphics hardware available to agents), and results from
