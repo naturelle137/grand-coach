@@ -26,7 +26,7 @@ two passes, learning rate 0.0001, clip 0.2, losses and mixed opponent pool.
 Iteration 175 was the original cross-09 tuning winner (a0175, score 4.977).
 The supervised start is `4e1621cd97a001deb44342ea2c6b21f314841b3f59773d9f136c421ed6ca4bd5`,
 trained at `55f5916bbce7`, best epoch 28. Its full recipe, data hashes,
-coverage and immutable source manifest hashes are retained separately from PPO.
+coverage and source manifest hashes are recorded in `card-play.json`. The original provenance files were not found in the checked data path, so their hashes and the complete training lineage have not been independently verified.
 Raw datasets use their ORIGINAL record/encoder schemas, including reused v1
 records; training re-encodes permitted views with v2. They are not rewritten
 or relabelled as v2 datasets. Raw data and frozen campaign artifacts stay outside git.

@@ -13,7 +13,6 @@ import platform
 import re
 import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
 import tomllib
@@ -229,27 +228,6 @@ def build(args):
     print(path.resolve())
 
 
-def block_windows_network(programs):
-    """Block outbound traffic and check a reachable endpoint is denied by Windows."""
-    if platform.system() != "Windows":
-        raise ValueError("--block-network is Windows-only; Linux uses a network-less container")
-    probe = "import socket;socket.create_connection(('1.1.1.1', 443), timeout=5)"
-    subprocess.run([sys.executable, "-c", probe], check=True, timeout=15)
-    for index, program in enumerate(programs):
-        subprocess.run(["netsh", "advfirewall", "firewall", "add", "rule", f"name=grand-coach-offline-{index}-{os.getpid()}",
-                        "dir=out", "action=block", f"program={program.resolve()}", "enable=yes"], check=True)
-    name = f"grand-coach-offline-canary-{os.getpid()}"
-    subprocess.run(["netsh", "advfirewall", "firewall", "add", "rule", f"name={name}",
-                    "dir=out", "action=block", f"program={sys.executable}", "enable=yes"], check=True)
-    try:
-        denied = "import socket,sys\ntry:\n " + probe + "\nexcept OSError as e:\n sys.exit(42 if e.winerror == 10013 else 1)"
-        result = subprocess.run([sys.executable, "-c", denied], timeout=15)
-        if result.returncode != 42:
-            raise ValueError(f"outbound network block not proven (canary exit {result.returncode})")
-    finally:
-        subprocess.run(["netsh", "advfirewall", "firewall", "delete", "rule", f"name={name}"], check=True)
-
-
 def smoke(args):
     manifest, files = verify(args.archive)
     args.out.mkdir(parents=True, exist_ok=True)
@@ -279,8 +257,6 @@ def smoke(args):
         installed_probe = install / probe.name
         shutil.copy2(probe, installed_probe)
         subprocess.run([str(probe), "create", str(history)], check=True)
-        if args.block_network:
-            block_windows_network([binary, installed_probe])
         probe_env = dict(os.environ)
         probe_env.pop("GRAND_COACH_MODELS", None)
         subprocess.run([str(installed_probe), "neural"], cwd=root, env=probe_env, check=True, timeout=90)
@@ -345,7 +321,7 @@ def smoke(args):
             raise ValueError("uninstall removed user data")
     (args.out / "smoke.json").write_text(json.dumps({
         "commit": manifest["commit"], "archive_sha256": digest(args.archive.read_bytes()),
-        "os": platform.platform(), "result": "passed", "network_blocked": bool(args.block_network),
+        "os": platform.platform(), "result": "passed", "network_isolation": "not verified by this smoke",
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
         "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API exercises Neural and Hybrid card play, and missing, corrupt and incompatible format/encoder model fallback with valid history", "uninstall retains data"],
@@ -365,7 +341,6 @@ def main():
     s.add_argument("archive", type=Path)
     s.add_argument("--out", type=Path, required=True)
     s.add_argument("--windows-mesa", type=Path, help="test-only Mesa x64 DLL directory, never added to the application archive")
-    s.add_argument("--block-network", action="store_true", help="Windows only: block outbound traffic of the installed programs and prove it")
     args = parser.parse_args()
     if args.action == "build":
         build(args)
