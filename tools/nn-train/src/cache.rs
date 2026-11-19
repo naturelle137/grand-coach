@@ -57,6 +57,7 @@ struct KeyInput<'a> {
     beliefs: bool,
     all_phases: bool,
     preplay_weight: u32,
+    rare_weight: u32,
 }
 
 /// The sources of `dirs` from their manifests and `.done` files, without
@@ -99,6 +100,7 @@ pub fn key(sources: &[DataSource], hyper: &Hyper, beliefs: bool) -> String {
         beliefs,
         all_phases: hyper.all_phases,
         preplay_weight: hyper.preplay_weight.to_bits(),
+        rare_weight: hyper.rare_weight.to_bits(),
     };
     let json = serde_json::to_vec(&input).expect("key serialises");
     sha256(&json).iter().map(|b| format!("{b:02x}")).collect()
