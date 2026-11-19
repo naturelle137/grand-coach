@@ -580,3 +580,36 @@ fn bilingual_mechanism_empty_unanswered_help_and_skip_widgets() {
         );
     }
 }
+
+#[test]
+fn smoke_driver_fails_when_the_series_ends_without_a_question() {
+    let mut h = Harness::builder()
+        .with_size([1600.0, 1000.0])
+        .build_eframe(|cc| {
+            let mut app = GrandCoachApp::new(
+                &cc.egui_ctx,
+                SessionConfig {
+                    seed: 11,
+                    series: SeriesLength::Fixed(1),
+                    kontra_re: false,
+                    opponents: Opponents::Levels([Level::Easy; 2]),
+                    ..SessionConfig::default()
+                },
+            );
+            app.opponent_delay = 0.0;
+            app.set_assist(AssistSettings::default());
+            app
+        });
+    for _ in 0..2000 {
+        let now = h.ctx.input(|i| i.time);
+        match h.state_mut().smoke_advance(now) {
+            Ok(open) => assert!(!open, "no question can open with the quiz off"),
+            Err(reason) => {
+                assert!(reason.contains("without a counting question"));
+                return;
+            }
+        }
+        h.run_steps(2);
+    }
+    panic!("the series never ended");
+}

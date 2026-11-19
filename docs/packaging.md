@@ -43,7 +43,7 @@ the third-party asset inventory. The archive ships the card-play model
 (`assets/models/card-play.gcnn`, its training manifest and model card, D-63);
 keep its `assets/models` directory beside the executable; the app
 searches first after `GRAND_COACH_MODELS`. Build and `verify` fail unless the
-model matches the SHA-256 and size in its manifest. They also require the manifest's recipe, engine commit, campaign, selection, supervised start, source-provenance hashes and CC-BY-SA-4.0 licence, and a model card with provenance, limits and licence sections. Classic stays the default;
+model matches the SHA-256 and size in its manifest. They also require the manifest's recipe, engine commit, campaign, selection, supervised start, source-provenance hashes and CC-BY-SA-4.0 licence, and a model card with provenance, limits and licence sections. These checks establish that metadata is present, not that the original training provenance or its hashes have been independently verified; the original provenance files were not found in the checked data path. Classic stays the default;
 a missing or corrupt model makes Neural and Hybrid fall back to the corresponding Classic level without
 touching user data. The smoke test launches with the model installed and again
 with a corrupted one, checking valid history is unchanged. A same-build app API probe beside the executable checks Neural and Hybrid card-play decisions with the shipped model, and fallback for missing, corrupt and incompatible format/encoder models for both; these decisions are not GUI interactions. The Hybrid fallback probes compare decisions through the first card play with Classic Easy. The incompatible files have their manifest hashes updated so the probe checks the version rejection rather than a hash mismatch. The shipped model covers card play only,
@@ -67,11 +67,27 @@ launch evidence stays with the CI runtime container (`--network=none`) and the
 Windows job. The six-core target machine is still unavailable: no latency,
 RSS or package-size result for it exists.
 
+Packaged coach/counting/quiz and training smoke (2026-11-19, workflow
+[RC packages run 44565081576](https://github.com/naturelle137/grand-coach/actions/runs/44565081576),
+commit `a59aacdbaaea`, `gh workflow run package-rc.yml --ref <branch>`): both jobs
+passed all smoke checks on the exact archives
+Linux `22f75d88…c7eb8` (Ubuntu 24.04, also in the `--network=none` runtime
+container) and Windows `632b51d2…7d79c` (Server 2025, declared Mesa software
+driver). Each launched the extracted executable four more times
+(`coach`/`training` × `de`/`en`); the eight native screenshots were inspected
+at reduced size: the German and English coach views show the open
+counting question over the table, and the training views show the focus and
+level choices in the matching language. The four screenshot hashes per
+platform differ and the history stayed valid. No defect was observed. This is
+CI-server rendering at 1280 × 820 (Linux) and 1024 × 768 (Windows), not
+interactive play, native Windows 11 or hardware-accelerated evidence;
+answering, skipping and retrying remain widget-test coverage.
+
 ## Reproduce and inspect
 
 Use a clean committed checkout, Python 3.11+, native Rust 1.95.0, Cargo and
 a native linker (GCC on Linux; MSVC C++ Build Tools on Windows). Fetch locked
-dependencies before disconnecting. The application itself needs no network.
+dependencies before disconnecting. The Windows smoke does not verify network isolation or prove offline operation; Linux CI separately runs the smoke in a network-less container.
 
 ```sh
 cargo fetch --locked
@@ -160,6 +176,15 @@ The linked probe creates a valid history from actual training events through
 the existing app API, saves/reopens it and checks it after each packaged launch.
 The smoke requires byte-identical valid history across restart/replacement,
 then separately tests damaged-history preservation and uninstall retention.
+After these stages the same extracted executable is launched four more times
+with smoke-only variables `GRAND_COACH_SMOKE_SCENARIO=coach|training` and
+`GRAND_COACH_LANGUAGE=de|en` (with valid history restored): `coach` enables
+EveryMove coach, counting aid and quiz and plays first legal actions until a
+counting question is open; `training` opens the focused counting training.
+Each saves a native screenshot; the four must differ and history must stay
+valid (byte-identical for training; the open coach question records its
+presentation). These show the real packaged views in both languages; they
+do not answer, skip or retry (widget tests cover that).
 Probe creation/checks are API evidence, not GUI entry/answer evidence. They do
 not establish migration, cross-version upgrade or complete-series behaviour.
 Existing application/widget tests cover those behaviours separately.
