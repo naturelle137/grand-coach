@@ -64,6 +64,7 @@ fn main() {
         let mut session = Session::new(SessionConfig {
             seed: 7,
             series: SeriesLength::Fixed(2),
+            kontra_re: false,
             engine: OpponentEngine::Neural,
             ..SessionConfig::default()
         });
@@ -75,11 +76,12 @@ fn main() {
                 break;
             }
             if let Some(job) = session.opponent_job() {
+                let card_play = session.view().phase == Phase::Spiel;
                 let (action, reason) = job.run_explained(None);
-                if mode == "neural" && reason.is_none() {
+                if mode == "neural" && card_play && reason.is_none() {
                     observed = true;
                 }
-                if mode != "neural" {
+                if mode != "neural" && card_play {
                     let expected = match mode.as_str() {
                         "fallback" => "Model(HashMismatch)",
                         "missing" => "Model(Missing)",
