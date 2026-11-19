@@ -46,7 +46,13 @@ impl eframe::App for Screenshot {
         let ctx = ui.ctx().clone();
         let now = ctx.input(|i| i.time);
         if self.advancing {
-            self.advancing = !self.app.smoke_advance(now);
+            match self.app.smoke_advance(now) {
+                Ok(open) => self.advancing = !open,
+                Err(reason) => {
+                    eprintln!("smoke: {reason}");
+                    std::process::exit(2);
+                }
+            }
             if !self.advancing {
                 // Let the question window finish its fade-in before the screenshot.
                 self.delay = self.delay.max(now + 1.5);

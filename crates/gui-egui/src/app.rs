@@ -263,12 +263,16 @@ impl GrandCoachApp {
     }
 
     /// Packaged smoke driver: takes the first legal human action until a
-    /// counting question is open. Returns `true` once it is (or the series
-    /// ended). Opponents move through the normal frame loop.
-    pub fn smoke_advance(&mut self, now: f64) -> bool {
+    /// counting question is open. Returns `Ok(true)` once it is; a series
+    /// that ends without one is an error. Opponents move through the normal
+    /// frame loop.
+    pub fn smoke_advance(&mut self, now: f64) -> Result<bool, &'static str> {
         let view = self.session.view();
-        if view.assist.quiz.question.is_some() || view.series_finished {
-            return true;
+        if view.assist.quiz.question.is_some() {
+            return Ok(true);
+        }
+        if view.series_finished {
+            return Err("series ended without a counting question");
         }
         if !view.opponent_to_move {
             let command = view
@@ -278,7 +282,7 @@ impl GrandCoachApp {
                 .map_or(Command::NextGame, Command::Act);
             self.send(command, now);
         }
-        false
+        Ok(false)
     }
 
     /// Leaves the training and returns to the waiting live table.
