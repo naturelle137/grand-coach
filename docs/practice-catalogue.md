@@ -35,9 +35,18 @@ Farbspiel/Grand; in Null they belong to their printed suit.
 | `partner-overtaking.changed` | 511 | Defender / Grand / V | H wins the first Buben trick and leads Pik 10. Own Pik 7 leaves partner M a possible Pik A or Abstich with the unseen Karo J. Not certain. |
 | `partner-overtaking.boundary` | 512 | Defender / Karo / M | Declarer V leads Kreuz J; own Pik J cannot enable overtaking. No card beats the highest Trumpf. A partner void alone would not change that. |
 
+Two additional side-card positions follow the original three without changing their identities:
+
+| Stable ID | Independent reference |
+| --- | --- |
+| `side-card.trumpf-risk` | Seed 521; Grand Hand, declarer V: V leads Kreuz 10, M discards Pik 7, H follows Kreuz 8; V wins. M is proven Kreuz-void. V holds three Buben and Kreuz A; the fourth Bube is unseen and may be held by M, so an Abstich is possible, not certain. |
+| `side-card.trumpf-accounted` | Seed 522; same public trick and remaining hand except V holds the fourth Bube instead of Pik 8. All four Trumpf are accounted for; no opposing Abstich is possible. Unknown Skat remains unknown. |
+
+Both deals replay through core. The question concerns the hypothetical Kreuz A, not a recommended or guaranteed move; all legal alternatives remain available. The unknown Bube in the first case is not assigned to a holder by the learner view.
+
 Each family has an introductory worked candidate, a changed surface/seat
 candidate and a boundary/counterexample; `side-card.certain` extends the side
-card family to four cases and is the one catalogue case whose supported answer is
+card family; the two Grand cases extend it to six cases and is the one catalogue case whose supported answer is
 certain. Existing IDs, seeds and revisions are unchanged; it adds a changed-role
 case, so it is unseen-eligible only under the same complete-history rule. These are candidate roles only.
 Every previously shown or retried case is practice. Sessions determine unseen
@@ -82,14 +91,14 @@ oracles. Actual learner observations remain #50/#54 work.
 
 The existing training entry offers all four families plus the original fixed
 counting training. Each catalogue family presents intro, changed and boundary
-in order; no preview shows a changed case. Tasks contain only the acting
+in order; the side-card family continues with the two paired cases; no preview shows a changed case. Tasks contain only the acting
 `PlayerView` and question. Answers, explicit help and skip reveal feedback from
 `PracticePosition::feedback`; no preferred move or strategic optimality is scored.
 Counts require an exact integer. Mechanism responses distinguish possible,
 certain and absent; an empty supported boundary result never means safe/optimal.
 Unsupported counts have no score. Unknown task IDs/revisions are rejected, not
 silently upgraded. Help and visible support are sticky for the opportunity.
-Retry requires settlement and repeats as practice; next cycles the family's cases (three, four for side-card).
+Retry requires settlement and repeats as practice; next cycles all cases in the selected family.
 Topic choice and exit retain unanswered exposure and leave the live session,
 recording and series untouched.
 
