@@ -3677,3 +3677,46 @@ mod early_feed;
 
 #[path = "guided_draw_trumpf_tests.rs"]
 mod draw_trumpf_tests;
+
+#[test]
+fn null_defender_observes_each_actual_reply() {
+    let deal = middle_fixture::cases().remove(0).deal;
+    let actions = [
+        Action::Bid(18),
+        Action::Hold,
+        Action::Pass,
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(skat_core::Announcement::plain(NULL)),
+        Action::Play(middle_fixture::card(5)),
+    ];
+    for (own, reply, winner) in [
+        (0, 2, Seat::Vorhand),
+        (0, 7, Seat::Hinterhand),
+        (3, 2, Seat::Vorhand),
+        (3, 7, Seat::Hinterhand),
+        (4, 2, Seat::Vorhand),
+        (4, 7, Seat::Hinterhand),
+        (6, 2, Seat::Mittelhand),
+        (6, 7, Seat::Hinterhand),
+    ] {
+        let mut s = grand_session(Seat::Mittelhand, deal, false, &actions);
+        s.execute(Command::StartGuided).unwrap();
+        assert_eq!(s.guided().unwrap().step, S::Orient);
+        assert!(s.guided().unwrap().rule.is_none());
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().rule.unwrap().card,
+            middle_fixture::card(4)
+        );
+        s.execute(Command::Act(Action::Play(middle_fixture::card(own))))
+            .unwrap();
+        s.apply(Action::Play(middle_fixture::card(reply))).unwrap();
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(winner)
+        );
+    }
+}

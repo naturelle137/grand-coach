@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 //! Bounded guided Farbspiel, non-Ouvert Grand and opening/second/last-seat non-Ouvert Null
-//! declarer card play, Reizen,
+//! declarer and bounded defender card play, Reizen,
 //! Skataufnahme, Drücken, Ansage and non-Ouvert Kontra/Re lessons. Exact
 //! rule provenance, never search ranking.
 
@@ -107,7 +107,8 @@ pub struct Lesson {
 /// and at least one losing card; early FeedPartner requires a Grand follow-class master; Fallback stays excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. The shared
-/// `Branch::Null` is broader; defenders, later own leads, Ouvert and
+/// A defender may also act second after the declarer leads, with a losing card.
+/// `Branch::Null` is broader; other defender turns, later own leads, Ouvert and
 /// restricted or inconsistent views stay excluded here. Grand LeadMaster and
 /// the declarer's DrawTrumpf also admit the own empty-trick lead with an exact
 /// pure core-legal action list; every other lead branch stays excluded.
@@ -120,13 +121,19 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         return None;
     }
     // Checked before the shared rule, which assumes a declarer during play.
+    let null_defender = null
+        && view.declarer.is_some_and(|d| d != view.seat)
+        && matches!(view.current_trick.cards, [Some(_), None, None])
+        && view.current_trick.leader == view.declarer
+        && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+        && view.own_skat.is_none();
     if null
-        && (view.declarer != Some(view.seat)
+        && ((!null_defender && view.declarer != Some(view.seat))
             || view.hand_game != Some(contract.hand)
             || contract.schneider
             || contract.schwarz
             || (contract.hand && view.own_skat.is_some())
-            || (!contract.hand && view.own_skat.is_none_or(|s| s.len() != 2))
+            || (!null_defender && !contract.hand && view.own_skat.is_none_or(|s| s.len() != 2))
             || view.current_seat != Some(view.seat)
             || view.current_trick.cards[2].is_some()
             || (view.current_trick.cards[0].is_some()
