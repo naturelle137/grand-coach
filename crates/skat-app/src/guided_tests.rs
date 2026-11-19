@@ -3673,3 +3673,6 @@ mod suit_feed_partner;
 
 #[path = "guided_early_feed_tests.rs"]
 mod early_feed;
+
+#[path = "guided_suit_lead_master_tests.rs"]
+mod suit_lead_master;
