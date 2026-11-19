@@ -59,6 +59,19 @@ uncontrolled smoke run is neither cold/warm p95 nor incremental application
 RSS. It does not establish factual preservation, bilingual quality or a
 performance target.
 
+## Availability recheck (2026-11-19)
+
+The bounded comparison was retried with already-available inputs only. The
+retained Qwen3-0.6B Q8_0 file and the disposable llama.cpp checkout and
+`llama-completion` build named above no longer exist on this machine (file
+search for `*.gguf`, `Qwen3-0.6B*`, `llama-*` executables and `libllama*`
+found no candidate). The only other GGUF files belong to an unrelated project,
+are different and much larger models, and have no recorded hash or provenance
+here. No model was downloaded, so the model arm cannot be run. The result
+stays **inconclusive** (not a measured no-go): production integration remains
+**no**, and Fluent templates remain the only coach language path. A later
+attempt needs an explicit decision to re-obtain the pinned inputs listed above.
+
 ## Approach 1: deterministic Fluent templates (current)
 
 `skat-coach` already emits only structured data: text keys, parameters,
