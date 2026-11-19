@@ -108,7 +108,7 @@ pub struct Lesson {
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. The shared
 /// `Branch::Null` is broader; defenders, later own leads, Ouvert and
-/// restricted or inconsistent views stay excluded here. Grand LeadMaster also
+/// restricted or inconsistent views stay excluded here. Non-Ouvert Farbspiel/Grand LeadMaster also
 /// admits the own empty-trick lead with an exact pure core-legal action list;
 /// declarer DrawTrumpf priority and every other lead branch stay excluded.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
@@ -182,7 +182,8 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     }
     // Lead rules assume a valid own turn, declarer and an exact pure legal
     // list. Reject malformed/restricted input before invoking the baseline.
-    if grand && view.current_trick.cards[0].is_none() {
+    let suit = matches!(game, GameType::Farbe(_)) && !contract.ouvert;
+    if (grand || suit) && view.current_trick.cards[0].is_none() {
         if view.current_trick.cards != [None; 3]
             || view.current_trick.leader != view.tricks.last().map(|t| t.winner)
             || view.tricks.last().is_some_and(|t| t.winner != view.seat)

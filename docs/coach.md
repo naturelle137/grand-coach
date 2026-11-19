@@ -265,8 +265,8 @@ power, retaining the first exact tie. Non-Ouvert Grand supports `WinLast`
 (#157), for a defender in the middle seat `UnderPartner` (#159), and
 `WinEarly` in Mittelhand (#161), and last-seat `FeedPartner` (#163).
 [Second-seat Grand `FeedPartner`](guided-dialogue.md#grand-second-seat-feedpartner-131)
-also admits the acting defender after a partner follow-class master. Empty-trick Grand `LeadMaster` (#171)
-also supports both roles where Easy selects a nontrump master: own/played
+also admits the acting defender after a partner follow-class master. Empty-trick Grand and non-Ouvert Farbspiel `LeadMaster` (#171, #182)
+also support both roles where Easy selects a nontrump master: own/played
 higher cards do not block it, known discarded higher cards still do.
 It takes maximum Augen, last exact legal-order tie, with no trick guarantee.
 `Source::Lead` has no current winning card; observation retains both actual
