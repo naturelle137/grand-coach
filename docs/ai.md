@@ -283,8 +283,9 @@ Measured source `6246cb0` predates fix `15f098c`; it is not final-head
 validation. No strength interval, certified speedup, label agreement or
 end-to-end generator throughput follows from the diagnostic. The
 [observation/tool no-go](issue104-observation-no-go.md) records the missing
-interfaces and freezes the conditional budgets. Fresh measurements remain
-pending and unauthorised; no default change or #104 closure is justified.
+interfaces and freezes the conditional budgets. Later paired tuning (93.5 %) and holdout (90.25 %) runs also missed the
+97 % target: the [#104 conclusion](analysis.md#conclusion-for-104-no-go-for-the-proposal)
+is a no-go and the default stays single-stage.
 
 Time Kontra/Re and the first three tricks separately. Solver-only timings
 miss the cost of sampling, all legal options and output. Use the
