@@ -135,9 +135,26 @@ Generation cost, measured once with `generate --deals 6 --shard-deals 6
 384 samples 454 s (17x), i.e. about 828, 226 and 48 games/hour. Only
 one run per setting was timed; the record bytes are about equal.
 
-Not performed: retraining the #73 model on such data and comparing it with
-`calibrate`. The #73 model therefore stays the default learned model; the
-option is available for that run once compute is admitted.
+A bounded follow-up on 2026-11-19 (source `d78626f011e5`) generated 100
+teacher-only deals with 96 samples, seed 710000, four CPUs and a 90-minute
+cap: 846 s, 4,209 records, 7,486,859 bytes, three incomplete teacher analyses.
+All ten shards verified. One run under shared machine load is not a stable
+throughput estimate. A CPU 2×512 model trained from scratch on these records
+in 21 s (20 epochs, best epoch 8; 2,411 train, 240 validation and 363 test
+card decisions). Its encoder is v2; the archived #73 model uses v1 and was
+trained on 17,590 deals. The models and data hashes, recipe and raw logs are
+in `grand-coach-data/studies/2026-11-19-teacher-71/`.
+
+`calibrate validation` compared the new model (A, greedy policy at Easy) with
+archived supervised #73 (B) on 200 validation deals, indices 9300000–9300199,
+six seat allocations per deal and Kontra/Re on. A minus B was **−25.44
+Seeger-Fabian points per seat-game**, nominal 95 % interval [−29.89, −20.98];
+no games were thrown in and no Null contracts occurred. The 100-deal model is
+weaker in this comparison. The unequal training volumes, encoder versions and
+three incomplete analyses prevent attributing the difference to teacher
+budget. It does not justify replacing the currently shipped optional PPO model;
+Classic remains the default engine. No claim of a general teacher-quality
+ordering follows from this bounded run.
 
 ## Supervised training and diagnostics
 
