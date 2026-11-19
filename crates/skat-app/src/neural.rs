@@ -51,6 +51,10 @@ fn load() -> Result<Arc<NeuralModel>, ModelError> {
         .into_iter()
         .find(|d| d.join(MODEL).is_file())
         .ok_or(ModelError::Missing)?;
+    load_from(&dir)
+}
+
+fn load_from(dir: &std::path::Path) -> Result<Arc<NeuralModel>, ModelError> {
     let bytes = std::fs::read(dir.join(MODEL)).map_err(|_| ModelError::Missing)?;
     let expected = match std::fs::read_to_string(dir.join(MANIFEST)) {
         Ok(manifest) => recorded_hash(&manifest).ok_or(ModelError::HashMismatch)?,
@@ -170,7 +174,59 @@ impl FrozenNeural {
 
 #[cfg(test)]
 mod tests {
-    use super::recorded_hash;
+    use super::{MANIFEST, MODEL, load_from, recorded_hash};
+    use skat_nn::ModelError;
+
+    /// Copies the bundled model into a scratch directory with `patch` applied
+    /// to the bytes; the manifest hash is re-recorded so only the header
+    /// incompatibility can fail (no environment mutation).
+    fn load_patched(name: &str, patch: impl FnOnce(&mut Vec<u8>)) -> Result<(), ModelError> {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/models");
+        let mut bytes = std::fs::read(src.join(MODEL)).unwrap();
+        patch(&mut bytes);
+        let manifest = std::fs::read_to_string(src.join(MANIFEST)).unwrap();
+        let old = manifest
+            .split("\"model_sha256\"")
+            .nth(1)
+            .unwrap()
+            .split('"')
+            .nth(1)
+            .unwrap()
+            .to_owned();
+        let hex: String = skat_nn::sha256(&bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let dir = std::env::temp_dir().join(format!("gc-model-{}-{name}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(MODEL), &bytes).unwrap();
+        std::fs::write(dir.join(MANIFEST), manifest.replace(&old, &hex)).unwrap();
+        let result = load_from(&dir).map(|_| ());
+        std::fs::remove_dir_all(&dir).unwrap();
+        result
+    }
+
+    #[test]
+    fn version_mismatched_bundled_model_is_rejected_with_a_reason() {
+        assert_eq!(load_patched("same", |_| {}), Ok(()));
+        // Encoder version at byte 6, format version at byte 4 (skat-nn header).
+        let next = |b: &mut Vec<u8>, at: usize| {
+            let v = u16::from_le_bytes([b[at], b[at + 1]]) + 1;
+            b[at..at + 2].copy_from_slice(&v.to_le_bytes());
+        };
+        assert!(matches!(
+            load_patched("encoder", |b| next(b, 6)),
+            Err(ModelError::Encoder { .. })
+        ));
+        assert!(matches!(
+            load_patched("format", |b| next(b, 4)),
+            Err(ModelError::Format { .. })
+        ));
+        assert_eq!(
+            load_patched("truncated", |b| b.truncate(10)),
+            Err(ModelError::Truncated)
+        );
+    }
 
     #[test]
     fn bundled_manifest_loads_the_selected_v2() {
