@@ -12,7 +12,7 @@ use std::path::PathBuf;
 fn main() {
     let mut args = std::env::args().skip(1);
     let mode = args.next().expect("create or check");
-    if mode == "hybrid" || mode == "hybrid-missing" {
+    if mode == "hybrid" || mode.starts_with("hybrid-") {
         let config = SessionConfig {
             seed: 7,
             series: SeriesLength::Fixed(2),
@@ -34,7 +34,7 @@ fn main() {
                 let card_play = session.view().phase == Phase::Spiel;
                 let action = job.run(None);
                 session.finish_opponent(action).unwrap();
-                if mode == "hybrid-missing" {
+                if mode != "hybrid" {
                     let other = classic.opponent_job().unwrap().run(None);
                     classic.finish_opponent(other).unwrap();
                     let mut view = session.view();
@@ -53,7 +53,7 @@ fn main() {
                     .copied()
                     .map_or(Command::NextGame, Command::Act);
                 session.execute(command.clone()).unwrap();
-                if mode == "hybrid-missing" {
+                if mode != "hybrid" {
                     classic.execute(command).unwrap();
                 }
             }

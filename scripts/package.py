@@ -268,7 +268,8 @@ def smoke(args):
             metadata = json.loads(original_manifest)
             metadata["model_sha256"] = digest(incompatible)
             model_manifest.write_text(json.dumps(metadata), encoding="utf-8")
-            subprocess.run([str(installed_probe), mode], cwd=root, env=probe_env, check=True, timeout=90)
+            for probe_mode in (mode, "hybrid-" + mode):
+                subprocess.run([str(installed_probe), probe_mode], cwd=root, env=probe_env, check=True, timeout=90)
         model.write_bytes(original_model)
         model_manifest.write_bytes(original_manifest)
         preserved = history.read_bytes()
@@ -277,7 +278,8 @@ def smoke(args):
             if stage == "corrupt-model":
                 model = install / manifest["models"][0]
                 model.write_bytes(b"corrupt" + model.read_bytes()[7:])
-                subprocess.run([str(installed_probe), "fallback"], cwd=root, env=probe_env, check=True, timeout=90)
+                for probe_mode in ("fallback", "hybrid-fallback"):
+                    subprocess.run([str(installed_probe), probe_mode], cwd=root, env=probe_env, check=True, timeout=90)
             if stage == "upgrade":
                 binary.unlink()
                 binary.write_bytes(files[manifest["binary"]])
@@ -314,7 +316,7 @@ def smoke(args):
         "os": platform.platform(), "result": "passed",
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
-        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API exercises Neural and Hybrid card play, missing-model fallback and Neural corrupt and incompatible format/encoder fallback with valid history", "uninstall retains data"],
+        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API exercises Neural and Hybrid card play, and missing, corrupt and incompatible format/encoder model fallback with valid history", "uninstall retains data"],
         "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. No cross-version migration or interactive flows; no clean OS or Windows 11 claim.",
     }, indent=2) + "\n", encoding="utf-8", newline="\n")
 
