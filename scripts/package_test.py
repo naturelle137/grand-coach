@@ -107,6 +107,5 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(package.runner_image({k.upper(): v for k, v in expected.items()}), expected)
 
 
-
 if __name__ == "__main__":
     unittest.main()
