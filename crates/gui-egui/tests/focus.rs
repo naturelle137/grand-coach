@@ -205,10 +205,10 @@ fn certain_case_flow(language: Language) {
     let v = h.state().focus_view().unwrap();
     assert_eq!(
         (v.entry.task.id.as_str(), v.number, v.count),
-        ("side-card.certain", 4, 4)
+        ("side-card.certain", 4, 6)
     );
     assert!(v.entry.eligible && v.feedback.is_none());
-    h.get_by_label(t("Stellung 4 von 4", "Position 4 of 4"));
+    h.get_by_label(t("Stellung 4 von 6", "Position 4 of 6"));
     // A wrong, understated answer reveals feedback with the certain evidence.
     button(
         &mut h,
