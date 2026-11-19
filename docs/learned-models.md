@@ -202,10 +202,11 @@ labels. No production all-phase model or strength measurement is delivered.
 `nn-train validate-labels DIR` now provides independent pre-play label
 validation (rule recomputation from stored views, leak and pair checks) and
 the [pre-play model card](pre-play-model-card.md) records its first small
-result. A production imitation run and behavioural calibration remain open in #74. The outcome-label pilot is
-postponed because those prerequisites are absent and the Phase 2 no-go
-allows no further training or arenas. Long compute requires separate
-admission as a shell job; this tooling change does not grant it.
+result. A first bounded imitation run and behavioural calibration are recorded in
+[ai.md](ai.md#first-all-phase-imitation-run-74): the model is weaker than
+Classic and is not shipped. The outcome-label pilot stays postponed until an
+imitation model is competitive. Compute on this PC is admitted for bounded
+shell jobs; the earlier Phase 2 compute hold is superseded.
 
 ## Self-play refinement
 
@@ -240,8 +241,7 @@ now contains the operational replacement).
 The 2026-11-18 revalidation found all seven frozen models intact and verified
 checkpoints 315/306/358 with 31/30/35 snapshots for 4×384/4×512/4×896.
 This is artifact integrity evidence only, not deserialisation, resumability,
-strength or completion of #75. No training was started. The Phase 2 compute
-hold remains binding. Full fresh calibration, learning-curve/pool reporting
+strength or completion of #75. No training was started. Full fresh calibration, learning-curve/pool reporting
 and the remaining issue acceptance evidence still require an admitted owner;
 Issue #74 currently supplies preparation only, not a production pre-play model.
 

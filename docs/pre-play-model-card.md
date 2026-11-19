@@ -2,10 +2,11 @@
 
 # Model card: learned pre-play imitation (#74)
 
-**Status: no production model.** No all-phase imitation weights are shipped;
-the Phase 2 compute hold still forbids production training and arenas. This
-card fixes what such a model must cover and records the label evidence that
-exists. Classic stays the default and supplies every pre-play decision.
+**Status: first imitation model trained, not shipped.** The 2026-11-19 run
+(below) plays complete games but is clearly weaker than Classic Easy and
+Strong. This card fixes what a model must cover and records label evidence
+and measured results. Classic stays the default and supplies every pre-play
+decision.
 
 | Item | Value |
 |------|-------|
@@ -13,7 +14,7 @@ exists. Classic stays the default and supplies every pre-play decision.
 | Encoder / head | shared v2 encoder (634 permitted-view features), 621-action policy head; `train --all-phases` ([tooling](learned-models.md#all-phase-imitation-preparation-74)) |
 | Teacher | Strong profile of #70 records; pre-play labels are the shared Classic rules of `skat-analysis` |
 | Input | the acting seat's `PlayerView` only |
-| Weights / hashes | none yet |
+| Weights / hashes | experimental, not in the repo: SHA-256 `6ed45d3400b71b42adf4dc7333c14a59a613056623914c3c49b628fae5ad9aa8` (4×384, 5,621,708 bytes, trained on `T-2-10k`, `--epochs 4`) |
 
 ## Label validation
 
@@ -56,10 +57,19 @@ not independent reproduction of each choice or proof of its strategic quality.
 The extreme Kontra rate agrees with the known D-40 concern and does not justify
 shipping a model trained on these labels without separate assessment.
 
+## First training run
+
+Details and tables in [ai.md](ai.md#first-all-phase-imitation-run-74). The
+model covers all five phases (Kontra/Re stays with the rules in the opponent).
+Pooled teacher agreement 71.59 % on 42,322 test rows; in 1,200 complete games
+it scored -34.60 [-40.27, -28.94] against Easy and -43.39 [-49.13, -37.65]
+against Strong per seat-game. It passes too rarely (14.9 % of 6,883 Reizen
+actions, Strong 23.5 %) and never declares Null, Hand or announcements
+(0 of 774 declarer games). It is a weak first result.
+
 ## Open before a production claim
 
-Production dataset and training run (separate admission), behavioural
-calibration of complete learned games (Reizen/pass/Einpassen rates, contract
-mix, declarer/defender scores; [calibration protocol](ai.md#calibration-protocol)),
+A stronger dataset/recipe (rare-class handling, per-phase accuracy),
+repeated [calibration](ai.md#calibration-protocol) after improvement,
 validated Kontra integration (#108), weights hashes, licence and provenance in
 [third-party](third-party.md), and the outcome-label pilot (postponed).

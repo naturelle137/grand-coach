@@ -302,8 +302,48 @@ all-phase imitation weights, behavioural rates, contract/role statistics or
 playing-strength results yet. Independent label validation exists (`nn-train validate-labels`; first
 result in the [pre-play model card](pre-play-model-card.md): 405/405 labels
 of a 40-deal Strong run equal the Classic rules, no leaks); the outcome-label pilot is postponed until it and imitation calibration are
-available. The existing Phase 2 compute hold remains binding. Classic and the
-shipped Neural model and Kontra behaviour are unchanged.
+available. Classic and the shipped Neural model and Kontra behaviour are
+unchanged.
+
+### First all-phase imitation run (#74)
+
+Measured 2026-11-19 on this PC (CPU, 8 cores, nice 10; compute pre-admitted,
+the earlier Phase 2 hold is superseded). `nn-train train M T-2-10k
+--all-phases --hidden 384 --layers 4 --epochs 4` on the retained Strong
+`T-2-10k` set (10,000 deals, seed 73; labels validated in the
+[model card](pre-play-model-card.md)): 338,484 train / 43,441 validation /
+42,322 test rows, 250 s. Epoch 3 was kept (lowest validation loss; epoch 4
+overfit). Model SHA-256
+`6ed45d3400b71b42adf4dc7333c14a59a613056623914c3c49b628fae5ad9aa8`.
+Imitation agreement with the recorded teacher choice over all five phases
+pooled: 71.86 % validation (43,441 rows), 71.59 % test (42,322 rows). This
+pooled figure is dominated by card-play rows; it is no per-phase accuracy.
+
+Complete games (`calibrate validation nn:M/model.gcnn@easy B 200 4 10000`;
+200 deals × 6 seatings = 1,200 games, Kontra/Re on, Kontra by the existing
+rules; the model decides Reizen, pickup, Drücken, Ansage and cards):
+
+| B | A − B per seat-game | 95 % interval |
+|---|---:|---|
+| Classic Easy | -34.60 | [-40.27, -28.94] |
+| Classic Strong | -43.39 | [-49.13, -37.65] |
+| shipped card-play model (Classic pre-play) | -44.98 | [-50.73, -39.23] |
+
+The all-phase imitation model is clearly **weaker** than all three. Behaviour
+(A vs Strong table; 1,200 games): A bid 2,755 (40.0 %), held 3,102 (45.1 %)
+and passed 1,026 (14.9 %) of 6,883 Reizen actions, against Strong's 48.0 / 28.5 /
+23.5 % of 5,846; Einpassen 3/1,800 seat-games for both. A declared 774 games
+(Strong 424), won 42.9 % (Strong 90.8 %) at -41.5 points per declarer game
+(Strong +76.8); as defender it won 30.6 % of 1,023 games (Strong 47.3 % of
+1,373). A's contracts: Kreuz 194, Pik 235, Herz 102, Karo 185, Grand 58,
+Null/Hand/Schneider/Schwarz/Ouvert 0 of 774. The model therefore over-reaches
+in Reizen (few passes, many weak declarer games) and never chooses Null, Hand
+or announcements; the rare-label classes are not learned by this small run.
+Classic Easy/Strong tables use their own pre-play. No claim of a playable
+learned opponent is made; the model is not shipped, and Classic stays the
+default. One seed, one dataset, one shape and a 200-deal sample: this is a
+first measurement, not a tuned result. Raw outputs:
+`grand-coach-data/studies/2026-11-19-preplay-74/`.
 
 A baseline on validation deals 10000–10199 (six seatings each, Kontra/Re
 on) compared the shipped card-play model, greedy policy with Easy fallback,
