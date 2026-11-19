@@ -43,7 +43,7 @@ the third-party asset inventory. The archive ships the card-play model
 (`assets/models/card-play.gcnn`, its training manifest and model card, D-63);
 keep its `assets/models` directory beside the executable; the app
 searches first after `GRAND_COACH_MODELS`. Build and `verify` fail unless the
-model matches the SHA-256 and size in its manifest. They also require the manifest's recipe, engine commit, campaign, selection, supervised start, source-provenance hashes and CC-BY-SA-4.0 licence, and a model card with provenance, limits and licence sections. Classic stays the default;
+model matches the SHA-256 and size in its manifest. They also require the manifest's recipe, engine commit, campaign, selection, supervised start, source-provenance hashes and CC-BY-SA-4.0 licence, and a model card with provenance, limits and licence sections. These checks establish that metadata is present, not that the original training provenance or its hashes have been independently verified; the original provenance files were not found in the checked data path. Classic stays the default;
 a missing or corrupt model makes Neural and Hybrid fall back to the corresponding Classic level without
 touching user data. The smoke test launches with the model installed and again
 with a corrupted one, checking valid history is unchanged. A same-build app API probe beside the executable checks Neural and Hybrid card-play decisions with the shipped model, and fallback for missing, corrupt and incompatible format/encoder models for both; these decisions are not GUI interactions. The Hybrid fallback probes compare decisions through the first card play with Classic Easy. The incompatible files have their manifest hashes updated so the probe checks the version rejection rather than a hash mismatch. The shipped model covers card play only,
@@ -87,7 +87,7 @@ answering, skipping and retrying remain widget-test coverage.
 
 Use a clean committed checkout, Python 3.11+, native Rust 1.95.0, Cargo and
 a native linker (GCC on Linux; MSVC C++ Build Tools on Windows). Fetch locked
-dependencies before disconnecting. The application itself needs no network.
+dependencies before disconnecting. The Windows smoke does not verify network isolation or prove offline operation; Linux CI separately runs the smoke in a network-less container.
 
 ```sh
 cargo fetch --locked
