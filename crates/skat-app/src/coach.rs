@@ -125,6 +125,17 @@ pub struct CoachJob {
 }
 
 impl CoachJob {
+    /// Diagnostic identity of the analysed input: the permitted view (and the
+    /// whole deal only in God Mode), budget, seed and mode, without the
+    /// decision key. Equal identities would allow reusing a result.
+    #[doc(hidden)]
+    pub fn input_identity(&self) -> String {
+        format!(
+            "{:?}|{:?}|{:?}|{}|{}|{}",
+            self.view, self.all, self.budget, self.seed, self.review, self.experimental
+        )
+    }
+
     /// Analyses and explains the decision. `cancel` stops the analysis; a
     /// cancelled result is never presented as advice.
     pub fn run(&self, cancel: Option<&Cancel>) -> CoachResult {
@@ -663,6 +674,11 @@ impl CoachState {
 
     /// The next queued review: FIFO by default, learned priority when selected.
     pub(crate) fn review_job(&self) -> Option<CoachJob> {
+        // Off shows no note or debriefing: queued work waits, unspent, until
+        // the coach is turned on again; the next game still drops it.
+        if self.settings.level == CoachLevel::Off {
+            return None;
+        }
         let q = match &self.review_model {
             None => self.queue.first()?,
             Some(model) => {
