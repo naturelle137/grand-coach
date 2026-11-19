@@ -359,7 +359,11 @@ fn independent_oracle_matches_baseline_candidates_pick_and_every_next_trick_comp
     for c in cases() {
         let seat = c.game.current_seat().unwrap();
         let trump = trump_index(&c.game);
-        assert_eq!(c.deal.hand(seat), c.game.view(seat).hand, "{}", c.id);
+        let mut dealt = c.deal.hand(seat);
+        for p in played_cards(&c.game) {
+            dealt.remove(card(p)); // the late case already played one of its dealt cards
+        }
+        assert_eq!(dealt, c.game.view(seat).hand, "{}", c.id);
         let (cands, pick) = oracle_lead(trump, &hand_of(&c.game, seat), &played_cards(&c.game));
         assert_eq!(cands, c.candidates, "{}", c.id);
         assert_eq!(pick, c.card, "{}", c.id);
