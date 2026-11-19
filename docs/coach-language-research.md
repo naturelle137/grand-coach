@@ -18,6 +18,17 @@ This meets the weight-size target alone, not the package or memory targets.
 The official model repository states Apache-2.0; tokenizer provenance and
 licence still need verification separately.
 
+The retained Q8_0 file was rehashed on 2026-11-19 and still matches that
+SHA-256. The retained llama.cpp checkout reports the revision above and its
+`LICENSE` is MIT. The pinned [GGUF repository](https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/tree/23749fefcc72300e3a2ad315e1317431b06b590a)
+identifies Qwen as publisher and labels the model Apache-2.0; the
+[base model card](https://huggingface.co/Qwen/Qwen3-0.6B) also declares
+Apache-2.0. These declarations do not independently establish the embedded
+tokenizer's exact source revision or its licence, nor the conversion and
+quantization procedure for these bytes. The retained Linux executable uses
+shared libraries: its presence does not prove a linked, standalone package
+or Windows support. No model was downloaded for this recheck.
+
 A disposable [llama.cpp](https://github.com/ggml-org/llama.cpp/tree/ffc87c3a7989cb657641a6459a186f303e176af8)
 checkout at `ffc87c3a7989cb657641a6459a186f303e176af8` has an MIT licence.
 The toolbox build command failed with `cmake: command not found` (exit 127).
@@ -44,8 +55,9 @@ performance target.
 `skat-coach` already emits only structured data: text keys, parameters,
 `Concept`, `Amount`, `Judgement`, `Reason` and `Basis`
 (`crates/skat-coach/src/lib.rs`). `assets/i18n/{de,en}.ftl` render them, with
-identical key sets in both languages. This arm is deterministic, offline and
-free of invented facts by construction, and it adds no package size. Its only
+identical key sets in both languages. This arm is deterministic and offline;
+the existing resources add no model package. Templates still require evidence
+and translation validation and do not guarantee factual correctness. Its
 weakness is wording monotony, which is a readability question that only
 learners can answer. Improving it means editing `.ftl` text, with no
 runtime risk.
