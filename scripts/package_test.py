@@ -121,6 +121,7 @@ class PackageTests(unittest.TestCase):
                         package.block_windows_network([program])
                 self.assertEqual(run.call_count, 5)
                 self.assertEqual(run.call_args_list[0].kwargs, {"check": True, "timeout": 15})
+                self.assertIn(f"program={program.resolve()}", run.call_args_list[1].args[0])
                 self.assertEqual(run.call_args_list[-1].args[0][2:4], ["firewall", "delete"])
             run.reset_mock()
             run.side_effect = subprocess.CalledProcessError(1, "canary")

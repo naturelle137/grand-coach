@@ -237,7 +237,7 @@ def block_windows_network(programs):
     subprocess.run([sys.executable, "-c", probe], check=True, timeout=15)
     for index, program in enumerate(programs):
         subprocess.run(["netsh", "advfirewall", "firewall", "add", "rule", f"name=grand-coach-offline-{index}-{os.getpid()}",
-                        "dir=out", "action=block", f"program={program}", "enable=yes"], check=True)
+                        "dir=out", "action=block", f"program={program.resolve()}", "enable=yes"], check=True)
     name = f"grand-coach-offline-canary-{os.getpid()}"
     subprocess.run(["netsh", "advfirewall", "firewall", "add", "rule", f"name={name}",
                     "dir=out", "action=block", f"program={sys.executable}", "enable=yes"], check=True)
