@@ -429,6 +429,22 @@ the teacher JSONL SHA-256 is
 No paired generator throughput or strength interval was measured. Defaults
 and existing datasets remain unchanged.
 
+### Conclusion for #104: no-go for the proposal
+
+Both position sets miss the 97 % decision-equivalence target: 93.5 % on
+the 200 tuning positions and 90.25 % on the fresh 400-position holdout.
+The saving is real but small (29 % fewer nodes, 8–15 % wall time on the
+holdout; tiny, noisy tool samples agree in direction). Screening with
+8 of 24 worlds therefore changes too many decisions for Strong, the coach
+or the teacher. Two-stage sampling stays an opt-in measurement tool; the
+single-stage path remains the only shipped path, so golden decisions,
+existing datasets and Strong's strength are unchanged. Paired generator
+throughput, label agreement over a full dataset and a `calibrate` interval
+were not measured, because a candidate that misses the equivalence gate is
+not adopted. A later attempt needs a different mechanism (for example
+stage 1 on more worlds or root grouping, which is identical by
+construction) tuned on the tuning suite only, with a new decision.
+
 ## Budgets and determinism
 
 - `Budget { samples, nodes_per_task }`: a task evaluates every option on
