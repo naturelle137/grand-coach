@@ -153,7 +153,8 @@ with smoke-only variables `GRAND_COACH_SMOKE_SCENARIO=coach|training` and
 EveryMove coach, counting aid and quiz and plays first legal actions until a
 counting question is open; `training` opens the focused counting training.
 Each saves a native screenshot; the four must differ and history must stay
-byte-identical. These show the real packaged views in both languages; they
+valid (byte-identical for training; the open coach question records its
+presentation). These show the real packaged views in both languages; they
 do not answer, skip or retry (widget tests cover that).
 Probe creation/checks are API evidence, not GUI entry/answer evidence. They do
 not establish migration, cross-version upgrade or complete-series behaviour.

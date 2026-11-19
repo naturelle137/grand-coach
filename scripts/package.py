@@ -297,7 +297,8 @@ def smoke(args):
             if not image.startswith(b"P6\n") or len(image) < 100000:
                 raise ValueError("native packaged launch did not produce a screenshot")
             shots[stage] = digest(image)
-            if history.read_bytes() != preserved:
+            # An open counting question legitimately records its presentation.
+            if scenario != "coach" and history.read_bytes() != preserved:
                 raise ValueError("packaged launch changed user history")
             if stage != "damaged-history":
                 subprocess.run([str(probe), "check", str(history)], check=True)
@@ -311,7 +312,7 @@ def smoke(args):
         "os": platform.platform(), "result": "passed",
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
-        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API uses shipped model and exercises corrupt-model fallback with valid history", "packaged coach+counting aid+quiz view (first counting question open) and focused counting training view, each in German and English, launched from the same extracted executable with valid history unchanged", "uninstall retains data"],
+        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API uses shipped model and exercises corrupt-model fallback with valid history", "packaged coach+counting aid+quiz view (first counting question open) and focused counting training view, each in German and English, launched from the same extracted executable (the coach question records its presentation; history stays valid, training leaves it unchanged)", "uninstall retains data"],
         "screenshot_sha256": shots,
         "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. Coach/quiz/training scenarios open the real packaged views via smoke-only environment variables and a first-legal-action driver; answering, skipping and retry are covered by widget tests, not by the package. No cross-version migration; no clean OS or Windows 11 claim.",
     }, indent=2) + "\n", encoding="utf-8", newline="\n")
