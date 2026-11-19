@@ -52,6 +52,10 @@ experimental; no target-machine latency/RSS measurement is recorded yet (no
 six-core integrated-graphics hardware available to agents), and results from
 other machines are only proxies.
 
+The Neural probe disables Kontra/Re and requires the observed decision or
+fallback to occur in card play; a pre-play fallback or rule-only Kontra
+decision cannot satisfy that check.
+
 Local offline check (2026-11-19, Fedora 44, Rust 1.99.1 build identity, commit
 79d6255): the Linux package built from a clean checkout was extracted and the
 same-build probe ran in a network-less namespace (`unshare -rn`, only `lo`):
