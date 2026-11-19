@@ -184,6 +184,70 @@ fn catalogue_flow_preserves_live_game_and_persists_exposure(language: Language) 
     }
 }
 
+fn certain_case_flow(language: Language) {
+    let en = language == Language::En;
+    let t = |de, english| if en { english } else { de };
+    let dir = Temp::new();
+    LearningHistory::new().save_local(dir.file()).unwrap();
+    let mut h = app(dir.file(), language);
+    let live = h.state().live_session().view();
+    button(
+        &mut h,
+        t(
+            "Fokus: Abstich einer vollen Nebenkarte",
+            "Focus: Trumping a full side card",
+        ),
+    );
+    for _ in 0..3 {
+        button(&mut h, t("Überspringen", "Skip"));
+        button(&mut h, t("Nächste Stellung", "Next position"));
+    }
+    let v = h.state().focus_view().unwrap();
+    assert_eq!(
+        (v.entry.task.id.as_str(), v.number, v.count),
+        ("side-card.certain", 4, 4)
+    );
+    assert!(v.entry.eligible && v.feedback.is_none());
+    h.get_by_label(t("Stellung 4 von 4", "Position 4 of 4"));
+    // A wrong, understated answer reveals feedback with the certain evidence.
+    button(
+        &mut h,
+        t("Möglich, aber nicht sicher", "Possible, but not certain"),
+    );
+    let v = h.state().focus_view().unwrap();
+    assert_eq!(v.entry.correct(), Some(false));
+    assert!(!v.entry.unseen_correct());
+    // Both later opponents are certain: one evidence line each.
+    assert_eq!(
+        h.query_all_by_label_contains(t("In jeder mit deiner Sicht", "In every distribution"))
+            .count(),
+        2
+    );
+    button(&mut h, t("Noch einmal", "Try again"));
+    assert!(!h.state().focus_view().unwrap().entry.eligible);
+    button(&mut h, t("Sicher", "Certain"));
+    assert_eq!(h.state().focus_view().unwrap().entry.correct(), Some(true));
+    button(&mut h, t("Zurück zur Partie", "Back to the game"));
+    assert_eq!(h.state().live_session().view(), live);
+    let persisted = LearningHistory::open_local(dir.file()).unwrap();
+    assert!(
+        persisted
+            .focus_entries()
+            .iter()
+            .any(|e| e.task.id == "side-card.certain")
+    );
+}
+
+#[test]
+fn german_certain_case_flow_is_bilingual_and_preserves_live_game() {
+    certain_case_flow(Language::De);
+}
+
+#[test]
+fn english_certain_case_flow_is_bilingual_and_preserves_live_game() {
+    certain_case_flow(Language::En);
+}
+
 #[test]
 fn german_catalogue_flow_preserves_live_game_and_persists_exposure() {
     catalogue_flow_preserves_live_game_and_persists_exposure(Language::De);

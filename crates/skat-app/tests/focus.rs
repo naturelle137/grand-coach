@@ -260,3 +260,56 @@ fn unsupported_corrupt_provenance_and_hidden_payload_are_rejected() {
         assert!(!task.contains(forbidden));
     }
 }
+
+#[test]
+fn side_card_family_ends_with_a_certain_case_without_disturbing_stable_ids_or_eligibility() {
+    use skat_app::practice_catalogue::PracticeCase;
+    let mut h = LearningHistory::new();
+    let mut s = start(F::SideCardVulnerability, &mut h);
+    let mut ids = Vec::new();
+    for (i, answer) in [R::Possible, R::Possible, R::Absent, R::Certain]
+        .into_iter()
+        .enumerate()
+    {
+        let v = s.focus_view().unwrap();
+        assert_eq!((v.number, v.count), (i + 1, 4));
+        assert!(v.feedback.is_none(), "answer before feedback");
+        ids.push(v.entry.task.id.clone());
+        // Both changed cases are unseen; intro and boundary never are.
+        assert_eq!(v.entry.eligible, i == 1 || i == 3);
+        run(&mut s, &mut h, C::Answer(answer));
+        let after = s.focus_view().unwrap();
+        assert_eq!(after.entry.correct(), Some(true));
+        assert_eq!(after.entry.unseen_correct(), i == 1 || i == 3);
+        run(&mut s, &mut h, C::Next);
+    }
+    assert_eq!(
+        ids,
+        [
+            "side-card.intro",
+            "side-card.changed",
+            "side-card.boundary",
+            "side-card.certain"
+        ]
+    );
+    // The cycle wraps to the original first case; ids/versions are unchanged.
+    assert_eq!(s.focus_view().unwrap().entry.task.id, "side-card.intro");
+    assert!(PracticeCase::find("side-card.certain", 1).is_some());
+    assert!(!s.focus_view().unwrap().entry.eligible, "already presented");
+    // Understating certainty is a distinct response, not a numeric deviation.
+    let mut h = LearningHistory::new();
+    let mut s = start(F::SideCardVulnerability, &mut h);
+    for _ in 0..3 {
+        run(&mut s, &mut h, C::Skip);
+        run(&mut s, &mut h, C::Next);
+    }
+    run(&mut s, &mut h, C::Answer(R::Possible));
+    assert_eq!(s.focus_view().unwrap().entry.correct(), Some(false));
+    let rows = h.mechanism_responses();
+    let row = rows
+        .iter()
+        .find(|r| r.task.id == "side-card.certain")
+        .unwrap();
+    assert_eq!((row.counts.understated, row.counts.scored), (1, 1));
+    assert_eq!(roundtrip(&h).focus_entries(), h.focus_entries());
+}

@@ -545,7 +545,7 @@ fn topic_note(topic: TrainingTopic) -> &'static str {
 }
 
 use skat_app::practice_catalogue::{
-    Mechanism, MechanismKind, PracticeFamily, PracticeFeedback, PracticeQuestion,
+    Certainty, Mechanism, MechanismKind, PracticeFamily, PracticeFeedback, PracticeQuestion,
 };
 use skat_app::{FocusAction, FocusAnswer, FocusCommand, FocusView};
 
@@ -593,7 +593,7 @@ impl TrainingUi {
             } else {
                 "focus-position"
             },
-            &[("number", v.number.into())],
+            &[("number", v.number.into()), ("count", v.count.into())],
         ));
         if let Some(data) = &v.entry.validation {
             ui.heading(i.t("validation-title"));
@@ -749,7 +749,11 @@ impl TrainingUi {
                         match m {
                             Mechanism::Abstich(a) => {
                                 ui.label(i.tf(
-                                    "focus-abstich-evidence",
+                                    if a.certainty == Certainty::Certain {
+                                        "focus-abstich-certain-evidence"
+                                    } else {
+                                        "focus-abstich-evidence"
+                                    },
                                     &[
                                         ("seat", text::seat(i, a.seat).into()),
                                         ("suit", text::suit(i, a.card.suit()).into()),
