@@ -100,7 +100,11 @@ fn content(
             GuidedStep::Orient | GuidedStep::Check | GuidedStep::Narrow | GuidedStep::Act
         )
     {
-        ui.label(i.t("guided-null-defender-role"));
+        ui.label(i.t(if table.current_trick.len() == 2 {
+            "guided-null-defender-last-role"
+        } else {
+            "guided-null-defender-role"
+        }));
     }
     if null
         && matches!(
@@ -221,6 +225,8 @@ fn content(
         } else if rule.branch == GuidedBranch::Null {
             if g.lead.is_some() {
                 "guided-rule-null-lead"
+            } else if null_defender && rule.last {
+                "guided-rule-null-defender-last"
             } else if null_defender {
                 "guided-rule-null-defender"
             } else if rule.last {
