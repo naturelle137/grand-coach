@@ -47,8 +47,12 @@ pub struct PracticeCase {
     index: u8,
 }
 
-/// Revision-1 public cases; each family retains its original sequence.
-pub const PRACTICE_CASES: [PracticeCase; 14] = [
+/// Internal index of the certain-Abstich case; 12..=19 are reserved validation cases.
+const SIDE_CERTAIN: u8 = 20;
+
+/// All public revision-1 cases, in family then introduction/changed/boundary
+/// order. The certain side-card case follows its family's original three.
+pub const PRACTICE_CASES: [PracticeCase; 15] = [
     PracticeCase { index: 0 },
     PracticeCase { index: 1 },
     PracticeCase { index: 2 },
@@ -61,8 +65,11 @@ pub const PRACTICE_CASES: [PracticeCase; 14] = [
     PracticeCase { index: 9 },
     PracticeCase { index: 10 },
     PracticeCase { index: 11 },
-    PracticeCase { index: 20 },
+    PracticeCase {
+        index: SIDE_CERTAIN,
+    },
     PracticeCase { index: 21 },
+    PracticeCase { index: 22 },
 ];
 
 /// A factual question, without its answer or an option-quality judgement.
@@ -156,9 +163,12 @@ impl PracticeCase {
             "partner-overtaking.changed",
             "partner-overtaking.boundary",
         ];
-        if self.index >= 20 {
+        if self.index == SIDE_CERTAIN {
+            return "side-card.certain";
+        }
+        if self.index >= 21 {
             return ["side-card.trumpf-risk", "side-card.trumpf-accounted"]
-                .get(usize::from(self.index - 20))
+                .get(usize::from(self.index - 21))
                 .copied()
                 .unwrap_or("unknown");
         }
@@ -177,13 +187,13 @@ impl PracticeCase {
 
     /// Deterministic completion seed for the anchored deal (not an answer source).
     pub fn seed(self) -> u64 {
-        501 + u64::from(self.index)
+        501 + u64::from(self.index) - u64::from((21..=22).contains(&self.index))
     }
 
     /// Family, or None for an invalid catalogue index.
     pub fn family(self) -> Option<PracticeFamily> {
         use PracticeFamily::*;
-        if (20..=21).contains(&self.index) {
+        if (20..=22).contains(&self.index) {
             return Some(SideCardVulnerability);
         }
         if self.index >= 12 {
@@ -208,7 +218,7 @@ impl PracticeCase {
 
     /// Intended role, never proof that a learner has not seen the position.
     pub fn role(self) -> CaseRole {
-        if self.index >= 20 {
+        if self.index >= 21 {
             return CaseRole::Boundary;
         }
         if self.index >= 12 {
@@ -460,7 +470,34 @@ impl PracticeCase {
                 d.played = vec![c(Kreuz, Bube)];
                 d.question = consequence(Pik, Bube, MechanismKind::Overtake);
             }
-            20 | 21 => {
+            SIDE_CERTAIN => {
+                // Herz, Vorhand declarer, trick 3 lead. Two Kreuz tricks were
+                // served by all; Kreuz is now fully seen and no Trumpf is.
+                d.anchors[0] = set(&[
+                    (Kreuz, Ass),
+                    (Kreuz, Zehn),
+                    (Kreuz, Koenig),
+                    (Pik, Ass),
+                    (Pik, Zehn),
+                    (Pik, Koenig),
+                    (Pik, Dame),
+                    (Pik, Neun),
+                    (Pik, Acht),
+                    (Pik, Sieben),
+                ]);
+                d.anchors[1] = set(&[(Kreuz, Acht), (Kreuz, Dame)]);
+                d.anchors[2] = set(&[(Kreuz, Sieben), (Kreuz, Neun)]);
+                d.played = vec![
+                    c(Kreuz, Zehn),
+                    c(Kreuz, Acht),
+                    c(Kreuz, Sieben),
+                    c(Kreuz, Koenig),
+                    c(Kreuz, Dame),
+                    c(Kreuz, Neun),
+                ];
+                d.question = consequence(Kreuz, Ass, MechanismKind::Abstich);
+            }
+            21 | 22 => {
                 d.game = GameType::Grand;
                 d.anchors[0] = set(&[
                     (Kreuz, Zehn),
@@ -472,7 +509,7 @@ impl PracticeCase {
                     (Karo, Acht),
                     (Karo, Neun),
                     (Karo, Zehn),
-                    if self.index == 20 {
+                    if self.index == 21 {
                         (Pik, Acht)
                     } else {
                         (Karo, Bube)
@@ -488,7 +525,7 @@ impl PracticeCase {
                     (Herz, Sieben),
                     (Herz, Acht),
                     (Herz, Neun),
-                    if self.index == 20 {
+                    if self.index == 21 {
                         (Karo, Bube)
                     } else {
                         (Pik, Acht)
@@ -612,7 +649,7 @@ mod tests {
 
     #[test]
     fn mechanism_answers_match_independent_conditions_and_alternatives() {
-        for (index, case) in PRACTICE_CASES.iter().take(12).enumerate().skip(6) {
+        for (index, case) in PRACTICE_CASES.iter().enumerate().take(12).skip(6) {
             let p = case.position().unwrap();
             let PracticeFeedback::Consequences(found) = p.feedback() else {
                 panic!("mechanism")
@@ -679,7 +716,7 @@ mod tests {
 
     #[test]
     fn paired_side_aces_contrast_outstanding_trumpf_after_public_void() {
-        for (index, expected) in [(20, 1), (21, 0)] {
+        for (index, expected) in [(21, 1), (22, 0)] {
             let case = PracticeCase { index };
             let position = case.position().unwrap();
             let view = position.view();
@@ -973,9 +1010,195 @@ mod tests {
         }
     }
 
+    // Independent reference (docs/practice-catalogue.md): Herz, V declares and
+    // leads Kreuz A at trick 3. V holds all Kreuz not played; M and H served
+    // Kreuz twice, so no Kreuz and no Trumpf is unseen/seen respectively:
+    // 18 unseen = 7 Karo + the 11 Trumpf. Each defender holds 8 of them, only
+    // 7 are not Trumpf, so each holds a Trumpf in every distribution.
+    fn certain_case() -> (PracticeCase, Definition, Game) {
+        let case = PracticeCase {
+            index: SIDE_CERTAIN,
+        };
+        let d = case.definition().unwrap();
+        let game = d.replay(case.seed()).unwrap();
+        (case, d, game)
+    }
+
+    fn unseen_of(view: &PlayerView) -> CardSet {
+        let mut seen = view.hand;
+        for trick in &view.tricks {
+            seen |= trick.cards.iter().copied().collect::<CardSet>();
+        }
+        seen |= view
+            .current_trick
+            .cards
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<CardSet>();
+        CardSet::ALL - seen
+    }
+
+    #[test]
+    fn certain_case_matches_independent_counting_reference() {
+        let (case, d, game) = certain_case();
+        let p = case.position().unwrap();
+        assert_eq!(
+            (case.family(), case.role()),
+            (
+                Some(PracticeFamily::SideCardVulnerability),
+                CaseRole::Changed
+            )
+        );
+        assert_eq!(case.id(), "side-card.certain");
+        assert_eq!(p.view().seat, Vorhand);
+        assert!(p.view().current_trick.led().is_none(), "V leads trick 3");
+        assert_eq!(p.view().tricks.len(), 2);
+        let unseen = unseen_of(p.view());
+        let trumps = d.game.trumps();
+        assert_eq!(unseen.len(), 18);
+        assert_eq!((unseen & trumps).len(), 11);
+        assert_eq!((unseen - trumps).len(), 7);
+        assert!(unseen.iter().all(|c| c.suit() != Kreuz || c.rank() == Bube));
+        assert_eq!(game.view(Vorhand), *p.view());
+        let PracticeFeedback::Consequences(found) = p.feedback() else {
+            panic!("mechanism")
+        };
+        assert_eq!(found.len(), 2, "both later opponents");
+        for (m, seat) in found.iter().zip([Mittelhand, Hinterhand]) {
+            let Mechanism::Abstich(a) = m else {
+                panic!("Abstich")
+            };
+            assert_eq!((a.seat, a.certainty), (seat, Certainty::Certain));
+            assert!(a.suit_unseen.is_empty());
+            assert_eq!(a.trumpf_unseen.len(), 11);
+        }
+    }
+
+    // Every possible hand of the target (C(18,8)) is a core-legal hidden
+    // distribution with the identical view. In each one the target holds a
+    // Trumpf (pigeonhole) and core lets it trump the Kreuz Ass.
+    #[test]
+    fn certain_case_holds_in_every_hidden_distribution() {
+        let (case, d, game) = certain_case();
+        let action = Action::Play(Card::new(Kreuz, Ass));
+        let all = game.omniscient_view();
+        let view = game.view(Vorhand);
+        let unseen: Vec<Card> = unseen_of(&view).iter().collect();
+        assert_eq!(unseen.len(), 18);
+        let original = d.deal(case.seed()).unwrap();
+        let mut checked = 0;
+        for target in [Mittelhand, Hinterhand] {
+            let other = if target == Mittelhand {
+                Hinterhand
+            } else {
+                Mittelhand
+            };
+            for mask in 0u32..(1 << 18) {
+                if mask.count_ones() != 8 {
+                    continue;
+                }
+                let pick = |wanted: bool| -> Vec<Card> {
+                    (0..18)
+                        .filter(|i| (mask >> i & 1 == 1) == wanted)
+                        .map(|i| unseen[i])
+                        .collect()
+                };
+                let chosen: CardSet = pick(true).into_iter().collect();
+                let rest = pick(false);
+                let other_hand: CardSet = rest[..8].iter().copied().collect();
+                let skat: CardSet = rest[8..].iter().copied().collect();
+                assert!(!(chosen & d.game.trumps()).is_empty(), "pigeonhole");
+                let mut hands = all.original_hands;
+                hands[target.index()] =
+                    chosen | (original.hand(target) - all.hands[target.index()]);
+                hands[other.index()] =
+                    other_hand | (original.hand(other) - all.hands[other.index()]);
+                let witness = d.replay_deal(Deal::new(hands, skat).unwrap()).unwrap();
+                assert_eq!(witness.view(Vorhand), view);
+                assert!(can_complete(witness, action, target, false));
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 2 * 43_758);
+    }
+
+    #[test]
+    fn nearby_variants_are_possible_and_absent_not_certain() {
+        let (case, d, _) = certain_case();
+        let feedback = |d: &Definition| {
+            let game = d.replay(case.seed()).unwrap();
+            let view = game.view(Vorhand);
+            let PracticeFeedback::Consequences(found) = (PracticePosition {
+                view,
+                question: d.question,
+            })
+            .feedback() else {
+                panic!("mechanism")
+            };
+            found
+        };
+        // V holds Herz 7 instead of Pik 7: 8 non-Trumpf unseen, so a defender
+        // can hold none. Core witness: M holds exactly the 8 non-Trumpf.
+        let mut possible = Definition {
+            anchors: d.anchors,
+            declarer: d.declarer,
+            game: d.game,
+            played: d.played.clone(),
+            question: d.question,
+        };
+        possible.anchors[0].remove(Card::new(Pik, Sieben));
+        possible.anchors[0].insert(Card::new(Herz, Sieben));
+        let found = feedback(&possible);
+        assert_eq!(found.len(), 2);
+        for m in &found {
+            let Mechanism::Abstich(a) = m else {
+                panic!("Abstich")
+            };
+            assert_eq!(a.certainty, Certainty::Possible);
+        }
+        let game = possible.replay(case.seed()).unwrap();
+        let all = game.omniscient_view();
+        let view = game.view(Vorhand);
+        let no_trumpf = unseen_of(&view) - possible.game.trumps();
+        assert_eq!(no_trumpf.len(), 8);
+        let original = possible.deal(case.seed()).unwrap();
+        let rest = unseen_of(&view) - no_trumpf;
+        let mut hands = all.original_hands;
+        hands[Mittelhand.index()] =
+            no_trumpf | (original.hand(Mittelhand) - all.hands[Mittelhand.index()]);
+        let hinter: CardSet = rest.iter().take(8).collect();
+        hands[Hinterhand.index()] =
+            hinter | (original.hand(Hinterhand) - all.hands[Hinterhand.index()]);
+        let skat = rest - hinter;
+        let witness = possible
+            .replay_deal(Deal::new(hands, skat).unwrap())
+            .unwrap();
+        assert_eq!(witness.view(Vorhand), view);
+        assert!(!can_complete(
+            witness,
+            Action::Play(Card::new(Kreuz, Ass)),
+            Mittelhand,
+            false
+        ));
+        // Leading a King is not the supported Ass/Zehn side card: absent.
+        let mut absent = Definition {
+            anchors: d.anchors,
+            declarer: d.declarer,
+            game: d.game,
+            played: d.played.clone(),
+            question: d.question,
+        };
+        absent.question = PracticeQuestion::Consequence {
+            action: Action::Play(Card::new(Pik, Koenig)),
+            kind: MechanismKind::Abstich,
+        };
+        assert!(feedback(&absent).is_empty());
+    }
+
     #[test]
     fn identities_versions_and_seed_reconstruction_are_deterministic() {
-        for case in PRACTICE_CASES.into_iter().take(12) {
+        for case in PRACTICE_CASES.into_iter().take(13) {
             assert_eq!(PracticeCase::find(case.id(), 1), Some(case));
             assert_eq!(PracticeCase::find(case.id(), 2), None);
             assert_eq!(case.position(), case.position());
@@ -997,7 +1220,7 @@ mod tests {
                         })
                 });
             // Mechanical version-1 deal fingerprints, not strategic oracles.
-            const DEALS_V1: [u64; 12] = [
+            const DEALS_V1: [u64; 13] = [
                 6603650931012932804,
                 16396792070140690284,
                 6120153699476858896,
@@ -1010,8 +1233,14 @@ mod tests {
                 9247904279603279512,
                 14760203069699986548,
                 16154748840130836108,
+                4482179650366931656,
             ];
-            assert_eq!(fingerprint, DEALS_V1[usize::from(case.index)]);
+            let slot = if case.index == SIDE_CERTAIN {
+                12
+            } else {
+                usize::from(case.index)
+            };
+            assert_eq!(fingerprint, DEALS_V1[slot]);
             // No answer, seed, family/role or preferred move on the position.
             let wire = serde_json::to_value(case.position().unwrap()).unwrap();
             assert_eq!(wire.as_object().unwrap().len(), 2);

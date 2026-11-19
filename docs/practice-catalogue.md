@@ -30,6 +30,7 @@ Farbspiel/Grand; in Null they belong to their printed suit.
 | `side-card.intro` | 507 | Declarer / Herz / V | Leading own Kreuz A allows possible Abstich by M and H. Own hand contains all seven non-Bube Kreuz, so no unseen Kreuz; unseen Trumpf can be assigned to either later defender, but need not be. |
 | `side-card.changed` | 508 | Defender / Grand / M | After V's Pik 7, own Pik A allows possible Abstich by declarer H. All six other non-Bube Pik are own; three unseen Buben need not belong to H. |
 | `side-card.boundary` | 509 | Declarer / Null / V | Leading Kreuz A has no Abstich: Null has no Trumpf. This does not assert that the Ass is a good Null move. |
+| `side-card.certain` | 521 | Declarer / Herz / V | Added later as the family's fourth case (changed role, after the original three). V leads Kreuz A at trick 3 after two Kreuz tricks served by all: V holds Kreuz A/10/K and all seven Pik; M and H played Kreuz 8/Q and 7/9. All Kreuz is seen and no Trumpf is, so the 18 unseen cards are 7 Karo plus the 11 Trumpf. Each later defender holds 8 of them, only 7 are not Trumpf, so each holds a Trumpf in every distribution: Abstich is **certain** for M and H. Counting, not inference about who holds what. Nearby counterexamples: V holding Herz 7 for Pik 7 leaves 8 non-Trumpf unseen, so only possible; leading a King is no supported side card, so absent. |
 | `partner-overtaking.intro` | 510 | Defender / Herz / M | After declarer V's Kreuz 9, own Kreuz 7 leaves possible overtaking by H: unseen Kreuz A is higher, or H can hold no Kreuz and a Trumpf. Not certain. |
 | `partner-overtaking.changed` | 511 | Defender / Grand / V | H wins the first Buben trick and leads Pik 10. Own Pik 7 leaves partner M a possible Pik A or Abstich with the unseen Karo J. Not certain. |
 | `partner-overtaking.boundary` | 512 | Defender / Karo / M | Declarer V leads Kreuz J; own Pik J cannot enable overtaking. No card beats the highest Trumpf. A partner void alone would not change that. |
@@ -44,7 +45,10 @@ Two additional side-card positions follow the original three without changing th
 Both deals replay through core. The question concerns the hypothetical Kreuz A, not a recommended or guaranteed move; all legal alternatives remain available. The unknown Bube in the first case is not assigned to a holder by the learner view.
 
 Each family has an introductory worked candidate, a changed surface/seat
-candidate and a boundary/counterexample. These are candidate roles only.
+candidate and a boundary/counterexample; `side-card.certain` extends the side
+card family; the two Grand cases extend it to six cases and is the one catalogue case whose supported answer is
+certain. Existing IDs, seeds and revisions are unchanged; it adds a changed-role
+case, so it is unseen-eligible only under the same complete-history rule. These are candidate roles only.
 Every previously shown or retried case is practice. Sessions determine unseen
 eligibility before persisting the current presentation, including an unanswered
 presentation. Only changed cases in a complete, available history are eligible. Catalogue membership proves no
@@ -72,7 +76,10 @@ hidden cards. Changing a deal, prefix, question or answer semantics requires
 raising the revision. The four old `TrainingFixture` identities and two `TrainingTopic` values remain
 unchanged. Format 5 of the same learning history retains typed catalogue events.
 
-Tests replay prefixes and all legal alternatives through core, compare the
+The certain case is additionally checked over all C(18,8) hidden hands of each
+later defender (identical view, core-legal): every one holds a Trumpf and core lets
+it trump the Ass. This certifies only that one-trick claim, not mastery, efficacy or
+transfer. Tests replay prefixes and all legal alternatives through core, compare the
 hand-written reference counts and mechanism conditions, reconstruct alternate
 hidden deals with identical views, and check seed/revision reproduction.
 Positive feasibility has concrete core-legal witness completions; negative

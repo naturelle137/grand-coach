@@ -519,6 +519,8 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("side-accounted-en", side_accounted_en),
     ("focus-feedback", focus_feedback),
     ("focus-feedback-en", focus_feedback_en),
+    ("focus-certain", focus_certain),
+    ("focus-certain-en", focus_certain_en),
     ("focus-boundary", focus_boundary),
     ("focus-boundary-en", focus_boundary_en),
     ("focus-practice", focus_practice),
@@ -3230,7 +3232,7 @@ fn focus_mechanism_en(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn side_risk(h: &mut Harness<'_, GrandCoachApp>) {
     focus_mechanism(h);
-    for _ in 0..3 {
+    for _ in 0..4 {
         click(h, Role::Button, "Überspringen");
         click(h, Role::Button, "Nächste Stellung");
     }
@@ -3247,6 +3249,19 @@ fn focus_feedback(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn focus_feedback_en(h: &mut Harness<'_, GrandCoachApp>) {
     focus_feedback(h);
+    english(h);
+}
+fn focus_certain(h: &mut Harness<'_, GrandCoachApp>) {
+    training_topics(h);
+    click(h, Role::Button, "Fokus: Abstich einer vollen Nebenkarte");
+    for _ in 0..3 {
+        click(h, Role::Button, "Überspringen");
+        click(h, Role::Button, "Nächste Stellung");
+    }
+    click(h, Role::Button, "Sicher");
+}
+fn focus_certain_en(h: &mut Harness<'_, GrandCoachApp>) {
+    focus_certain(h);
     english(h);
 }
 fn focus_boundary(h: &mut Harness<'_, GrandCoachApp>) {

@@ -545,7 +545,7 @@ fn topic_note(topic: TrainingTopic) -> &'static str {
 }
 
 use skat_app::practice_catalogue::{
-    Mechanism, MechanismKind, PracticeFamily, PracticeFeedback, PracticeQuestion,
+    Certainty, Mechanism, MechanismKind, PracticeFamily, PracticeFeedback, PracticeQuestion,
 };
 use skat_app::{FocusAction, FocusAnswer, FocusCommand, FocusView};
 
@@ -587,26 +587,14 @@ impl TrainingUi {
         if self.validation_demo {
             ui.label(i.t("validation-demo"));
         }
-        ui.label(
-            i.tf(
-                if v.entry.validation.is_some() {
-                    "validation-position"
-                } else {
-                    "focus-position"
-                },
-                &[
-                    ("number", v.number.into()),
-                    (
-                        "total",
-                        skat_app::practice_catalogue::PRACTICE_CASES
-                            .iter()
-                            .filter(|c| c.family() == Some(v.family))
-                            .count()
-                            .into(),
-                    ),
-                ],
-            ),
-        );
+        ui.label(i.tf(
+            if v.entry.validation.is_some() {
+                "validation-position"
+            } else {
+                "focus-position"
+            },
+            &[("number", v.number.into()), ("count", v.count.into())],
+        ));
         if let Some(data) = &v.entry.validation {
             ui.heading(i.t("validation-title"));
             ui.label(format!("{}@{}", v.entry.task.id, v.entry.task.version));
@@ -761,7 +749,11 @@ impl TrainingUi {
                         match m {
                             Mechanism::Abstich(a) => {
                                 ui.label(i.tf(
-                                    "focus-abstich-evidence",
+                                    if a.certainty == Certainty::Certain {
+                                        "focus-abstich-certain-evidence"
+                                    } else {
+                                        "focus-abstich-evidence"
+                                    },
                                     &[
                                         ("seat", text::seat(i, a.seat).into()),
                                         ("suit", text::suit(i, a.card.suit()).into()),

@@ -8,9 +8,10 @@ hidden distributions), certain (all), or absent for a supported legal
 catalogue question. Empty arbitrary analysis output is not evidence of absence.
 The focus-entry question, task/version, expected answer and feedback are validated
 when recorded or reopened. No evaluator or additional storage is introduced.
-The six current mechanism tasks have possible or absent expected answers;
-certain is supported by shared analysis and the complete classifier matrix,
-but no additional certain-answer training case is claimed here.
+Five of the seven mechanism tasks have possible or absent expected answers;
+`side-card.certain` is the one certain-answer training case (see
+[the catalogue](practice-catalogue.md)). Understating it classifies as
+certainty understated. This is a response pattern, not a diagnosis.
 Ordinary games and same-deal practice have no such response observations.
 Played cards, losses, regret and agreement cannot establish strategic errors,
 intentions, mastery or transfer. Counting responses remain separate.

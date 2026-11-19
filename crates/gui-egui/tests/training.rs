@@ -299,11 +299,11 @@ fn paired_side_ace_practice_is_accessible_in_both_languages() {
                 "Focus: Trumping a full side card",
             ),
         );
-        for _ in 0..3 {
+        for _ in 0..4 {
             button(&mut h, t("Überspringen", "Skip"));
             button(&mut h, t("Nächste Stellung", "Next position"));
         }
-        h.get_by_label(t("Stellung 4 von 5", "Position 4 of 5"));
+        h.get_by_label(t("Stellung 5 von 6", "Position 5 of 6"));
         h.get_by_label_contains(t(
             "Angenommen, du spielst die legale Karte",
             "Suppose you play the legal card",
@@ -313,7 +313,7 @@ fn paired_side_ace_practice_is_accessible_in_both_languages() {
             t("Möglich, aber nicht sicher", "Possible, but not certain"),
         );
         button(&mut h, t("Nächste Stellung", "Next position"));
-        h.get_by_label(t("Stellung 5 von 5", "Position 5 of 5"));
+        h.get_by_label(t("Stellung 6 von 6", "Position 6 of 6"));
         button(
             &mut h,
             t(

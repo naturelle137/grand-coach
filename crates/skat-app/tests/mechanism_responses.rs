@@ -236,7 +236,7 @@ fn side_ace_pair_follows_original_cases_and_requires_response() {
         true,
     )
     .unwrap();
-    for _ in 0..3 {
+    for _ in 0..4 {
         s.execute_focus(C::Skip, &mut h, true).unwrap();
         s.execute_focus(C::Next, &mut h, true).unwrap();
     }
