@@ -345,6 +345,68 @@ default. One seed, one dataset, one shape and a 200-deal sample: this is a
 first measurement, not a tuned result. Raw outputs:
 `grand-coach-data/studies/2026-11-19-preplay-74/`.
 
+#### Improved imitation recipe (#74)
+
+Measured 2026-11-19 on this PC (CPU, nice 10; commit of this change). New
+opt-in `train --all-phases --preplay-weight W` scales the policy loss of every
+row that is not plain card play (Reizen, Hand/pickup, Drücken, Ansage,
+Kontra/Re); `W` 1 is the previous recipe. The data are three retained Strong
+sets, `T-2-10k`, `T-3-8k` and `T-8-11k` (≈ 28,500 deals, 967,137 train /
+120,049 validation / 120,273 test rows, three times the first run), 4×384,
+`--epochs 6 --patience 1` (best epoch kept, 1,041–1,070 s per run), seed 0.
+`evaluate` now prints agreement with the teacher per phase. Test agreement
+(the validation rows behave alike; correct/rows):
+
+| Phase | W = 1 | W = 4 | W = 8 |
+|---|---:|---:|---:|
+| Reizen (23,034) | 93.73 % | 96.41 % | 95.11 % |
+| Hand/pickup (2,827) | 99.58 % | 99.68 % | 99.61 % |
+| Drücken (2,815) | 72.75 % | 79.29 % | 78.44 % |
+| Ansage (2,827) | 87.44 % | 91.44 % | 91.40 % |
+| Kontra/Re (3,967) | 95.16 % | 95.03 % | 95.36 % |
+| Card play (84,803) | 73.76 % | 73.28 % | 72.68 % |
+| All (120,273) | 79.19 % | 79.61 % | – |
+
+Model SHA-256 (not shipped): W = 1 `9e7e3ec8…948ade`, W = 4
+`c7927678a16dd6e9151b4bb1c895617405bb39305fb76bc5c45493f596b58e1a`, W = 8
+`3efc70aef425aae765be1666e0926135dd8bdd31822ec9089df44a82240ce6c7`.
+The teacher agreement is high on the rule-based phases by construction
+(Strong's pre-play labels are the Classic rules, see the
+[model card](pre-play-model-card.md)); Kontra/Re labels are the extreme D-40
+teacher choice and its agreement is no evidence of good Kontra play.
+
+Complete games as above (200 deals × 6 seatings = 1,200 games, validation
+deals 10000–10199, Kontra/Re on with the existing Kontra rules; the model
+decides Reizen, pickup, Drücken, Ansage and cards). A − B per seat-game:
+
+| Model | vs Classic Easy | vs Classic Strong |
+|---|---|---|
+| first run (a third of the data) | -34.60 [-40.27, -28.94] | -43.39 [-49.13, -37.65] |
+| W = 1 | not run | -18.13 [-22.43, -13.83] |
+| W = 4 | -2.10 [-6.40, +2.21] (inconclusive) | -14.99 [-18.92, -11.07] |
+| W = 8 | -2.76 [-7.43, +1.91] (inconclusive) | -18.23 [-22.87, -13.58] |
+
+Behaviour of W = 4 against Strong (1,200 games): Reizen actions 5,099, Bid
+43.8 %, Hold 32.7 %, Pass 23.6 % (Strong's table 5,033 actions: 43.0 / 33.1 /
+23.9 %); Einpassen 5/1,800 (Strong 4/1,800). It declared 599 games, won 70.3 %
+at +27.9 points per declarer game (Strong 598 games, 86.6 %, +66.3), and won
+17.3 % of 1,196 defender games (Strong 25.8 % of 1,198). Contracts of 599
+declarer games: Kreuz 192, Pik 147, Herz 69, Karo 79, Grand 109, Null 3, Hand
+0, announcements 0 (Strong 6 Null, 4 Hand of 598). Pass rates and the
+contract mix are now close to Strong's; declarer play is still clearly
+weaker, and Hand and announcements are never chosen (W = 8 likewise: Null 3,
+Hand 0 of 624). Raw logs: `grand-coach-data/studies/2026-11-19-preplay-74b/`.
+
+Caveats: one seed, one dataset, one shape and a 200-deal sample; W = 1, 4 and
+8 differ in per-phase accuracy but their game-score intervals overlap, so no
+ordering between the weights is claimed, and W = 4 is only the best measured
+value. The models stay behind the opt-in tooling: they are weaker than
+Classic Strong, only statistically indistinguishable from Classic Easy
+(not shown better), unshipped and unchanged as default. Kontra/Re stays with
+the existing rules in these games; the learned Kontra/Re head is not used in
+play. Outcome-label pilot: still postponed (no model is competitive with
+Strong).
+
 A baseline on validation deals 10000–10199 (six seatings each, Kontra/Re
 on) compared the shipped card-play model, greedy policy with Easy fallback,
 against Classic Easy. A − B was +19.04 SF points per seat-game, standard

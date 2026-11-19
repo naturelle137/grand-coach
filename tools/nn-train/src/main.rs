@@ -22,7 +22,7 @@
 //!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
 //!     [--device cpu|vulkan[:discrete|:integrated[:N]]]
 //!     [--patience N [--lr-decay X] [--lr-decays N]]
-//!     [--cache DIR] [--data-on-device GB] [--all-phases]
+//!     [--cache DIR] [--data-on-device GB] [--all-phases [--preplay-weight X]]
 //!     [--queue LxH,LxH... [--workers once:cpu,last:vulkan:discrete]]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
@@ -541,6 +541,7 @@ fn train(args: &[String]) {
     let d = Hyper::default();
     let hyper = Hyper {
         all_phases: args.iter().any(|a| a == "--all-phases"),
+        preplay_weight: flag(args, "--preplay-weight", d.preplay_weight),
         hidden: flag(args, "--hidden", d.hidden),
         layers: flag(args, "--layers", d.layers),
         batch: flag(args, "--batch", d.batch),
@@ -876,6 +877,22 @@ fn evaluate(args: &[String]) {
         ("test", &data.test),
     ] {
         report(name, examples);
+    }
+    if hyper.all_phases {
+        use nn_train::train::{DecisionPhase, phase_agreement, read_model};
+        let (net, _) = read_model(&model, None).expect("model");
+        for (name, examples) in [("validation", &data.validation), ("test", &data.test)] {
+            for (phase, (rows, agree)) in DecisionPhase::ALL
+                .iter()
+                .zip(phase_agreement(&net, examples))
+            {
+                println!(
+                    "  {name} {}: {agree}/{rows} agree ({:.2} %)",
+                    phase.name(),
+                    100.0 * agree as f64 / rows.max(1) as f64
+                );
+            }
+        }
     }
     // Origin of the test examples: who played the acting seat and the
     // card-play roles (labels are always the teacher's).

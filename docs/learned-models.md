@@ -182,6 +182,10 @@ settings otherwise follow the existing recipe; future scores and teacher
 estimates remain targets only. This is imitation preparation, not an
 outcome-label experiment or evidence that double-dummy bias is resolved.
 
+`--preplay-weight W` (default 1, omitted from the recipe then) multiplies the
+policy loss of all rows other than plain card play; `evaluate` prints the
+teacher agreement per phase. Results: [ai.md](ai.md#improved-imitation-recipe-74).
+
 The recipe records the opt-in and all five phase bits; cache keys separate
 both modes, resumed runs reject a changed recipe, and exported models carry
 the selected phase coverage. `evaluate` selects all-phase records when the
@@ -204,7 +208,8 @@ validation (rule recomputation from stored views, leak and pair checks) and
 the [pre-play model card](pre-play-model-card.md) records its first small
 result. A first bounded imitation run and behavioural calibration are recorded in
 [ai.md](ai.md#first-all-phase-imitation-run-74): the model is weaker than
-Classic and is not shipped. The outcome-label pilot stays postponed until an
+Classic and is not shipped. An improved recipe is measured in
+[ai.md](ai.md#improved-imitation-recipe-74): still not shipped. The outcome-label pilot stays postponed until an
 imitation model is competitive. Compute on this PC is admitted for bounded
 shell jobs; the earlier Phase 2 compute hold is superseded.
 
