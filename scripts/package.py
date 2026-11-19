@@ -252,6 +252,20 @@ def smoke(args):
         probe_env = dict(os.environ)
         probe_env.pop("GRAND_COACH_MODELS", None)
         subprocess.run([str(installed_probe), "neural"], cwd=root, env=probe_env, check=True, timeout=90)
+        model = install / manifest["models"][0]
+        model_manifest = install / manifest["models"][1]
+        original_model = model.read_bytes()
+        original_manifest = model_manifest.read_bytes()
+        for mode, offset in (("format", 4), ("encoder", 6)):
+            incompatible = bytearray(original_model)
+            incompatible[offset:offset + 2] = b"\xff\xff"
+            model.write_bytes(incompatible)
+            metadata = json.loads(original_manifest)
+            metadata["model_sha256"] = digest(incompatible)
+            model_manifest.write_text(json.dumps(metadata), encoding="utf-8")
+            subprocess.run([str(installed_probe), mode], cwd=root, env=probe_env, check=True, timeout=90)
+        model.write_bytes(original_model)
+        model_manifest.write_bytes(original_manifest)
         preserved = history.read_bytes()
         valid_history_hash = digest(preserved)
         for stage in ("install", "restart", "upgrade", "corrupt-model", "damaged-history"):
@@ -295,7 +309,7 @@ def smoke(args):
         "os": platform.platform(), "result": "passed",
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
-        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API uses shipped model and exercises corrupt-model fallback with valid history", "uninstall retains data"],
+        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API uses shipped model and exercises corrupt and incompatible format/encoder fallback with valid history", "uninstall retains data"],
         "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. No cross-version migration or interactive flows; no clean OS or Windows 11 claim.",
     }, indent=2) + "\n", encoding="utf-8", newline="\n")
 
