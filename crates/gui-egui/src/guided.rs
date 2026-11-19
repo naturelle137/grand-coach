@@ -111,8 +111,10 @@ fn content(
     let prompt = match g.step {
         GuidedStep::Orient if g.lead.is_some() => "guided-lead-orient",
         GuidedStep::Check if g.lead.is_some() && null => "guided-null-lead-candidates",
+        GuidedStep::Check if g.lead_trumpf => "guided-draw-trumpf",
         GuidedStep::Check if g.lead.is_some() => "guided-lead-master",
         GuidedStep::Narrow if g.lead.is_some() && null => "guided-null-lead-attempt",
+        GuidedStep::Narrow if g.lead_trumpf => "guided-draw-trumpf-attempt",
         GuidedStep::Narrow if g.lead.is_some() => "guided-lead-attempt",
         GuidedStep::Observe if g.lead.is_some() => "guided-lead-observe",
         GuidedStep::Orient => "guided-orient",
@@ -155,11 +157,15 @@ fn content(
     if g.lead.is_some() && matches!(g.step, GuidedStep::Check | GuidedStep::Narrow) {
         ui.label(i.t(if null {
             "guided-null-lead-ranks"
+        } else if g.lead_trumpf {
+            "guided-draw-trumpf-definition"
         } else {
             "guided-lead-definition"
         }));
         ui.label(i.t(if null {
             "guided-null-lead-limit"
+        } else if g.lead_trumpf {
+            "guided-draw-trumpf-risk"
         } else {
             "guided-lead-risk"
         }));
@@ -193,13 +199,19 @@ fn content(
     if g.step == GuidedStep::Act
         && let Some(rule) = &g.rule
     {
-        if rule.branch != GuidedBranch::LeadMaster {
+        let lead_rule = matches!(
+            rule.branch,
+            GuidedBranch::LeadMaster | GuidedBranch::DrawTrumpf
+        );
+        if !lead_rule {
             ui.strong(i.tf(
                 "guided-rule-card",
                 &[("card", text::card(i, rule.card).into())],
             ));
         }
-        let key = if rule.branch == GuidedBranch::LeadMaster {
+        let key = if rule.branch == GuidedBranch::DrawTrumpf {
+            "guided-rule-draw-trumpf"
+        } else if rule.branch == GuidedBranch::LeadMaster {
             "guided-rule-lead"
         } else if rule.branch == GuidedBranch::UnderPartner {
             "guided-rule-under"
@@ -220,7 +232,7 @@ fn content(
         } else {
             "guided-rule-win"
         };
-        if rule.branch == GuidedBranch::LeadMaster {
+        if lead_rule {
             ui.strong(i.tf(key, &[("card", text::card(i, rule.card).into())]));
             let cards = rule
                 .candidates
@@ -228,7 +240,14 @@ fn content(
                 .map(|&c| text::card(i, c))
                 .collect::<Vec<_>>()
                 .join(", ");
-            ui.label(i.tf("guided-lead-candidates-risk", &[("cards", cards.into())]));
+            ui.label(i.tf(
+                if rule.branch == GuidedBranch::DrawTrumpf {
+                    "guided-draw-trumpf-candidates-risk"
+                } else {
+                    "guided-lead-candidates-risk"
+                },
+                &[("cards", cards.into())],
+            ));
         } else {
             ui.label(i.t(key));
         }
@@ -271,7 +290,12 @@ fn content(
                 });
             }
         };
-        if rule.branch == GuidedBranch::LeadMaster {
+        if rule.branch == GuidedBranch::DrawTrumpf {
+            ui.collapsing(i.t("guided-lead-details"), |ui| {
+                ui.label(i.t("guided-draw-trumpf-conservative"));
+                ui.label(i.t("guided-lead-empty"));
+            });
+        } else if rule.branch == GuidedBranch::LeadMaster {
             // Choice, candidates and caveat above; further detail stays collapsed.
             ui.collapsing(i.t("guided-lead-details"), |ui| {
                 ui.label(i.t("guided-lead-conservative"));
