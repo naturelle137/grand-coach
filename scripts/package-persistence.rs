@@ -4,15 +4,63 @@
 //! Uses actual training events; never included inside the application archive.
 
 use skat_app::{
-    AssistanceLevel, Command, LearningHistory, OpponentEngine, SeriesLength, Session,
-    SessionConfig, TrainingCommand, TrainingSession, TrainingTopic,
+    AssistanceLevel, Command, LearningHistory, Level, OpponentEngine, Opponents, Phase,
+    SeriesLength, Session, SessionConfig, TrainingCommand, TrainingSession, TrainingTopic,
 };
 use std::path::PathBuf;
 
 fn main() {
     let mut args = std::env::args().skip(1);
     let mode = args.next().expect("create or check");
-    if ["neural", "fallback", "format", "encoder"].contains(&mode.as_str()) {
+    if mode == "hybrid" || mode.starts_with("hybrid-") {
+        let config = SessionConfig {
+            seed: 7,
+            series: SeriesLength::Fixed(2),
+            opponents: Opponents::Levels([Level::Easy, Level::Easy]),
+            engine: OpponentEngine::Hybrid,
+            ..SessionConfig::default()
+        };
+        let mut session = Session::new(config);
+        let mut classic = Session::new(SessionConfig {
+            engine: OpponentEngine::Classic,
+            ..config
+        });
+        assert_eq!(
+            session.neural_provenance().unwrap().model.is_ok(),
+            mode == "hybrid"
+        );
+        for _ in 0..512 {
+            if let Some(job) = session.opponent_job() {
+                let card_play = session.view().phase == Phase::Spiel;
+                let action = job.run(None);
+                session.finish_opponent(action).unwrap();
+                if mode != "hybrid" {
+                    let other = classic.opponent_job().unwrap().run(None);
+                    classic.finish_opponent(other).unwrap();
+                    let mut view = session.view();
+                    view.config.engine = OpponentEngine::Classic;
+                    assert_eq!(view, classic.view());
+                }
+                if card_play {
+                    println!("{mode}: card-play decision verified");
+                    return;
+                }
+            } else {
+                let command = session
+                    .view()
+                    .legal_actions
+                    .first()
+                    .copied()
+                    .map_or(Command::NextGame, Command::Act);
+                session.execute(command.clone()).unwrap();
+                if mode != "hybrid" {
+                    classic.execute(command).unwrap();
+                }
+            }
+        }
+        panic!("no Hybrid card-play decision");
+    }
+    if ["neural", "missing", "fallback", "format", "encoder"].contains(&mode.as_str()) {
         let mut session = Session::new(SessionConfig {
             seed: 7,
             series: SeriesLength::Fixed(2),
@@ -34,6 +82,7 @@ fn main() {
                 if mode != "neural" {
                     let expected = match mode.as_str() {
                         "fallback" => "Model(HashMismatch)",
+                        "missing" => "Model(Missing)",
                         "format" => "Model(Format { found: 65535 })",
                         "encoder" => "Model(Encoder { found: 65535 })",
                         _ => unreachable!(),
@@ -55,10 +104,7 @@ fn main() {
                 break;
             }
         }
-        assert!(
-            observed,
-            "expected Neural model decision or corrupt-model fallback"
-        );
+        assert!(observed, "expected Neural model decision or model fallback");
         println!("{mode}: decision verified");
         return;
     }

@@ -10,11 +10,30 @@ recipe, provenance and limits. The [operational selection](neural-operational-se
 records the revised narrow rule, all 18 comparisons and v1 rollback.
 
 `skat-app` looks for `card-play.gcnn` in `GRAND_COACH_MODELS`, then
-`assets/models` beside the executable, then the workspace assets. It caches
+`assets/models` beside the executable, then the workspace assets only when
+running from its `target` directory. For a custom Cargo target directory, set
+`GRAND_COACH_MODELS` to the workspace's `assets/models`. It caches
 the first load result. A readable manifest must contain a matching SHA-256.
 If the manifest cannot be read, the loader uses the file's own hash.
 Burn runs inference on CPU. A missing or invalid model, unsupported phase
 or unusable output triggers the configured Classic fallback.
+
+## Supported phases, levels and limits
+
+| Aspect | Supported in the package | Not supported |
+|--------|--------------------------|---------------|
+| Phases | Card play in Spiel including Re | Bidding, Skat selection, game announcement and Kontra decisions stay Classic |
+| Engines | Neural (Easy, Medium, Strong) and Hybrid, chosen per table | Rookie is Classic-only; Classic stays the default |
+| Runtime | Offline CPU inference from the acting seat's `PlayerView` | GPU, network, first-run download, model server |
+| Failure | Missing, corrupt, format/encoder-incompatible or disabled model: translated notice, Classic level of the seat plays on, user data unchanged | No partial or silent use of a rejected model |
+
+Every learned level and engine keeps its experimental label. Removal needs
+calibration that supports the level: adjacent-level ordering and Classic
+equivalence are not established (see [ai.md](ai.md#neural-engine-selection)),
+and Phase 2 ended as a no-go. Neural estimates are model preferences, not
+exact values or win probabilities. Target-machine (six-core, integrated
+graphics) latency, RSS and package size are unmeasured because the hardware
+is unavailable to agents; i9-10900K figures are proxies only.
 
 ## Phase 2
 
