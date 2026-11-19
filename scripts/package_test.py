@@ -61,6 +61,19 @@ class PackageTests(unittest.TestCase):
                 with self.assertRaises((ValueError, FileNotFoundError)):
                     package.verify(self.write(directory, self.with_manifest(files)))
 
+    def test_incomplete_model_provenance_or_card_fails_even_with_rehashed_manifest(self):
+        record = json.loads(self.files[package.MODELS[1]])
+        cases = []
+        for key in ("engine_commit", "source_provenance_sha256", "licence"):
+            cases.append((package.MODELS[1], json.dumps({k: v for k, v in record.items() if k != key}).encode()))
+        cases.append((package.MODELS[2], b"# card without sections\n"))
+        for name, content in cases:
+            files = {**self.files, name: content}
+            self.manifest["files"] = {k: package.digest(v) for k, v in files.items()}
+            with tempfile.TemporaryDirectory() as directory:
+                with self.assertRaises(ValueError):
+                    package.verify(self.write(directory, self.with_manifest(files)))
+
     def test_changed_bytes_extra_files_and_unsafe_paths_fail(self):
         for name, content in (("grand-coach", b"tampered"), ("extra", b"unexpected"), ("../escape", b"bad")):
             files = {**self.files, name: content}

@@ -70,6 +70,14 @@ def models(root):
     recorded = json.loads(data[MODELS[1]])
     if recorded["model_sha256"] != digest(data[MODELS[0]]) or recorded["model_bytes"] != len(data[MODELS[0]]):
         raise ValueError("model differs from its training manifest")
+    for key in ("recipe", "engine_commit", "campaign", "selection", "supervised_start", "source_provenance_sha256"):
+        if not recorded.get(key):
+            raise ValueError(f"training manifest lacks {key}")
+    if recorded.get("licence") != "CC-BY-SA-4.0":
+        raise ValueError("training manifest licence is not CC-BY-SA-4.0")
+    card = data[MODELS[2]].decode("utf-8")
+    if "## Recipe and provenance" not in card or "## Evidence and limits" not in card or "CC BY-SA 4.0" not in card:
+        raise ValueError("model card lacks provenance, limits or licence")
     return list(MODELS)
 
 
