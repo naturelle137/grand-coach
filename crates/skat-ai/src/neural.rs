@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use skat_analysis::Cancel;
 use skat_core::PlayerView;
-use skat_nn::{Choice, Fallback, ModelError, NeuralModel};
+use skat_nn::{Choice, Fallback, ModelError, NeuralModel, Phases};
 
 use crate::opponent::{KontraRule, kontra_rule};
 use crate::{Decision, Opponent};
@@ -44,6 +44,10 @@ pub struct NeuralOpponent {
     pub classic: Opponent,
     /// How the model picks its action (default: the policy head).
     pub choice: Choice,
+    /// Phases the model may decide (default: all it covers); Classic decides
+    /// the others with [`Fallback::UnsupportedPhase`], so a model can be
+    /// evaluated for a subset of phases.
+    pub learned: Phases,
 }
 
 /// A decision of a [`NeuralOpponent`] and how it was reached.
@@ -68,7 +72,13 @@ impl NeuralOpponent {
             model,
             classic,
             choice: Choice::Policy,
+            learned: Phases::ALL,
         }
+    }
+
+    /// The same opponent letting the model decide only `learned` phases.
+    pub fn with_learned_phases(self, learned: Phases) -> NeuralOpponent {
+        NeuralOpponent { learned, ..self }
     }
 
     /// The same opponent picking its actions by `choice`.
@@ -115,6 +125,9 @@ impl NeuralOpponent {
             }
         };
         let evaluation = match &self.model {
+            Ok(_) if !self.learned.contains(view.phase) => {
+                Err(Fallback::UnsupportedPhase(view.phase))
+            }
             Ok(model) => model.evaluate_seeded(
                 view,
                 self.choice,

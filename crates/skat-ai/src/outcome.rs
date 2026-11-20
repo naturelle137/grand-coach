@@ -33,8 +33,8 @@ pub struct CandidateOutcome {
 /// Plays every legal discard of `view` out `samples` times against `players`
 /// (indexed by seat, including the acting seat's own continuation).
 ///
-/// Returns `None` if `view` is not a declarer's Drücken decision or its
-/// hidden cards or public history are inconsistent. Deterministic for equal
+/// Returns `None` if `samples` is zero, `view` is not a declarer's Drücken
+/// decision, or its hidden cards or public history are inconsistent. Deterministic for equal
 /// `seed` and deterministic `players`.
 pub fn discard_outcomes(
     view: &PlayerView,
@@ -42,7 +42,7 @@ pub fn discard_outcomes(
     samples: u32,
     seed: u64,
 ) -> Option<Vec<CandidateOutcome>> {
-    if view.phase != Phase::Druecken || view.current_seat != Some(view.seat) {
+    if samples == 0 || view.phase != Phase::Druecken || view.current_seat != Some(view.seat) {
         return None;
     }
     let hidden = HiddenCards::from_view(view).ok()?;
@@ -60,7 +60,7 @@ pub fn discard_outcomes(
             *sum += f64::from(game.result()?.seeger_fabian()[view.seat.index()]);
         }
     }
-    let n = f64::from(samples.max(1));
+    let n = f64::from(samples);
     Some(
         view.legal_actions
             .iter()
@@ -156,6 +156,29 @@ pub fn compare_discards(rows: &[DrueckenRow], policy: &dyn Player, tie: f64) -> 
     }
 }
 
+/// Mean fresh-sample outcome of the pair selected as best on each original row.
+/// Rows without matching views or labels are excluded. Use independently seeded
+/// samples for `holdout`; this measures selection rather than a policy's strength.
+pub fn holdout_best(rows: &[DrueckenRow], holdout: &[DrueckenRow]) -> Option<(usize, f64)> {
+    let mut count = 0;
+    let mut sum = 0.0;
+    for row in rows {
+        let Some(best) = row.outcomes.iter().max_by(|a, b| a.mean.total_cmp(&b.mean)) else {
+            continue;
+        };
+        let Some(label) = holdout
+            .iter()
+            .find(|r| r.deal == row.deal && r.view == row.view)
+            .and_then(|r| r.outcomes.iter().find(|c| c.action == best.action))
+        else {
+            continue;
+        };
+        count += 1;
+        sum += label.mean;
+    }
+    (count > 0).then(|| (count, sum / count as f64))
+}
+
 /// The hypothetical game in `world` with the public history up to the
 /// declarer's Drücken replayed. Once the declarer holds twelve cards, any
 /// two of them rebuild the same position.
@@ -216,6 +239,7 @@ mod tests {
             .expect("some deal is played");
         let players = easy();
         let p = [&players[0] as &dyn Player, &players[1], &players[2]];
+        assert!(discard_outcomes(&view, p, 0, 7).is_none());
         let a = discard_outcomes(&view, p, 2, 7).expect("declarer Drücken view");
         assert_eq!(a.len(), 66);
         assert!(a.iter().all(|c| c.mean.is_finite()));
@@ -237,6 +261,23 @@ mod tests {
         assert!((0.0..=1.0).contains(&c.best_share));
         // A tolerance above the label range counts every choice as best.
         assert_eq!(compare_discards(&rows, &players[0], 1e9).best_share, 1.0);
+    }
+
+    #[test]
+    fn holdout_scores_selected_pair_not_holdout_maximum() {
+        let players = easy();
+        let p = [&players[0] as &dyn Player, &players[1], &players[2]];
+        let mut rows = discard_dataset(&players[0], p, 0, 1, 1, 3);
+        let row = rows.first_mut().expect("played deal");
+        row.outcomes.truncate(2);
+        row.outcomes[0].mean = 10.0;
+        row.outcomes[1].mean = 5.0;
+        let mut fresh = rows.clone();
+        fresh[0].outcomes[0].mean = -3.0;
+        fresh[0].outcomes[1].mean = 20.0;
+        assert_eq!(holdout_best(&rows, &fresh), Some((1, -3.0)));
+        fresh[0].deal += 1;
+        assert_eq!(holdout_best(&rows, &fresh), None);
     }
 
     #[test]
