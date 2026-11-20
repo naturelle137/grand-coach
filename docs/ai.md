@@ -450,6 +450,22 @@ reproducibility and rejection of other phases and seats. No dataset was
 generated and no model was trained or compared with these targets; no
 strength claim follows.
 
+`skat_ai::outcome::discard_dataset` labels the declarer's Drücken decisions
+of Easy table games and `compare_discards` scores any `Player` against them
+(mean label of its pair, mean best label, share within a tie tolerance).
+`nn-train outcome-druecken OUT.jsonl [--deals N] [--samples N] [--seed N]
+[--model FILE]` writes the rows (permitted view, 66 labels, deal number for
+reproduction only) and prints that comparison for Easy, Strong and the model.
+Pilot run (`--deals 100 --samples 4 --seed 1`, frozen Easy opponents, 99
+rows): Easy and Strong choose the same pairs (mean label 2.73, within 0.5 of
+the best label in 44.4 % of rows); the shipped card-play model does not cover
+Drücken and falls back to Easy, so it scores identically. The "best" mean of
+30.87 is the maximum of 66 four-game means and therefore strongly optimistic
+(winner's curse): the 28-point regret is not a measure of lost strength. Use
+more samples or re-label the best candidates with fresh seeds before trusting
+absolute values. No Drücken model was trained against these labels and no
+strength claim follows.
+
 A baseline on validation deals 10000–10199 (six seatings each, Kontra/Re
 on) compared the shipped card-play model, greedy policy with Easy fallback,
 against Classic Easy. A − B was +19.04 SF points per seat-game, standard

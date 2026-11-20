@@ -21,6 +21,7 @@ use crate::Player;
 
 /// Mean outcome of one legal action over the sampled games.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct CandidateOutcome {
     /// The candidate discard.
     pub action: Action,
@@ -70,6 +71,89 @@ pub fn discard_outcomes(
             })
             .collect(),
     )
+}
+
+/// One Drücken decision with its outcome labels.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct DrueckenRow {
+    /// Deal seed of the table game that reached this decision (reproduction
+    /// only; never a model input).
+    pub deal: u64,
+    /// The declarer's permitted view.
+    pub view: PlayerView,
+    /// Mean outcome per legal pair, in `view.legal_actions` order.
+    pub outcomes: Vec<CandidateOutcome>,
+}
+
+/// Plays the deals `first_deal..first_deal + deals` with `table` at all
+/// seats up to the declarer's Drücken and labels each such decision by
+/// [`discard_outcomes`] against `frozen`. Deals without a declarer (all
+/// pass) yield no row.
+pub fn discard_dataset(
+    table: &dyn Player,
+    frozen: [&dyn Player; 3],
+    first_deal: u64,
+    deals: u64,
+    samples: u32,
+    seed: u64,
+) -> Vec<DrueckenRow> {
+    (first_deal..first_deal + deals)
+        .filter_map(|deal| {
+            let mut game = Game::new(deal, skat_core::RuleConfig::default());
+            while let Some(seat) = game.current_seat() {
+                let view = game.view(seat);
+                if view.phase == Phase::Druecken {
+                    let outcomes = discard_outcomes(&view, frozen, samples, seed ^ deal)?;
+                    return Some(DrueckenRow {
+                        deal,
+                        view,
+                        outcomes,
+                    });
+                }
+                game.apply(table.decide(&view, None)?.action).ok()?;
+            }
+            None
+        })
+        .collect()
+}
+
+/// How a discard policy fares against the outcome labels of a dataset.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DiscardComparison {
+    /// Rows the policy answered with a legal pair.
+    pub rows: u32,
+    /// Mean label of the chosen pair.
+    pub mean_chosen: f64,
+    /// Mean label of the best pair (the target's own optimum).
+    pub mean_best: f64,
+    /// Share of rows where the policy chose a pair within `tie` of the best.
+    pub best_share: f64,
+}
+
+/// Scores `policy` on `rows`. The labels are noisy estimates, so a choice
+/// counts as best when it is within `tie` points of the best label. Rows the
+/// policy cannot answer legally are left out of every figure.
+pub fn compare_discards(rows: &[DrueckenRow], policy: &dyn Player, tie: f64) -> DiscardComparison {
+    let (mut n, mut chosen, mut best, mut hits) = (0u32, 0.0, 0.0, 0u32);
+    for row in rows {
+        let top = row.outcomes.iter().map(|c| c.mean).fold(f64::MIN, f64::max);
+        let pick = policy
+            .decide(&row.view, None)
+            .and_then(|d| row.outcomes.iter().find(|c| c.action == d.action));
+        let Some(pick) = pick else { continue };
+        n += 1;
+        chosen += pick.mean;
+        best += top;
+        hits += u32::from(top - pick.mean <= tie);
+    }
+    let d = f64::from(n.max(1));
+    DiscardComparison {
+        rows: n,
+        mean_chosen: chosen / d,
+        mean_best: best / d,
+        best_share: f64::from(hits) / d,
+    }
 }
 
 /// The hypothetical game in `world` with the public history up to the
@@ -137,6 +221,22 @@ mod tests {
         assert!(a.iter().all(|c| c.mean.is_finite()));
         assert!(a.iter().any(|c| c.mean != a[0].mean), "pairs differ");
         assert_eq!(a, discard_outcomes(&view, p, 2, 7).unwrap());
+    }
+
+    #[test]
+    fn dataset_rows_are_labelled_and_compared() {
+        let players = easy();
+        let p = [&players[0] as &dyn Player, &players[1], &players[2]];
+        let rows = discard_dataset(&players[0], p, 0, 12, 1, 3);
+        assert!(!rows.is_empty() && rows.len() <= 12);
+        assert!(rows.iter().all(|r| r.outcomes.len() == 66));
+        assert_eq!(rows, discard_dataset(&players[0], p, 0, 12, 1, 3));
+        let c = compare_discards(&rows, &players[0], 0.0);
+        assert_eq!(c.rows as usize, rows.len());
+        assert!(c.mean_chosen <= c.mean_best + 1e-9);
+        assert!((0.0..=1.0).contains(&c.best_share));
+        // A tolerance above the label range counts every choice as best.
+        assert_eq!(compare_discards(&rows, &players[0], 1e9).best_share, 1.0);
     }
 
     #[test]

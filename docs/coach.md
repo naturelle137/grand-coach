@@ -300,7 +300,7 @@ optimality, later lead or hidden holder is claimed. Other branches and Ouvert
 Grand/Null card play report unsupported and return to free play; Kontra/Re has its own
 dialogue below. In particular, a side master is
 not safe against trumping: second-seat Grand `FeedPartner` explicitly teaches
-this limit and observes the remaining declarer. Early Farbspiel feeding stays excluded.
+this limit and observes the remaining declarer. [Second-seat Farbspiel `FeedPartner`](guided-dialogue.md#farbspiel-second-seat-feedpartner-131) uses the same admission, where the declarer may trump with any Trumpf.
 
 One active prompt has at most two supporting facts. Rule conditions and
 candidates appear only after an attempt or deliberate reveal. Optional card

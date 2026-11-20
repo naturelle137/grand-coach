@@ -14,6 +14,8 @@
 //!     [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4]
 //!     [--teacher-samples 96|384]
 //!     [--table teacher|easy-mix|rookie-mix|medium-mix|level-mix]
+//! cargo run --locked --release -p nn-train -- outcome-druecken OUT.jsonl
+//!     [--deals N] [--first-deal N] [--samples N] [--seed N] [--model FILE]
 //! cargo run --locked --release -p nn-train -- verify DIR
 //! cargo run --locked --release -p nn-train -- validate-labels DIR
 //! cargo run --locked --release -p nn-train -- train OUT_DIR DATA_DIR...
@@ -1129,6 +1131,65 @@ fn probe(args: &[String]) {
     }
 }
 
+/// `outcome-druecken OUT.jsonl [--deals N] [--first-deal N] [--samples N]
+/// [--seed N] [--model FILE]`: labels the declarer's Drücken decisions of
+/// Classic Easy table games with outcome means against frozen Easy players
+/// (#74 step 2), writes one JSON row per decision and prints how Easy,
+/// Strong and the optional model score on those labels.
+fn outcome_druecken(args: &[String]) {
+    use skat_ai::outcome::compare_discards;
+    use skat_ai::{NeuralOpponent, Player};
+    let out = args.first().expect("outcome-druecken OUT.jsonl");
+    let flag = |name: &str| args.iter().position(|a| a == name).map(|i| i + 1);
+    let num = |name: &str, default: u64| flag(name).map_or(default, |i| arg(args, i, default));
+    let (deals, first, seed) = (
+        num("--deals", 200),
+        num("--first-deal", 0),
+        num("--seed", 0),
+    );
+    let samples = u32::try_from(num("--samples", 8)).expect("--samples");
+    let easy = [0, 1, 2].map(|s| Opponent::new(Level::Easy, s));
+    let frozen = [&easy[0] as &dyn Player, &easy[1], &easy[2]];
+    let rows = skat_ai::outcome::discard_dataset(&easy[0], frozen, first, deals, samples, seed);
+    let mut text = String::new();
+    for row in &rows {
+        text += &serde_json::to_string(row).expect("serialise row");
+        text.push('\n');
+    }
+    std::fs::write(out, text).expect("write dataset");
+    println!(
+        "{} Drücken rows from {deals} deals ({samples} samples each) -> {out}",
+        rows.len()
+    );
+    let strong = Opponent::new(Level::Strong, 0);
+    let mut players: Vec<(String, Box<dyn Player>)> = vec![
+        ("easy".into(), Box::new(easy[0])),
+        ("strong".into(), Box::new(strong)),
+    ];
+    if let Some(path) = flag("--model").and_then(|i| args.get(i)) {
+        let bytes = std::fs::read(path).expect("read model");
+        let model = skat_nn::NeuralModel::load(&bytes, &skat_nn::sha256(&bytes))
+            .unwrap_or_else(|e| panic!("{path}: {e:?}"));
+        let neural = NeuralOpponent::new(
+            Ok(std::sync::Arc::new(model)),
+            Opponent::new(Level::Easy, 0),
+        );
+        players.push(("model".into(), Box::new(neural)));
+    }
+    // Labels are means of few games: pairs within 0.5 point count as ties.
+    for (name, player) in &players {
+        let c = compare_discards(&rows, player.as_ref(), 0.5);
+        println!(
+            "{name}: rows {} chosen {:.2} best {:.2} regret {:.2} within-0.5 {:.3}",
+            c.rows,
+            c.mean_chosen,
+            c.mean_best,
+            c.mean_best - c.mean_chosen,
+            c.best_share
+        );
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
@@ -1150,6 +1211,7 @@ fn main() {
                 }
             }
         }
+        Some("outcome-druecken") => outcome_druecken(&args[1..]),
         Some("validate-labels") => {
             let dir = args.get(1).expect("validate-labels DIR");
             match nn_train::shards::validate_labels(std::path::Path::new(dir)) {
@@ -1219,6 +1281,10 @@ fn main() {
                 "       nn-train generate OUT_DIR [--deals N] [--shard-deals N] [--seed N] \
                  [--minutes N] [--max-mb N] [--cpus N] [--workers N] [--search-backend cpu|profile|cpu-endgame|vulkan] [--rest-tricks 2|3|4] [--teacher-samples 96|384] \
                  [--table teacher|easy-mix|rookie-mix|medium-mix|level-mix]"
+            );
+            eprintln!(
+                "       nn-train outcome-druecken OUT.jsonl [--deals N] [--first-deal N] \
+                 [--samples N] [--seed N] [--model FILE]"
             );
             eprintln!("       nn-train verify DIR");
             eprintln!("       nn-train validate-labels DIR");

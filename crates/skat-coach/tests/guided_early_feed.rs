@@ -6,7 +6,7 @@
 mod fixture;
 use fixture::*;
 use skat_coach::guided::{Answer, Branch, Step, lesson, observe};
-use skat_core::{Action, GameType, Seat, Suit};
+use skat_core::{Action, GameType, Seat};
 
 fn case() -> Case {
     cases()
@@ -95,7 +95,7 @@ fn early_feed_requires_exact_acting_defender_and_grand_master() {
         let mut x = v.clone();
         match n {
             0 => x.contract.as_mut().unwrap().ouvert = true,
-            1 => x.contract.as_mut().unwrap().game = GameType::Farbe(Suit::Herz),
+            1 => x.contract.as_mut().unwrap().game = GameType::Null,
             2 => x.current_seat = Some(Seat::Vorhand),
             3 => x.current_trick.leader = Some(Seat::Hinterhand),
             4 => x.legal_actions.reverse(),
