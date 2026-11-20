@@ -82,6 +82,8 @@ against Strong's 86.6 %.
 
 ## Open before a production claim
 
-Rare classes (Hand, announcements), declarer strength, more data (e.g. the
-larger Strong sets), repeat seeds, validated Kontra/Re integration (#108), weights hashes, licence and provenance in
-[third-party](third-party.md), and the outcome-label pilot (postponed).
+Rare classes (Hand, announcements), declarer strength, repeat seeds, validated
+Kontra/Re integration (#108), and weights licence and provenance in
+[third-party](third-party.md) remain open. The Drücken outcome-label pilot and
+its limitations are recorded in [ai.md](ai.md#rare-pre-play-classes-and-the-learned-kontrare-head-74);
+no model has been trained on those labels.

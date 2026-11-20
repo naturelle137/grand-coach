@@ -465,7 +465,9 @@ Drücken and falls back to Easy, so it scores identically. The "best" mean of
 more samples or re-label the best candidates with fresh seeds before trusting
 absolute values. `--holdout-seed N` repeats the sampling with a different seed
 and reports the fresh mean for the pair selected as best on the original labels;
-it does not train or evaluate a learned policy. No Drücken model was trained against these labels and no
+it also reports each policy’s chosen-pair mean on the fresh samples. This is
+an evaluation against frozen opponents, not a strength measurement. Zero samples
+are rejected. No Drücken model was trained against these labels and no
 strength claim follows.
 
 A baseline on validation deals 10000–10199 (six seatings each, Kontra/Re
