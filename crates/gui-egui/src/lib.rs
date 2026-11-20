@@ -7,6 +7,7 @@ mod app;
 pub mod assist;
 pub mod cards;
 pub mod coach;
+mod comparison;
 pub mod i18n;
 pub mod learning;
 mod recording;

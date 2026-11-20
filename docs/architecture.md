@@ -207,6 +207,15 @@ background work and disconnecting its channels; return restores the parked
 live state, whose retained results are then delivered normally. Language and
 deck are shared display settings.
 
+After a finished attempt, "Compare with original" opens a read-only,
+in-memory comparison (`PracticeComparison::new(original, attempt)` over
+`Session::finished_practice_privileged`). The i-th own decisions of both lines
+are paired; runs with the same action history and action collapse into one
+"identical" row, diverging decisions are listed in order with each line's
+permitted snapshot (no concealed card is disclosed) and chosen action. It
+scores, ranks and saves nothing, leaves the learning history unchanged and does
+not say which line was better; closing it or returning to the series drops it.
+
 ### Historical and hindsight replay comments (D-67)
 
 `ReplayCoach::open(&recording, budget)` validates the whole recording and

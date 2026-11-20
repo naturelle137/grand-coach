@@ -782,7 +782,7 @@ guided-pre-act-pickup = Now choose freely: Hand or pick up the Skat.
 guided-pre-act-discard = Now put away any two cards.
 guided-unsupported-kontra = No guided dialogue is verified for this Kontra/Re position. Continue free play.
 guided-unsupported-kontra-ouvert-round = Ouvert Kontra round before the reveal: no guided dialogue. Choose Kontra or No Kontra freely.
-guided-unsupported-kontra-ouvert = Kontra and Re in an Ouvert game: no guided dialogue. Continue free play.
+guided-unsupported-kontra-ouvert = Kontra and Re in a Null Ouvert game: no guided dialogue. Continue free play.
 guided-kontra-public-kontra = Public: { $game }, no Kontra so far (factor ×1). You defend and may say Kontra before your first card.
 guided-kontra-public-re = Public: { $game }, a defender said Kontra (factor ×2). As declarer you answer now: Re or No Re.
 guided-kontra-orient-kontra = If you say Kontra, by which factor are the game points written down multiplied?
@@ -808,6 +808,7 @@ guided-kontra-count-re-no = Strength { $count } < Re threshold { $threshold }: E
 guided-kontra-count-kontra-grand = Trumpf in your hand: { $count } of the four Buben < { $threshold }: in Grand Easy's Kontra condition never holds, so Easy says no Kontra and plays a card.
 guided-kontra-count-kontra-null = Null has no Trumpf, so Easy's Trumpf count gives no assessment: Easy says no Kontra and plays a card.
 guided-kontra-count-re-null = Null has no Trumpf and Easy's strength score has no Null value, so its Re condition never holds: Easy says No Re.
+guided-kontra-ouvert-view = In this Ouvert game the declarer's hand is open to the defenders. Easy's rule below does not use it: it counts only the cards and public facts listed here, and nothing beyond that view is inferred.
 guided-kontra-fact-factor = Kontra doubles and Re quadruples the game points written down; neither changes whether the bid is reached.
 guided-kontra-caveat-kontra = Five Trumpf are Easy's rule of thumb, not proof of a winning defence; the outcome of the game stays unknown.
 guided-kontra-caveat-re = Strength is Easy's heuristic score, not a probability and not a rule of Skat; the outcome of the game stays unknown.
@@ -1152,3 +1153,18 @@ guided-rule-null-defender = Easy chooses the highest-ranked card that leaves the
 
 guided-null-defender-last-role = You defend in Null and play last. The declarer is ahead. There is no Trumpf; Buben follow their printed suit.
 guided-rule-null-defender-last = Easy chooses the highest-ranked card that leaves the declarer ahead, with the last equal rank in legal order. This heuristic does not guarantee winning the game.
+
+practice-compare = Compare with original
+compare-title = Practice attempt vs. original game
+compare-isolation = Read-only and in memory only: nothing is scored, saved or added to the learning history.
+compare-no-ranking = Your own decisions side by side, each from what you could see then. This does not say which line was better; for that, use the ordinary coach analysis, which shows its source and uncertainty.
+compare-all-same = Every own decision matched the original game.
+compare-identical = { $count ->
+    [one] 1 identical decision (same position, same action)
+   *[other] { $count } identical decisions (same position, same action)
+}
+compare-decision = Decision { $number }
+compare-original = Original game
+compare-attempt = Practice attempt
+compare-chose = Chosen: { $action }
+compare-none = No decision at this point in this line.

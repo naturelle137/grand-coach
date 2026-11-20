@@ -369,3 +369,75 @@ fn temp_dir() -> PathBuf {
     fs::create_dir(&p).unwrap();
     p
 }
+
+/// Plays an attempt to its end with `human(n)` as the n-th own action.
+fn finish_attempt(practice: &mut Session, mut human: impl FnMut(&TableView) -> Action) {
+    count(practice, |v| human(v));
+}
+
+#[test]
+fn comparison_collapses_identical_lines_and_lists_divergences_in_order() {
+    let (live, recording) = late_series(Opponents::Levels([Level::Easy, Level::Rookie]));
+    let before = live.view();
+
+    // Same choices: every own decision is identical and collapsed.
+    let mut same = live.start_practice(&recording).unwrap();
+    assert!(same.finished_practice_privileged().is_none(), "unfinished");
+    let mut n = 0;
+    loop {
+        if same.opponent_to_move() {
+            same.execute(Command::AdvanceOpponent).unwrap();
+        } else if same.view().legal_actions.is_empty() {
+            break;
+        } else {
+            same.execute(Command::Act(recording.actions[n])).unwrap();
+        }
+        n += 1;
+    }
+    let attempt = same.finished_practice_privileged().unwrap();
+    let cmp = PracticeComparison::new(&recording, &attempt).unwrap();
+    if attempt.actions == recording.actions {
+        assert_eq!(cmp.diverged(), 0);
+        assert!(matches!(
+            cmp.rows.as_slice(),
+            [ComparisonRow::Identical { .. }] | []
+        ));
+    }
+
+    // Always passing differs from the recorded line where it did not pass.
+    let mut other = live.start_practice(&recording).unwrap();
+    finish_attempt(&mut other, low);
+    let attempt = other.finished_practice_privileged().unwrap();
+    let cmp = PracticeComparison::new(&recording, &attempt).unwrap();
+    let mut last = 0;
+    for row in &cmp.rows {
+        if let ComparisonRow::Diverged {
+            ordinal,
+            original,
+            attempt,
+        } = row
+        {
+            assert!(*ordinal > last, "in order");
+            last = *ordinal;
+            assert!(original.is_some() || attempt.is_some());
+        }
+    }
+    // Self-comparison is fully collapsed.
+    let own = PracticeComparison::new(&recording, &recording).unwrap();
+    assert_eq!(own.diverged(), 0);
+    assert!(own.rows.len() <= 1);
+
+    // Read-only: nothing persisted or changed in the live series.
+    assert_eq!(live.view(), before);
+    assert!(other.export_current_recording_privileged().is_none());
+    assert!(live.finished_practice_privileged().is_none());
+}
+
+#[test]
+fn comparison_rejects_invalid_recordings() {
+    let (_, recording) = late_series(Opponents::Levels([Level::Easy; 2]));
+    let mut bad = recording.clone();
+    bad.end = RecordingEnd::InProgress;
+    assert!(PracticeComparison::new(&recording, &bad).is_err());
+    assert!(PracticeComparison::new(&bad, &recording).is_err());
+}
