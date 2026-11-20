@@ -169,6 +169,8 @@ fn content(
             "guided-null-lead-ranks"
         } else if g.lead_trumpf {
             "guided-draw-trumpf-definition"
+        } else if matches!(table.contract.map(|c| c.game), Some(GameType::Farbe(_))) {
+            "guided-lead-suit-definition"
         } else {
             "guided-lead-definition"
         }));
