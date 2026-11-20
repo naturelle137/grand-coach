@@ -1209,3 +1209,13 @@ trumping, hidden-holder equality, input mutations); the existing app/GUI
 dialogue plumbing for permitted-view estimates is shared with the Grand
 family. No new ordinary route, screenshot, learner, UAT or transfer evidence
 is claimed.
+
+## Ouvert Farbspiel declarer lead (#273)
+
+On the declarer's own empty-trick lead in an Ouvert Farbspiel, the existing
+`LeadMaster` dialogue is available when Easy selects a non-Trumpf follow-class
+master and at least two pure legal cards are available. Easy compares all such
+masters by Augen, taking the last exact tie. A follow-class master can still
+be trumped; neither the open table display nor God Mode supplies defender hands
+to this dialogue. Other branches remain unsupported. Every legal card remains
+playable, and the actual replies are observed after the player's choice.
