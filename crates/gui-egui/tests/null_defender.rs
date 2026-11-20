@@ -129,3 +129,102 @@ fn ordinary_null_defender_widgets() {
         }
     }
 }
+
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn ordinary_null_last_defender_widgets() {
+    for language in Language::ALL {
+        for size in [[1440.0, 1000.0], [960.0, 640.0]] {
+            let output = std::env::var("NULL_LAST_DEFENDER_SCREENSHOTS").ok();
+            let builder = Harness::builder().with_size(size);
+            let builder = if output.is_some() {
+                builder.wgpu()
+            } else {
+                builder
+            };
+            let mut h = builder.build_eframe(|cc| {
+                GrandCoachApp::new(
+                    &cc.egui_ctx,
+                    SessionConfig {
+                        seed: 3211,
+                        series: SeriesLength::Fixed(3),
+                        opponents: Opponents::Levels([Level::Easy; 2]),
+                        kontra_re: false,
+                        ..SessionConfig::default()
+                    },
+                )
+            });
+            h.state_mut().set_language(language);
+            h.state_mut().opponent_delay = 0.0;
+            h.state_mut().set_coach_budget(Budget {
+                samples: 1,
+                nodes_per_task: 1,
+            });
+            let i = I18n::new(language);
+            support::settle(&mut h);
+            support::click(&mut h, &i.t("button-pass"));
+            support::settle(&mut h);
+            support::click(&mut h, &i.t("button-next-game"));
+            support::settle(&mut h);
+            support::click(&mut h, &i.t("button-pass"));
+            for n in [11, 1, 15, 5, 28, 17, 24, 22, 23, 29] {
+                support::settle(&mut h);
+                support::click(
+                    &mut h,
+                    &support::card_name(&i, Card::from_index(n).unwrap()),
+                );
+            }
+            support::settle(&mut h);
+            support::click(&mut h, &i.t("button-next-game"));
+            support::settle(&mut h);
+            support::click(&mut h, &i.t("button-pass"));
+            support::settle(&mut h);
+            support::click(
+                &mut h,
+                &support::card_name(&i, Card::from_index(1).unwrap()),
+            );
+            support::settle(&mut h);
+            assert_eq!(h.state().session().view().current_trick.len(), 2);
+            support::click(&mut h, &i.t("guided-start"));
+            h.get_by_label(&i.t("guided-null-defender-last-role"));
+            assert!(h.state().session().guided().unwrap().rule.is_none());
+            support::null_click(&mut h, &i.t("guided-unknown"));
+            h.get_by_label(&i.t("guided-rule-null-defender-last"));
+            if let Some(dir) = &output {
+                h.render()
+                    .unwrap()
+                    .save(format!(
+                        "{dir}/last-defender-rule-{language:?}-{}.png",
+                        size[0]
+                    ))
+                    .unwrap();
+            }
+            let card = h.state().session().guided().unwrap().rule.unwrap().card;
+            support::null_click(&mut h, &support::card_name(&i, card));
+            assert_eq!(
+                h.state().session().guided().unwrap().step,
+                GuidedStep::Observe
+            );
+            support::null_click(&mut h, &i.t("guided-unknown"));
+            assert!(
+                h.state()
+                    .session()
+                    .guided()
+                    .unwrap()
+                    .observation
+                    .unwrap()
+                    .winner
+                    .is_some()
+            );
+            if let Some(dir) = &output {
+                h.render()
+                    .unwrap()
+                    .save(format!(
+                        "{dir}/last-defender-observation-{language:?}-{}.png",
+                        size[0]
+                    ))
+                    .unwrap();
+            }
+        }
+    }
+}
