@@ -104,3 +104,56 @@ fn suit_lead_master_declarer_without_trumpf_is_a_lead_master_lesson() {
     assert_eq!(l.lead_declarer, Some(true));
     assert_eq!(l.rule.card, card(31)); // CA/PikA/KaroA all 11 Augen: last in core order
 }
+
+#[test]
+fn ouvert_declarer_lead_uses_the_same_permitted_master_rule() {
+    use skat_analysis::baseline::{self, Branch, TieBreak};
+    use skat_core::{Announcement, Game, RuleConfig};
+    let d = deal(
+        &[7, 3, 15, 11, 14, 31, 26, 25, 5, 10],
+        &[24],
+        &[16, 17, 18, 19, 20, 21, 22, 23, 0, 1],
+    );
+    let mut g = Game::from_deal(d, RuleConfig { kontra_re: false });
+    for a in [
+        Action::Pass,
+        Action::Pass,
+        Action::Bid(18),
+        Action::Hand,
+        Action::Announce(Announcement {
+            game: GameType::Farbe(Suit::Herz),
+            schneider: true,
+            schwarz: true,
+            ouvert: true,
+        }),
+    ] {
+        g.apply(a).unwrap();
+    }
+    let v = g.view(Seat::Vorhand);
+    let l = lesson(&v).expect("Ouvert declarer lead");
+    assert_eq!(l.rule, baseline::rule(&v).unwrap());
+    assert_eq!(l.rule.branch, Branch::LeadMaster);
+    assert_eq!(l.rule.tie_break, TieBreak::HighestAugenLast);
+    assert_eq!(l.rule.card, card(31));
+    assert!(l.rule.candidates.len() > 1);
+    for a in &v.legal_actions {
+        let Action::Play(c) = a else { panic!() };
+        assert_eq!(
+            l.check(Step::Check, Answer::Card(*c)),
+            l.rule.candidates.contains(c)
+        );
+    }
+    let mut restricted = v.clone();
+    restricted.legal_actions.truncate(1);
+    assert!(lesson(&restricted).is_none());
+    let mut unrevealed = v.clone();
+    unrevealed.declarer_cards = None;
+    assert!(lesson(&unrevealed).is_none());
+    let mut invalid = v.clone();
+    invalid.contract.as_mut().unwrap().schwarz = false;
+    assert!(lesson(&invalid).is_none());
+    for n in [31, 24, 16] {
+        g.apply(Action::Play(card(n))).unwrap();
+    }
+    assert_eq!(g.tricks().last().unwrap().winner, Seat::Hinterhand);
+}
