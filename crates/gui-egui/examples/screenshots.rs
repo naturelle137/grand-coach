@@ -239,6 +239,64 @@ const SCENARIOS: &[(&str, Scenario)] = &[
         "guided-grand-early-feed-complete-en-narrow",
         early_feed_complete_en,
     ),
+    (
+        "guided-suit-early-feed-orient-de",
+        suit_early_feed_orient_de,
+    ),
+    (
+        "guided-suit-early-feed-orient-de-narrow",
+        suit_early_feed_orient_de,
+    ),
+    ("guided-suit-early-feed-rule-de", suit_early_feed_rule_de),
+    (
+        "guided-suit-early-feed-rule-de-narrow",
+        suit_early_feed_rule_de,
+    ),
+    (
+        "guided-suit-early-feed-observe-de",
+        suit_early_feed_observe_de,
+    ),
+    (
+        "guided-suit-early-feed-observe-de-narrow",
+        suit_early_feed_observe_de,
+    ),
+    (
+        "guided-suit-early-feed-complete-de",
+        suit_early_feed_complete_de,
+    ),
+    (
+        "guided-suit-early-feed-complete-de-narrow",
+        suit_early_feed_complete_de,
+    ),
+    (
+        "guided-suit-early-feed-orient-en",
+        suit_early_feed_orient_en,
+    ),
+    (
+        "guided-suit-early-feed-orient-en-narrow",
+        suit_early_feed_orient_en,
+    ),
+    ("guided-suit-early-feed-rule-en", suit_early_feed_rule_en),
+    (
+        "guided-suit-early-feed-rule-en-narrow",
+        suit_early_feed_rule_en,
+    ),
+    (
+        "guided-suit-early-feed-observe-en",
+        suit_early_feed_observe_en,
+    ),
+    (
+        "guided-suit-early-feed-observe-en-narrow",
+        suit_early_feed_observe_en,
+    ),
+    (
+        "guided-suit-early-feed-complete-en",
+        suit_early_feed_complete_en,
+    ),
+    (
+        "guided-suit-early-feed-complete-en-narrow",
+        suit_early_feed_complete_en,
+    ),
     ("live-abstich-entry-de", live_entry_de),
     ("live-abstich-entry-en", live_entry_en),
     ("live-abstich-candidate-de", live_candidate_de),
@@ -1964,6 +2022,7 @@ fn main() {
         };
         let launch = *name == "launch" || name.starts_with("open-display-new-series");
         let mut harness = if name.starts_with("guided-grand-early-")
+            || name.starts_with("guided-suit-early-feed-")
             || name.starts_with("guided-grand-feed-")
             || name.starts_with("guided-null-last-")
         {
@@ -1974,7 +2033,9 @@ fn main() {
                     GrandCoachApp::new(
                         &cc.egui_ctx,
                         SessionConfig {
-                            seed: if name.starts_with("guided-grand-early-feed-") {
+                            seed: if name.starts_with("guided-suit-early-feed-") {
+                                4
+                            } else if name.starts_with("guided-grand-early-feed-") {
                                 22
                             } else if name.starts_with("guided-null-last-") {
                                 6
@@ -2811,6 +2872,8 @@ fn replay_none_en(h: &mut Harness<'_, GrandCoachApp>) {
 mod early_feed_support;
 #[path = "../tests/support/guided.rs"]
 mod guided_support;
+#[path = "../tests/support/suit_early_feed.rs"]
+mod suit_early_feed_support;
 
 fn guided_orient(h: &mut Harness<'_, GrandCoachApp>) {
     guided_support::enter(h);
@@ -3691,6 +3754,31 @@ fn early_feed_observe_en(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn early_feed_complete_en(h: &mut Harness<'_, GrandCoachApp>) {
     early_feed_support::flow(h, Language::En, 3, 9);
+}
+
+fn suit_early_feed_orient_de(h: &mut Harness<'_, GrandCoachApp>) {
+    suit_early_feed_support::flow(h, Language::De, 0, 1);
+}
+fn suit_early_feed_rule_de(h: &mut Harness<'_, GrandCoachApp>) {
+    suit_early_feed_support::flow(h, Language::De, 1, 1);
+}
+fn suit_early_feed_observe_de(h: &mut Harness<'_, GrandCoachApp>) {
+    suit_early_feed_support::flow(h, Language::De, 2, 1);
+}
+fn suit_early_feed_complete_de(h: &mut Harness<'_, GrandCoachApp>) {
+    suit_early_feed_support::flow(h, Language::De, 3, 1);
+}
+fn suit_early_feed_orient_en(h: &mut Harness<'_, GrandCoachApp>) {
+    suit_early_feed_support::flow(h, Language::En, 0, 1);
+}
+fn suit_early_feed_rule_en(h: &mut Harness<'_, GrandCoachApp>) {
+    suit_early_feed_support::flow(h, Language::En, 1, 1);
+}
+fn suit_early_feed_observe_en(h: &mut Harness<'_, GrandCoachApp>) {
+    suit_early_feed_support::flow(h, Language::En, 2, 1);
+}
+fn suit_early_feed_complete_en(h: &mut Harness<'_, GrandCoachApp>) {
+    suit_early_feed_support::flow(h, Language::En, 3, 1);
 }
 
 fn live_entry_de(h: &mut Harness<'_, GrandCoachApp>) {
