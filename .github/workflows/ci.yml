@@ -164,6 +164,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    # The ~1,060 scenarios took 45 to 110 minutes in a debug build; the
+    # release build renders them about seven times faster.
+    timeout-minutes: 60
     steps:
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v5
@@ -174,7 +177,7 @@ jobs:
       - name: Install lavapipe
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
-      - run: cargo run --locked -p gui-egui --example screenshots -- screenshots
+      - run: cargo run --locked --release -p gui-egui --example screenshots -- screenshots
         shell: bash
       - name: Hash each screenshot
         shell: bash
