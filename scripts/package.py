@@ -152,7 +152,7 @@ def verify(path):
     if not required <= files.keys() or not all(files[name] for name in required):
         raise ValueError("missing/empty required package files")
     with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
+        root = Path(directory).resolve()
         for name, data in files.items():
             dest = root / name
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -281,7 +281,7 @@ def smoke_run(args, rules):
     args.out.mkdir(parents=True, exist_ok=True)
     runtime_dlls = {}
     with tempfile.TemporaryDirectory(prefix="grand-coach-package-") as directory:
-        root = Path(directory)
+        root = Path(directory).resolve()
         install = root / "install"
         install.mkdir()
         # Only the executable is required at runtime: resources are embedded.
