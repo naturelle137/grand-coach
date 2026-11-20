@@ -7,6 +7,13 @@ import run
 
 
 class SelectionTest(unittest.TestCase):
+    def test_void_does_not_claim_every_player_is_void(self):
+        for case in corpus.corpus():
+            if case['expected'][0] == 'void_proven':
+                text = run.select(case, '|'.join(case['expected']))['text']
+                self.assertIn('Ein Spieler' if case['lang'] == 'de' else 'a player', text)
+                self.assertNotIn('niemand' if case['lang'] == 'de' else 'nobody', text)
+
     def test_acceptance_and_fallback_in_both_languages(self):
         for case in corpus.corpus():
             with self.subTest(case=case['case'], lang=case['lang']):

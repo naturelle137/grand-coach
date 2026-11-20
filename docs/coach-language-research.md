@@ -40,10 +40,14 @@ failures were wrong digits (e.g. always `10`/`12` for other counts), picking
 
 **Enforcement and fallback.** The grammar guarantees syntax only; it did not
 make the model preserve facts. The post-check (equality with the evidence
-pair) rejected all 67 wrong grammar outputs and all 86 free outputs, so a
-shown sentence was never wrong in this corpus, and the system fell back to
-templates in 78% of cases (grammar) or 100% (free). That is corpus evidence
-only, not a proof. The check lives in the harness; no product validator,
+pair) rejected all 67 wrong grammar outputs and all 86 free outputs, and the
+system fell back to templates in 78% of cases (grammar) or 100% (free). This
+checks the selected pair, not the correctness of the rendered sentence. The
+original void template incorrectly said nobody could
+follow the suit, although the evidence supported only one player. The
+historical run therefore did not establish zero displayed factual violations.
+The harness now says a player cannot follow; it does not identify that player.
+The check lives in the harness; no product validator,
 in-process per-token cancellation, or seeded fallback path was implemented.
 Process-level cancellation (SIGTERM during a 400-token generation) ended the
 process in about 11-13 ms. In-process token cancellation is untested.
