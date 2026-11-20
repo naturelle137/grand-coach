@@ -109,9 +109,9 @@ pub struct Lesson {
 /// at least two pure card actions and at least one losing card. The shared
 /// A defender may also act second after the declarer leads, with a losing card.
 /// `Branch::Null` is broader; other defender turns, later own leads, Ouvert and
-/// restricted or inconsistent views stay excluded here. Grand LeadMaster also
-/// admits the own empty-trick lead with an exact pure core-legal action list;
-/// declarer DrawTrumpf priority and every other lead branch stay excluded.
+/// restricted or inconsistent views stay excluded here. Grand LeadMaster and
+/// the declarer's DrawTrumpf also admit the own empty-trick lead with an exact
+/// pure core-legal action list; every other lead branch stays excluded.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
     let game = contract.game;
@@ -211,7 +211,14 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             return None;
         }
         let rule = baseline::rule(view)?;
-        if rule.branch != Branch::LeadMaster || game.is_trump(rule.card) {
+        // DrawTrumpf is the declarer's priority branch (own Trumpf, Trumpf
+        // not accounted for); the baseline never selects it for a defender.
+        let admitted = match rule.branch {
+            Branch::LeadMaster => !game.is_trump(rule.card),
+            Branch::DrawTrumpf => view.declarer == Some(view.seat) && game.is_trump(rule.card),
+            _ => false,
+        };
+        if !admitted {
             return None;
         }
         return Some(Lesson {
