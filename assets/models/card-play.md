@@ -26,10 +26,18 @@ two passes, learning rate 0.0001, clip 0.2, losses and mixed opponent pool.
 Iteration 175 was the original cross-09 tuning winner (a0175, score 4.977).
 The supervised start is `4e1621cd97a001deb44342ea2c6b21f314841b3f59773d9f136c421ed6ca4bd5`,
 trained at `55f5916bbce7`, best epoch 28. Its full recipe, data hashes,
-coverage and source manifest hashes are recorded in `card-play.json`. The original provenance files were not found in the checked data path, so their hashes and the complete training lineage have not been independently verified.
+coverage and source manifest hashes are recorded in `card-play.json`. The
+original training records are retained as `training-runs/2026-11-07-sl-t2-t8/4x384/train.json`
+and `training-runs/2026-11-10-rl-4x/4x384/rl/rl.json` under
+`grand-coach-data`; their bytes match the two source hashes in `card-play.json`.
+The supervised fields and PPO recipe and trainer commit match those records.
+All 36 embedded dataset manifests match their recorded canonical JSON hashes;
+32 match retained dataset manifests by content. This does not verify the
+shard hashes or establish the four remaining dataset manifests from separate
+files, so complete lineage and notices acceptance remain open.
 The retained campaign's `4x384/snaps/it0175.gcnn` and `starts/4x384.gcnn`
 hash to the shipped model and recorded supervised start respectively. This
-verifies those file identities, not the missing source manifests or lineage.
+verifies those file identities, not the full dataset lineage.
 Raw datasets use their ORIGINAL record/encoder schemas, including reused v1
 records; training re-encodes permitted views with v2. They are not rewritten
 or relabelled as v2 datasets. Raw data and frozen campaign artifacts stay outside git.
