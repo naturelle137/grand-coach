@@ -438,6 +438,18 @@ extreme D-40 teacher Kontra, so the shipped rule stays. Raw logs:
 `grand-coach-data/studies/2026-11-19-preplay-74c/`. The outcome-label pilot
 remains postponed: no imitation model is competitive with Strong.
 
+Outcome-label tooling for Drücken (step 2, not yet run at scale):
+`skat_ai::outcome::discard_outcomes` plays each of the 66 legal pairs of a
+declarer's Drücken view out in `N` hypothetical games. Opponent cards are
+sampled from the view's constraints (`HiddenCards`), the public history is
+replayed, and frozen `Player`s finish the game; the result is the mean
+Seeger-Fabian score of the acting seat per pair, shared samples across pairs.
+These are game outcomes against those opponents, not double-dummy values, so
+the D-40 declarer bias does not enter. Tests cover 66 scored pairs,
+reproducibility and rejection of other phases and seats. No dataset was
+generated and no model was trained or compared with these targets; no
+strength claim follows.
+
 A baseline on validation deals 10000–10199 (six seatings each, Kontra/Re
 on) compared the shipped card-play model, greedy policy with Easy fallback,
 against Classic Easy. A − B was +19.04 SF points per seat-game, standard
