@@ -283,7 +283,13 @@ impl GrandCoachApp {
         let view = self.session.view();
         let reached = match goal {
             SmokeGoal::Question => view.assist.quiz.question.is_some(),
-            SmokeGoal::Series => view.series_finished,
+            SmokeGoal::Series => {
+                view.series_finished
+                    && view
+                        .series_result
+                        .as_ref()
+                        .is_some_and(|result| result.games == 36)
+            }
             SmokeGoal::Game => view.can_next_game || view.series_finished,
             SmokeGoal::Moves(n) => self
                 .session
@@ -3322,6 +3328,141 @@ mod tests {
                 }
                 drop(sender);
             }
+        }
+    }
+
+    #[test]
+    #[ignore = "manual: timing diagnostic"]
+    fn debrief_headless_frame_timing() {
+        use egui_kittest::Harness;
+        let mut session = Session::new(SessionConfig {
+            seed: 2,
+            series: SeriesLength::Fixed(1),
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
+        });
+        session.set_coach_budget(skat_app::Budget {
+            samples: 24,
+            nodes_per_task: 20_000,
+        });
+        session
+            .execute(Command::SetCoach(CoachSettings {
+                level: CoachLevel::EveryMove,
+                ..CoachSettings::default()
+            }))
+            .unwrap();
+        loop {
+            session.run_opponents();
+            let view = session.view();
+            let Some(&first) = view.legal_actions.first() else {
+                break;
+            };
+            let action = if view.phase == skat_app::Phase::Reizen
+                && view.legal_actions.contains(&Action::Pass)
+            {
+                Action::Pass
+            } else {
+                first
+            };
+            session.execute(Command::Act(action)).unwrap();
+        }
+        assert!(session.coach_job().unwrap().is_review());
+        let mut h = Harness::builder()
+            .with_size([1280.0, 820.0])
+            .build_eframe(|cc| {
+                let mut app = GrandCoachApp::new(&cc.egui_ctx, session.config());
+                app.session = session;
+                app
+            });
+        let mut durations = Vec::new();
+        let mut active = 0;
+        for _ in 0..100 {
+            let start = std::time::Instant::now();
+            h.run_steps(1);
+            durations.push(start.elapsed());
+            active += usize::from(h.state().coach_thinking.is_some());
+        }
+        assert!(active > 0);
+        durations.sort();
+        println!(
+            "100 headless steps: worker present {active}; median {:?}; p95 {:?}; max {:?}",
+            durations[49], durations[94], durations[99]
+        );
+    }
+    #[test]
+    #[ignore = "manual: timing diagnostic"]
+    fn debrief_paced_gui_worker_probe() {
+        use egui_kittest::Harness;
+        for seed in 1..=6 {
+            let mut results = Vec::new();
+            for delay in [0, 5] {
+                let config = SessionConfig {
+                    seed,
+                    series: SeriesLength::Fixed(1),
+                    opponents: Opponents::Levels([Level::Easy; 2]),
+                    ..SessionConfig::default()
+                };
+                let mut h = Harness::builder()
+                    .with_size([1280.0, 820.0])
+                    .build_eframe(|cc| {
+                        let mut app = GrandCoachApp::new(&cc.egui_ctx, config);
+                        app.opponent_delay = 0.0;
+                        app.session.set_coach_budget(skat_app::Budget {
+                            samples: 24,
+                            nodes_per_task: 20_000,
+                        });
+                        app.session
+                            .execute(Command::SetCoach(CoachSettings {
+                                level: CoachLevel::EveryMove,
+                                ..CoachSettings::default()
+                            }))
+                            .unwrap();
+                        app
+                    });
+                let start = std::time::Instant::now();
+                let mut actions = 0;
+                let mut with_worker = 0;
+                let mut steps = Vec::new();
+                let moments = loop {
+                    let step = std::time::Instant::now();
+                    h.run_steps(1);
+                    steps.push(step.elapsed());
+                    let view = h.state().session.view();
+                    if let Some(skat_app::Debriefing::Ready(moments)) = view.coach.debriefing {
+                        break moments;
+                    }
+                    if let Some(&first) = view.legal_actions.first() {
+                        std::thread::sleep(std::time::Duration::from_millis(delay));
+                        let observed = h.state().coach_thinking.as_ref().map(|w| w.cancel.clone());
+                        with_worker += usize::from(observed.is_some());
+                        let action = if view.phase == skat_app::Phase::Reizen
+                            && view.legal_actions.contains(&Action::Pass)
+                        {
+                            Action::Pass
+                        } else {
+                            first
+                        };
+                        h.state_mut().act(action, 0.0);
+                        actions += 1;
+                        h.run_steps(1);
+                    } else {
+                        std::thread::sleep(std::time::Duration::from_millis(1));
+                    }
+                    assert!(
+                        start.elapsed() < std::time::Duration::from_secs(30),
+                        "probe timed out"
+                    );
+                };
+                steps.sort();
+                println!(
+                    "seed={seed} delay={delay} actions={actions} worker_on_action={with_worker} steps={} max_step={:?} total={:?}",
+                    steps.len(),
+                    steps.last().unwrap(),
+                    start.elapsed()
+                );
+                results.push(moments);
+            }
+            assert_eq!(results[0], results[1]);
         }
     }
 }

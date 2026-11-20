@@ -1274,3 +1274,91 @@ fn learned_review_order_keeps_every_decision_and_classic_evidence() {
         Err(AppError::StaleCoachResult)
     );
 }
+
+/// Plays one game under a scheduling policy modelled on the GUI worker: the
+/// current decision's analysis goes first, queued reviews run in between.
+/// `cancel_first` abandons a started review once (as a foreground preemption
+/// does) and reruns it; both policies must end with identical evidence.
+fn scheduled_game(cancel_first: bool) -> Vec<DebriefingMoment> {
+    let mut s = session(5, true);
+    s.set_coach_budget(TINY);
+    set(&mut s, CoachLevel::EveryMove, false);
+    let mut decisions = 0;
+    loop {
+        s.run_opponents();
+        let view = s.view();
+        if view.legal_actions.is_empty() {
+            break;
+        }
+        // The human acts before the analysis of this decision exists, so the
+        // backlog grows, except for every third decision, which is awaited.
+        let current = s.coach_job().expect("current decision first");
+        assert!(!current.is_review());
+        decisions += 1;
+        if decisions % 3 == 0 {
+            s.finish_coach(current.run(None)).unwrap();
+        }
+        let oldest = s.coach_job().filter(|j| j.is_review());
+        if let Some(oldest) = oldest {
+            if cancel_first {
+                // Foreground preemption: the cancelled review stays queued
+                // and is the very next one again; nothing newer overtakes it.
+                let cancel = Cancel::new();
+                cancel.cancel();
+                assert!(
+                    s.finish_coach(oldest.run(Some(&cancel)))
+                        .unwrap()
+                        .is_empty()
+                );
+                let again = s.coach_job().unwrap();
+                assert!(again.is_review());
+                assert_eq!(again.input_identity(), oldest.input_identity());
+            }
+            // Bounded service: one review per foreground decision.
+            s.finish_coach(oldest.run(None)).unwrap();
+        }
+        let action = simple_action(&view);
+        s.execute(Command::Act(action)).unwrap();
+    }
+    while let Some(job) = s.coach_job() {
+        assert!(job.is_review());
+        s.finish_coach(job.run(None)).unwrap();
+    }
+    match s.view().coach.debriefing {
+        Some(Debriefing::Ready(moments)) => moments,
+        other => panic!("debriefing not ready: {other:?}"),
+    }
+}
+
+#[test]
+fn preempted_and_finished_review_schedules_give_identical_evidence() {
+    let cancel_restart = scheduled_game(true);
+    let finish_first = scheduled_game(false);
+    assert!(!cancel_restart.is_empty());
+    assert_eq!(cancel_restart, finish_first);
+}
+
+#[test]
+fn coach_off_spends_no_review_work_and_resumes_the_backlog() {
+    let mut s = session(6, false);
+    s.set_coach_budget(TINY);
+    set(&mut s, CoachLevel::EveryMove, false);
+    let (_, jobs) = play_unanalysed(&mut s);
+    assert!(jobs.len() > 1);
+    set(&mut s, CoachLevel::Off, false);
+    assert!(s.coach_job().is_none(), "no review work while off");
+    assert_eq!(s.view().coach.debriefing, None);
+    // Turning the coach on again resumes the retained backlog unchanged.
+    set(&mut s, CoachLevel::EveryMove, false);
+    let mut drained = 0;
+    while let Some(job) = s.coach_job() {
+        assert!(job.is_review());
+        s.finish_coach(job.run(None)).unwrap();
+        drained += 1;
+    }
+    assert_eq!(drained, jobs.len());
+    assert!(matches!(
+        s.view().coach.debriefing,
+        Some(Debriefing::Ready(_))
+    ));
+}

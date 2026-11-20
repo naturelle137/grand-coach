@@ -93,6 +93,14 @@ def validate(c, parsed):
     return parsed is not None and parsed == c["expected"]
 
 
+def select(c, output):
+    """Reject ungrounded model output and render the deterministic fallback."""
+    parsed = strict(c, output)
+    accepted = validate(c, parsed)
+    pair = parsed if accepted else cp.reference(c)
+    return {"accepted": accepted, "pair": pair, "text": render(c["lang"], *pair)}
+
+
 def pct(xs, q):
     xs = sorted(xs)
     return xs[min(len(xs) - 1, round(q * (len(xs) - 1)))]
@@ -111,20 +119,27 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--only", type=int)
     args = ap.parse_args()
+    if args.only is not None and args.only <= 0:
+        ap.error("--only must be positive")
+    if os.path.exists(args.out):
+        ap.error("--out must not exist")
     cases = cp.corpus()[: args.only] if args.only else cp.corpus()
     res = {"corpus_sha256": cp.digest(), "n": len(cases), "modes": {}}
     for mode, grammar in (("free", False), ("grammar", True)):
         rows = []
         for c in cases:
             out, secs, rss, st = infer(args, c, grammar)
-            out2, _, _, _ = infer(args, c, grammar)
+            out2, _, _, st2 = infer(args, c, grammar)
+            if st or st2:
+                raise RuntimeError(f"inference failed for {c['case']}: wait statuses {st}, {st2}")
             s, l = strict(c, out), lenient(c, out)
             rows.append({"case": c["case"], "lang": c["lang"], "kind": c["kind"],
                          "out": out.strip()[:80], "secs": secs, "rss_kib": rss,
                          "exit": st, "deterministic": out == out2,
                          "strict_parse": s is not None, "strict_ok": validate(c, s),
                          "lenient_ok": validate(c, l),
-                         "wrong_shown": s is not None and not validate(c, s)})
+                         "shown": select(c, out),
+                         "wrong_if_unchecked": s is not None and not validate(c, s)})
         res["modes"][mode] = rows
     warm = [r["secs"] for r in res["modes"]["grammar"]]
     res["warm_grammar"] = {"p50": statistics.median(warm), "p95": pct(warm, .95),
@@ -132,7 +147,9 @@ def main():
     cold = []
     for _ in range(5):
         evict(args.model)
-        o, secs, rss, _ = infer(args, cases[0], True)
+        _, secs, rss, status = infer(args, cases[0], True)
+        if status:
+            raise RuntimeError(f"cold inference failed: wait status {status}")
         cold.append((secs, rss))
     res["cold_grammar"] = [{"secs": s, "rss_kib": r} for s, r in cold]
     # cancellation: SIGTERM mid-generation, time to process exit
@@ -150,7 +167,8 @@ def main():
         p.wait()
         lat.append(time.monotonic() - t0)
     res["cancel_secs"] = lat
-    json.dump(res, open(args.out, "w"), indent=1, ensure_ascii=False)
+    with open(args.out, "x", encoding="utf-8") as output:
+        json.dump(res, output, indent=1, ensure_ascii=False)
 
 
 if __name__ == "__main__":
