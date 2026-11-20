@@ -375,6 +375,35 @@ fn independent_oracle_matches_baseline_candidates_pick_and_every_next_trick_comp
 }
 
 #[test]
+fn late_lead_completions_reach_terminal_with_independent_winners() {
+    let case = cases()
+        .into_iter()
+        .find(|c| c.id == "herz-late-after-win")
+        .unwrap();
+    let trump = trump_index(&case.game);
+    let paths = completions(&case.game);
+    for (cards, _) in &paths {
+        let mut game = case.game.clone();
+        for &n in cards {
+            game.apply(Action::Play(card(n))).unwrap();
+        }
+        while game.phase() != skat_core::Phase::Beendet {
+            let before = game.tricks().len();
+            game.apply(*game.legal_actions().first().unwrap()).unwrap();
+            if game.tricks().len() > before {
+                let trick = game.tricks().last().unwrap();
+                let leader = SEATS.iter().position(|&s| s == trick.leader).unwrap();
+                let winner =
+                    SEATS[(leader + oracle_winner(trump, trick.cards.map(|c| c.index()))) % 3];
+                assert_eq!(trick.winner, winner);
+            }
+        }
+        assert_eq!(game.tricks().len(), 10);
+    }
+    assert_eq!(paths.len(), 305);
+}
+
+#[test]
 fn oracle_winner_hand_checked_tricks() {
     // Herz trumps: Karo Bube beats Herz Ass; Herz 7 beats Kreuz Ass; Pik Ass beats Pik 10.
     assert_eq!(oracle_winner(2, [28, 23, 16]), 0); // Karo Bube (28) vs Herz Ass (23), Herz 7

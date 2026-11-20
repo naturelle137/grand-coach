@@ -2,8 +2,9 @@
 
 //! #182 source-owned screenshot inventory: ordinary Farbspiel LeadMaster route (seed 2969).
 use super::guided_support as support;
-use egui_kittest::Harness;
-use gui_egui::{GrandCoachApp, Language};
+use eframe::egui;
+use egui_kittest::{Harness, kittest::Queryable};
+use gui_egui::{GrandCoachApp, Language, guided, i18n::I18n};
 use skat_app::*;
 
 pub const STAGES: [&str; 8] = [
@@ -21,6 +22,7 @@ pub fn inventory() -> Vec<serde_json::Value> {
     let mut result = Vec::new();
     for language in ["de", "en"] {
         for (suffix, width, height) in [("", 1440, 1000), ("-narrow", 960, 640)] {
+            result.push(serde_json::json!({"name":format!("guided-suit-lead-master-god-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"god-fixture"}));
             for stage in STAGES {
                 result.push(serde_json::json!({"name":format!("guided-suit-lead-master-{stage}-{language}{suffix}"),"stage":stage,"language":language,"width":width,"height":height,"kind":"ordinary"}));
             }
@@ -46,6 +48,40 @@ pub fn render(name: &str, out: Option<&str>) {
         entry["width"].as_f64().unwrap() as f32,
         entry["height"].as_f64().unwrap() as f32,
     ];
+    if entry["kind"] == "god-fixture" {
+        let builder = Harness::builder().with_size(size);
+        let builder = if out.is_some() {
+            builder.wgpu()
+        } else {
+            builder
+        };
+
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/suit-lead-master-god.json"
+        ))
+        .unwrap();
+        let table: TableView = serde_json::from_value(fixture["table"].clone()).unwrap();
+        let dialog: GuidedView = serde_json::from_value(fixture["guided"].clone()).unwrap();
+        let i = I18n::new(language);
+        let mut h = builder.build_ui(move |root| {
+            egui::CentralPanel::default().show(root, |ui| {
+                ui.label(i.tf(
+                    "guided-lead-fixture-label",
+                    &[("case", "God Mode".into()), ("stage", "reveal".into())],
+                ));
+                let _ = guided::panel(ui, &i, &table, &dialog);
+            });
+        });
+        h.run_steps(8);
+        h.get_by_label(&I18n::new(language).t("guided-title"));
+        if let Some(out) = out {
+            h.render()
+                .unwrap()
+                .save(format!("{out}/{name}.png"))
+                .unwrap();
+        }
+        return;
+    }
     let builder = Harness::builder().with_size(size);
     let builder = if out.is_some() {
         builder.wgpu()

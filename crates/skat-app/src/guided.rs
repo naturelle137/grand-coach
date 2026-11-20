@@ -277,7 +277,7 @@ impl GuidedState {
         (matches!(l.game, skat_core::GameType::Farbe(_))
             && matches!(
                 l.rule.branch,
-                GuidedBranch::WinEarly | GuidedBranch::FeedPartner
+                GuidedBranch::WinEarly | GuidedBranch::FeedPartner | GuidedBranch::LeadMaster
             ))
             || (l.game == skat_core::GameType::Grand
                 && l.rule.branch == GuidedBranch::FeedPartner

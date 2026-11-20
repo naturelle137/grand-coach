@@ -36,7 +36,7 @@ pub fn enter(h: &mut Harness<'_, GrandCoachApp>) {
         if v.phase == Phase::Spiel && !v.legal_actions.is_empty() {
             click(h, &i.t("guided-start"));
             let g = h.state().session().guided().expect("explicit dialogue");
-            if g.step == GuidedStep::Orient {
+            if g.step == GuidedStep::Orient && !v.current_trick.is_empty() {
                 return;
             }
             click(h, &i.t("guided-return"));
