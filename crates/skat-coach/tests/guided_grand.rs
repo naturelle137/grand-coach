@@ -236,11 +236,11 @@ fn grand_exclusions_partner_ahead_not_last_lead_no_winner_and_single_card() {
     assert_eq!(r.branch, Branch::FeedPartner);
     assert_eq!(lesson(&v).is_some(), r.last);
 
-    // Leading declarer: DrawTrumpf.
+    // Leading declarer: DrawTrumpf, now an own-lead lesson (#175).
     let g = grand(deal(), Seat::Vorhand, &[]);
     let v = g.view(Seat::Vorhand);
     assert_eq!(rule(&v).unwrap().branch, Branch::DrawTrumpf);
-    assert!(lesson(&v).is_none());
+    assert_eq!(lesson(&v).unwrap().rule.branch, Branch::DrawTrumpf);
 
     // Not last: MH's only winner CT is no master (CA unseen) and no Trumpf.
     let g = grand(deal(), Seat::Vorhand, &["C9"]);
