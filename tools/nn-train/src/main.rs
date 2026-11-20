@@ -1242,6 +1242,29 @@ fn main() {
             }
         }
         Some("outcome-druecken") => outcome_druecken(&args[1..]),
+        Some("verify-outcome-druecken") => {
+            use std::io::BufRead;
+            let path = args.get(1).expect("verify-outcome-druecken FILE");
+            let file = std::fs::File::open(path).expect("open dataset");
+            let mut deals = std::collections::HashSet::new();
+            for (i, line) in std::io::BufReader::new(file).lines().enumerate() {
+                let line = line.expect("read dataset");
+                let row: skat_ai::outcome::DrueckenRow = serde_json::from_str(&line)
+                    .unwrap_or_else(|e| panic!("{path}: line {}: {e}", i + 1));
+                assert!(
+                    skat_ai::outcome::valid_druecken_row(&row),
+                    "{path}: invalid row at line {}",
+                    i + 1
+                );
+                assert!(
+                    deals.insert(row.deal),
+                    "{path}: duplicate deal at line {}",
+                    i + 1
+                );
+            }
+            assert!(!deals.is_empty(), "{path}: empty dataset");
+            println!("{} structurally valid Drücken rows", deals.len());
+        }
         Some("validate-labels") => {
             let dir = args.get(1).expect("validate-labels DIR");
             match nn_train::shards::validate_labels(std::path::Path::new(dir)) {
@@ -1316,6 +1339,7 @@ fn main() {
                 "       nn-train outcome-druecken OUT.jsonl [--deals N] [--first-deal N] \
                  [--samples N] [--seed N] [--model FILE] [--holdout-seed N]"
             );
+            eprintln!("       nn-train verify-outcome-druecken FILE");
             eprintln!("       nn-train verify DIR");
             eprintln!("       nn-train validate-labels DIR");
             eprintln!("       nn-train evaluate MODEL DATA_DIR...");

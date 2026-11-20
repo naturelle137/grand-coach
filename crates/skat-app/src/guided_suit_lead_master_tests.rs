@@ -426,3 +426,74 @@ fn suit_lead_master_god_fixture_matches_session() {
         expected
     );
 }
+
+#[test]
+fn ouvert_declarer_open_display_keeps_the_lead_dialogue_permitted_and_manual() {
+    use skat_core::{Announcement, Game, GameType, RuleConfig, Suit};
+    let deal = fx::deal(&[7, 3, 15, 11, 14, 31, 26, 25, 5, 10], &[], &[]);
+    let mut game = Game::from_deal(deal, RuleConfig { kontra_re: false });
+    for a in [
+        Action::Pass,
+        Action::Pass,
+        Action::Bid(18),
+        Action::Hand,
+        Action::Announce(Announcement {
+            game: GameType::Farbe(Suit::Herz),
+            schneider: true,
+            schwarz: true,
+            ouvert: true,
+        }),
+    ] {
+        game.apply(a).unwrap();
+    }
+    let mut initial = session(deal, game);
+    initial.config.display = TableDisplay::Open;
+    assert!(initial.view().open_cards.is_some());
+    let mut snapshot = initial.clone();
+    snapshot.execute(Command::StartGuided).unwrap();
+    respond(
+        &mut snapshot,
+        G::Answer(A::Lead {
+            seat: Seat::Vorhand,
+            declarer: true,
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot.guided().unwrap().step, S::Check);
+    respond(&mut snapshot, G::Reveal).unwrap();
+    // The screenshot fixture uses a directly revealed answer.
+    let mut revealed = initial.clone();
+    revealed.execute(Command::StartGuided).unwrap();
+    respond(&mut revealed, G::Reveal).unwrap();
+    let mut guided = serde_json::to_value(revealed.guided().unwrap()).unwrap();
+    guided["id"]["lineage"] = 0.into();
+    guided["id"]["generation"] = 0.into();
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../gui-egui/tests/fixtures/suit-lead-master-ouvert.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        serde_json::json!({"table": revealed.view(), "guided": guided}),
+        expected
+    );
+    let legal = initial.view().legal_actions;
+    for action in legal {
+        let mut s = initial.clone();
+        let before = s.export_current_recording_privileged();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Return).unwrap();
+        assert_eq!(s.export_current_recording_privileged(), before);
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().rule.unwrap().branch,
+            crate::GuidedBranch::LeadMaster
+        );
+        assert_eq!(s.export_current_recording_privileged(), before);
+        s.execute(Command::Act(action)).unwrap();
+        s.run_opponents();
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        respond(&mut s, G::Reveal).unwrap();
+        assert!(s.guided().unwrap().observation.is_some());
+    }
+}
