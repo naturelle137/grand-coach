@@ -15,7 +15,7 @@
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::SeedableRng;
 use skat_analysis::sampling::HiddenCards;
-use skat_core::{Action, Call, Deal, Game, Phase, PlayerView};
+use skat_core::{Action, Call, Deal, Game, KontraLevel, Phase, PlayerView, Trick};
 
 use crate::Player;
 
@@ -94,6 +94,18 @@ pub fn valid_druecken_row(row: &DrueckenRow) -> bool {
         || view.current_seat != Some(view.seat)
         || view.declarer != Some(view.seat)
         || view.hand.len() != 12
+        || view
+            .hand_sizes
+            .iter()
+            .enumerate()
+            .any(|(seat, &size)| size != if seat == view.seat.index() { 12 } else { 10 })
+        || view.hand_game != Some(false)
+        || view.contract.is_some()
+        || view.own_skat.is_some()
+        || view.declarer_cards.is_some()
+        || !view.tricks.is_empty()
+        || view.current_trick != Trick::default()
+        || view.kontra != KontraLevel::None
         || view.result.is_some()
         || view.legal_actions.len() != 66
         || row.outcomes.len() != 66
@@ -238,7 +250,7 @@ fn replay(view: &PlayerView, world: &skat_analysis::sampling::World) -> Option<G
 mod tests {
     use super::*;
     use crate::{Level, Opponent};
-    use skat_core::{RuleConfig, Seat};
+    use skat_core::{Announcement, CompletedTrick, Contract, GameType, RuleConfig, Seat};
 
     /// A deal's first Drücken view under Classic play, if any.
     fn druecken_view(seed: u64) -> Option<PlayerView> {
@@ -312,6 +324,47 @@ mod tests {
         assert!(!valid_druecken_row(&bad));
         let mut bad = row;
         bad.view.declarer = None;
+        assert!(!valid_druecken_row(&bad));
+    }
+
+    #[test]
+    fn rejects_contradictory_druecken_views() {
+        let players = easy();
+        let p = [&players[0] as &dyn Player, &players[1], &players[2]];
+        let rows = discard_dataset(&players[0], p, 0, 12, 1, 3);
+        assert!(!rows.is_empty());
+        assert!(rows.iter().all(valid_druecken_row));
+        let row = &rows[0];
+        let mut bad = row.clone();
+        bad.view.hand_game = Some(true);
+        assert!(!valid_druecken_row(&bad));
+        bad.view.hand_game = None;
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.view.contract = Some(Contract::new(Announcement::plain(GameType::Grand), false));
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        let cards: Vec<_> = row.view.hand.iter().take(3).collect();
+        bad.view.tricks.push(CompletedTrick {
+            leader: Seat::Vorhand,
+            cards: [cards[0], cards[1], cards[2]],
+            winner: Seat::Vorhand,
+        });
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.view.current_trick.cards[0] = Some(cards[0]);
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.view.hand_sizes[row.view.seat.index()] = 10;
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.view.own_skat = Some(row.view.hand);
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.view.declarer_cards = Some(row.view.hand);
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.view.kontra = KontraLevel::Kontra;
         assert!(!valid_druecken_row(&bad));
     }
 
