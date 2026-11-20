@@ -55,7 +55,7 @@ jobs:
           if [ "$RUNNER_OS" = Linux ]; then
             env -u WAYLAND_DISPLAY -u WAYLAND_SOCKET xvfb-run -a -s '-screen 0 1600x1000x24' python3 -B scripts/package.py smoke dist/*.tar.gz --out evidence
           else
-            GALLIUM_DRIVER=llvmpipe python3 -B scripts/package.py smoke dist/*.zip --out evidence --windows-mesa "$GC_TEST_MESA"
+            GALLIUM_DRIVER=llvmpipe python3 -B scripts/package.py smoke dist/*.zip --out evidence --windows-mesa "$GC_TEST_MESA" --block-network
           fi
       - name: Source-free offline Linux runtime smoke
         if: runner.os == 'Linux'
