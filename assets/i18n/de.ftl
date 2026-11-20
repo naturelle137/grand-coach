@@ -1082,6 +1082,7 @@ guided-lead-defender = Ich spiele als Gegenspieler aus
 guided-lead-master = Welche legale Beikarte hat keinen höheren Rang außerhalb deiner Hand und gespielter Karten?
 guided-lead-attempt = Welche legale Karte würdest du für Easys Steher-Ausspiel mit den meisten Augen versuchen?
 guided-lead-definition = Eigene höhere Karten verhindern keinen Steher; im Grand sind Buben Trumpf, keine Beikarten zum Bedienen.
+guided-lead-suit-definition = Eigene höhere Karten verhindern keinen Steher; Buben und die angesagte Farbe sind Trumpf, keine Beikarten zum Bedienen.
 guided-lead-risk = Wer die Farbe nicht hat, kann stechen. Ein Farbsteher garantiert weder Stich noch Spielgewinn.
 guided-rule-lead = Easy: { $card }. Meiste Augen; LETZTER exakter Gleichstand in legaler Reihenfolge (Faustregel).
 guided-lead-details = Kartenbedingung und leerer Tisch
@@ -1091,6 +1092,14 @@ guided-lead-source = Stich { $trick }: { $seat } hat das Ausspiel; noch keine Ka
 guided-lead-observe = Sieh dir beide tatsächlichen Antworten an. Beweist die letzte Antwort eine Fehlfarbe in der ausgespielten Farbe?
 guided-lead-candidates-risk = Kandidaten: { $cards }. Wer die Farbe nicht hat, kann stechen; kein Stich- oder Spielgewinn garantiert.
 guided-lead-fixture-label = Testposition: { $case } / { $stage } (kein gewöhnlicher Spielverlauf)
+guided-draw-trumpf = Welche legale Karte ist Trumpf? Im Grand sind nur die vier Buben Trumpf.
+guided-draw-trumpf-attempt = Welchen legalen Trumpf würdest du für Easys Ausspiel des höchsten Trumpfs versuchen?
+guided-draw-trumpf-definition = Du spielst als Alleinspieler aus und hast Trumpf auf der Hand. Easy spielt Trumpf, wenn die Regel Buben außerhalb deiner Hand und der gespielten Karten zählt.
+guided-draw-trumpf-risk = Das zeigt weder, dass ein Gegenspieler Trumpf hat, noch Bedienung, Stich- oder Spielausgang.
+guided-rule-draw-trumpf = Easy: { $card }. Höchster Trumpf; erster exakter Gleichstand in legaler Reihenfolge (Faustregel, kein optimales Spiel).
+guided-draw-trumpf-candidates-risk = Trumpf-Kandidaten: { $cards }. Eigener Skat, nicht gesehene Karten und Gegenspieler bleiben mögliche Orte; nichts ist garantiert.
+guided-draw-trumpf-conservative = Eigene und gespielte Buben zählen nicht mit; bekannte gedrückte Buben zählen weiter. Ein unbekannter Skat ist ein möglicher Ort, kein bewiesener Halter.
+guided-draw-trumpf-observe = Sieh dir beide tatsächlichen Antworten an. Beweist die letzte Antwort, dass diese Hand nicht bedienen kann, was du ausgespielt hast (Trumpf oder die ausgespielte Farbe)?
 
 # Null opening lead (#176)
 guided-null-lead-candidates = Welche Karten darfst du auf den leeren Tisch ausspielen?
@@ -1140,3 +1149,6 @@ mode-hybrid = Hybrid (experimentell)
 mode-hybrid-description = Experimentelle Vorschläge werden mit Classic-Suche geprüft; Leicht prüft mit einem Sample. Bei fehlendem Modell übernimmt die gewählte Classic-Stufe. Qualität und Geschwindigkeit sind nicht gemessen.
 guided-null-defender-role = Du bist Gegenspieler im Null. Der Alleinspieler liegt vorn; dein Partner spielt noch. Es gibt keinen Trumpf, auch Buben bedienen ihre Farbe.
 guided-rule-null-defender = Easy wählt die ranghöchste Karte, die den Alleinspieler vorerst vorn lässt; bei gleichem Rang die letzte in der erlaubten Reihenfolge. Dein Partner kann den Stich noch übernehmen. Das ist eine Faustregel ohne Spielgewinn-Garantie.
+
+guided-null-defender-last-role = Du bist Gegenspieler im Null und spielst als Letzter. Der Alleinspieler liegt vorn. Es gibt keinen Trumpf, auch Buben bedienen ihre Farbe.
+guided-rule-null-defender-last = Easy wählt die ranghöchste Karte, die den Alleinspieler vorn lässt; bei gleichem Rang die letzte in der erlaubten Reihenfolge. Das ist eine Faustregel ohne Spielgewinn-Garantie.

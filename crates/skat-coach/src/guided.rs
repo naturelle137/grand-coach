@@ -106,12 +106,12 @@ pub struct Lesson {
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
 /// and at least one losing card; early FeedPartner requires a Grand follow-class master; Fallback stays excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
-/// at least two pure card actions and at least one losing card. The shared
-/// A defender may also act second after the declarer leads, with a losing card.
+/// at least two pure card actions and at least one losing card. A defender may
+/// act second after the declarer leads, or last with the declarer ahead.
 /// `Branch::Null` is broader; other defender turns, later own leads, Ouvert and
-/// restricted or inconsistent views stay excluded here. Grand LeadMaster also
-/// admits the own empty-trick lead with an exact pure core-legal action list;
-/// declarer DrawTrumpf priority and every other lead branch stay excluded.
+/// restricted or inconsistent views stay excluded here. Non-Ouvert Farbspiel/Grand
+/// LeadMaster and Grand declarer DrawTrumpf also admit the own empty-trick lead
+/// with an exact pure core-legal action list; other lead branches stay excluded.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
     let game = contract.game;
@@ -123,9 +123,11 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     // Checked before the shared rule, which assumes a declarer during play.
     let null_defender = null
         && view.declarer.is_some_and(|d| d != view.seat)
-        && matches!(view.current_trick.cards, [Some(_), None, None])
-        && view.current_trick.leader == view.declarer
-        && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+        && (matches!(view.current_trick.cards, [Some(_), None, None])
+            && view.current_trick.leader == view.declarer
+            && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+            || matches!(view.current_trick.cards, [Some(_), Some(_), None])
+                && TrickState::of(game, &view.current_trick).best_seat == view.declarer)
         && view.own_skat.is_none();
     if null
         && ((!null_defender && view.declarer != Some(view.seat))
@@ -189,7 +191,8 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     }
     // Lead rules assume a valid own turn, declarer and an exact pure legal
     // list. Reject malformed/restricted input before invoking the baseline.
-    if grand && view.current_trick.cards[0].is_none() {
+    let suit = matches!(game, GameType::Farbe(_)) && !contract.ouvert;
+    if (grand || suit) && view.current_trick.cards[0].is_none() {
         if view.current_trick.cards != [None; 3]
             || view.current_trick.leader != view.tricks.last().map(|t| t.winner)
             || view.tricks.last().is_some_and(|t| t.winner != view.seat)
@@ -211,7 +214,16 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             return None;
         }
         let rule = baseline::rule(view)?;
-        if rule.branch != Branch::LeadMaster || game.is_trump(rule.card) {
+        // DrawTrumpf is the declarer's priority branch (own Trumpf, Trumpf
+        // not accounted for); the baseline never selects it for a defender.
+        let admitted = match rule.branch {
+            Branch::LeadMaster => !game.is_trump(rule.card),
+            Branch::DrawTrumpf => {
+                grand && view.declarer == Some(view.seat) && game.is_trump(rule.card)
+            }
+            _ => false,
+        };
+        if !admitted {
             return None;
         }
         return Some(Lesson {

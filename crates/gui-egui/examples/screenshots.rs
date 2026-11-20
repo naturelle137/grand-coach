@@ -29,6 +29,8 @@ const SIZE: [f32; 2] = [1280.0, 820.0];
 /// `-narrow` shrink to it after reaching their state.
 const NARROW: [f32; 2] = [960.0, 640.0];
 
+#[path = "support/draw_trumpf_widgets.rs"]
+mod draw_trumpf_widgets;
 #[path = "support/lead_master_widgets.rs"]
 mod lead_master_widgets;
 #[path = "support/null_lead_widgets.rs"]
@@ -41,6 +43,8 @@ mod null_widgets;
 mod suit_early_widgets;
 #[path = "support/suit_feed_widgets.rs"]
 mod suit_feed_widgets;
+#[path = "support/suit_lead_widgets.rs"]
+mod suit_lead_widgets;
 
 #[path = "support/live_abstich_flow.rs"]
 mod live_abstich_flow;
@@ -1840,9 +1844,11 @@ fn main() {
     let mut fixture_names = null_widgets::names();
     fixture_names.extend(null_middle_widgets::names());
     fixture_names.extend(lead_master_widgets::names());
+    fixture_names.extend(draw_trumpf_widgets::names());
     fixture_names.extend(null_lead_widgets::names());
     fixture_names.extend(suit_early_widgets::names());
     fixture_names.extend(suit_feed_widgets::names());
+    fixture_names.extend(suit_lead_widgets::names());
     if let Some(unknown) = wanted
         .iter()
         .find(|w| !SCENARIOS.iter().any(|(name, _)| name == w) && !fixture_names.contains(w))
@@ -1862,6 +1868,11 @@ fn main() {
     )
     .unwrap();
     std::fs::write(
+        format!("{out}/draw-trumpf-inventory.json"),
+        serde_json::to_string_pretty(&draw_trumpf_widgets::inventory()).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
         format!("{out}/null-lead-inventory.json"),
         serde_json::to_string_pretty(&null_lead_widgets::inventory()).unwrap(),
     )
@@ -1874,6 +1885,11 @@ fn main() {
     std::fs::write(
         format!("{out}/suit-feed-partner-inventory.json"),
         serde_json::to_string_pretty(&suit_feed_widgets::inventory()).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        format!("{out}/suit-lead-master-inventory.json"),
+        serde_json::to_string_pretty(&suit_lead_widgets::inventory()).unwrap(),
     )
     .unwrap();
     // Full source-derived expected PNG set for both-OS archive acceptance.
@@ -1895,12 +1911,16 @@ fn main() {
     .unwrap();
     for name in fixture_names {
         if wanted.is_empty() || wanted.contains(&name) {
-            if name.starts_with("guided-suit-feed-partner-") {
+            if name.starts_with("guided-suit-lead-master-") {
+                suit_lead_widgets::render(&name, Some(&out));
+            } else if name.starts_with("guided-suit-feed-partner-") {
                 suit_feed_widgets::render(&name, Some(&out));
             } else if name.starts_with("guided-suit-win-early-") {
                 suit_early_widgets::render(&name, Some(&out));
             } else if name.starts_with("guided-null-lead-") {
                 null_lead_widgets::render(&name, Some(&out));
+            } else if name.starts_with("guided-draw-trumpf-") {
+                draw_trumpf_widgets::render(&name, Some(&out));
             } else if name.starts_with("guided-lead-master-") {
                 lead_master_widgets::render(&name, Some(&out));
             } else if name.starts_with("guided-null-middle-") {

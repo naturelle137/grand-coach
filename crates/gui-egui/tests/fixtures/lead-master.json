@@ -2353,6 +2353,8 @@
       "kontra_exclusion": null,
       "kontra_observation": null,
       "kontra_rule": null,
+      "lead": "Vorhand",
+      "lead_trumpf": true,
       "legal_cards": [
         1,
         3,
@@ -2371,11 +2373,42 @@
       "pre_rule": null,
       "preplay": null,
       "reizen": null,
-      "rule": null,
-      "step": "Unsupported",
-      "task": null
+      "rule": {
+        "branch": "DrawTrumpf",
+        "candidates": [
+          4,
+          12,
+          20
+        ],
+        "card": 4,
+        "last": false,
+        "losers": [],
+        "partner_ahead": false,
+        "table_master": false,
+        "tie_break": "HighestPowerLast",
+        "tie_key": [
+          3,
+          0,
+          0
+        ],
+        "winner": null,
+        "winners": [
+          1,
+          3,
+          4,
+          7,
+          8,
+          12,
+          15,
+          16,
+          20,
+          24
+        ]
+      },
+      "step": "Act",
+      "task": "DrawTrumpf"
     },
-    "stage": "unsupported",
+    "stage": "rule",
     "table": {
       "acting": 0,
       "assist": {

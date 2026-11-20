@@ -16,6 +16,11 @@ fn lead_master_whole_lesson_role_master_attempt_and_memory() {
     for c in cases() {
         let v = c.game().view(c.seat);
         let l = lesson(&v);
+        // The DrawTrumpf case is admitted since #175 (guided_draw_trumpf.rs).
+        if c.expected.branch == skat_analysis::baseline::Branch::DrawTrumpf {
+            assert!(l.is_some(), "{}", c.id);
+            continue;
+        }
         assert_eq!(l.is_some(), c.admitted(), "{}", c.id);
         if !c.admitted() {
             continue;
@@ -95,7 +100,6 @@ fn lead_master_rejects_malformed_restricted_and_other_contract_boundaries() {
         |v| v.contract = None,
         |v| v.contract.as_mut().unwrap().ouvert = true,
         |v| v.contract.as_mut().unwrap().game = skat_core::GameType::Null,
-        |v| v.contract.as_mut().unwrap().game = skat_core::GameType::Farbe(skat_core::Suit::Herz),
     ];
     for (i, edit) in edits.iter().enumerate() {
         let mut x = v.clone();

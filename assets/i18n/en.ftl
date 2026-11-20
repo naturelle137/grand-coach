@@ -1082,6 +1082,7 @@ guided-lead-defender = I lead as defender
 guided-lead-master = Which legal side card has no higher rank outside your hand and played cards?
 guided-lead-attempt = Which legal card would you try for Easy's largest-Augen master lead?
 guided-lead-definition = Own higher cards do not block a master; Grand Buben are Trumpf, never side-suit followers.
+guided-lead-suit-definition = Own higher cards do not block a master; Buben and the announced suit are Trumpf, never side-suit followers.
 guided-lead-risk = A void follower may trump. A side master does not guarantee the trick or game.
 guided-rule-lead = Easy: { $card }. Most Augen; LAST exact tie in core legal order (heuristic).
 guided-lead-details = Predicate and empty-table details
@@ -1091,6 +1092,14 @@ guided-lead-source = Trick { $trick }: { $seat } has the lead; no card or curren
 guided-lead-observe = Look at both actual replies. Does the last reply prove a void in the led suit?
 guided-lead-candidates-risk = Candidates: { $cards }. A void follower may trump; no trick or game win guaranteed.
 guided-lead-fixture-label = Fixture component: { $case } / { $stage } (not an ordinary route)
+guided-draw-trumpf = Which legal card is Trumpf? In Grand only the four Buben are Trumpf.
+guided-draw-trumpf-attempt = Which legal Trumpf would you try for Easy's highest-Trumpf lead?
+guided-draw-trumpf-definition = You lead as declarer with Trumpf in hand. Easy leads Trumpf when the policy counts Buben outside your hand and the played cards.
+guided-draw-trumpf-risk = This does not show that a defender holds Trumpf, nor any reply, trick or game result.
+guided-rule-draw-trumpf = Easy: { $card }. Highest Trumpf; first exact tie in legal order (heuristic, not optimal play).
+guided-draw-trumpf-candidates-risk = Trumpf candidates: { $cards }. Own Skat, unseen cards and defenders stay possible locations; nothing is guaranteed.
+guided-draw-trumpf-conservative = Own and played Buben are excluded from the count; known discarded Buben still count. An unknown Skat is a possible location, not a proven holder.
+guided-draw-trumpf-observe = Look at both actual replies. Does the last reply prove that hand cannot follow what you led (Trumpf or the led suit)?
 
 # Null opening lead (#176)
 guided-null-lead-candidates = Which cards may you lead onto this empty table?
@@ -1140,3 +1149,6 @@ mode-hybrid = Hybrid (experimental)
 mode-hybrid-description = Experimental proposals are verified by Classic search; Easy verifies with one sample. If the model is unavailable, the selected Classic level takes over. Quality and speed are unmeasured.
 guided-null-defender-role = You defend in Null. The declarer is ahead and your partner still plays. There is no Trumpf; Buben follow their printed suit.
 guided-rule-null-defender = Easy chooses the highest-ranked card that leaves the declarer ahead for now; on equal rank, the last in legal order. Your partner can still overtake. This heuristic does not guarantee winning the game.
+
+guided-null-defender-last-role = You defend in Null and play last. The declarer is ahead. There is no Trumpf; Buben follow their printed suit.
+guided-rule-null-defender-last = Easy chooses the highest-ranked card that leaves the declarer ahead, with the last equal rank in legal order. This heuristic does not guarantee winning the game.

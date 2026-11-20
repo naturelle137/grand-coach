@@ -2826,8 +2826,11 @@ fn null_last_real_exclusions_keep_unsupported_and_every_card_playable() {
         s.execute(Command::StartGuided).unwrap();
         assert_eq!(
             s.guided().unwrap().step,
-            // These remain outside #165, but #169/#176 admit them.
-            if matches!(c.id, "real-early" | "real-lead") {
+            // These remain outside #165, but later slices admit them.
+            if matches!(
+                c.id,
+                "real-early" | "real-lead" | "real-defender-declarer-ahead"
+            ) {
                 S::Orient
             } else {
                 S::Unsupported
@@ -3607,7 +3610,8 @@ fn lead_master_fixture_widget_models_match_checked_sessions() {
             g["id"]["generation"] = 0.into();
             frames.push(serde_json::json!({"case":c.id,"stage":stage,"table":s.view(),"guided":g}));
         };
-        if !c.admitted() {
+        // Case 13 is the declarer DrawTrumpf lesson since #175.
+        if !c.admitted() && c.id != "13-postfreeze-actual-DrawTrumpf" {
             save("unsupported", &s);
             continue;
         }
@@ -3674,6 +3678,11 @@ mod suit_feed_partner;
 #[path = "guided_early_feed_tests.rs"]
 mod early_feed;
 
+#[path = "guided_draw_trumpf_tests.rs"]
+mod draw_trumpf_tests;
+#[path = "guided_suit_lead_master_tests.rs"]
+mod suit_lead_master;
+
 #[test]
 fn null_defender_observes_each_actual_reply() {
     let deal = middle_fixture::cases().remove(0).deal;
@@ -3708,6 +3717,39 @@ fn null_defender_observes_each_actual_reply() {
         s.execute(Command::Act(Action::Play(middle_fixture::card(own))))
             .unwrap();
         s.apply(Action::Play(middle_fixture::card(reply))).unwrap();
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(winner)
+        );
+    }
+}
+
+#[test]
+fn null_last_defender_observes_the_card_actually_played() {
+    let deal = middle_fixture::cases().remove(0).deal;
+    let actions = [
+        Action::Bid(18),
+        Action::Hold,
+        Action::Pass,
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(skat_core::Announcement::plain(NULL)),
+        Action::Play(middle_fixture::card(5)),
+        Action::Play(middle_fixture::card(4)),
+    ];
+    for (card, winner) in [(2, Seat::Vorhand), (7, Seat::Hinterhand)] {
+        let mut s = grand_session(Seat::Hinterhand, deal, false, &actions);
+        s.execute(Command::StartGuided).unwrap();
+        assert!(s.guided().unwrap().rule.is_none());
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().rule.unwrap().card,
+            middle_fixture::card(2)
+        );
+        s.execute(Command::Act(Action::Play(middle_fixture::card(card))))
+            .unwrap();
         assert_eq!(s.guided().unwrap().step, S::Observe);
         respond(&mut s, G::Reveal).unwrap();
         assert_eq!(
