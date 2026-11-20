@@ -38,11 +38,9 @@ trainer's defaulted `table: teacher` field. On 2026-11-20 every retained
 `.done` shard of all 36 datasets was re-hashed read-only: sizes and SHA-256
 match the shard records, and shard counts and the combined `data_sha256`
 match `card-play.json` (36/36; 1,000, 759, 400 and 13,398 shards for the four
-Strong sets). The dataset lineage of this model is therefore verified; only
-the Windows network-block run remains open.
+Strong sets). The retained dataset lineage of this model is therefore verified.
 The retained campaign's `4x384/snaps/it0175.gcnn` and `starts/4x384.gcnn`
-hash to the shipped model and recorded supervised start respectively. This
-verifies those file identities, not the full dataset lineage.
+hash to the shipped model and recorded supervised start respectively. These hashes verify the checkpoint and start file identities.
 Raw datasets use their ORIGINAL record/encoder schemas, including reused v1
 records; training re-encodes permitted views with v2. They are not rewritten
 or relabelled as v2 datasets. Raw data and frozen campaign artifacts stay outside git.
