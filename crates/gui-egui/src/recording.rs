@@ -240,6 +240,13 @@ impl RecordingUi {
         self.replay.as_ref().is_some_and(|r| r.thinking.is_some())
     }
 
+    /// Packaged smoke: requests the recording review of the open recording.
+    pub fn smoke_request_review(&mut self, ctx: &egui::Context) {
+        if let Some(replay) = &mut self.replay {
+            replay.apply(CoachRequest::Review, ctx);
+        }
+    }
+
     /// `true` while the recording review runs (tests).
     pub fn review_running(&self) -> bool {
         self.replay.as_ref().is_some_and(|r| r.reviewing.is_some())
