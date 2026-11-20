@@ -1194,3 +1194,100 @@ fn grand_feed_ordinary_bilingual_widgets_chosen_alternative_retry_and_free_retur
         }
     }
 }
+
+/// Ordinary app, real widgets (#271): the human declares an Ouvert Hand
+/// Farbspiel, a defender says Kontra and the human answers Re. The dialogue
+/// states that the open declarer view exists but is not used; wrong factor,
+/// retry and a deliberate reveal work, and Re and No Re stay selectable. The
+/// screenshot directory is `OUVERT_KONTRA_SCREENSHOTS`.
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn guided_ouvert_re_widgets_state_the_view_retry_reveal_and_keep_all_actions_in_de_en() {
+    use skat_app::Action;
+    let output = std::env::var("OUVERT_KONTRA_SCREENSHOTS").ok();
+    for (language, choose_re) in [
+        (Language::De, true),
+        (Language::De, false),
+        (Language::En, true),
+        (Language::En, false),
+    ] {
+        let config = SessionConfig {
+            seed: 1,
+            series: SeriesLength::Free,
+            kontra_re: true,
+            opponents: Opponents::Levels([Level::Rookie; 2]),
+            ..SessionConfig::default()
+        };
+        let mut h = Harness::builder()
+            .with_size([1600.0, 1200.0])
+            .build_eframe(move |cc| GrandCoachApp::new(&cc.egui_ctx, config));
+        let i = I18n::new(language);
+        enter_kontra_in(&mut h, language, true, KontraAt::OuvertDeclarer);
+        let before = h.state().session().view();
+        assert!(before.contract.unwrap().ouvert);
+        for a in [Action::Re, Action::KeinRe] {
+            assert!(before.legal_actions.contains(&a), "{a:?} stays selectable");
+        }
+        let k = h.state().session().guided().unwrap().kontra.unwrap();
+        let game = ("game", game_name(&i, k.game).into());
+        assert!(
+            h.query_by_label(&i.tf("guided-kontra-public-re", &[game]))
+                .is_some()
+        );
+        assert!(
+            h.query_by_label(&i.t("guided-kontra-ouvert-view"))
+                .is_some()
+        );
+        assert!(h.state().session().guided().unwrap().kontra_rule.is_none());
+        click(&mut h, &i.t("guided-return"));
+        assert!(h.state().session().guided().is_none());
+        assert_eq!(
+            h.state().session().view().legal_actions,
+            before.legal_actions
+        );
+        click(&mut h, &i.t("guided-start"));
+        let factor = |f: i32| i.tf("guided-kontra-factor-button", &[("factor", f.into())]);
+        click(&mut h, &factor(2));
+        assert!(h.query_by_label(&i.t("guided-wrong")).is_some());
+        click(&mut h, &i.t("guided-retry"));
+        click(&mut h, &factor(4));
+        click(&mut h, &i.t("guided-reveal"));
+        let rule = h.state().session().guided().unwrap().kontra_rule.unwrap();
+        assert!(rule.ouvert && !rule.null);
+        assert!(
+            h.query_by_label(&i.t("guided-kontra-ouvert-view"))
+                .is_some()
+        );
+        assert_eq!(
+            h.state().session().view().legal_actions,
+            before.legal_actions
+        );
+        if let Some(dir) = &output {
+            h.render()
+                .unwrap()
+                .save(format!("{dir}/ouvert-kontra-re-{language:?}.png"))
+                .unwrap();
+        }
+        let label = if choose_re {
+            "button-re"
+        } else {
+            "button-kein-re"
+        };
+        click(&mut h, &i.t(label));
+        settle(&mut h);
+        let view = h.state().session().view();
+        assert_eq!(
+            view.kontra,
+            if choose_re {
+                skat_app::KontraLevel::Re
+            } else {
+                skat_app::KontraLevel::Kontra
+            }
+        );
+        let g = h.state().session().guided().unwrap();
+        assert!(matches!(g.step, GuidedStep::Waiting | GuidedStep::Complete));
+        if g.step == GuidedStep::Complete {
+            assert!(g.kontra_observation.is_some());
+        }
+    }
+}

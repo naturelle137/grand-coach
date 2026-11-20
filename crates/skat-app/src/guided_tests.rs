@@ -1233,6 +1233,40 @@ fn ouvert_kontra_offers_get_honest_fallbacks() {
 }
 
 #[test]
+fn ouvert_re_dialogue_retry_reveal_skip_and_free_choice() {
+    for (game, hand, skat) in [(HERZ, RE_90, "D9 DT"), (GRAND, GRAND_90, "D9 D8")] {
+        let ann = skat_core::Announcement {
+            schneider: true,
+            schwarz: true,
+            ouvert: true,
+            ..skat_core::Announcement::plain(game)
+        };
+        let mut s = kontra_session(Seat::Hinterhand, fixture::deal_hh(hand, skat), ann);
+        s.apply(Action::Kontra).unwrap();
+        let before = s.view();
+        assert_eq!(before.legal_actions, vec![Action::Re, Action::KeinRe]);
+        s.execute(Command::StartGuided).unwrap();
+        let mut skipped = s.clone();
+        respond(&mut skipped, G::Return).unwrap();
+        assert!(skipped.guided().is_none());
+        assert_eq!(skipped.view().legal_actions, before.legal_actions);
+        respond(&mut s, G::Answer(A::Factor(2))).unwrap();
+        assert_eq!(s.guided().unwrap().correct, Some(false));
+        respond(&mut s, G::Retry).unwrap();
+        respond(&mut s, G::Answer(A::Factor(4))).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        let rule = kontra_rule(&s.guided().unwrap());
+        assert!(rule.ouvert && !rule.null);
+        assert_eq!(rule.legal, before.legal_actions);
+        for action in before.legal_actions {
+            let mut chosen = s.clone();
+            chosen.execute(Command::Act(action)).unwrap();
+            assert_eq!(chosen.guided().unwrap().step, S::Waiting);
+        }
+    }
+}
+
+#[test]
 fn god_mode_does_not_broaden_the_kontra_lesson_input() {
     // God Mode shows every card and analyses the real deal, but the guided
     // Kontra/Re lesson still uses the closed permitted view.

@@ -237,6 +237,9 @@ pub enum KontraAt {
     Null,
     /// Any Ouvert contract, including the round before the reveal (fallback).
     Ouvert,
+    /// The human declares an Ouvert Hand Farbspiel itself (#271) and answers
+    /// the defenders' Kontra (guided Re).
+    OuvertDeclarer,
 }
 
 /// As [`enter_kontra`], stopping at the first offer in the contract `at`;
@@ -258,11 +261,11 @@ pub fn enter_kontra_in(
         settle(h);
         let v = h.state().session().view();
         let here = v.contract.is_some_and(|c| match at {
-            _ if c.ouvert => at == KontraAt::Ouvert,
+            _ if c.ouvert => matches!(at, KontraAt::Ouvert | KontraAt::OuvertDeclarer),
             KontraAt::Farbe => matches!(c.game, GameType::Farbe(_)),
             KontraAt::Grand => c.game == GameType::Grand,
             KontraAt::Null => c.game == GameType::Null,
-            KontraAt::Ouvert => false,
+            KontraAt::Ouvert | KontraAt::OuvertDeclarer => false,
         });
         if here && v.legal_actions.contains(&wanted) {
             click(h, &i.t("guided-start"));
@@ -277,6 +280,10 @@ pub fn enter_kontra_in(
             return;
         }
         assert!(!v.series_finished, "guided walkthrough needs free play");
+        if at == KontraAt::OuvertDeclarer && v.legal_actions.contains(&Action::Hand) {
+            click(h, &i.t("button-hand"));
+            continue;
+        }
         if v.phase == Phase::Druecken && !v.legal_actions.is_empty() {
             for &card in &v.hand[..2] {
                 click(h, &card_name(&i, card));
@@ -297,6 +304,10 @@ pub fn enter_kontra_in(
             h.get_by_role_and_label(Role::RadioButton, &game_name(&i, game))
                 .click();
             h.run_steps(4);
+            if at == KontraAt::OuvertDeclarer {
+                h.get_by_label(&i.t("contract-ouvert")).click();
+                h.run_steps(4);
+            }
             click(h, &i.t("button-announce"));
             continue;
         }
