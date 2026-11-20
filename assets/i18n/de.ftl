@@ -782,7 +782,7 @@ guided-pre-act-pickup = Wähle jetzt frei: Hand oder Skat aufnehmen.
 guided-pre-act-discard = Wähle jetzt beliebige zwei Karten zum Drücken.
 guided-unsupported-kontra = Für diese Kontra/Re-Lage ist kein geführter Dialog geprüft. Spiele frei weiter.
 guided-unsupported-kontra-ouvert-round = Ouvert-Kontrarunde vor dem Aufdecken: kein geführter Dialog. Wähle frei Kontra oder Kein Kontra.
-guided-unsupported-kontra-ouvert = Kontra und Re in einem Ouvert-Spiel: kein geführter Dialog. Spiele frei weiter.
+guided-unsupported-kontra-ouvert = Kontra und Re in einem Null-Ouvert-Spiel: kein geführter Dialog. Spiele frei weiter.
 guided-kontra-public-kontra = Öffentlich: { $game }, bisher kein Kontra (Faktor ×1). Du verteidigst und darfst vor deiner ersten Karte Kontra sagen.
 guided-kontra-public-re = Öffentlich: { $game }, ein Gegenspieler hat Kontra gesagt (Faktor ×2). Als Alleinspieler antwortest du jetzt: Re oder Kein Re.
 guided-kontra-orient-kontra = Wenn du Kontra sagst: mit welchem Faktor werden die notierten Spielpunkte multipliziert?
@@ -808,6 +808,7 @@ guided-kontra-count-re-no = Stärke { $count } < Re-Schwelle { $threshold }: Eas
 guided-kontra-count-kontra-grand = Trumpf auf deiner Hand: { $count } der vier Buben < { $threshold }: Im Grand ist Easys Kontra-Bedingung nie erfüllt, also sagt Easy kein Kontra und spielt eine Karte.
 guided-kontra-count-kontra-null = Im Null gibt es keinen Trumpf, Easys Trumpfzählung liefert also keine Einschätzung: Easy sagt kein Kontra und spielt eine Karte.
 guided-kontra-count-re-null = Im Null gibt es keinen Trumpf und Easys Stärke hat keinen Nullwert, die Re-Bedingung ist also nie erfüllt: Easy sagt Kein Re.
+guided-kontra-ouvert-view = In diesem Ouvert-Spiel liegt die Hand des Alleinspielers für die Verteidiger offen. Easys Regel unten nutzt sie nicht: Sie zählt nur die hier genannten Karten und öffentlichen Fakten, darüber hinaus wird nichts geschlossen.
 guided-kontra-fact-factor = Kontra verdoppelt und Re vervierfacht die notierten Spielpunkte; beides ändert nicht, ob das Gebot erreicht wird.
 guided-kontra-caveat-kontra = Fünf Trumpf sind Easys Faustregel, kein Beweis für eine gewinnende Verteidigung; der Ausgang des Spiels bleibt offen.
 guided-kontra-caveat-re = Die Stärke ist Easys heuristische Punktzahl, keine Wahrscheinlichkeit und keine Skatregel; der Ausgang des Spiels bleibt offen.
@@ -1152,3 +1153,18 @@ guided-rule-null-defender = Easy wählt die ranghöchste Karte, die den Alleinsp
 
 guided-null-defender-last-role = Du bist Gegenspieler im Null und spielst als Letzter. Der Alleinspieler liegt vorn. Es gibt keinen Trumpf, auch Buben bedienen ihre Farbe.
 guided-rule-null-defender-last = Easy wählt die ranghöchste Karte, die den Alleinspieler vorn lässt; bei gleichem Rang die letzte in der erlaubten Reihenfolge. Das ist eine Faustregel ohne Spielgewinn-Garantie.
+
+practice-compare = Mit Original vergleichen
+compare-title = Übungsversuch und Originalspiel
+compare-isolation = Nur lesend und nur im Speicher: nichts wird gewertet, gespeichert oder in den Lernverlauf übernommen.
+compare-no-ranking = Deine eigenen Entscheidungen nebeneinander, jeweils mit dem, was du damals sehen konntest. Das sagt nicht, welche Linie besser war; dafür dient die gewöhnliche Coach-Analyse mit Quelle und Unsicherheit.
+compare-all-same = Jede eigene Entscheidung entsprach dem Originalspiel.
+compare-identical = { $count ->
+    [one] 1 gleiche Entscheidung (gleiche Stellung, gleiche Aktion)
+   *[other] { $count } gleiche Entscheidungen (gleiche Stellung, gleiche Aktion)
+}
+compare-decision = Entscheidung { $number }
+compare-original = Originalspiel
+compare-attempt = Übungsversuch
+compare-chose = Gewählt: { $action }
+compare-none = An dieser Stelle gab es in dieser Linie keine Entscheidung.
