@@ -1132,7 +1132,7 @@ fn probe(args: &[String]) {
 }
 
 /// `outcome-druecken OUT.jsonl [--deals N] [--first-deal N] [--samples N]
-/// [--seed N] [--model FILE]`: labels the declarer's Drücken decisions of
+/// [--seed N] [--model FILE] [--holdout-seed N]`: labels the declarer's Drücken decisions of
 /// Classic Easy table games with outcome means against frozen Easy players
 /// (#74 step 2), writes one JSON row per decision and prints how Easy,
 /// Strong and the optional model score on those labels.
@@ -1151,6 +1151,25 @@ fn outcome_druecken(args: &[String]) {
     let easy = [0, 1, 2].map(|s| Opponent::new(Level::Easy, s));
     let frozen = [&easy[0] as &dyn Player, &easy[1], &easy[2]];
     let rows = skat_ai::outcome::discard_dataset(&easy[0], frozen, first, deals, samples, seed);
+    if let Some(i) = flag("--holdout-seed") {
+        let holdout_seed = arg(args, i, seed);
+        assert_ne!(
+            holdout_seed, seed,
+            "holdout seed must differ from label seed"
+        );
+        let fresh = skat_ai::outcome::discard_dataset(
+            &easy[0],
+            frozen,
+            first,
+            deals,
+            samples,
+            holdout_seed,
+        );
+        match skat_ai::outcome::holdout_best(&rows, &fresh) {
+            Some((n, mean)) => println!("selected best, fresh samples: {n} rows mean {mean:.2}"),
+            None => println!("selected best, fresh samples: no matching rows"),
+        }
+    }
     let mut text = String::new();
     for row in &rows {
         text += &serde_json::to_string(row).expect("serialise row");
@@ -1284,7 +1303,7 @@ fn main() {
             );
             eprintln!(
                 "       nn-train outcome-druecken OUT.jsonl [--deals N] [--first-deal N] \
-                 [--samples N] [--seed N] [--model FILE]"
+                 [--samples N] [--seed N] [--model FILE] [--holdout-seed N]"
             );
             eprintln!("       nn-train verify DIR");
             eprintln!("       nn-train validate-labels DIR");
