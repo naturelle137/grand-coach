@@ -51,7 +51,7 @@ observe both actual replies; Easy's largest-Augen lead remains a heuristic.
 Non-Ouvert Farbspiel `WinEarly` (#178) now admits only the acting second seat with an exact legal action list, explains the selected current winner’s Trumpf or conservative follow-class-master condition and observes the actual third reply and individual winner. All Buben and the announced suit are Trumpf; no hidden holder or guaranteed trick is inferred. Non-Ouvert Null opening lead (#176) now lets the Vorhand declarer compare every legal lead, explain the legacy Augen/Null-power cost with first exact tie, and observe both actual defender replies and individual winner, including immediate Null loss. Non-Ouvert Farbspiel now also supports a last-seat defender feeding the
 partner’s current lead, comparing all legal cards by nontrump preference and
 printed Augen, then observing the actual completing card and individual winner,
-including overtaking the partner. Second-seat Grand defenders can also compare feeding cards after a partner
+including overtaking the partner. Second-seat Farbspiel and Grand defenders can also compare feeding cards after a partner
 follow-class master, explicitly recognise the remaining declarer’s trumping
 risk and observe the actual reply. A Null defender acting second after the declarer leads can compare cards that leave the declarer ahead and observe the partner’s actual reply. Free choice of
 every legal card and an immediate return to play remain available. Early,

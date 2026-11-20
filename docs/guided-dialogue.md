@@ -1192,3 +1192,20 @@ All legal cards remain playable; the observation reports the actual card and
 winner, including if the learner overtakes. The lesson uses only the permitted
 view and excludes a partner currently ahead, no losing card and Ouvert. This
 heuristic does not guarantee the game outcome.
+
+## Farbspiel second-seat FeedPartner (#131)
+
+The Grand second-seat feeding admission also applies to a non-Ouvert Farbspiel
+defender acting CURRENT SECOND with the partner leading: at least two pure Play
+actions in exact core order, consistent Hand/pickup information and the actual
+shared `FeedPartner` branch with `partner_ahead` and `table_master` true. The
+unchanged Easy rule maximises `(!is_trump, Augen)` with the LAST exact tie; it
+is a heuristic with no game guarantee. The remaining declarer may trump a side
+master with any Trumpf, which the rule text states. Ouvert, declarer seats,
+restricted or reordered actions and single choices stay excluded. The dialogue
+observes the actual third card and individual winner. Technical coverage is the
+`guided_suit_early_feed` coach test (full-deal replies with the declarer
+trumping, hidden-holder equality, input mutations); the existing app/GUI
+dialogue plumbing for permitted-view estimates is shared with the Grand
+family. No new ordinary route, screenshot, learner, UAT or transfer evidence
+is claimed.

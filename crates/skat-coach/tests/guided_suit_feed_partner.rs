@@ -44,7 +44,8 @@ fn suit_feed_partner_all_full_api_boundaries_and_grand_preserved() {
             l.as_ref()
                 .is_some_and(|l| matches!(l.game, GameType::Farbe(_))
                     && l.rule.branch == Branch::FeedPartner),
-            admit,
+            // Early feeding behind a partner master is admitted since #131.
+            admit || id == "early",
             "{id}"
         );
         if id == "Grand" {
