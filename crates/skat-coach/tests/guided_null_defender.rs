@@ -97,3 +97,39 @@ fn defender_hidden_deals_do_not_change_lesson() {
         assert_eq!(Some(l.clone()), lesson(&other));
     }
 }
+
+#[test]
+fn last_defender_leaves_declarer_ahead() {
+    let setup = || {
+        let mut game = Game::from_deal(cases().remove(0).deal, RuleConfig { kontra_re: false });
+        for action in [
+            Action::Bid(18),
+            Action::Hold,
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(Announcement::plain(GameType::Null)),
+            Action::Play(card(5)),
+        ] {
+            game.apply(action).unwrap();
+        }
+        game
+    };
+    let mut game = setup();
+    game.apply(Action::Play(card(4))).unwrap();
+    let view = game.view(Seat::Hinterhand);
+    assert_eq!(view.legal_actions, [2, 7].map(|n| Action::Play(card(n))));
+    let l = lesson(&view).expect("last defender lesson");
+    assert_eq!(l.rule.candidates, [card(2)]);
+    assert_eq!(l.rule.card, card(2));
+    assert!(l.rule.last);
+    assert!(l.check(Step::Check, Answer::Seat(None)));
+    assert!(l.check(Step::Narrow, Answer::Card(card(2))));
+    assert!(!l.check(Step::Narrow, Answer::Card(card(7))));
+    game.apply(Action::Play(card(2))).unwrap();
+    assert_eq!(game.view(Seat::Hinterhand).tricks[0].winner, Seat::Vorhand);
+
+    let mut partner_ahead = setup();
+    partner_ahead.apply(Action::Play(card(6))).unwrap();
+    assert!(lesson(&partner_ahead.view(Seat::Hinterhand)).is_none());
+}

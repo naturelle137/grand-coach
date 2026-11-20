@@ -31,10 +31,15 @@ original training records are retained as `training-runs/2026-11-07-sl-t2-t8/4x3
 and `training-runs/2026-11-10-rl-4x/4x384/rl/rl.json` under
 `grand-coach-data`; their bytes match the two source hashes in `card-play.json`.
 The supervised fields and PPO recipe and trainer commit match those records.
-All 36 embedded dataset manifests match their recorded canonical JSON hashes;
-32 match retained dataset manifests by content. This does not verify the
-shard hashes or establish the four remaining dataset manifests from separate
-files, so complete lineage and notices acceptance remain open.
+All 36 embedded dataset manifests match their recorded canonical JSON hashes
+and the retained dataset manifests; the four Strong sets `T-2-10k`, `T-3-8k`,
+`T-4-800` and `T-5-130k` differ from their embedded copies only by the
+trainer's defaulted `table: teacher` field. On 2026-11-20 every retained
+`.done` shard of all 36 datasets was re-hashed read-only: sizes and SHA-256
+match the shard records, and shard counts and the combined `data_sha256`
+match `card-play.json` (36/36; 1,000, 759, 400 and 13,398 shards for the four
+Strong sets). The dataset lineage of this model is therefore verified; only
+the Windows network-block run remains open.
 The retained campaign's `4x384/snaps/it0175.gcnn` and `starts/4x384.gcnn`
 hash to the shipped model and recorded supervised start respectively. This
 verifies those file identities, not the full dataset lineage.

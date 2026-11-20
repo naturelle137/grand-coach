@@ -52,8 +52,8 @@ separate factual oracles.
 - **Null declarer:** non-Ouvert Null acting [last](#null-declarer-last-to-the-current-trick-165)
   or [second](#null-declarer-acting-second-169), or the opening lead (#176), with at least two pure legal
   cards and a current loser; the linked sections define the full guards.
-- **Null defender:** non-Ouvert, second after the declarer leads, with at
-  least two exact legal card actions and a current loser.
+- **Null defender:** non-Ouvert, second after the declarer leads, or last
+  with the declarer ahead, with at least two exact legal actions and a current loser.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
   early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
   single legal action, other Grand branches, Ouvert Grand, other Null card play or
@@ -1172,7 +1172,7 @@ compare legal cards that leave the declarer ahead for now. Easy chooses the
 highest Null rank among those cards, with the last exact tie in legal order;
 the partner may still overtake. All legal cards remain playable. This is a
 bounded heuristic, not a guarantee of winning or a claim about unseen cards.
-The lesson excludes partner leads, absent losing cards, restricted actions,
+This second-seat lesson excludes partner leads, absent losing cards, restricted actions,
 Ouvert and other defender turns. It uses the public trick and own hand, and
 observes the actual third card and individual winner.
 
@@ -1182,3 +1182,13 @@ games, then pass in game three. Vorhand's Kreuz-Sieben leads in Null; the
 Mittelhand defender is void in Kreuz and Easy selects Karo-Ass as the last
 highest-rank tie. Playing it is followed by Hinterhand's Kreuz-Bube, which
 wins the trick. The widget test reproduces this route in both languages.
+
+## Null defender playing last (#131)
+
+A non-Ouvert Null defender playing last can enter the dialogue when the
+declarer currently wins and a legal card leaves the declarer ahead. Easy
+chooses the highest Null rank among those cards, last in legal order on a tie.
+All legal cards remain playable; the observation reports the actual card and
+winner, including if the learner overtakes. The lesson uses only the permitted
+view and excludes a partner currently ahead, no losing card and Ouvert. This
+heuristic does not guarantee the game outcome.
