@@ -204,3 +204,25 @@ fn kontra_follows_the_rules_of_thumb_unless_the_profile_analyses_it() {
     }
     assert!(by_rules > 0 && by_model > 0, "{by_rules} {by_model}");
 }
+
+#[test]
+fn learned_phase_mask_leaves_other_phases_to_classic() {
+    let mask = Phases::from_bits(0b1_0001).unwrap(); // Reizen and Spiel
+    let players =
+        Seat::ALL.map(|s| neural(Phases::ALL, s.index() as u64).with_learned_phases(mask));
+    let mut seen = Vec::new();
+    for deal in 0..20 {
+        for (view, d) in decisions(deal, &players) {
+            if mask.contains(view.phase) {
+                assert_eq!(d.fallback, None);
+            } else if d.value.is_none() && d.fallback.is_some() {
+                assert_eq!(d.fallback, Some(Fallback::UnsupportedPhase(view.phase)));
+                seen.push(view.phase);
+            }
+        }
+    }
+    assert!(
+        seen.contains(&Phase::Druecken) || seen.contains(&Phase::Ansage),
+        "{seen:?}"
+    );
+}

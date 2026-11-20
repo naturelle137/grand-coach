@@ -504,3 +504,23 @@ behavioural/strength result. The temporary model was 171,212 bytes,
 SHA-256 `536095bd8af78f57f8faffeb94637679993b5ef47c9fb53edf1a4e562fd30140`;
 it is not shipped. Separate scripted tests cover the rare Hand/Ouvert/Re
 transitions absent from that training fixture.
+
+### Phase-masked learned pre-play (#74)
+
+`NeuralOpponent::with_learned_phases` lets the model decide only a subset of
+phases; Classic decides the others and the decision reports
+`Fallback::UnsupportedPhase`. `calibrate` takes it as `^<bits>` after the
+fallback (bit 0 Reizen, 1 Hand/pickup, 2 Drücken, 3 Ansage, 4 Spiel). Default
+is every phase, so existing specs and protocol descriptions are unchanged.
+
+Measured 2026-11-20 with the W = 4 imitation model (SHA-256 `c7927678…8e1a`,
+not shipped), `calibrate validation nn:W4/model.gcnn@strong^21 strong 200 4
+10000` (1,200 games; Classic Strong decides Hand/pickup and Ansage): A − B
+-15.10 [-18.97, -11.23] per seat-game, against -14.99 [-18.92, -11.07] with
+the model deciding every phase. Declarers won 70.6 % of 599 games (Strong
+86.6 % of 598); Pass 23.6 % of 5,099 Reizen actions (Strong 23.9 %); Hand 5 and
+Ouvert 6 of 599 declarer games (Strong 4 and 0). Leaving the rare classes
+to Classic therefore does not close the gap: the shortfall lies in Drücken and
+card play, not in the missing Hand/announcements. The model is still weaker
+than Classic Strong; no strength is claimed, nothing is shipped and #74 stays
+open.
