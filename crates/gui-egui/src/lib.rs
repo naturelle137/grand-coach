@@ -14,7 +14,7 @@ pub mod style;
 mod text;
 mod training;
 
-pub use app::GrandCoachApp;
+pub use app::{GrandCoachApp, SmokeGoal};
 pub use cards::{Deck, Theme};
 pub use i18n::Language;
 
