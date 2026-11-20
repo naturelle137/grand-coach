@@ -86,6 +86,24 @@ pub struct DrueckenRow {
     pub outcomes: Vec<CandidateOutcome>,
 }
 
+/// The final bid is at least 18, no call exceeds it and the declarer made it.
+fn valid_winning_bid(view: &PlayerView) -> bool {
+    let value = |call: Call| match call {
+        Call::Bid(v) | Call::Hold(v) => Some(v),
+        Call::Pass => None,
+    };
+    view.bid >= 18
+        && view
+            .bidding
+            .iter()
+            .filter_map(|r| value(r.call))
+            .all(|v| v <= view.bid)
+        && view
+            .bidding
+            .iter()
+            .any(|r| Some(r.seat) == view.declarer && value(r.call) == Some(view.bid))
+}
+
 /// Checks that a row contains exactly the 66 distinct legal pairs and finite labels.
 /// This checks structure, not label quality or provenance.
 pub fn valid_druecken_row(row: &DrueckenRow) -> bool {
@@ -109,6 +127,7 @@ pub fn valid_druecken_row(row: &DrueckenRow) -> bool {
         || view.result.is_some()
         || view.legal_actions.len() != 66
         || row.outcomes.len() != 66
+        || !valid_winning_bid(view)
     {
         return false;
     }
@@ -250,7 +269,9 @@ fn replay(view: &PlayerView, world: &skat_analysis::sampling::World) -> Option<G
 mod tests {
     use super::*;
     use crate::{Level, Opponent};
-    use skat_core::{Announcement, CompletedTrick, Contract, GameType, RuleConfig, Seat};
+    use skat_core::{
+        Announcement, BidRecord, CompletedTrick, Contract, GameType, RuleConfig, Seat,
+    };
 
     /// A deal's first Drücken view under Classic play, if any.
     fn druecken_view(seed: u64) -> Option<PlayerView> {
@@ -365,6 +386,21 @@ mod tests {
         assert!(!valid_druecken_row(&bad));
         let mut bad = row.clone();
         bad.view.kontra = KontraLevel::Kontra;
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.view.bid = 0;
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.view.bid += 2;
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.view.bidding.clear();
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.view.bidding.push(BidRecord {
+            seat: row.view.seat,
+            call: Call::Bid(row.view.bid + 2),
+        });
         assert!(!valid_druecken_row(&bad));
     }
 
