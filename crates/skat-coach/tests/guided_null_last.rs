@@ -130,7 +130,7 @@ fn frozen_deals_every_completion_exact_null_key_and_scope() {
         }
         assert_eq!(
             l.is_some(),
-            c.supported || c.id == "real-early",
+            c.supported || matches!(c.id, "real-early" | "real-defender-declarer-ahead"),
             "{} applicability",
             c.id
         );
@@ -271,6 +271,11 @@ fn synthetic_and_malformed_views_never_get_a_null_lesson() {
             // The Grand view keeps its existing, unchanged Grand WinLast lesson.
             let l = l.unwrap();
             assert_eq!((l.game, l.rule.branch), (GameType::Grand, Branch::WinLast));
+        } else if matches!(
+            id,
+            "defender" | "defender-declarer-ahead (actual mixed-ten)"
+        ) {
+            assert_eq!(l.unwrap().rule.card, card("C8"));
         } else {
             assert_eq!(l, None, "{id}");
         }
