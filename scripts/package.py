@@ -228,6 +228,11 @@ def build(args):
     print(path.resolve())
 
 
+# Packaged feature views, each launched in German and English.
+SCENARIOS = ("coach", "training", "series", "open", "replay")
+PLAYED = ("coach", "series", "open", "replay")
+
+
 def smoke(args):
     manifest, files = verify(args.archive)
     args.out.mkdir(parents=True, exist_ok=True)
@@ -286,7 +291,7 @@ def smoke(args):
         shots = {}
         for stage, scenario, language in stages + [
             (f"{scenario}-{language}", scenario, language)
-            for scenario in ("coach", "training") for language in ("de", "en")
+            for scenario in SCENARIOS for language in ("de", "en")
         ]:
             if scenario:
                 # Valid history again; feature views must neither modify nor depend on damaged data.
@@ -317,7 +322,7 @@ def smoke(args):
             log_path = args.out / f"{stage}.log"
             with log_path.open("w") as log:
                 try:
-                    subprocess.run([str(binary)], cwd=root, env=env, stdout=log, stderr=log, check=True, timeout=90)
+                    subprocess.run([str(binary)], cwd=root, env=env, stdout=log, stderr=log, check=True, timeout=180)
                 except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                     log.flush()
                     print(log_path.read_text(encoding="utf-8", errors="replace")[-8192:])
@@ -326,13 +331,16 @@ def smoke(args):
             if not image.startswith(b"P6\n") or len(image) < 100000:
                 raise ValueError("native packaged launch did not produce a screenshot")
             shots[stage] = digest(image)
-            # An open counting question legitimately records its presentation.
-            if scenario != "coach" and history.read_bytes() != preserved:
+            # Played scenarios may legitimately record learning observations; the
+            # probe below still requires the history to stay valid.
+            if scenario in PLAYED:
+                preserved = history.read_bytes()
+            elif history.read_bytes() != preserved:
                 raise ValueError("packaged launch changed user history")
             if stage != "damaged-history":
                 subprocess.run([str(probe), "check", str(history)], check=True)
-        if len(set(shots[f"{c}-{l}"] for c in ("coach", "training") for l in ("de", "en"))) != 4:
-            raise ValueError("coach/training DE/EN smoke screenshots are not four distinct views")
+        if len(set(shots[f"{c}-{l}"] for c in SCENARIOS for l in ("de", "en"))) != 2 * len(SCENARIOS):
+            raise ValueError("feature DE/EN smoke screenshots are not all distinct views")
         shutil.rmtree(install)
         if history.read_bytes() != preserved:
             raise ValueError("uninstall removed user data")
@@ -341,9 +349,9 @@ def smoke(args):
         "os": platform.platform(), "result": "passed", "network_isolation": "not verified by this smoke",
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
-        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API exercises Neural and Hybrid card play, and missing, corrupt and incompatible format/encoder model fallback with valid history", "packaged coach+counting aid+quiz view (first counting question open) and focused counting training view, each in German and English, launched from the same extracted executable (the coach question records its presentation; history stays valid, training leaves it unchanged)", "uninstall retains data"],
+        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API exercises Neural and Hybrid card play, and missing, corrupt and incompatible format/encoder model fallback with valid history", "packaged coach+counting aid+quiz view (first counting question open) and focused counting training view, each in German and English, launched from the same extracted executable (the coach question records its presentation; history stays valid, training leaves it unchanged)", "packaged complete two-game series (first legal actions to the series result), open-table game (all hands shown, mid-game) and recording viewer (first game saved to the data directory, reopened and shown read-only), each in German and English, from the same extracted executable", "uninstall retains data"],
         "screenshot_sha256": shots,
-        "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. Coach/quiz/training scenarios open the real packaged views via smoke-only environment variables and a first-legal-action driver; answering, skipping and retry are covered by widget tests, not by the package. No cross-version migration; no clean OS or Windows 11 claim.",
+        "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. Coach/quiz/training scenarios open the real packaged views via smoke-only environment variables and a first-legal-action driver; answering, skipping and retry are covered by widget tests, not by the package. The series, open-table and recording scenarios use the same driver: the series is two games with first legal actions, not a full 36-game series or an interactive session; the replay review and practice-from-recording buttons are not clicked. No cross-version migration; no clean OS or Windows 11 claim.",
     }, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 

@@ -155,6 +155,19 @@ enum PracticeRequest {
     Return,
 }
 
+/// What the packaged smoke driver plays towards.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SmokeGoal {
+    /// A counting question is open.
+    Question,
+    /// The series is finished.
+    Series,
+    /// The first game is finished.
+    Game,
+    /// The current game has at least this many recorded actions.
+    Moves(usize),
+}
+
 /// The Grand-Coach window.
 pub struct GrandCoachApp {
     session: Session,
@@ -262,17 +275,29 @@ impl GrandCoachApp {
         }
     }
 
-    /// Packaged smoke driver: takes the first legal human action until a
-    /// counting question is open. Returns `Ok(true)` once it is; a series
-    /// that ends without one is an error. Opponents move through the normal
+    /// Packaged smoke driver: takes the first legal human action until
+    /// `goal` is reached. Returns `Ok(true)` once it is; a series that ends
+    /// without reaching it is an error. Opponents move through the normal
     /// frame loop.
-    pub fn smoke_advance(&mut self, now: f64) -> Result<bool, &'static str> {
+    pub fn smoke_advance(&mut self, now: f64, goal: SmokeGoal) -> Result<bool, &'static str> {
         let view = self.session.view();
-        if view.assist.quiz.question.is_some() {
+        let reached = match goal {
+            SmokeGoal::Question => view.assist.quiz.question.is_some(),
+            SmokeGoal::Series => view.series_finished,
+            SmokeGoal::Game => view.can_next_game || view.series_finished,
+            SmokeGoal::Moves(n) => self
+                .session
+                .export_current_recording_privileged()
+                .is_some_and(|r| r.actions.len() >= n),
+        };
+        if reached {
             return Ok(true);
         }
         if view.series_finished {
-            return Err("series ended without a counting question");
+            return Err(match goal {
+                SmokeGoal::Question => "series ended without a counting question",
+                _ => "series ended before the smoke goal",
+            });
         }
         if !view.opponent_to_move {
             let command = view
@@ -283,6 +308,25 @@ impl GrandCoachApp {
             self.send(command, now);
         }
         Ok(false)
+    }
+
+    /// Packaged smoke: opens the first completed game of this series as a
+    /// recording through a file in `dir` (save, validate, reopen).
+    pub fn smoke_open_replay(&mut self, dir: &std::path::Path) -> Result<(), String> {
+        let recording = self
+            .session
+            .completed_recordings_privileged()
+            .first()
+            .cloned()
+            .ok_or("no completed game")?;
+        let path = dir.join("smoke-replay.json");
+        let _ = std::fs::remove_file(&path);
+        recording
+            .save_local_new(&path)
+            .map_err(|e| format!("{e:?}"))?;
+        let reopened = skat_app::GameRecording::open_local(&path).map_err(|e| format!("{e:?}"))?;
+        self.recording.start_replay(reopened);
+        Ok(())
     }
 
     /// Leaves the training and returns to the waiting live table.
