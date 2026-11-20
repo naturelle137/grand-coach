@@ -146,6 +146,8 @@ struct Practice {
     live: Parked,
     source: GameRecording,
     attempt: u32,
+    /// Read-only comparison with the original, only in memory (D-66).
+    comparison: Option<skat_app::PracticeComparison>,
 }
 
 /// Practice lifecycle request from this frame, applied after drawing.
@@ -432,6 +434,7 @@ impl GrandCoachApp {
             live,
             source: recording,
             attempt: 1,
+            comparison: None,
         });
         self.recording.close();
         Ok(())
@@ -453,6 +456,7 @@ impl GrandCoachApp {
         drop(self.park(session));
         if let Some(practice) = &mut self.practice {
             practice.attempt += 1;
+            practice.comparison = None;
         }
     }
 
@@ -483,6 +487,8 @@ impl GrandCoachApp {
             return;
         };
         let attempt = practice.attempt;
+        let finished = view.acting.is_none();
+        let mut compare = false;
         ui.horizontal_wrapped(|ui| {
             ui.label(
                 RichText::new(self.i18n.tf(
@@ -508,7 +514,29 @@ impl GrandCoachApp {
             {
                 self.practice_request = Some(PracticeRequest::Restart);
             }
+            if finished && ui.button(self.t("practice-compare")).clicked() {
+                compare = true;
+            }
         });
+        if compare && let Some(practice) = &mut self.practice {
+            practice.comparison = self
+                .session
+                .finished_practice_privileged()
+                .and_then(|a| skat_app::PracticeComparison::new(&practice.source, &a).ok());
+        }
+    }
+
+    /// The comparison window of a finished attempt; closing drops it.
+    fn comparison_window(&mut self, ctx: &egui::Context) {
+        let Some(practice) = &mut self.practice else {
+            return;
+        };
+        let Some(comparison) = &practice.comparison else {
+            return;
+        };
+        if !crate::comparison::window(ctx, &self.i18n, self.deck, comparison) {
+            practice.comparison = None;
+        }
     }
 
     /// Sets the work budget of coach analyses (tests; default interactive).
@@ -2736,6 +2764,7 @@ impl eframe::App for GrandCoachApp {
             self.practice_request = Some(PracticeRequest::Start(Box::new(recording)));
         }
         self.learning_window(&ctx);
+        self.comparison_window(&ctx);
         if self.practice_request.is_some() {
             self.apply_practice_request();
             ctx.request_repaint();

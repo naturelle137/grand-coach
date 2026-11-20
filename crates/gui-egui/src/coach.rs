@@ -1519,6 +1519,11 @@ pub fn replay_perspective(i18n: &I18n, perspective: ReplayPerspective) -> Line {
     }
 }
 
+/// The action chosen at a recorded decision, in words.
+pub fn context_action(i18n: &I18n, c: &DecisionContext) -> String {
+    action_at(i18n, c.bid, c.hand_game, c.action)
+}
+
 /// The table before a recorded decision, from its permitted snapshot only.
 pub fn replay_situation(i18n: &I18n, c: &DecisionContext) -> SituationText {
     let role = match c.declarer {

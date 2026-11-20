@@ -770,7 +770,7 @@ fn coach_section(
 
 /// The table before the recorded action: facts, the hand with the chosen
 /// cards marked and the trick in progress. Display only.
-fn situation(
+pub(crate) fn situation(
     ui: &mut egui::Ui,
     i: &I18n,
     deck: Deck,

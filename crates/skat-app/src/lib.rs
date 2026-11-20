@@ -44,6 +44,7 @@ pub use live_abstich::{
 };
 mod mechanism_responses;
 mod neural;
+mod practice_comparison;
 mod quiz;
 mod recording;
 mod recording_io;
@@ -80,6 +81,7 @@ pub use mechanism_responses::{
     MechanismComparison, MechanismCounts, MechanismExposure, MechanismResponse, MechanismRow,
 };
 pub use neural::{NeuralIdentity, NeuralProvenance, neural_model, neural_model_available};
+pub use practice_comparison::{ComparisonRow, PracticeComparison};
 pub use quiz::{
     AssistSettings, AssistView, AssistanceLevel, CountingState, CountingView, LessonFamily,
     LessonRevision, OpportunityId, QUESTION_AFTER_TRICKS, QuestionId, QuizFeedback, QuizOutcome,
