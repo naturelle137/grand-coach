@@ -18,7 +18,7 @@
 //! additionally prepares one packaged feature view: `coach` plays first
 //! legal actions with coach, counting aid and quiz on until a counting
 //! question is open; `training` opens the focused counting training;
-//! `series` plays a complete two-game series with first legal actions;
+//! `series` plays a complete 36-game series with first legal actions;
 //! `open` plays an open-table game for a few moves; `replay` plays that
 //! series, saves its first game to the data directory and shows it in the
 //! recording viewer.
@@ -73,8 +73,8 @@ impl eframe::App for Screenshot {
                     std::process::exit(2);
                 }
             }
-            if self.advancing.is_some() && now > 120.0 {
-                eprintln!("smoke: goal not reached within 120 s");
+            if self.advancing.is_some() && now > 900.0 {
+                eprintln!("smoke: goal not reached within 900 s");
                 std::process::exit(2);
             }
         }
@@ -128,7 +128,8 @@ fn main() -> eframe::Result {
                 SessionConfig {
                     seed,
                     series: match scenario_name.as_deref() {
-                        Some("series" | "replay") => SeriesLength::Fixed(2),
+                        Some("series") => SeriesLength::Fixed(36),
+                        Some("replay") => SeriesLength::Fixed(2),
                         _ => SessionConfig::default().series,
                     },
                     display: if scenario_name.as_deref() == Some("open") {
@@ -147,6 +148,7 @@ fn main() -> eframe::Result {
             let scenario = scenario_name.clone();
             let smoke = std::env::var_os("GRAND_COACH_SCREENSHOT").is_some() && scenario.is_some();
             if smoke {
+                app.opponent_delay = 0.0;
                 match std::env::var("GRAND_COACH_LANGUAGE").as_deref() {
                     Ok("de") => app.set_language(gui_egui::Language::De),
                     Ok("en") => app.set_language(gui_egui::Language::En),
