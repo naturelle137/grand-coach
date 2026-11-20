@@ -422,8 +422,8 @@ Hand: the branch is Suit (Herz), Herz Hand 30 falls short, Kreuz 36 and Grand
 
 ## Kontra and immediate Re (#153)
 
-`guided-kontra@1` covers two core-offered decisions in a non-Ouvert
-Farbspiel, Grand (#155) or Null (#155): a defender's card turn with `Kontra` offered (declining means
+`guided-kontra@1` covers two core-offered decisions in a
+Farbspiel (also Ouvert, #271), Grand (#155, also Ouvert) or Null (#155): a defender's card turn with `Kontra` offered (declining means
 playing a card) and the declarer's immediate `Re`/`KeinRe` reply. The source
 is `skat_analysis::baseline::kontra_rule`, which `baseline::play` (Easy) now
 calls: call and role, contract, public level, Trumpf count (Kontra) or strength
@@ -452,7 +452,14 @@ after a declining card that card and trick (Kontra is no longer offered after
 the own first card). Automated turns are followed; the learner's next own
 action, a new game, coach off or replay ends the dialogue.
 
-An Ouvert contract, the Ouvert round before the reveal (no declarer card is
+Ouvert Farbspiel and Grand (#271) use the same rule on the learner's permitted
+view: the declarer's reply after the Ouvert Kontra round is guided like any
+Re. Ouvert reveals the declarer hand to the defenders; the dialogue says that
+this view is available, but Easy's rule counts only the learner's own cards,
+known Skat and public facts, so nothing beyond that view is inferred and
+swapping hidden cards leaves it unchanged (fixtures: Herz and Grand Hand
+Ouvert at strength 90 and 89). A Null Ouvert contract keeps the
+no-assessment exclusion, the Ouvert round before the reveal (no declarer card is
 shown) and restricted or inconsistent views (absent contract,
 seat or level not matching the call, Easy's choice not legal) report their own
 unsupported text; all calls and cards stay free.

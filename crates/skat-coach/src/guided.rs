@@ -511,7 +511,7 @@ impl PreLesson {
     }
 }
 
-/// A non-Ouvert Farbspiel, Grand or Null Kontra or immediate Re lesson from
+/// A Farbspiel, Grand (also Ouvert) or non-Ouvert Null Kontra or immediate Re lesson from
 /// Easy's shared rule. Never passed to the frontend before disclosure.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -528,7 +528,7 @@ pub struct KontraLesson {
 pub enum KontraExclusion {
     /// The separate Ouvert round before the reveal (`KeinKontra` offered).
     OuvertRound,
-    /// An Ouvert contract after the reveal.
+    /// A Null Ouvert contract after the reveal (Farbspiel/Grand Ouvert is supported).
     Ouvert,
     /// Absent contract or a restricted/inconsistent permitted view.
     Restricted,
@@ -555,7 +555,7 @@ fn kontra_support(view: &PlayerView) -> Result<KontraLesson, KontraExclusion> {
         return Err(KontraExclusion::OuvertRound);
     }
     let contract = view.contract.ok_or(KontraExclusion::Restricted)?;
-    if contract.ouvert {
+    if contract.ouvert && contract.game == GameType::Null {
         return Err(KontraExclusion::Ouvert);
     }
     let rule = baseline::kontra_rule(view).ok_or(KontraExclusion::Restricted)?;
