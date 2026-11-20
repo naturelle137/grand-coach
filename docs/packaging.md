@@ -103,6 +103,9 @@ release notes and the closing evidence of #13 remain open.
 Use a clean committed checkout, Python 3.11+, native Rust 1.95.0, Cargo and
 a native linker (GCC on Linux; MSVC C++ Build Tools on Windows). Fetch locked
 dependencies before disconnecting. The Windows smoke does not verify network isolation or prove offline operation; Linux CI separately runs the smoke in a network-less container.
+Windows Server 2025's native package smoke passed again in
+[RC run 44605651765](https://github.com/naturelle137/grand-coach/actions/runs/44605651765)
+on commit `32f1f729a360`; this run did not block network access.
 
 ```sh
 cargo fetch --locked
