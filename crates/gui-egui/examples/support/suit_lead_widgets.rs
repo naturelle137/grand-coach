@@ -23,6 +23,7 @@ pub fn inventory() -> Vec<serde_json::Value> {
     for language in ["de", "en"] {
         for (suffix, width, height) in [("", 1440, 1000), ("-narrow", 960, 640)] {
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-god-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"god-fixture"}));
+            result.push(serde_json::json!({"name":format!("guided-suit-lead-master-ouvert-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"ouvert-fixture"}));
             for stage in STAGES {
                 result.push(serde_json::json!({"name":format!("guided-suit-lead-master-{stage}-{language}{suffix}"),"stage":stage,"language":language,"width":width,"height":height,"kind":"ordinary"}));
             }
@@ -48,7 +49,7 @@ pub fn render(name: &str, out: Option<&str>) {
         entry["width"].as_f64().unwrap() as f32,
         entry["height"].as_f64().unwrap() as f32,
     ];
-    if entry["kind"] == "god-fixture" {
+    if entry["kind"] == "god-fixture" || entry["kind"] == "ouvert-fixture" {
         let builder = Harness::builder().with_size(size);
         let builder = if out.is_some() {
             builder.wgpu()
@@ -56,19 +57,35 @@ pub fn render(name: &str, out: Option<&str>) {
             builder
         };
 
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../tests/fixtures/suit-lead-master-god.json"
-        ))
+        let ouvert = entry["kind"] == "ouvert-fixture";
+        let fixture: serde_json::Value = serde_json::from_str(if ouvert {
+            include_str!("../../tests/fixtures/suit-lead-master-ouvert.json")
+        } else {
+            include_str!("../../tests/fixtures/suit-lead-master-god.json")
+        })
         .unwrap();
         let table: TableView = serde_json::from_value(fixture["table"].clone()).unwrap();
         let dialog: GuidedView = serde_json::from_value(fixture["guided"].clone()).unwrap();
         let i = I18n::new(language);
         let mut h = builder.build_ui(move |root| {
             egui::CentralPanel::default().show(root, |ui| {
-                ui.label(i.tf(
-                    "guided-lead-fixture-label",
-                    &[("case", "God Mode".into()), ("stage", "reveal".into())],
-                ));
+                ui.label(
+                    i.tf(
+                        "guided-lead-fixture-label",
+                        &[
+                            (
+                                "case",
+                                if ouvert {
+                                    "Ouvert / open display"
+                                } else {
+                                    "God Mode"
+                                }
+                                .into(),
+                            ),
+                            ("stage", "reveal".into()),
+                        ],
+                    ),
+                );
                 let _ = guided::panel(ui, &i, &table, &dialog);
             });
         });
