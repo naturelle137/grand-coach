@@ -96,7 +96,7 @@ fn actual_follow_discard_and_kreuz_bube_have_public_follow_class_evidence() {
 }
 
 #[test]
-fn excludes_side_master_feeding_early_wins_other_contracts_and_forced_moves() {
+fn admits_side_master_feeding_early_but_excludes_forced_moves() {
     // CK is now a follow-class master from MH's view, even though HH can trump it.
     let d = swap(deal(), card("CA"), card("S7"));
     let g = position(d, false);
@@ -107,7 +107,9 @@ fn excludes_side_master_feeding_early_wins_other_contracts_and_forced_moves() {
             .branch,
         Branch::FeedPartner
     );
-    assert!(lesson(&g.view(Seat::Mittelhand)).is_none());
+    // Farbspiel early feeding is admitted (see guided_suit_early_feed.rs).
+    let l = lesson(&g.view(Seat::Mittelhand)).unwrap();
+    assert!(l.rule.table_master && !l.rule.last);
     let mut g = position(deal(), true);
     while g.current_seat().is_some() {
         let v = g.view(g.current_seat().unwrap());

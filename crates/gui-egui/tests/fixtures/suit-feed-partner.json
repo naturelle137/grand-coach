@@ -2450,6 +2450,7 @@
       "correct": null,
       "early_condition": null,
       "evidence": null,
+      "feed_partner": "Vorhand",
       "figures": null,
       "figures_requested": false,
       "id": {
@@ -2474,10 +2475,10 @@
       "preplay": null,
       "reizen": null,
       "rule": null,
-      "step": "Unsupported",
+      "step": "Orient",
       "task": null
     },
-    "stage": "unsupported",
+    "stage": "orient",
     "table": {
       "acting": 0,
       "assist": {

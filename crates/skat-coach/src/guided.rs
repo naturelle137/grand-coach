@@ -104,7 +104,7 @@ pub struct Lesson {
 /// Select only tested branches, with real alternatives and candidates:
 /// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus non-Ouvert Farbspiel/Grand WinEarly and non-Ouvert Farbspiel/Grand last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
-/// and at least one losing card; early FeedPartner requires a Grand follow-class master; Fallback stays excluded.
+/// and at least one losing card; early FeedPartner (Farbspiel or Grand) requires a follow-class master; Fallback stays excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. A defender may
 /// act second after the declarer leads, or last with the declarer ahead.
@@ -279,7 +279,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     // Early feeding is not last-seat feeding: the remaining declarer can
     // still trump a side master. Admit only a complete acting-defender view.
-    let grand_feed_early = grand
+    let feed_early = (grand || suit)
         && view.declarer.is_some_and(|d| d != view.seat)
         && view.current_seat == Some(view.seat)
         && matches!(view.current_trick.cards, [Some(_), None, None])
@@ -301,7 +301,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || ((grand || suit_early) && rule.branch == Branch::WinEarly)
             || (rule.branch == Branch::FeedPartner
                 && (((grand || suit_feed) && rule.last)
-                    || (grand_feed_early && rule.partner_ahead && rule.table_master)))
+                    || (feed_early && rule.partner_ahead && rule.table_master)))
             || (null && rule.branch == Branch::Null && !rule.losers.is_empty()))
     {
         return None;

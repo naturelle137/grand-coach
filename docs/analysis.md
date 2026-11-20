@@ -589,7 +589,7 @@ the accepted independent physical predictions from source-informed API metadata.
 The cloud-owned default-feature policy target covers all 37 represented legal
 completions, four terminal paths and two full-view-equal hidden pairs.
 
-The [second-seat Grand feeding dialogue](guided-dialogue.md#grand-second-seat-feedpartner-131)
+The [second-seat Grand feeding dialogue](guided-dialogue.md#grand-second-seat-feedpartner-131), also admitted for non-Ouvert Farbspiel ([section](guided-dialogue.md#farbspiel-second-seat-feedpartner-131)),
 uses unchanged `baseline::rule`: `FeedPartner`, `partner_ahead`, `table_master`,
 not `last`; all legal candidates, maximum nontrump/Augen and last exact tie.
 A table master excludes higher cards outside own/played sets in its follow
