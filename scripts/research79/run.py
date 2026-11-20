@@ -21,11 +21,11 @@ SUIT = {k: v for k, v in cp.SUITS.items()}
 TEXT = {  # the template arm: Fluent-style rendering of validated (id, param)
     "en": {"count_exact": "Exactly {p} trumps are still out.",
            "count_estimated": "About {p} trumps are probably still out.",
-           "void_proven": "Proven: nobody can follow {p} any more.",
+           "void_proven": "Proven: a player can no longer follow {p}.",
            "insufficient_evidence": "The evidence does not settle this yet."},
     "de": {"count_exact": "Es sind genau {p} Trümpfe draußen.",
            "count_estimated": "Wahrscheinlich sind noch etwa {p} Trümpfe draußen.",
-           "void_proven": "Bewiesen: {p} kann niemand mehr bedienen.",
+           "void_proven": "Bewiesen: Ein Spieler kann {p} nicht mehr bedienen.",
            "insufficient_evidence": "Die Lage reicht dafür noch nicht aus."},
 }
 GRAMMAR = ('root ::= id "|" param\n'
