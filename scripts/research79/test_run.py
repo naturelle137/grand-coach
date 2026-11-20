@@ -15,11 +15,14 @@ class SelectionTest(unittest.TestCase):
                 self.assertTrue(good['accepted'])
                 self.assertEqual(good['pair'], expected)
                 for bad in ('count_exact|99', '<think>secret</think>count_exact|1',
-                            '|'.join(expected) + ' extra', ''):
+                            '|'.join(expected) + ' extra', '',
+                            '[end of text]' + '|'.join(expected),
+                            '|'.join(expected) + '[end of text][end of text]'):
                     shown = run.select(case, bad)
                     self.assertFalse(shown['accepted'])
                     self.assertEqual(shown['pair'], expected)
                     self.assertEqual(shown['text'], good['text'])
+                self.assertTrue(run.select(case, '|'.join(expected) + '[end of text]')['accepted'])
 
     def test_frozen_corpus(self):
         self.assertEqual(len(corpus.corpus()), 86)
