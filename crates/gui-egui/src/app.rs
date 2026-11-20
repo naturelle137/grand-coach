@@ -3382,6 +3382,86 @@ mod tests {
     }
 
     #[test]
+    fn repeatedly_preempted_coach_jobs_drain_after_play() {
+        use egui_kittest::Harness;
+        let mut h = Harness::builder().build_eframe(|cc| {
+            let mut app = GrandCoachApp::new(
+                &cc.egui_ctx,
+                SessionConfig {
+                    seed: 5,
+                    series: SeriesLength::Fixed(1),
+                    opponents: Opponents::Levels([Level::Easy; 2]),
+                    ..SessionConfig::default()
+                },
+            );
+            app.session.set_coach_budget(skat_app::Budget {
+                samples: 1,
+                nodes_per_task: 10,
+            });
+            app.session
+                .execute(Command::SetCoach(CoachSettings {
+                    level: CoachLevel::EveryMove,
+                    ..CoachSettings::default()
+                }))
+                .unwrap();
+            app
+        });
+        let ctx = h.ctx.clone();
+        let mut preemptions = 0;
+        loop {
+            h.state_mut().session.run_opponents();
+            let view = h.state().session.view();
+            let Some(&first) = view.legal_actions.first() else {
+                break;
+            };
+            let action = if view.phase == skat_app::Phase::Reizen
+                && view.legal_actions.contains(&Action::Pass)
+            {
+                Action::Pass
+            } else {
+                first
+            };
+            h.state_mut().act(action, 0.0);
+            let Some(job) = h.state().session.coach_job().filter(|job| job.is_review()) else {
+                continue;
+            };
+            let (sender, result) = std::sync::mpsc::channel();
+            let cancel = Cancel::new();
+            h.state_mut().coach_thinking = Some(CoachThinking {
+                job,
+                result,
+                cancel: cancel.clone(),
+            });
+            h.state_mut().session.run_opponents();
+            if h.state()
+                .session
+                .coach_job()
+                .is_some_and(|job| !job.is_review())
+            {
+                h.state_mut().drive_coach(&ctx, 0.0);
+                assert!(cancel.is_cancelled(), "old worker must be preempted");
+                preemptions += 1;
+            }
+            drop(sender);
+        }
+        assert!(preemptions >= 2);
+        h.state_mut().coach_thinking = None;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while h.state().session.coach_job().is_some() || h.state().coach_thinking.is_some() {
+            h.state_mut().drive_coach(&ctx, 0.0);
+            assert!(
+                std::time::Instant::now() < deadline,
+                "debrief did not drain"
+            );
+            std::thread::yield_now();
+        }
+        assert!(matches!(
+            h.state().session.view().coach.debriefing,
+            Some(skat_app::Debriefing::Ready(_))
+        ));
+    }
+
+    #[test]
     #[ignore = "manual: timing diagnostic"]
     fn debrief_headless_frame_timing() {
         use egui_kittest::Harness;
