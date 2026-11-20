@@ -407,6 +407,37 @@ the existing rules in these games; the learned Kontra/Re head is not used in
 play. Outcome-label pilot: still postponed (no model is competitive with
 Strong).
 
+#### Rare pre-play classes and the learned Kontra/Re head (#74)
+
+Measured 2026-11-19 on this PC (same data, shape, seed, validation deals
+and 1,200-game protocol as above; all models vs Classic Strong; W = 4).
+New opt-in `train --all-phases --rare-weight R` multiplies the policy loss of
+rows whose teacher choice is rare (Hand instead of the pickup, Null, or a
+Schneider/Schwarz/Ouvert announcement) by `R` on top of `--preplay-weight`.
+Test agreement per phase (correct/rows) and games:
+
+| Model | Reizen | Hand/pickup | Drücken | Ansage | Kontra/Re | A − B per seat-game | Null / Hand of declarer games |
+|---|---:|---:|---:|---:|---:|---|---|
+| W = 4 (above) | 96.41 % | 99.68 % | 79.29 % | 91.44 % | 95.03 % | -14.99 [-18.92, -11.07] | 3 / 0 of 599 |
+| W = 4, R = 10 | 93.74 % | 98.23 % | 70.27 % | 89.28 % | 94.76 % | -19.14 [-23.41, -14.88] | 5 / 3 of 641 |
+| W = 4, R = 40 | 95.67 % | 99.65 % | 76.45 % | 88.57 % | 94.73 % | -20.93 [-25.14, -16.72] | 0 / 0 of 583 |
+
+Strong's tables chose Null 2–6 and Hand 4 times per ~600 declarer games;
+nobody announced Schneider, Schwarz or Ouvert (Strong never did in these
+games, so that class has no teacher behaviour to imitate here). `R` = 10
+makes the learned pre-play choose Hand (3 games) and Null (5) at Strong's
+rate, but costs accuracy and strength; `R` = 40 does not help. The
+intervals overlap, so no ordering is claimed, and neither model is
+better than the W = 4 model without `R`. Not shipped.
+
+Learned Kontra/Re head: `calibrate … nn:W4/model.gcnn@easy+ak strong` lets the
+model decide Kontra/Re instead of the rules of thumb (it already worked via
+`Profile::search_kontra`; no code change). A − B −19.87 [-24.37, -15.37] against
+−14.99 [-18.92, -11.07] with the rules: no gain, the head imitates the
+extreme D-40 teacher Kontra, so the shipped rule stays. Raw logs:
+`grand-coach-data/studies/2026-11-19-preplay-74c/`. The outcome-label pilot
+remains postponed: no imitation model is competitive with Strong.
+
 A baseline on validation deals 10000–10199 (six seatings each, Kontra/Re
 on) compared the shipped card-play model, greedy policy with Easy fallback,
 against Classic Easy. A − B was +19.04 SF points per seat-game, standard
