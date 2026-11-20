@@ -283,7 +283,13 @@ impl GrandCoachApp {
         let view = self.session.view();
         let reached = match goal {
             SmokeGoal::Question => view.assist.quiz.question.is_some(),
-            SmokeGoal::Series => view.series_finished,
+            SmokeGoal::Series => {
+                view.series_finished
+                    && view
+                        .series_result
+                        .as_ref()
+                        .is_some_and(|result| result.games == 36)
+            }
             SmokeGoal::Game => view.can_next_game || view.series_finished,
             SmokeGoal::Moves(n) => self
                 .session
