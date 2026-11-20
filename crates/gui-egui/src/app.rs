@@ -335,6 +335,27 @@ impl GrandCoachApp {
         Ok(())
     }
 
+    /// Packaged smoke: requests the review of the open recording once and
+    /// reports `Ok(true)` when it has ended with its summary. An unavailable
+    /// review is an error.
+    pub fn smoke_review(&mut self, ctx: &egui::Context) -> Result<bool, String> {
+        use skat_app::ReviewStatus;
+        let status = self
+            .recording
+            .replay_coach_mut()
+            .ok_or("no open recording")?
+            .review_status();
+        match status {
+            ReviewStatus::Unavailable(reason) => Err(format!("review unavailable: {reason:?}")),
+            ReviewStatus::Idle { .. } => {
+                self.recording.smoke_request_review(ctx);
+                Ok(false)
+            }
+            ReviewStatus::Running { .. } => Ok(false),
+            ReviewStatus::Done(_) => Ok(true),
+        }
+    }
+
     /// Leaves the training and returns to the waiting live table.
     pub fn exit_training(&mut self) {
         self.training.exit();
