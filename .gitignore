@@ -5,3 +5,6 @@
 .bash_history
 /reports/
 /research_notes/
+
+__pycache__/
+*.pyc
