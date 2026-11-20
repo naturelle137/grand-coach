@@ -1,0 +1,3 @@
+Source: grand-coach commit 6f22c64; screenshot example, seed 2969.
+For this bounded capture only, examples/support/suit_lead_widgets.rs used Opponents::GodMode instead of Easy. In tests/support/guided.rs, suit_lead_flow clicked guided-start then guided-reveal, asserted GuidedBranch::LeadMaster, and returned. The tracked files were restored immediately afterward. Opponents are real God Mode/Mephisto. This is a reveal-stage real table; not an ordinary Easy route or learner study.
+Command in skat-dev: cargo run --locked -p gui-egui --example screenshots -- OUT guided-suit-lead-master-reveal-de guided-suit-lead-master-reveal-en guided-suit-lead-master-reveal-de-narrow guided-suit-lead-master-reveal-en-narrow
