@@ -1153,3 +1153,18 @@ guided-rule-null-defender = Easy wählt die ranghöchste Karte, die den Alleinsp
 
 guided-null-defender-last-role = Du bist Gegenspieler im Null und spielst als Letzter. Der Alleinspieler liegt vorn. Es gibt keinen Trumpf, auch Buben bedienen ihre Farbe.
 guided-rule-null-defender-last = Easy wählt die ranghöchste Karte, die den Alleinspieler vorn lässt; bei gleichem Rang die letzte in der erlaubten Reihenfolge. Das ist eine Faustregel ohne Spielgewinn-Garantie.
+
+practice-compare = Mit Original vergleichen
+compare-title = Übungsversuch und Originalspiel
+compare-isolation = Nur lesend und nur im Speicher: nichts wird gewertet, gespeichert oder in den Lernverlauf übernommen.
+compare-no-ranking = Deine eigenen Entscheidungen nebeneinander, jeweils mit dem, was du damals sehen konntest. Das sagt nicht, welche Linie besser war; dafür dient die gewöhnliche Coach-Analyse mit Quelle und Unsicherheit.
+compare-all-same = Jede eigene Entscheidung entsprach dem Originalspiel.
+compare-identical = { $count ->
+    [one] 1 gleiche Entscheidung (gleiche Stellung, gleiche Aktion)
+   *[other] { $count } gleiche Entscheidungen (gleiche Stellung, gleiche Aktion)
+}
+compare-decision = Entscheidung { $number }
+compare-original = Originalspiel
+compare-attempt = Übungsversuch
+compare-chose = Gewählt: { $action }
+compare-none = An dieser Stelle gab es in dieser Linie keine Entscheidung.

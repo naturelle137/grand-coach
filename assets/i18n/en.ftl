@@ -1153,3 +1153,18 @@ guided-rule-null-defender = Easy chooses the highest-ranked card that leaves the
 
 guided-null-defender-last-role = You defend in Null and play last. The declarer is ahead. There is no Trumpf; Buben follow their printed suit.
 guided-rule-null-defender-last = Easy chooses the highest-ranked card that leaves the declarer ahead, with the last equal rank in legal order. This heuristic does not guarantee winning the game.
+
+practice-compare = Compare with original
+compare-title = Practice attempt vs. original game
+compare-isolation = Read-only and in memory only: nothing is scored, saved or added to the learning history.
+compare-no-ranking = Your own decisions side by side, each from what you could see then. This does not say which line was better; for that, use the ordinary coach analysis, which shows its source and uncertainty.
+compare-all-same = Every own decision matched the original game.
+compare-identical = { $count ->
+    [one] 1 identical decision (same position, same action)
+   *[other] { $count } identical decisions (same position, same action)
+}
+compare-decision = Decision { $number }
+compare-original = Original game
+compare-attempt = Practice attempt
+compare-chose = Chosen: { $action }
+compare-none = No decision at this point in this line.

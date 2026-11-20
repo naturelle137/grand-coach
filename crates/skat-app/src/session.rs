@@ -1400,6 +1400,14 @@ impl Session {
             .then(|| self.recording.clone())
     }
 
+    /// The finished practice attempt as a privileged in-memory recording, for
+    /// [`crate::PracticeComparison`] only. `None` for a live session and
+    /// while the attempt is unfinished; it is never stored or exported.
+    pub fn finished_practice_privileged(&self) -> Option<GameRecording> {
+        (self.is_practice() && !matches!(RecordingEnd::of(&self.game), RecordingEnd::InProgress))
+            .then(|| self.recording.clone())
+    }
+
     /// Completed privileged recordings in game order, retained across NextGame.
     /// These are separate from score-sheet entries and never modified by replay.
     pub fn completed_recordings_privileged(&self) -> &[GameRecording] {
