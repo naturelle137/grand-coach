@@ -29,6 +29,8 @@ const SIZE: [f32; 2] = [1280.0, 820.0];
 /// `-narrow` shrink to it after reaching their state.
 const NARROW: [f32; 2] = [960.0, 640.0];
 
+#[path = "support/draw_trumpf_widgets.rs"]
+mod draw_trumpf_widgets;
 #[path = "support/lead_master_widgets.rs"]
 mod lead_master_widgets;
 #[path = "support/null_lead_widgets.rs"]
@@ -1840,6 +1842,7 @@ fn main() {
     let mut fixture_names = null_widgets::names();
     fixture_names.extend(null_middle_widgets::names());
     fixture_names.extend(lead_master_widgets::names());
+    fixture_names.extend(draw_trumpf_widgets::names());
     fixture_names.extend(null_lead_widgets::names());
     fixture_names.extend(suit_early_widgets::names());
     fixture_names.extend(suit_feed_widgets::names());
@@ -1859,6 +1862,11 @@ fn main() {
     std::fs::write(
         format!("{out}/lead-master-inventory.json"),
         serde_json::to_string_pretty(&lead_master_widgets::inventory()).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        format!("{out}/draw-trumpf-inventory.json"),
+        serde_json::to_string_pretty(&draw_trumpf_widgets::inventory()).unwrap(),
     )
     .unwrap();
     std::fs::write(
@@ -1901,6 +1909,8 @@ fn main() {
                 suit_early_widgets::render(&name, Some(&out));
             } else if name.starts_with("guided-null-lead-") {
                 null_lead_widgets::render(&name, Some(&out));
+            } else if name.starts_with("guided-draw-trumpf-") {
+                draw_trumpf_widgets::render(&name, Some(&out));
             } else if name.starts_with("guided-lead-master-") {
                 lead_master_widgets::render(&name, Some(&out));
             } else if name.starts_with("guided-null-middle-") {

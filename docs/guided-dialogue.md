@@ -143,8 +143,8 @@ the last seat: see #159 below). Grand `LeadMaster` is supported within its
 [own scope](#grand-lead-with-a-follow-class-master-171), as is Null declarer
 play [last](#null-declarer-last-to-the-current-trick-165) or
 [second](#null-declarer-acting-second-169). Non-Ouvert Farbspiel `WinEarly`
-follows the [#178 guards](#farbspiel-winearly-178). Unsupported remain Grand
-`DrawTrumpf`, early Farbspiel `FeedPartner`, Farbspiel `FeedPartner` outside the
+follows the [#178 guards](#farbspiel-winearly-178). Grand declarer
+[`DrawTrumpf`](#grand-declarer-drawtrumpf-lead-175) is supported. Unsupported remain early Farbspiel `FeedPartner`, Farbspiel `FeedPartner` outside the
 [#185 guards](#farbspiel-last-seat-feedpartner-185), fallback, single legal moves
 and Ouvert Grand. Older Farbspiel families, including Ouvert, keep their
 shipped scope; #178 does not add Ouvert WinEarly. A core-offered Kontra
@@ -169,7 +169,8 @@ and Easy's documented `(is_trump, power)` first minimum:
 
 Swapping VH's unplayed H7 with the unknown Hand Skat's DK leaves HH's view,
 lesson, memory and observations identical. `WinLast` fixture exclusions: partner ahead (MH CT
-over the declarer's C9: `FeedPartner`), the declarer's lead (`DrawTrumpf`),
+over the declarer's C9: `FeedPartner`), the declarer's lead (`DrawTrumpf`, a separate
+[#175 lesson](#grand-declarer-drawtrumpf-lead-175)),
 not last (MH: `Fallback`), no winner (HH H8/HA under
 MH's SJ), a single winning CQ, Null Hand, Grand Ouvert and a Kontra-eligible
 defender. App tests drive both roles through every legal card, wrong/retry,
@@ -758,8 +759,8 @@ terminal owner; human learning and release evidence remain pending.
 Deliberate entry also admits a non-Ouvert Grand own turn at an empty trick,
 with at least two pure core-legal Play actions and the actual shared
 `LeadMaster` outcome. Both roles are supported where that branch applies;
-declarer `DrawTrumpf`, fallback, single cards, mixed calls and restricted or
-inconsistent views remain excluded. No policy or Easy tie changes.
+fallback, single cards, mixed calls and restricted or
+inconsistent views remain excluded; the declarer's `DrawTrumpf` lead was added in #175. No policy or Easy tie changes.
 
 The learner identifies their public role/lead, then a legal side master,
 then attempts Easy's largest-Augen choice. Master identification accepts every
@@ -887,7 +888,7 @@ stages, provenance, language and dimensions (de/en, 1440×1000 and 960×640),
 and the existing Linux/Windows all-scenario pipeline includes this family.
 Both entire OS archives, every hash, actual-main acceptance and personal
 inspection on each OS remain terminal delivery checks. #131 later phases
-remain OPEN; #175 remains deferred. No learner/UAT/transfer, training,
+remain OPEN; #175 is delivered in its own [section](#grand-declarer-drawtrumpf-lead-175). No learner/UAT/transfer, training,
 persistence, interactive Windows 11, packaging or release evidence is claimed.
 
 ## Farbspiel WinEarly (#178)
@@ -938,7 +939,7 @@ Historical fixture tables and accepted images remain unchanged.
 
 This is author technical evidence only. Independent review, final CI,
 protected integration and merged-main/both-OS acceptance belong to the terminal
-owner. Later #131 phases remain open, #175 remains finally deferred. No learner
+owner. Later #131 phases remain open; #175 is delivered separately. No learner
 UAT, transfer, training, persistence, interactive Windows 11, packaging or
 release acceptance follows.
 
@@ -1007,7 +1008,7 @@ includes this inventory and PNG family on both operating systems.
 This is author technical evidence. Terminal HQ1829 owns the one fresh new-PR
 review, at most one findings fix, final CI, protected integration and actual
 new-main/both-OS archive and personal visual acceptance. #131 later phases
-remain open; #175/#182 remain finally deferred. No learner/UAT, transfer,
+remain open; #182 remains finally deferred (#175 is delivered separately). No learner/UAT, transfer,
 training, persistence, interactive Windows 11, packaging or release claim.
 
 ## Grand second-seat FeedPartner (#131)
@@ -1017,8 +1018,8 @@ acting defender CURRENT SECOND, partner leading, at least two pure Play actions
 in exact core order, consistent Hand/pickup information and the actual shared
 `FeedPartner` branch with `table_master=true`. Other new roles/contracts,
 Ouvert, restricted/mixed/reordered actions, off-turn and single choices are
-excluded; older families retain their admission. #175/#182 remain finally
-deferred, with no retry or implementation.
+excluded; older families retain their admission. #182 remains finally
+deferred, with no retry or implementation (#175 is delivered separately).
 
 `Knowledge::is_master` excludes own and publicly played higher cards when
 checking the follow class; it does not locate unknown cards or exclude trumping.
@@ -1060,6 +1061,71 @@ bilingual `early_feed` widget test exercises both Easy and free Pik8 at
 show orientation, rule, observation question and feedback in both languages
 and sizes. These are technical checks, not learner or transfer observations;
 the wider #131 later-phase criterion remains open.
+
+## Grand declarer DrawTrumpf lead (#175)
+
+Admission extends the Grand own empty-trick lead (#171) to the acting
+non-Ouvert declarer when the actual shared Easy branch is `DrawTrumpf`: own
+Trumpf (in Grand only the four Buben) and a nonempty conservative
+`Knowledge::trumps_out`. It needs consistent Hand/pickup information and at
+least two pure core-legal actions in exact order. Defenders, Farbspiel, Null,
+Ouvert, nonempty tricks, single legal cards, no own Trumpf and malformed or
+restricted views stay outside. Easy takes the highest-power own Trumpf (first
+exact tie, which Buben power keys never produce). `trumps_out` excludes own and
+played Buben but counts known discarded ones; it does not prove that a defender
+holds Trumpf, and an unknown Skat stays a possible location. The highest Trumpf
+is a heuristic, not optimal play, and no reply, trick or game result is implied.
+
+The learner states role, names a legal Trumpf (candidates are the own Buben), then
+tries Easy's card; every legal card stays playable, memory starts collapsed and
+both actual replies plus the individual trick winner are observed. A view-model
+flag `lead_trumpf` only selects the question type before disclosure.
+
+Evidence (technical, author-run; no learner evidence):
+
+- `crates/skat-analysis/tests/draw_trumpf_policy.rs` holds fourteen handwritten
+  complete legal deals and histories reasoned from the ISkO and the admission
+  text above, not copied from the earlier #171 fixtures: all three physical
+  declarer seats (later leads for Mittelhand/Hinterhand after winning trick 1),
+  Hand and pickup, higher and lower own Buben, remaining Buben in defenders
+  versus a kept or discarded Skat Bube, the known-discard-only trigger, all four
+  Buben own, outside Buben already played, no own Trumpf, a competing side
+  master, a defender lead, and Ouvert and Farbspiel boundaries. It compares
+  the full `PlayerView`-derived rule (all eleven `CardRule` fields) and
+  `trumps_out`, and enumerates every legal next-trick continuation of the eight
+  admitted cases (2,157 in total), checking each trick winner against an
+  independent winner function written from the Grand rules. Each admitted case
+  also plays out to the end with the first legal card and checks every winner.
+  Counts describe only these represented cases, not universal coverage.
+- `cargo test -p skat-coach --test guided_draw_trumpf` checks the coach
+  admission on those cases (exactly eight admitted, candidates are exactly the
+  own Buben, only Easy's card is the attempt), three same-permitted-view
+  hidden-defender substitutions and malformed or single-card edits; it also
+  keeps the older single-case checks.
+- `skat-app` `guided_draw_trumpf_tests` drives a genuine `Session::new` route
+  with explicit config and human commands (Easy opponents, Kontra/Re off:
+  hold or bid up to 24, Hand, plain Grand, then the guided dialogue). The
+  bounded search over seeds 0..32 (up to three games each) first hits seeds
+  1, 3, 4 and 5, all at the first lead of game 1; seed 0 never reaches the
+  lesson under that policy. On seed 1 the declarer holds only DJ, Easy leads it
+  and both replies (SJ and HJ) show that it is not the best card; each of the
+  ten legal leads was played with both actual replies and the individual
+  trick winner checked, plus stale ids, free return and unchanged recordings.
+  Whole non-absent dialogue privacy, including God Mode, compares the complete
+  dialogue of two sessions with different concealed defender cards through
+  every answer, the public continuation, each reply and the observation.
+  Fixture sessions are labelled as such and are not ordinary routes.
+- `gui-egui/tests/draw_trumpf.rs` and `examples/support/draw_trumpf_widgets.rs`
+  drive the same seed-1 route through real widgets in both languages at
+  1440×1000 and 960×640 (ten stages, forty `guided-draw-trumpf-*` screenshots),
+  and every legal lead with immediate return. Boundary fixture frames of the
+  declarer lesson live in `lead-master.json` (case 13).
+
+The earlier independent-gate attempt (HQ1689/1691) stays recorded as failed and
+partially frozen; this delivery supersedes it by the bounded CTO decision on the
+issue and does not claim an independent pre-source domain gate. It claims no
+learner, UAT, transfer, training, persistence, interactive Windows 11,
+packaging or release evidence. #131 later phases remain open.
 
 ## Null defender following the declarer (#131)
 
