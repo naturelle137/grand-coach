@@ -78,7 +78,7 @@ def infer(args, c, grammar, threads=4):
 
 def strict(c, text):
     """Whole output must be exactly ID|PARAM with an allowed id."""
-    m = re.fullmatch(r"\s*([a-z_]+)\|([a-z0-9]+)\s*", text.replace("[end of text]", ""))
+    m = re.fullmatch(r"\s*([a-z_]+)\|([a-z0-9]+)\s*(?:\[end of text\])?\s*", text)
     return [m.group(1), m.group(2)] if m and m.group(1) in c["allowed"] else None
 
 
