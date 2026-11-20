@@ -180,31 +180,8 @@ impl RecordingUi {
                         let result = if dialog.save {
                             dialog.sources[dialog.selected].save_local_new(&dialog.path)
                         } else {
-                            GameRecording::open_local(&dialog.path).map(|recording| {
-                                // open_local has validated the whole file. Publish only now.
-                                let boundaries =
-                                    recording.trick_boundaries().expect("validated file");
-                                let selected = boundaries.len() - 1;
-                                let position = recording
-                                    .reconstruct_privileged(boundaries[selected])
-                                    .expect("validated file");
-                                // A new recording always starts unselected
-                                // in the historical perspective.
-                                let coach = ReplayCoach::open(&recording, self.budget)
-                                    .expect("validated file");
-                                self.replay = Some(Replay {
-                                    recording,
-                                    position,
-                                    boundaries,
-                                    selected,
-                                    reveal: false,
-                                    practice_error: false,
-                                    coach,
-                                    thinking: None,
-                                    reviewing: None,
-                                    review_started: None,
-                                });
-                            })
+                            GameRecording::open_local(&dialog.path)
+                                .map(|recording| self.start_replay(recording))
                         };
                         match result {
                             Ok(()) => done = true,
@@ -220,6 +197,29 @@ impl RecordingUi {
             self.dialog = Some(dialog);
         }
         practice
+    }
+
+    /// Opens a validated recording in the viewer, unselected and in the
+    /// historical perspective.
+    pub fn start_replay(&mut self, recording: GameRecording) {
+        let boundaries = recording.trick_boundaries().expect("validated file");
+        let selected = boundaries.len() - 1;
+        let position = recording
+            .reconstruct_privileged(boundaries[selected])
+            .expect("validated file");
+        let coach = ReplayCoach::open(&recording, self.budget).expect("validated file");
+        self.replay = Some(Replay {
+            recording,
+            position,
+            boundaries,
+            selected,
+            reveal: false,
+            practice_error: false,
+            coach,
+            thinking: None,
+            reviewing: None,
+            review_started: None,
+        });
     }
 
     /// A requested practice start was rejected: keep the viewer and say so.
