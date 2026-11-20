@@ -257,7 +257,7 @@ def block_windows_network(install, programs, names):
     for index, program in enumerate([canary, *programs]):
         name = f"grand-coach-smoke-block-{os.getpid()}-{index}"
         subprocess.run(["netsh", "advfirewall", "firewall", "add", "rule", f"name={name}", "dir=out", "action=block",
-                        f"program={program}", "enable=yes", "profile=any"], check=True, stdout=subprocess.DEVNULL)
+                        f"program={program}", "enable=yes", "profile=any"], check=True)
         names.append(name)
     if canary_reaches_network(canary):
         raise ValueError("network canary still reaches the network after blocking")
