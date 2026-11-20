@@ -1848,3 +1848,150 @@ pub fn suit_feed_flow(
     null_click(h, &i.t("guided-return"));
     assert!(h.state().session().guided().is_none());
 }
+
+/// #175 ordinary seed 1, game 1, trick 1 through real widgets only: hold or
+/// bid up to 24, Hand, plain Grand, then the guided DrawTrumpf lead.
+#[allow(dead_code)]
+pub fn draw_trumpf_flow(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    stage: &str,
+    chosen: u8,
+) {
+    use skat_app::*;
+    let i = I18n::new(language);
+    h.state_mut().set_language(language);
+    h.state_mut().opponent_delay = 0.0;
+    h.state_mut().set_coach_budget(Budget {
+        samples: 1,
+        nodes_per_task: 1,
+    });
+    loop {
+        settle(h);
+        let v = h.state().session().view();
+        if v.phase == Phase::Ansage {
+            h.get_by_role_and_label(Role::RadioButton, "Grand").click();
+            h.run_steps(4);
+            click(h, &i.t("button-announce"));
+            break;
+        }
+        let label = if v.legal_actions.contains(&Action::Hold) && v.bid <= 24 {
+            i.tf("button-hold", &[("value", v.bid.into())])
+        } else if let Some(Action::Bid(x)) = v
+            .legal_actions
+            .iter()
+            .copied()
+            .find(|a| matches!(a, Action::Bid(x) if *x <= 24))
+        {
+            i.tf("button-bid", &[("value", x.into())])
+        } else if v.legal_actions.contains(&Action::Pass) {
+            i.t("button-pass")
+        } else {
+            assert!(v.legal_actions.contains(&Action::Hand));
+            i.t("button-hand")
+        };
+        click(h, &label);
+    }
+    settle(h);
+    let v = h.state().session().view();
+    assert_eq!((v.game_number, v.tricks_played), (1, 0));
+    assert!(v.current_trick.is_empty());
+    assert_eq!(
+        v.legal_actions,
+        [8, 14, 15, 22, 23, 25, 26, 28, 29, 31].map(|n| Action::Play(Card::from_index(n).unwrap()))
+    );
+    click(h, &i.t("guided-start"));
+    if stage == "orient" {
+        return;
+    }
+    null_click(h, &i.t("guided-lead-defender"));
+    assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+    if stage == "wrong" {
+        return;
+    }
+    null_click(h, &i.t("guided-retry"));
+    null_click(h, &i.t("guided-lead-declarer"));
+    let consider = |n| {
+        i.tf(
+            "guided-consider",
+            &[("card", card_name(&i, Card::from_index(n).unwrap()).into())],
+        )
+    };
+    // A legal non-Bube is no Trumpf candidate.
+    null_click(h, &consider(8));
+    assert_eq!(h.state().session().guided().unwrap().correct, Some(false));
+    null_click(h, &i.t("guided-retry"));
+    if stage == "candidate" {
+        return;
+    }
+    null_click(h, &consider(28));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Narrow
+    );
+    if stage == "attempt" {
+        return;
+    }
+    null_click(h, &consider(28));
+    let rule = h.state().session().guided().unwrap().rule.unwrap();
+    assert_eq!(rule.branch, GuidedBranch::DrawTrumpf);
+    assert_eq!(rule.card.index(), 28);
+    if stage == "reveal" {
+        return;
+    }
+    if stage == "details" {
+        h.get_by_role_and_label(Role::DisclosureTriangle, &i.t("guided-lead-details"))
+            .scroll_to_me();
+        h.run_steps(4);
+        h.get_by_role_and_label(Role::DisclosureTriangle, &i.t("guided-lead-details"))
+            .click();
+        h.run_steps(4);
+        return;
+    }
+    if stage == "memory" {
+        null_click(h, &i.t("guided-memory"));
+        return;
+    }
+    h.state_mut().opponent_delay = 1000.0;
+    null_click(h, &card_name(&i, Card::from_index(chosen).unwrap()));
+    assert_eq!(
+        h.state().session().guided().unwrap().step,
+        GuidedStep::Waiting
+    );
+    if stage == "waiting" {
+        return;
+    }
+    h.state_mut().opponent_delay = 0.0;
+    for _ in 0..5000 {
+        h.run_steps(1);
+        if h.state().session().guided().unwrap().step == GuidedStep::Observe {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    h.state_mut().opponent_delay = 1000.0;
+    let g = h.state().session().guided().unwrap();
+    assert_eq!(g.step, GuidedStep::Observe);
+    assert_eq!(g.lead_replies.len(), 2);
+    assert!(g.observation.is_none());
+    if stage == "observe" {
+        return;
+    }
+    null_click(h, &i.t("guided-reveal"));
+    assert!(
+        h.state()
+            .session()
+            .guided()
+            .unwrap()
+            .observation
+            .unwrap()
+            .winner
+            .is_some()
+    );
+    assert!(h.state().session().view().last_trick.is_some());
+    if stage == "complete" {
+        return;
+    }
+    null_click(h, &i.t("guided-return"));
+    assert!(h.state().session().guided().is_none());
+}
