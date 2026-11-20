@@ -286,9 +286,66 @@ fn suit_lead_master_return_each_stage_and_help_levels_never_autoplay() {
 }
 
 #[test]
+fn suit_lead_master_estimates_reject_privileged_cache_and_freeze_permitted_input() {
+    let deals = fx::hidden_deals();
+    let mut sessions: Vec<_> = [deals[0], deals[2]]
+        .iter()
+        .map(|&deal| {
+            let game = fx::play(deal, skat_core::Suit::Herz, fx::MH_DECLARES, &[]);
+            let mut s = session(deal, game);
+            s.config.opponents = Opponents::GodMode;
+            s.set_coach_budget(Budget {
+                samples: 1,
+                nodes_per_task: 1,
+            });
+            let privileged = s.coach_job().unwrap().run(None);
+            s.finish_coach(privileged).unwrap();
+            s.execute(Command::StartGuided).unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+            s.execute(Command::SetCoach(CoachSettings {
+                show_figures: true,
+                ..CoachSettings::default()
+            }))
+            .unwrap();
+            let job = s.coach_job().unwrap();
+            assert!(!job.sees_all_cards());
+            s.finish_coach(job.run(None)).unwrap();
+            assert!(!s.guided().unwrap().figures_requested);
+            s
+        })
+        .collect();
+    let mut y = sessions.pop().unwrap();
+    let x = &mut sessions[0];
+    for s in [&mut *x, &mut y] {
+        s.execute(Command::Act(Action::Play(fx::card(31)))).unwrap();
+    }
+    for _ in 0..2 {
+        let action = *x
+            .game
+            .legal_actions()
+            .iter()
+            .find(|a| y.game.legal_actions().contains(a))
+            .unwrap();
+        x.apply(action).unwrap();
+        y.apply(action).unwrap();
+    }
+    for s in [&mut *x, &mut y] {
+        respond(s, G::Reveal).unwrap();
+        respond(s, G::Figures).unwrap();
+        assert!(s.guided().unwrap().figures.is_some());
+    }
+    same(x, &y, "permitted estimates");
+
+    let mut s = case_session(&fx::cases()[0]);
+    s.execute(Command::StartGuided).unwrap();
+    let frozen = s.coach_job().unwrap().analysis_input();
+    s.execute(Command::Act(Action::Play(fx::card(fx::cases()[0].card))))
+        .unwrap();
+    assert_eq!(s.coach_job().unwrap().analysis_input(), frozen);
+}
+
+#[test]
 fn suit_lead_master_estimates_are_original_unaided_and_off_by_default_levels() {
-    // Farbspiel LeadMaster follows the Grand LeadMaster estimate contract: no permitted-only
-    // estimate hold; the figures are requested separately and describe the original decision.
     for level in crate::CoachLevel::ALL {
         let mut s = ordinary();
         s.execute(Command::SetCoach(CoachSettings {
@@ -348,4 +405,24 @@ fn suit_lead_master_estimates_are_original_unaided_and_off_by_default_levels() {
             Err(AppError::StaleGuided)
         );
     }
+}
+
+#[test]
+fn suit_lead_master_god_fixture_matches_session() {
+    let c = fx::cases().remove(0);
+    let mut s = case_session(&c);
+    s.config.opponents = Opponents::GodMode;
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    let mut guided = serde_json::to_value(s.guided().unwrap()).unwrap();
+    guided["id"]["lineage"] = 0.into();
+    guided["id"]["generation"] = 0.into();
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../gui-egui/tests/fixtures/suit-lead-master-god.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        serde_json::json!({"table":s.view(),"guided":guided}),
+        expected
+    );
 }
