@@ -626,6 +626,8 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("practice-play", practice_play),
     ("practice-play-en", practice_play_en),
     ("practice-finished", practice_finished),
+    ("practice-compare", practice_compare),
+    ("practice-compare-en", practice_compare_en),
     ("practice-return", practice_return),
     ("practice-return-en", practice_return_en),
     ("bidding", bidding),
@@ -2566,6 +2568,18 @@ fn practice_finished(h: &mut Harness<'_, GrandCoachApp>) {
     practice(h);
     practice_alternative(h, |v| v.acting.is_none());
     h.get_by_label_contains("Übungsspiel beendet.");
+}
+
+fn practice_compare(h: &mut Harness<'_, GrandCoachApp>) {
+    practice_finished(h);
+    click(h, Role::Button, "Mit Original vergleichen");
+    h.get_by_label_contains("Übungsversuch und Originalspiel");
+}
+
+fn practice_compare_en(h: &mut Harness<'_, GrandCoachApp>) {
+    practice_compare(h);
+    h.state_mut().set_language(Language::En);
+    h.run_steps(4);
 }
 
 /// Early exit: back at the untouched live series (game 1 over, its score).

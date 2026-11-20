@@ -262,6 +262,13 @@ fn practice_starts_from_the_viewer_plays_alternatives_and_returns_in_both_langua
                 "practice never deals another game"
             );
             assert!(view(&h).sheet.records.is_empty());
+            // Comparison: in memory only, learning history unchanged.
+            let history = h.state().learning_history().clone();
+            button(&mut h, "Mit Original vergleichen");
+            h.get_by_label_contains("Übungsversuch und Originalspiel");
+            h.get_by_label_contains("Das sagt nicht, welche Linie besser war");
+            assert_eq!(*h.state().learning_history(), history);
+            assert_eq!(fs::read(&saved).unwrap(), bytes);
         }
         button(&mut h, t("Zurück zur Serie", "Return to series"));
         assert!(!h.state().practicing());
