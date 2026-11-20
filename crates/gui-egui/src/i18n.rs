@@ -160,6 +160,7 @@ mod tests {
             include_str!("cards.rs"),
             include_str!("coach.rs"),
             include_str!("recording.rs"),
+            include_str!("comparison.rs"),
             include_str!("guided.rs"),
             include_str!("learning.rs"),
             include_str!("live_abstich.rs"),
