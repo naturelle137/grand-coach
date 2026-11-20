@@ -199,15 +199,15 @@ with smoke-only variables `GRAND_COACH_SMOKE_SCENARIO=coach|training|series|open
 `GRAND_COACH_LANGUAGE=de|en` (with valid history restored): `coach` enables
 EveryMove coach, counting aid and quiz and plays first legal actions until a
 counting question is open; `training` opens the focused counting training;
-`series` plays a two-game series with first legal actions to the series
+`series` plays a 36-game series with first legal actions to the series
 result; `open` plays an open-table game (all hands shown) for 12 actions;
-`replay` plays that series, saves the first game to the data directory,
+`replay` plays one game of a two-game series, saves it to the data directory,
 reopens it and shows it in the read-only recording viewer. Each saves a native
 screenshot; the ten must differ and history must stay valid (byte-identical for
 training; played scenarios may record learning observations). These show the real packaged views in both languages; they
 do not answer, skip or retry (widget tests cover that).
 Probe creation/checks are API evidence, not GUI entry/answer evidence. They do
-not establish migration, cross-version upgrade or complete-series behaviour.
+not establish migration or cross-version upgrade.
 Existing application/widget tests cover those behaviours separately.
 
 Before release, agents execute the required functional, package and visual
