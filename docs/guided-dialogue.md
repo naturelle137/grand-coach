@@ -1095,8 +1095,9 @@ Not claimed: the original preimplementation gate of #182 was never accepted by
 the CTO; this increment's oracle is author-written and source-informed, not an
 accepted independent manual oracle. The 305 completions of the late case each continue to the end with first legal
 cards, checking subsequent winners independently. Separately requested estimates
-use the frozen permitted view, including in God Mode. God Mode screenshots and
-independent terminal acceptance remain open. This is
+use the frozen permitted view, including in God Mode. Labelled God Mode fixture
+frames render the actual session-derived dialogue panel, not a full table.
+Independent terminal acceptance remains open. This is
 technical evidence, not learner evidence.
 
 ## Grand declarer DrawTrumpf lead (#175)

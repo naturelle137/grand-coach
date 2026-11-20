@@ -406,3 +406,23 @@ fn suit_lead_master_estimates_are_original_unaided_and_off_by_default_levels() {
         );
     }
 }
+
+#[test]
+fn suit_lead_master_god_fixture_matches_session() {
+    let c = fx::cases().remove(0);
+    let mut s = case_session(&c);
+    s.config.opponents = Opponents::GodMode;
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    let mut guided = serde_json::to_value(s.guided().unwrap()).unwrap();
+    guided["id"]["lineage"] = 0.into();
+    guided["id"]["generation"] = 0.into();
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../gui-egui/tests/fixtures/suit-lead-master-god.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        serde_json::json!({"table":s.view(),"guided":guided}),
+        expected
+    );
+}
