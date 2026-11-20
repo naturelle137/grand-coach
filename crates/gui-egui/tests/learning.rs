@@ -602,7 +602,10 @@ fn smoke_driver_fails_when_the_series_ends_without_a_question() {
         });
     for _ in 0..2000 {
         let now = h.ctx.input(|i| i.time);
-        match h.state_mut().smoke_advance(now) {
+        match h
+            .state_mut()
+            .smoke_advance(now, gui_egui::SmokeGoal::Question)
+        {
             Ok(open) => assert!(!open, "no question can open with the quiz off"),
             Err(reason) => {
                 assert!(reason.contains("without a counting question"));
