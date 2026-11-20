@@ -563,6 +563,9 @@ fn kontra(
             &[game],
         ));
     }
+    if table.contract.is_some_and(|c| c.ouvert) {
+        ui.label(i.t("guided-kontra-ouvert-view"));
+    }
     let pick = |kontra: &'static str, re_key: &'static str| if re { re_key } else { kontra };
     // Grand: only the four Buben are Trumpf. Null: no Trumpf, so the generic
     // rule supplies no assessment and no count or threshold is shown.

@@ -194,16 +194,18 @@ The linked probe creates a valid history from actual training events through
 the existing app API, saves/reopens it and checks it after each packaged launch.
 The smoke requires byte-identical valid history across restart/replacement,
 then separately tests damaged-history preservation and uninstall retention.
-After these stages the same extracted executable is launched ten more times
-with smoke-only variables `GRAND_COACH_SMOKE_SCENARIO=coach|training|series|open|replay` and
+After these stages the same extracted executable is launched twelve more times
+with smoke-only variables `GRAND_COACH_SMOKE_SCENARIO=coach|training|series|open|replay|review` and
 `GRAND_COACH_LANGUAGE=de|en` (with valid history restored): `coach` enables
 EveryMove coach, counting aid and quiz and plays first legal actions until a
 counting question is open; `training` opens the focused counting training;
 `series` plays a 36-game series with first legal actions to the series
 result; `open` plays an open-table game (all hands shown) for 12 actions;
 `replay` plays one game of a two-game series, saves it to the data directory,
-reopens it and shows it in the read-only recording viewer. Each saves a native
-screenshot; the ten must differ and history must stay valid (byte-identical for
+reopens it and shows it in the read-only recording viewer; `review` does the same, requests
+the post-game recording review and waits for its summary (analysis through the shared
+replay coach, bounded by its time limit). Each saves a native
+screenshot; the twelve must differ and history must stay valid (byte-identical for
 training; played scenarios may record learning observations). These show the real packaged views in both languages; they
 do not answer, skip or retry (widget tests cover that).
 Probe creation/checks are API evidence, not GUI entry/answer evidence. They do

@@ -343,6 +343,59 @@ fn ouvert_gets_honest_exclusions_without_hidden_cards() {
     assert!(kontra_lesson(&view).is_none());
 }
 
+/// Ouvert Hand game by HH, VH says Kontra in the round before the reveal; the
+/// declarer's Re/KeinRe reply (Ouvert Farbspiel and Grand, #271).
+fn ouvert_re(game: GameType, deal: Deal) -> (Game, PlayerView) {
+    let ann = Announcement {
+        schneider: true,
+        schwarz: true,
+        ouvert: true,
+        ..Announcement::plain(game)
+    };
+    let mut g = play_phase(deal, ON, &[Action::Hand], ann);
+    assert_eq!(
+        kontra_exclusion(&current(&g)),
+        Some(KontraExclusion::OuvertRound)
+    );
+    g.apply(Action::Kontra).unwrap();
+    let view = current(&g);
+    (g, view)
+}
+
+#[test]
+fn ouvert_farbspiel_and_grand_re_reply_is_guided_from_the_own_view() {
+    // Positive, boundary (90) and counterexample (89): the count uses only the
+    // declarer's own cards; the open declarer hand is never an input.
+    for (game, hh, skat, wants, action) in [
+        (HERZ, RE_90, "D9 DT", true, Action::Re),
+        (HERZ, RE_89, "D9 DT", false, Action::KeinRe),
+        (GRAND, GRAND_90, "D9 D8", true, Action::Re),
+        (GRAND, GRAND_89, "D9 D8", false, Action::KeinRe),
+    ] {
+        let (g, view) = ouvert_re(game, deal_hh_vh(hh, skat));
+        assert_eq!(view.seat, Seat::Hinterhand);
+        all_free(&g, &view);
+        let l = kontra_lesson(&view).expect("Ouvert Re reply is guided");
+        let r = &l.rule;
+        assert!(r.ouvert && r.hand_game && !r.null && !r.fallback);
+        assert_eq!((r.wants, r.action), (wants, action), "{game:?}");
+        assert_eq!(r.threshold, 90);
+        assert_eq!(kontra_exclusion(&view), None);
+        checks(&l, 4, wants);
+        // Swapping the defenders' hidden cards leaves the dialogue unchanged.
+        let hh_set = cards(hh);
+        let swapped = {
+            let skat = cards(skat);
+            let rest: Vec<Card> = (CardSet::ALL - hh_set - skat).iter().collect();
+            let mh: CardSet = rest[..10].iter().copied().collect();
+            let vh: CardSet = rest[10..].iter().copied().collect();
+            Deal::new([vh, mh, hh_set], skat).unwrap()
+        };
+        let (_, other) = ouvert_re(game, swapped);
+        assert_eq!(kontra_lesson(&other).unwrap().rule, l.rule);
+    }
+}
+
 // Grand and Null (#155). Grand: only the four Buben are Trumpf, so a
 // defender holds at most four and Easy's five-Trumpf Kontra never holds.
 // Null: no Trumpf; Easy never says Kontra and its strength is 0, so it never
