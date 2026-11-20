@@ -21,7 +21,7 @@ use crate::Player;
 
 /// Mean outcome of one legal action over the sampled games.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CandidateOutcome {
     /// The candidate discard.
     pub action: Action,
@@ -75,7 +75,7 @@ pub fn discard_outcomes(
 
 /// One Drücken decision with its outcome labels.
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DrueckenRow {
     /// Deal seed of the table game that reached this decision (reproduction
     /// only; never a model input).
@@ -84,6 +84,38 @@ pub struct DrueckenRow {
     pub view: PlayerView,
     /// Mean outcome per legal pair, in `view.legal_actions` order.
     pub outcomes: Vec<CandidateOutcome>,
+}
+
+/// Checks that a row contains exactly the 66 distinct legal pairs and finite labels.
+/// This checks structure, not label quality or provenance.
+pub fn valid_druecken_row(row: &DrueckenRow) -> bool {
+    let view = &row.view;
+    if view.phase != Phase::Druecken
+        || view.current_seat != Some(view.seat)
+        || view.declarer != Some(view.seat)
+        || view.hand.len() != 12
+        || view.result.is_some()
+        || view.legal_actions.len() != 66
+        || row.outcomes.len() != 66
+    {
+        return false;
+    }
+    for (i, outcome) in row.outcomes.iter().enumerate() {
+        let Action::Discard(cards) = outcome.action else {
+            return false;
+        };
+        if cards.len() != 2
+            || !cards.is_subset(view.hand)
+            || !outcome.mean.is_finite()
+            || !view.legal_actions.contains(&outcome.action)
+            || row.outcomes[..i]
+                .iter()
+                .any(|other| other.action == outcome.action)
+        {
+            return false;
+        }
+    }
+    true
 }
 
 /// Plays the deals `first_deal..first_deal + deals` with `table` at all
@@ -261,6 +293,26 @@ mod tests {
         assert!((0.0..=1.0).contains(&c.best_share));
         // A tolerance above the label range counts every choice as best.
         assert_eq!(compare_discards(&rows, &players[0], 1e9).best_share, 1.0);
+    }
+
+    #[test]
+    fn validates_complete_distinct_finite_discard_labels() {
+        let players = easy();
+        let p = [&players[0] as &dyn Player, &players[1], &players[2]];
+        let row = discard_dataset(&players[0], p, 0, 1, 1, 3).pop().unwrap();
+        assert!(valid_druecken_row(&row));
+        let mut bad = row.clone();
+        bad.outcomes[1] = bad.outcomes[0];
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.outcomes[0].mean = f64::NAN;
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row.clone();
+        bad.outcomes.pop();
+        assert!(!valid_druecken_row(&bad));
+        let mut bad = row;
+        bad.view.declarer = None;
+        assert!(!valid_druecken_row(&bad));
     }
 
     #[test]
