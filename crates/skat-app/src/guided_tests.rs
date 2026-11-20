@@ -3677,6 +3677,8 @@ mod early_feed;
 
 #[path = "guided_draw_trumpf_tests.rs"]
 mod draw_trumpf_tests;
+#[path = "guided_suit_lead_master_tests.rs"]
+mod suit_lead_master;
 
 #[test]
 fn null_defender_observes_each_actual_reply() {

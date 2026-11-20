@@ -1082,6 +1082,7 @@ guided-lead-defender = Ich spiele als Gegenspieler aus
 guided-lead-master = Welche legale Beikarte hat keinen höheren Rang außerhalb deiner Hand und gespielter Karten?
 guided-lead-attempt = Welche legale Karte würdest du für Easys Steher-Ausspiel mit den meisten Augen versuchen?
 guided-lead-definition = Eigene höhere Karten verhindern keinen Steher; im Grand sind Buben Trumpf, keine Beikarten zum Bedienen.
+guided-lead-suit-definition = Eigene höhere Karten verhindern keinen Steher; Buben und die angesagte Farbe sind Trumpf, keine Beikarten zum Bedienen.
 guided-lead-risk = Wer die Farbe nicht hat, kann stechen. Ein Farbsteher garantiert weder Stich noch Spielgewinn.
 guided-rule-lead = Easy: { $card }. Meiste Augen; LETZTER exakter Gleichstand in legaler Reihenfolge (Faustregel).
 guided-lead-details = Kartenbedingung und leerer Tisch

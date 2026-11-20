@@ -100,7 +100,6 @@ fn lead_master_rejects_malformed_restricted_and_other_contract_boundaries() {
         |v| v.contract = None,
         |v| v.contract.as_mut().unwrap().ouvert = true,
         |v| v.contract.as_mut().unwrap().game = skat_core::GameType::Null,
-        |v| v.contract.as_mut().unwrap().game = skat_core::GameType::Farbe(skat_core::Suit::Herz),
     ];
     for (i, edit) in edits.iter().enumerate() {
         let mut x = v.clone();
