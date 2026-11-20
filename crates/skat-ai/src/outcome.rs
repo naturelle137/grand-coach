@@ -33,8 +33,8 @@ pub struct CandidateOutcome {
 /// Plays every legal discard of `view` out `samples` times against `players`
 /// (indexed by seat, including the acting seat's own continuation).
 ///
-/// Returns `None` if `view` is not a declarer's Drücken decision or its
-/// hidden cards or public history are inconsistent. Deterministic for equal
+/// Returns `None` if `samples` is zero, `view` is not a declarer's Drücken
+/// decision, or its hidden cards or public history are inconsistent. Deterministic for equal
 /// `seed` and deterministic `players`.
 pub fn discard_outcomes(
     view: &PlayerView,
@@ -42,7 +42,7 @@ pub fn discard_outcomes(
     samples: u32,
     seed: u64,
 ) -> Option<Vec<CandidateOutcome>> {
-    if view.phase != Phase::Druecken || view.current_seat != Some(view.seat) {
+    if samples == 0 || view.phase != Phase::Druecken || view.current_seat != Some(view.seat) {
         return None;
     }
     let hidden = HiddenCards::from_view(view).ok()?;
@@ -60,7 +60,7 @@ pub fn discard_outcomes(
             *sum += f64::from(game.result()?.seeger_fabian()[view.seat.index()]);
         }
     }
-    let n = f64::from(samples.max(1));
+    let n = f64::from(samples);
     Some(
         view.legal_actions
             .iter()
@@ -239,6 +239,7 @@ mod tests {
             .expect("some deal is played");
         let players = easy();
         let p = [&players[0] as &dyn Player, &players[1], &players[2]];
+        assert!(discard_outcomes(&view, p, 0, 7).is_none());
         let a = discard_outcomes(&view, p, 2, 7).expect("declarer Drücken view");
         assert_eq!(a.len(), 66);
         assert!(a.iter().all(|c| c.mean.is_finite()));

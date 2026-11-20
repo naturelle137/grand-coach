@@ -16,6 +16,9 @@
 //! play and Re only; `d`: also Hand, Drücken and announcement), or a
 //! learned model `nn:<path>[@<level>]` (D-07): the model file at `<path>`
 //! decides and the Classic `<level>` (default `easy`) takes every fallback;
+//! `^<bits>` after the fallback restricts the model to phases (bit 0 Reizen,
+//! 1 Hand/pickup, 2 Drücken, 3 Ansage, 4 Spiel; e.g. `nn:m.gcnn@strong^23`
+//! leaves the Ansage to Classic); the others use the Classic fallback.
 //! `nnq:` instead of `nn:` picks the action with the highest expected
 //! points of the model's option heads instead of the policy. A trailing
 //! `+ak` lets the analysis or the model decide Kontra instead of the rules
@@ -42,7 +45,7 @@ use skat_ai::{
     Budget, Cancel, Decision, HybridOpponent, Level, NeuralOpponent, Opponent, Player, Profile,
 };
 use skat_core::{PlayerView, RuleConfig, Seat};
-use skat_nn::{Choice, NeuralModel, PolicyLevel};
+use skat_nn::{Choice, NeuralModel, Phases, PolicyLevel};
 
 /// Key of the deal seeds of each suite; tuning and validation never share
 /// deals.
@@ -93,7 +96,7 @@ enum Side {
     TwoStage,
     Experimental,
     Classic(Profile),
-    Neural(Arc<NeuralModel>, Profile, Choice),
+    Neural(Arc<NeuralModel>, Profile, Choice, Phases),
     Hybrid(Arc<NeuralModel>),
 }
 
@@ -154,7 +157,12 @@ impl Side {
             };
             let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
             let model = NeuralModel::load(&bytes, &skat_nn::sha256(&bytes)).unwrap();
-            return Side::Neural(Arc::new(model), profile(name), Choice::Level(level));
+            return Side::Neural(
+                Arc::new(model),
+                profile(name),
+                Choice::Level(level),
+                Phases::ALL,
+            );
         }
         let (rest, choice) = if let Some(rest) = spec.strip_prefix("nnq:") {
             (rest, Choice::Score)
@@ -163,11 +171,18 @@ impl Side {
         } else {
             return Side::Classic(profile(spec));
         };
+        let (rest, learned) = match rest.rsplit_once('^') {
+            Some((rest, bits)) => {
+                let bits = bits.parse().unwrap_or_else(|_| panic!("phase bits {bits}"));
+                (rest, Phases::from_bits(bits).expect("phase bits 1..=31"))
+            }
+            None => (rest, Phases::ALL),
+        };
         let (path, fallback) = rest.rsplit_once('@').unwrap_or((rest, "easy"));
         let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
         let hash = skat_nn::sha256(&bytes);
         let model = NeuralModel::load(&bytes, &hash).unwrap_or_else(|e| panic!("{path}: {e:?}"));
-        Side::Neural(Arc::new(model), profile(fallback), choice)
+        Side::Neural(Arc::new(model), profile(fallback), choice, learned)
     }
 
     fn seat(&self, seed: u64) -> Seated {
@@ -179,9 +194,10 @@ impl Side {
                 samples: skat_ai::ExperimentalOpponent::SAMPLES,
             }),
             Side::Classic(p) => Seated::Classic(Opponent { profile: *p, seed }),
-            Side::Neural(model, p, choice) => Seated::Neural(
+            Side::Neural(model, p, choice, learned) => Seated::Neural(
                 NeuralOpponent::new(Ok(model.clone()), Opponent { profile: *p, seed })
-                    .with_choice(*choice),
+                    .with_choice(*choice)
+                    .with_learned_phases(*learned),
             ),
         }
     }
@@ -201,7 +217,7 @@ impl Side {
                 skat_ai::ExperimentalOpponent::SAMPLES
             ),
             Side::Classic(p) => describe(p),
-            Side::Neural(model, p, choice) => {
+            Side::Neural(model, p, choice, learned) => {
                 let hash: String = model.sha256().iter().map(|b| format!("{b:02x}")).collect();
                 let policy = match choice {
                     Choice::Level(level) => format!(
@@ -211,8 +227,13 @@ impl Side {
                     ),
                     _ => "greedy-policy-1".into(),
                 };
+                let phases = if *learned == Phases::ALL {
+                    String::new()
+                } else {
+                    format!(", learned phase bits {}", learned.bits())
+                };
                 format!(
-                    "learned model {hash}, encoder {}, {policy}, {} hidden layers of width {}, choice {choice:?}, fallback {}",
+                    "learned model {hash}, encoder {}, {policy}, {} hidden layers of width {}, choice {choice:?}{phases}, fallback {}",
                     model.header().encoder_version,
                     model.header().shape.layers,
                     model.header().shape.hidden,
