@@ -219,7 +219,10 @@ estimates remain targets only. This is imitation preparation, not an
 outcome-label experiment or evidence that double-dummy bias is resolved.
 
 `--preplay-weight W` (default 1, omitted from the recipe then) multiplies the
-policy loss of all rows other than plain card play; `evaluate` prints the
+policy loss of all rows other than plain card play; `--rare-weight R`
+additionally scales rows with a rare teacher choice (Hand, Null, Schneider/
+Schwarz/Ouvert; [measured](ai.md#rare-pre-play-classes-and-the-learned-kontrare-head-74));
+`evaluate` prints the
 teacher agreement per phase. Results: [ai.md](ai.md#improved-imitation-recipe-74).
 
 The recipe records the opt-in and all five phase bits; cache keys separate
