@@ -50,8 +50,9 @@ separate factual oracles.
   lead, both roles where the actual shared branch permits it, at least two
   pure core-legal cards; no guarantee against trumping.
 - **Null declarer:** non-Ouvert Null acting [last](#null-declarer-last-to-the-current-trick-165)
-  or [second](#null-declarer-acting-second-169), or the opening lead (#176), with at least two pure legal
-  cards and a current loser; the linked sections define the full guards.
+  or [second](#null-declarer-acting-second-169), with a current loser; the
+  [opening lead](#null-opening-lead-176) also supports Ouvert. Both require
+  at least two pure legal cards; the linked sections define the full guards.
 - **Null defender:** non-Ouvert, second after the declarer leads, or last
   with the declarer ahead, with at least two exact legal actions and a current loser.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
@@ -836,8 +837,12 @@ is established by these technical checks.
 
 ## Null opening lead (#176)
 
+The Null opening-lead dialogue also admits a Null Ouvert declarer after the
+own hand is revealed. It uses the same permitted-view Easy rule and preserves
+free choice; defender and later Ouvert turns remain unsupported.
+
 `guided::lesson` version 1 extends the explicit heuristic dialogue (not the
-six-lesson mechanism catalogue) to Spiel, a non-Ouvert Null declarer in physical
+six-lesson mechanism catalogue) to Spiel, a Null declarer in physical
 Vorhand, its own turn and the exactly empty first trick. It requires the exact
 pure core-legal list, ten own cards, three ten-card hands and consistent Hand
 (unknown Skat) or pickup (two known discarded cards). A Null declarer winning

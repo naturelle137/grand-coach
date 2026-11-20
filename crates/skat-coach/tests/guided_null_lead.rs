@@ -12,6 +12,37 @@ use skat_coach::{
 use skat_core::*;
 
 #[test]
+fn ouvert_declarer_opening_uses_the_same_null_rule() {
+    for c in cases() {
+        let mut game = Game::from_deal(c.deal, RuleConfig { kontra_re: false });
+        for action in c.history.iter().copied() {
+            let action = match action {
+                Action::Announce(mut announcement) => {
+                    announcement.ouvert = true;
+                    Action::Announce(announcement)
+                }
+                other => other,
+            };
+            game.apply(action).unwrap();
+        }
+        let view = game.view(Seat::Vorhand);
+        assert_eq!(view.declarer_cards, Some(view.hand));
+        let l = lesson(&view).expect("Null Ouvert opening");
+        assert_eq!(l.rule, c.expected);
+        assert_eq!(l.knowledge, c.knowledge);
+        assert!(l.check(Step::Narrow, Answer::Card(l.rule.card)));
+        let mut unrevealed = view.clone();
+        unrevealed.declarer_cards = None;
+        assert!(lesson(&unrevealed).is_none());
+        let (cards, winner) = c.paths[0];
+        for card in cards {
+            game.apply(Action::Play(card)).unwrap();
+        }
+        assert_eq!(game.view(Seat::Vorhand).tricks[0].winner, winner);
+    }
+}
+
+#[test]
 fn null_lead_whole_lesson_and_every_answer() {
     for c in cases() {
         let l = lesson(&c.view).expect(c.id);

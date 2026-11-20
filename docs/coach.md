@@ -297,7 +297,7 @@ remaining defender can change which defender wins. The actual third card
 and individual winner are observed, rather than predicted. Winning alternatives
 are named after disclosure and stay playable. No
 optimality, later lead or hidden holder is claimed. Other branches and Ouvert
-Grand/Null card play report unsupported and return to free play; Kontra/Re has its own
+Grand/Null card play outside the opening below report unsupported and return to free play; Kontra/Re has its own
 dialogue below. In particular, a side master is
 not safe against trumping: second-seat Grand `FeedPartner` explicitly teaches
 this limit and observes the remaining declarer. [Second-seat Farbspiel `FeedPartner`](guided-dialogue.md#farbspiel-second-seat-feedpartner-131) uses the same admission, where the declarer may trump with any Trumpf.
@@ -694,7 +694,8 @@ mastery, or ordinary-game strategic weaknesses. Counting stays separate.
 
 The [bounded opening-lead dialogue](guided-dialogue.md#null-opening-lead-176)
 uses the unchanged shared Null minimum-cost rule, FIRST exact tie. Only the
-non-Ouvert Vorhand declarer's own first lead is admitted; Augen are legacy
+Vorhand declarer's own first lead is admitted, including Null Ouvert after
+the hand is revealed; Augen are legacy
 sorting cost, not Null scoring. All legal leads remain available. Empty-table
 candidate status never predicts either defender reply or completed winner.
 
