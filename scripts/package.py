@@ -152,7 +152,7 @@ def verify(path):
     if not required <= files.keys() or not all(files[name] for name in required):
         raise ValueError("missing/empty required package files")
     with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
+        root = Path(directory).resolve()
         for name, data in files.items():
             dest = root / name
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -233,12 +233,55 @@ SCENARIOS = ("coach", "training", "series", "open", "replay")
 PLAYED = ("coach", "series", "open", "replay")
 
 
+CANARY_URL = "https://github.com/"
+
+
+def canary_reaches_network(canary):
+    result = subprocess.run([str(canary), "--silent", "--head", "--max-time", "15", "--output", os.devnull, CANARY_URL],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
+    return result.returncode == 0
+
+
+def block_windows_network(install, programs, names):
+    """Block outbound traffic of the installed programs and prove the block with a canary.
+
+    A copy of curl.exe in the install directory must reach the network before
+    and fail after the rules exist, so the rules (not a dead network) caused it.
+    """
+    if platform.system() != "Windows":
+        raise ValueError("--block-network is Windows-only; Linux uses a --network=none container")
+    canary = install / "network-canary.exe"
+    shutil.copy2(Path(os.environ["SystemRoot"]) / "System32" / "curl.exe", canary)
+    if not canary_reaches_network(canary):
+        raise ValueError("network canary cannot reach the network before blocking; no isolation evidence possible")
+    for index, program in enumerate([canary, *programs]):
+        name = f"grand-coach-smoke-block-{os.getpid()}-{index}"
+        subprocess.run(["netsh", "advfirewall", "firewall", "add", "rule", f"name={name}", "dir=out", "action=block",
+                        f"program={program}", "enable=yes", "profile=any"], check=True)
+        names.append(name)
+    if canary_reaches_network(canary):
+        raise ValueError("network canary still reaches the network after blocking")
+
+
+def unblock_windows_network(names):
+    for name in names:
+        subprocess.run(["netsh", "advfirewall", "firewall", "delete", "rule", f"name={name}"], stdout=subprocess.DEVNULL)
+
+
 def smoke(args):
+    names = []
+    try:
+        smoke_run(args, names)
+    finally:
+        unblock_windows_network(names)
+
+
+def smoke_run(args, rules):
     manifest, files = verify(args.archive)
     args.out.mkdir(parents=True, exist_ok=True)
     runtime_dlls = {}
     with tempfile.TemporaryDirectory(prefix="grand-coach-package-") as directory:
-        root = Path(directory)
+        root = Path(directory).resolve()
         install = root / "install"
         install.mkdir()
         # Only the executable is required at runtime: resources are embedded.
@@ -261,7 +304,9 @@ def smoke(args):
         probe = (args.archive.parent / ("persistence-probe.exe" if manifest["binary"].endswith(".exe") else "persistence-probe")).resolve()
         installed_probe = install / probe.name
         shutil.copy2(probe, installed_probe)
-        subprocess.run([str(probe), "create", str(history)], check=True)
+        if args.block_network:
+            block_windows_network(install, [binary, installed_probe], rules)
+        subprocess.run([str(installed_probe), "create", str(history)], check=True)
         probe_env = dict(os.environ)
         probe_env.pop("GRAND_COACH_MODELS", None)
         subprocess.run([str(installed_probe), "neural"], cwd=root, env=probe_env, check=True, timeout=90)
@@ -338,7 +383,7 @@ def smoke(args):
             elif history.read_bytes() != preserved:
                 raise ValueError("packaged launch changed user history")
             if stage != "damaged-history":
-                subprocess.run([str(probe), "check", str(history)], check=True)
+                subprocess.run([str(installed_probe), "check", str(history)], check=True)
         if len(set(shots[f"{c}-{l}"] for c in SCENARIOS for l in ("de", "en"))) != 2 * len(SCENARIOS):
             raise ValueError("feature DE/EN smoke screenshots are not all distinct views")
         shutil.rmtree(install)
@@ -346,7 +391,7 @@ def smoke(args):
             raise ValueError("uninstall removed user data")
     (args.out / "smoke.json").write_text(json.dumps({
         "commit": manifest["commit"], "archive_sha256": digest(args.archive.read_bytes()),
-        "os": platform.platform(), "result": "passed", "network_isolation": "not verified by this smoke",
+        "os": platform.platform(), "result": "passed", "network_isolation": ("program-scoped outbound Windows Firewall block on the installed application and probe, verified by a curl canary that reached the network before and failed after" if args.block_network else "not verified by this smoke"),
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
         "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API exercises Neural and Hybrid card play, and missing, corrupt and incompatible format/encoder model fallback with valid history", "packaged coach+counting aid+quiz view (first counting question open) and focused counting training view, each in German and English, launched from the same extracted executable (the coach question records its presentation; history stays valid, training leaves it unchanged)", "packaged complete 36-game series (first legal actions to the series result), open-table game (all hands shown, mid-game) and recording viewer (first game saved to the data directory, reopened and shown read-only), each in German and English, from the same extracted executable", "uninstall retains data"],
@@ -367,6 +412,7 @@ def main():
     s.add_argument("archive", type=Path)
     s.add_argument("--out", type=Path, required=True)
     s.add_argument("--windows-mesa", type=Path, help="test-only Mesa x64 DLL directory, never added to the application archive")
+    s.add_argument("--block-network", action="store_true", help="Windows only: block outbound traffic of the installed programs and verify it with a canary")
     args = parser.parse_args()
     if args.action == "build":
         build(args)
