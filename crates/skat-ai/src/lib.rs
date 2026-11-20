@@ -20,6 +20,7 @@ mod hybrid;
 mod mephisto;
 mod neural;
 mod opponent;
+pub mod outcome;
 mod rookie;
 
 pub use baseline::BaselineOpponent;
