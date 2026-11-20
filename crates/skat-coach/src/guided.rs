@@ -106,8 +106,8 @@ pub struct Lesson {
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
 /// and at least one losing card; early FeedPartner requires a Grand follow-class master; Fallback stays excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
-/// at least two pure card actions and at least one losing card. The shared
-/// A defender may also act second after the declarer leads, with a losing card.
+/// at least two pure card actions and at least one losing card. A defender may
+/// act second after the declarer leads, or last with the declarer ahead.
 /// `Branch::Null` is broader; other defender turns, later own leads, Ouvert and
 /// restricted or inconsistent views stay excluded here. Non-Ouvert Farbspiel/Grand
 /// LeadMaster and Grand declarer DrawTrumpf also admit the own empty-trick lead
@@ -123,9 +123,11 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     // Checked before the shared rule, which assumes a declarer during play.
     let null_defender = null
         && view.declarer.is_some_and(|d| d != view.seat)
-        && matches!(view.current_trick.cards, [Some(_), None, None])
-        && view.current_trick.leader == view.declarer
-        && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+        && (matches!(view.current_trick.cards, [Some(_), None, None])
+            && view.current_trick.leader == view.declarer
+            && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+            || matches!(view.current_trick.cards, [Some(_), Some(_), None])
+                && TrickState::of(game, &view.current_trick).best_seat == view.declarer)
         && view.own_skat.is_none();
     if null
         && ((!null_defender && view.declarer != Some(view.seat))
