@@ -23,5 +23,9 @@ serde_json.workspace = true
 [dev-dependencies]
 skat-nn = { workspace = true, features = ["fixture"] }
 
+[[example]]
+name = "coach_latency"
+test = true
+
 [lints]
 workspace = true
