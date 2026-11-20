@@ -3,6 +3,8 @@
 """Failure-oriented tests of the actual RC archive format and resource contract."""
 
 import json
+import subprocess
+from types import SimpleNamespace
 from pathlib import Path
 import tempfile
 import unittest
@@ -105,6 +107,69 @@ class PackageTests(unittest.TestCase):
         expected = {"ImageOS": "win25", "ImageVersion": "20261111.1"}
         self.assertEqual(package.runner_image(expected), expected)
         self.assertEqual(package.runner_image({k.upper(): v for k, v in expected.items()}), expected)
+
+    def test_firewall_setup_failures_remove_every_created_rule(self):
+        for failure in ("second_add", "canary"):
+            active = set()
+            def run(command, **kwargs):
+                name = next(arg[5:] for arg in command if arg.startswith("name="))
+                if "add" in command:
+                    if failure == "second_add" and active:
+                        raise subprocess.CalledProcessError(1, command)
+                    active.add(name)
+                else:
+                    active.remove(name)
+            def smoke_run(args, rules):
+                package.block_windows_network(Path("install"), [Path("app"), Path("probe")], rules)
+            with self.subTest(failure=failure), patch.object(package, "smoke_run", side_effect=smoke_run), \
+                 patch.object(package.platform, "system", return_value="Windows"), \
+                 patch.dict(package.os.environ, {"SystemRoot": "windows"}), \
+                 patch.object(package.shutil, "copy2"), patch.object(package.subprocess, "run", side_effect=run), \
+                 patch.object(package, "canary_reaches_network", side_effect=[True, failure == "canary"]):
+                with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+                    package.smoke(None)
+            self.assertEqual(active, set())
+
+    def test_smoke_runs_all_probes_from_blocked_install_and_propagates_failure(self):
+        for failing_mode in (None, "create", "check"):
+            with self.subTest(failing_mode=failing_mode), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                archive = root / "package.zip"
+                archive.write_bytes(b"archive")
+                (root / "persistence-probe.exe").write_bytes(b"probe")
+                args = SimpleNamespace(archive=archive, out=root / "out", windows_mesa=None, block_network=True)
+                manifest = {"binary": "grand-coach.exe", "models": list(package.MODELS), "commit": "test"}
+                files = {"grand-coach.exe": b"app", **{name: self.files[name] for name in package.MODELS}}
+                blocked = []
+                calls = []
+                def block(install, programs, rules):
+                    blocked.extend(programs)
+                    rules.append("rule")
+                def run(command, **kwargs):
+                    executable = Path(command[0])
+                    if executable.name == "persistence-probe.exe":
+                        calls.append((executable, command[1]))
+                        self.assertIn(executable, blocked)
+                        if command[1] == failing_mode:
+                            raise subprocess.CalledProcessError(1, command)
+                        if command[1] == "create":
+                            Path(command[2]).write_bytes(b"history")
+                    else:
+                        screenshot = Path(kwargs["env"]["GRAND_COACH_SCREENSHOT"])
+                        screenshot.write_bytes(b"P6\n" + screenshot.name.encode() + b"x" * 100000)
+                with patch.object(package.platform, "platform", return_value="test"), \
+                     patch.object(package, "verify", return_value=(manifest, files)), \
+                     patch.object(package, "block_windows_network", side_effect=block), \
+                     patch.object(package, "unblock_windows_network") as cleanup, \
+                     patch.object(package.subprocess, "run", side_effect=run):
+                    if failing_mode:
+                        with self.assertRaises(subprocess.CalledProcessError):
+                            package.smoke(args)
+                    else:
+                        package.smoke(args)
+                        self.assertIn("create", [mode for _, mode in calls])
+                        self.assertIn("check", [mode for _, mode in calls])
+                    cleanup.assert_called_once_with(["rule"])
 
 
 if __name__ == "__main__":

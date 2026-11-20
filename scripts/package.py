@@ -242,7 +242,7 @@ def canary_reaches_network(canary):
     return result.returncode == 0
 
 
-def block_windows_network(install, programs):
+def block_windows_network(install, programs, names):
     """Block outbound traffic of the installed programs and prove the block with a canary.
 
     A copy of curl.exe in the install directory must reach the network before
@@ -254,7 +254,6 @@ def block_windows_network(install, programs):
     shutil.copy2(Path(os.environ["SystemRoot"]) / "System32" / "curl.exe", canary)
     if not canary_reaches_network(canary):
         raise ValueError("network canary cannot reach the network before blocking; no isolation evidence possible")
-    names = []
     for index, program in enumerate([canary, *programs]):
         name = f"grand-coach-smoke-block-{os.getpid()}-{index}"
         subprocess.run(["netsh", "advfirewall", "firewall", "add", "rule", f"name={name}", "dir=out", "action=block",
@@ -262,7 +261,6 @@ def block_windows_network(install, programs):
         names.append(name)
     if canary_reaches_network(canary):
         raise ValueError("network canary still reaches the network after blocking")
-    return names
 
 
 def unblock_windows_network(names):
@@ -307,8 +305,8 @@ def smoke_run(args, rules):
         installed_probe = install / probe.name
         shutil.copy2(probe, installed_probe)
         if args.block_network:
-            rules.extend(block_windows_network(install, [binary, installed_probe]))
-        subprocess.run([str(probe), "create", str(history)], check=True)
+            block_windows_network(install, [binary, installed_probe], rules)
+        subprocess.run([str(installed_probe), "create", str(history)], check=True)
         probe_env = dict(os.environ)
         probe_env.pop("GRAND_COACH_MODELS", None)
         subprocess.run([str(installed_probe), "neural"], cwd=root, env=probe_env, check=True, timeout=90)
@@ -385,7 +383,7 @@ def smoke_run(args, rules):
             elif history.read_bytes() != preserved:
                 raise ValueError("packaged launch changed user history")
             if stage != "damaged-history":
-                subprocess.run([str(probe), "check", str(history)], check=True)
+                subprocess.run([str(installed_probe), "check", str(history)], check=True)
         if len(set(shots[f"{c}-{l}"] for c in SCENARIOS for l in ("de", "en"))) != 2 * len(SCENARIOS):
             raise ValueError("feature DE/EN smoke screenshots are not all distinct views")
         shutil.rmtree(install)
