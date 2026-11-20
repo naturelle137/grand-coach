@@ -17,7 +17,11 @@
 //! closes. `GRAND_COACH_SMOKE_SCENARIO=coach|training` (with a screenshot)
 //! additionally prepares one packaged feature view: `coach` plays first
 //! legal actions with coach, counting aid and quiz on until a counting
-//! question is open; `training` opens the focused counting training.
+//! question is open; `training` opens the focused counting training;
+//! `series` plays a complete two-game series with first legal actions;
+//! `open` plays an open-table game for a few moves; `replay` plays that
+//! series, saves its first game to the data directory and shows it in the
+//! recording viewer.
 //! `GRAND_COACH_LANGUAGE=de|en` selects the language for that smoke.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -26,8 +30,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use eframe::egui;
-use gui_egui::GrandCoachApp;
-use skat_app::{AssistSettings, CoachLevel, CoachSettings, OpponentEngine, SessionConfig};
+use gui_egui::{GrandCoachApp, SmokeGoal};
+use skat_app::{
+    AssistSettings, CoachLevel, CoachSettings, OpponentEngine, SeriesLength, SessionConfig,
+    TableDisplay,
+};
 
 /// Wraps the app to take one screenshot and close (smoke test).
 struct Screenshot {
@@ -35,8 +42,10 @@ struct Screenshot {
     path: std::path::PathBuf,
     delay: f64,
     requested: bool,
-    /// Smoke scenario `coach`: still playing towards a counting question.
-    advancing: bool,
+    /// Smoke scenario: still playing towards its goal.
+    advancing: Option<SmokeGoal>,
+    /// Smoke scenario `replay`: open the first game in the viewer at the goal.
+    replay_dir: Option<std::path::PathBuf>,
     done: Arc<AtomicBool>,
 }
 
@@ -45,26 +54,33 @@ impl eframe::App for Screenshot {
         self.app.ui(ui, frame);
         let ctx = ui.ctx().clone();
         let now = ctx.input(|i| i.time);
-        if self.advancing {
-            match self.app.smoke_advance(now) {
-                Ok(open) => self.advancing = !open,
+        if let Some(goal) = self.advancing {
+            match self.app.smoke_advance(now, goal) {
+                Ok(true) => {
+                    self.advancing = None;
+                    if let Some(dir) = &self.replay_dir
+                        && let Err(reason) = self.app.smoke_open_replay(dir)
+                    {
+                        eprintln!("smoke: replay: {reason}");
+                        std::process::exit(2);
+                    }
+                    // Let windows finish their fade-in before the screenshot.
+                    self.delay = self.delay.max(now + 1.5);
+                }
+                Ok(false) => {}
                 Err(reason) => {
                     eprintln!("smoke: {reason}");
                     std::process::exit(2);
                 }
             }
-            if !self.advancing {
-                // Let the question window finish its fade-in before the screenshot.
-                self.delay = self.delay.max(now + 1.5);
-            }
-            if self.advancing && now > 70.0 {
-                eprintln!("smoke: no counting question within 70 s");
+            if self.advancing.is_some() && now > 120.0 {
+                eprintln!("smoke: goal not reached within 120 s");
                 std::process::exit(2);
             }
         }
         if self.done.load(Ordering::SeqCst) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        } else if !self.requested && !self.advancing && now >= self.delay {
+        } else if !self.requested && self.advancing.is_none() && now >= self.delay {
             self.requested = true;
             let (path, done, repaint) = (self.path.clone(), self.done.clone(), ctx.clone());
             ctx.request_screenshot(move |image| {
@@ -95,6 +111,7 @@ fn main() -> eframe::Result {
     });
     let package_neural = std::env::var_os("GRAND_COACH_SCREENSHOT").is_some()
         && std::env::var("GRAND_COACH_PACKAGE_NEURAL").as_deref() == Ok("1");
+    let scenario_name = std::env::var("GRAND_COACH_SMOKE_SCENARIO").ok();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Grand-Coach")
@@ -110,6 +127,15 @@ fn main() -> eframe::Result {
                 &cc.egui_ctx,
                 SessionConfig {
                     seed,
+                    series: match scenario_name.as_deref() {
+                        Some("series" | "replay") => SeriesLength::Fixed(2),
+                        _ => SessionConfig::default().series,
+                    },
+                    display: if scenario_name.as_deref() == Some("open") {
+                        TableDisplay::Open
+                    } else {
+                        TableDisplay::Closed
+                    },
                     engine: if package_neural {
                         OpponentEngine::Neural
                     } else {
@@ -118,7 +144,7 @@ fn main() -> eframe::Result {
                     ..SessionConfig::default()
                 },
             );
-            let scenario = std::env::var("GRAND_COACH_SMOKE_SCENARIO").ok();
+            let scenario = scenario_name.clone();
             let smoke = std::env::var_os("GRAND_COACH_SCREENSHOT").is_some() && scenario.is_some();
             if smoke {
                 match std::env::var("GRAND_COACH_LANGUAGE").as_deref() {
@@ -158,7 +184,20 @@ fn main() -> eframe::Result {
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(3.0),
                     requested: false,
-                    advancing: smoke && scenario.as_deref() == Some("coach"),
+                    advancing: if smoke {
+                        match scenario.as_deref() {
+                            Some("coach") => Some(SmokeGoal::Question),
+                            Some("series") => Some(SmokeGoal::Series),
+                            Some("replay") => Some(SmokeGoal::Game),
+                            Some("open") => Some(SmokeGoal::Moves(12)),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    },
+                    replay_dir: (smoke && scenario.as_deref() == Some("replay"))
+                        .then(gui_egui::learning::data_dir)
+                        .flatten(),
                     done: Arc::default(),
                 }),
                 None => Box::new(app),
