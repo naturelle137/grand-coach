@@ -66,7 +66,7 @@ use burn::tensor::activation::log_softmax;
 use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 use skat_ai::{KontraRule, Status, kontra_by_rules, kontra_rule};
-use skat_core::{OmniscientView, PlayerView};
+use skat_core::{Action, GameType, OmniscientView, PlayerView};
 use skat_nn::{
     ACTIONS, ENCODER_VERSION, MIN_LAYERS, ModelHeader, NetShape, Phases, PolicyValueNet,
     action_index, encode, sha256, unseen_cards, write_model,
@@ -130,6 +130,11 @@ pub struct Hyper {
     /// Omitted from the recipe when 1.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub preplay_weight: f32,
+    /// Additional policy-loss factor of rows whose teacher choice is rare
+    /// (Hand instead of the pickup, Null or a Schneider/Schwarz/Ouvert
+    /// announcement); only with `all_phases`. Omitted from the recipe when 1.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub rare_weight: f32,
     /// Width of every hidden layer.
     pub hidden: usize,
     /// Number of hidden layers; omitted from the recipe when it is
@@ -193,6 +198,7 @@ impl Default for Hyper {
         Hyper {
             all_phases: false,
             preplay_weight: 1.0,
+            rare_weight: 1.0,
             hidden: 256,
             layers: MIN_LAYERS,
             batch: 256,
@@ -614,6 +620,9 @@ impl Examples {
         }
         if hyper.all_phases && phase_of(&legal) != DecisionPhase::Cards {
             target.iter_mut().for_each(|x| *x *= hyper.preplay_weight);
+            if is_rare_choice(r.action) {
+                target.iter_mut().for_each(|x| *x *= hyper.rare_weight);
+            }
         }
         let final_points = r.final_points as f32;
         let value = if complete {
@@ -1109,6 +1118,16 @@ impl DecisionPhase {
     }
 }
 
+/// Whether `action` is a rare teacher choice of the pre-play: Hand, Null or
+/// an announcement of Schneider, Schwarz or Ouvert.
+fn is_rare_choice(action: Action) -> bool {
+    match action {
+        Action::Hand => true,
+        Action::Announce(a) => a.game == GameType::Null || a.schneider || a.schwarz || a.ouvert,
+        _ => false,
+    }
+}
+
 /// The phase of a row offering the actions with indices `legal`.
 pub fn phase_of(legal: &[u32]) -> DecisionPhase {
     // Layout of `skat_nn::actions`: 63 bids, 4 calls, 496 discards, 22
@@ -1580,6 +1599,21 @@ mod tests {
     use skat_core::{Action, Game, Phase, RuleConfig};
 
     use super::*;
+    use skat_core::Announcement;
+
+    #[test]
+    fn rare_pre_play_choices_are_hand_null_and_extended_announcements() {
+        let plain = |game| Action::Announce(Announcement::plain(game));
+        assert!(is_rare_choice(Action::Hand));
+        assert!(is_rare_choice(plain(GameType::Null)));
+        assert!(is_rare_choice(Action::Announce(Announcement {
+            schneider: true,
+            ..Announcement::plain(GameType::Grand)
+        })));
+        assert!(!is_rare_choice(plain(GameType::Grand)));
+        assert!(!is_rare_choice(Action::TakeSkat));
+        assert!(!is_rare_choice(Action::Pass));
+    }
     use crate::selfplay::teach;
 
     /// A record of a teacher that analyses Kontra (the pre-#108 teacher).

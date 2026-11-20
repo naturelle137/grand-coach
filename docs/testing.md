@@ -694,6 +694,29 @@ those technical models with `SKAT_SUIT_FEED_WIDGET_FIXTURES_OUT` set to their
 absolute path and that test; this never changes the accepted handwritten oracle.
 See the [scope and ordinary walkthrough](guided-dialogue.md#farbspiel-last-seat-feedpartner-185).
 
+## Farbspiel LeadMaster regression (#182)
+
+`cargo test --locked -p skat-analysis --test suit_lead_master_policy` holds five
+handwritten legal deals plus an independent legal-witness oracle written from
+the ISkO rank/Augen tables only (no `skat-analysis` code, no core trick
+evaluator). It re-derives candidates, Easy's pick and the winner of every legal
+next-trick completion (1,803 paths; the core is used only to enumerate legal
+actions). Per-case counts and digests are frozen; they were calibrated from the
+oracle, so they are source-informed regression guards, not CEO-independent
+evidence. `guided_suit_lead_master` in coach covers admission and boundary
+edits. App tests matching `suit_lead_master` drive every completion through
+`Session` (waiting for both replies, individual winner), the genuine ordinary
+seed 2969 route against Easy with all ten legal leads, both hidden-deal
+substitutions with and without God Mode, return/stale/reset and the original
+estimate contract (the same as Grand `LeadMaster`; Farbspiel `LeadMaster` has
+no permitted-only estimate hold).
+
+The ignored GUI target `guided_suit_lead_master` runs the same ordinary route
+through real widgets in both languages and at 1440x1000 and 960x640. The
+screenshots example emits `suit-lead-master-inventory.json` (eight stages per
+language and size) and includes the PNGs in `all-scenarios-inventory.json`.
+See the [scope and evidence](guided-dialogue.md#farbspiel-lead-with-a-follow-class-master-182).
+
 ## Learned engine selection (#77, increments A/B)
 
 `skat-app` engine lifecycle tests cover Classic JSON/default compatibility,
