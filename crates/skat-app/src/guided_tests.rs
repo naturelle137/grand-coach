@@ -3607,7 +3607,8 @@ fn lead_master_fixture_widget_models_match_checked_sessions() {
             g["id"]["generation"] = 0.into();
             frames.push(serde_json::json!({"case":c.id,"stage":stage,"table":s.view(),"guided":g}));
         };
-        if !c.admitted() {
+        // Case 13 is the declarer DrawTrumpf lesson since #175.
+        if !c.admitted() && c.id != "13-postfreeze-actual-DrawTrumpf" {
             save("unsupported", &s);
             continue;
         }
@@ -3674,6 +3675,8 @@ mod suit_feed_partner;
 #[path = "guided_early_feed_tests.rs"]
 mod early_feed;
 
+#[path = "guided_draw_trumpf_tests.rs"]
+mod draw_trumpf_tests;
 #[path = "guided_suit_lead_master_tests.rs"]
 mod suit_lead_master;
 

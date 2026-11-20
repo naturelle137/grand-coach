@@ -1092,6 +1092,14 @@ guided-lead-source = Stich { $trick }: { $seat } hat das Ausspiel; noch keine Ka
 guided-lead-observe = Sieh dir beide tatsächlichen Antworten an. Beweist die letzte Antwort eine Fehlfarbe in der ausgespielten Farbe?
 guided-lead-candidates-risk = Kandidaten: { $cards }. Wer die Farbe nicht hat, kann stechen; kein Stich- oder Spielgewinn garantiert.
 guided-lead-fixture-label = Testposition: { $case } / { $stage } (kein gewöhnlicher Spielverlauf)
+guided-draw-trumpf = Welche legale Karte ist Trumpf? Im Grand sind nur die vier Buben Trumpf.
+guided-draw-trumpf-attempt = Welchen legalen Trumpf würdest du für Easys Ausspiel des höchsten Trumpfs versuchen?
+guided-draw-trumpf-definition = Du spielst als Alleinspieler aus und hast Trumpf auf der Hand. Easy spielt Trumpf, wenn die Regel Buben außerhalb deiner Hand und der gespielten Karten zählt.
+guided-draw-trumpf-risk = Das zeigt weder, dass ein Gegenspieler Trumpf hat, noch Bedienung, Stich- oder Spielausgang.
+guided-rule-draw-trumpf = Easy: { $card }. Höchster Trumpf; erster exakter Gleichstand in legaler Reihenfolge (Faustregel, kein optimales Spiel).
+guided-draw-trumpf-candidates-risk = Trumpf-Kandidaten: { $cards }. Eigener Skat, nicht gesehene Karten und Gegenspieler bleiben mögliche Orte; nichts ist garantiert.
+guided-draw-trumpf-conservative = Eigene und gespielte Buben zählen nicht mit; bekannte gedrückte Buben zählen weiter. Ein unbekannter Skat ist ein möglicher Ort, kein bewiesener Halter.
+guided-draw-trumpf-observe = Sieh dir beide tatsächlichen Antworten an. Beweist die letzte Antwort, dass diese Hand nicht bedienen kann, was du ausgespielt hast (Trumpf oder die ausgespielte Farbe)?
 
 # Null opening lead (#176)
 guided-null-lead-candidates = Welche Karten darfst du auf den leeren Tisch ausspielen?

@@ -16,6 +16,11 @@ fn lead_master_whole_lesson_role_master_attempt_and_memory() {
     for c in cases() {
         let v = c.game().view(c.seat);
         let l = lesson(&v);
+        // The DrawTrumpf case is admitted since #175 (guided_draw_trumpf.rs).
+        if c.expected.branch == skat_analysis::baseline::Branch::DrawTrumpf {
+            assert!(l.is_some(), "{}", c.id);
+            continue;
+        }
         assert_eq!(l.is_some(), c.admitted(), "{}", c.id);
         if !c.admitted() {
             continue;
