@@ -467,8 +467,10 @@ absolute values. `--holdout-seed N` repeats the sampling with a different seed
 and reports the fresh mean for the pair selected as best on the original labels;
 it also reports each policy’s chosen-pair mean on the fresh samples. This is
 an evaluation against frozen opponents, not a strength measurement. Zero samples
-are rejected. No Drücken model was trained against these labels and no
-strength claim follows.
+are rejected. `nn-train verify-outcome-druecken FILE` rejects empty files,
+duplicate deals, invalid views, missing or duplicate pairs and non-finite labels.
+It checks structure only, not provenance, sampling independence or label quality.
+No Drücken model was trained against these labels and no strength claim follows.
 
 A baseline on validation deals 10000–10199 (six seatings each, Kontra/Re
 on) compared the shipped card-play model, greedy policy with Easy fallback,

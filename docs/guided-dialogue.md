@@ -1214,5 +1214,36 @@ observes the actual third card and individual winner. Technical coverage is the
 `guided_suit_early_feed` coach test (full-deal replies with the declarer
 trumping, hidden-holder equality, input mutations); the existing app/GUI
 dialogue plumbing for permitted-view estimates is shared with the Grand
-family. No new ordinary route, screenshot, learner, UAT or transfer evidence
-is claimed.
+family. Learner, UAT and transfer evidence are not claimed.
+
+### Ordinary walkthrough
+
+Start ordinary `SessionConfig` seed **4**, fixed three games, Easy opponents.
+The complete human commands live in
+`crates/gui-egui/tests/fixtures/suit-early-feed-route.json` (Pass, Play index 0)
+and are replayed through real widgets without an injected session. In
+game1/trick2 Michael declares Pik; the human is physical Vorhand, partner
+Hinterhand leads Karo-Ass and the declarer in Mittelhand plays last. Legal cards
+are Karo-Neun and Karo-König. Easy chooses Karo-König by the last exact tie
+(`FeedLast`). Either card is followed by the declarer's actual Karo-Sieben;
+Hinterhand wins. The dialogue observes that card (it follows suit, so no void is
+proven) and the individual winner, without placing any hidden card beforehand.
+
+The `skat-app` test `suit_early_feed_ordinary_*` covers both legal cards, wrong
+answers and retries, deliberate reveal, memory, stale ids and return. The
+`suit_early_feed` widget test exercises both cards in both languages at
+1440×1000 and 960×640, and sixteen `guided-suit-early-feed-*` screenshots show
+orientation, rule, observation question and feedback. These are technical
+checks, not learner or transfer observations; the wider #131 later-phase
+criterion remains open (Grand/Null remaining branches, Ouvert and
+Ouvert Kontra/Re).
+
+## Ouvert Farbspiel declarer lead (#273)
+
+On the declarer's own empty-trick lead in an Ouvert Farbspiel, the existing
+`LeadMaster` dialogue is available when Easy selects a non-Trumpf follow-class
+master and at least two pure legal cards are available. Easy compares all such
+masters by Augen, taking the last exact tie. A follow-class master can still
+be trumped; neither the open table display nor God Mode supplies defender hands
+to this dialogue. Other branches remain unsupported. Every legal card remains
+playable, and the actual replies are observed after the player's choice.
