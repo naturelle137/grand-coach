@@ -463,7 +463,9 @@ Drücken and falls back to Easy, so it scores identically. The "best" mean of
 30.87 is the maximum of 66 four-game means and therefore strongly optimistic
 (winner's curse): the 28-point regret is not a measure of lost strength. Use
 more samples or re-label the best candidates with fresh seeds before trusting
-absolute values. No Drücken model was trained against these labels and no
+absolute values. `--holdout-seed N` repeats the sampling with a different seed
+and reports the fresh mean for the pair selected as best on the original labels;
+it does not train or evaluate a learned policy. No Drücken model was trained against these labels and no
 strength claim follows.
 
 A baseline on validation deals 10000–10199 (six seatings each, Kontra/Re
