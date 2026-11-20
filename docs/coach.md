@@ -833,19 +833,43 @@ policies were indistinguishable. On the contended core the baseline cancelled
 60 runs per cell (about 5 ms and 18 ms of worker time each on average) and used
 about 0.14–0.51 s more process CPU than the candidate, while the candidate
 delayed the next decision's analysis by up to 46 ms, the baseline by under
-0.1 ms. The candidate's wait is at most one review's length; at the
-interactive budget (100,000,000 nodes/task) that length was **not measured**.
+0.1 ms. The candidate's wait is at most one review's length; these cells did
+not measure it at the interactive budget (100,000,000 nodes/task).
 `nodes_per_task` is a ceiling, not consumed work, so the budget ratio does not
 imply a latency ratio, and no progress signal exists to bound the wait. No
 first-versus-full debrief time comparison is drawn: each cell is a single run.
 RSS is process-wide. Single-run cells support no ratios; the delay is synthetic,
 not human think time, and no GUI, presentation, physical-display latency,
-cold-versus-warm cache or interactive-budget run was measured.
+cold-versus-warm cache or interactive-budget run was included in these cells.
+
+On 2026-11-20 the same release diagnostic was also run once per policy for
+seed 1, a 5 ms delay and the interactive 24 × 100,000,000-node budget. The
+host was unisolated and other builds were running. Cancel requested ten
+cancellations, drained nine reviews after play, and reported a maximum
+foreground start wait of 0.585 ms, first moment at 1.943 s and completion at
+3.279 s. Finish cancelled none, drained none after play, and reported a maximum
+foreground start wait of 1.801 s, first moment at 2.653 s and completion at
+2.653 s. Both reported three moments; their evidence was not compared in this
+run. Process user plus system CPU was 9.77 s versus 9.71 s and peak RSS was
+343,420 versus 356,188 KiB respectively. These single, sequential runs cannot
+establish a speed ratio or isolate a policy effect. They measure the diagnostic,
+not GUI responsiveness, and do not establish cold-cache behaviour.
+
+A subsequent six-seed repeat at the same budget and delay compared the
+serialized complete moments and evidence exactly; all six pairs matched. Each
+cancel run requested ten cancellations; finish requested none. The maximum
+foreground start waits were 0.063–3.137 ms for cancel and 0.664–4.393 s for
+finish. First/full times ranged from 0.088/0.931 to 2.232/3.533 s for cancel
+and 1.365/1.365 to 7.387/7.387 s for finish (the extrema need not belong to
+the same seed). Total process CPU was 29.49 s and 28.68 s; peak process RSS was
+641,348 and 483,408 KiB. Runs were sequential on the same busy host, with
+cancel first, so these observations neither establish a ratio nor separate
+host load from policy effects. They also do not measure GUI presentation.
 
 **Decision (#72, no change to shipped behaviour):** the candidate saves CPU only
 under contention with think times shorter than one review, and pays with a
-foreground wait whose bound at the interactive budget is unknown, contradicting
-the current-decision-first rule (D-59) until measured. The shipped
+foreground wait, including the interactive-budget observation above, conflicting
+with the current-decision-first rule (D-59). The shipped
 cancel-and-restart policy, Classic ordering and results stay unchanged. A bounded
 variant would need a progress or deadline signal from the analysis that does not
 exist; the question is reopened if a measured session shows restart work
