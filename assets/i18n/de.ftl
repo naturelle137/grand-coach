@@ -1149,3 +1149,6 @@ mode-hybrid = Hybrid (experimentell)
 mode-hybrid-description = Experimentelle Vorschläge werden mit Classic-Suche geprüft; Leicht prüft mit einem Sample. Bei fehlendem Modell übernimmt die gewählte Classic-Stufe. Qualität und Geschwindigkeit sind nicht gemessen.
 guided-null-defender-role = Du bist Gegenspieler im Null. Der Alleinspieler liegt vorn; dein Partner spielt noch. Es gibt keinen Trumpf, auch Buben bedienen ihre Farbe.
 guided-rule-null-defender = Easy wählt die ranghöchste Karte, die den Alleinspieler vorerst vorn lässt; bei gleichem Rang die letzte in der erlaubten Reihenfolge. Dein Partner kann den Stich noch übernehmen. Das ist eine Faustregel ohne Spielgewinn-Garantie.
+
+guided-null-defender-last-role = Du bist Gegenspieler im Null und spielst als Letzter. Der Alleinspieler liegt vorn. Es gibt keinen Trumpf, auch Buben bedienen ihre Farbe.
+guided-rule-null-defender-last = Easy wählt die ranghöchste Karte, die den Alleinspieler vorn lässt; bei gleichem Rang die letzte in der erlaubten Reihenfolge. Das ist eine Faustregel ohne Spielgewinn-Garantie.
