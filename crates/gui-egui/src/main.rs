@@ -21,7 +21,8 @@
 //! `series` plays a complete 36-game series with first legal actions;
 //! `open` plays an open-table game for a few moves; `replay` plays that
 //! series, saves its first game to the data directory and shows it in the
-//! recording viewer.
+//! recording viewer; `review` does the same and waits until the requested
+//! recording review has ended with its summary.
 //! `GRAND_COACH_LANGUAGE=de|en` selects the language for that smoke.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -46,6 +47,9 @@ struct Screenshot {
     advancing: Option<SmokeGoal>,
     /// Smoke scenario `replay`: open the first game in the viewer at the goal.
     replay_dir: Option<std::path::PathBuf>,
+    /// Smoke scenario `review`: the opened recording is reviewed before the shot.
+    review_wanted: bool,
+    reviewing: bool,
     done: Arc<AtomicBool>,
 }
 
@@ -64,6 +68,7 @@ impl eframe::App for Screenshot {
                         eprintln!("smoke: replay: {reason}");
                         std::process::exit(2);
                     }
+                    self.reviewing = self.review_wanted;
                     // Let windows finish their fade-in before the screenshot.
                     self.delay = self.delay.max(now + 1.5);
                 }
@@ -78,9 +83,30 @@ impl eframe::App for Screenshot {
                 std::process::exit(2);
             }
         }
+        if self.reviewing {
+            match self.app.smoke_review(&ctx) {
+                Ok(true) => {
+                    self.reviewing = false;
+                    self.delay = self.delay.max(now + 1.5);
+                }
+                Ok(false) => {}
+                Err(reason) => {
+                    eprintln!("smoke: {reason}");
+                    std::process::exit(2);
+                }
+            }
+            if now > 900.0 {
+                eprintln!("smoke: review not finished within 900 s");
+                std::process::exit(2);
+            }
+        }
         if self.done.load(Ordering::SeqCst) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        } else if !self.requested && self.advancing.is_none() && now >= self.delay {
+        } else if !self.requested
+            && self.advancing.is_none()
+            && !self.reviewing
+            && now >= self.delay
+        {
             self.requested = true;
             let (path, done, repaint) = (self.path.clone(), self.done.clone(), ctx.clone());
             ctx.request_screenshot(move |image| {
@@ -129,7 +155,7 @@ fn main() -> eframe::Result {
                     seed,
                     series: match scenario_name.as_deref() {
                         Some("series") => SeriesLength::Fixed(36),
-                        Some("replay") => SeriesLength::Fixed(2),
+                        Some("replay" | "review") => SeriesLength::Fixed(2),
                         _ => SessionConfig::default().series,
                     },
                     display: if scenario_name.as_deref() == Some("open") {
@@ -190,16 +216,18 @@ fn main() -> eframe::Result {
                         match scenario.as_deref() {
                             Some("coach") => Some(SmokeGoal::Question),
                             Some("series") => Some(SmokeGoal::Series),
-                            Some("replay") => Some(SmokeGoal::Game),
+                            Some("replay" | "review") => Some(SmokeGoal::Game),
                             Some("open") => Some(SmokeGoal::Moves(12)),
                             _ => None,
                         }
                     } else {
                         None
                     },
-                    replay_dir: (smoke && scenario.as_deref() == Some("replay"))
+                    replay_dir: (smoke && matches!(scenario.as_deref(), Some("replay" | "review")))
                         .then(gui_egui::learning::data_dir)
                         .flatten(),
+                    review_wanted: smoke && scenario.as_deref() == Some("review"),
+                    reviewing: false,
                     done: Arc::default(),
                 }),
                 None => Box::new(app),
