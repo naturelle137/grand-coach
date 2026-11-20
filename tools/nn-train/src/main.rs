@@ -1148,10 +1148,11 @@ fn outcome_druecken(args: &[String]) {
         num("--seed", 0),
     );
     let samples = u32::try_from(num("--samples", 8)).expect("--samples");
+    assert!(samples > 0, "--samples must be positive");
     let easy = [0, 1, 2].map(|s| Opponent::new(Level::Easy, s));
     let frozen = [&easy[0] as &dyn Player, &easy[1], &easy[2]];
     let rows = skat_ai::outcome::discard_dataset(&easy[0], frozen, first, deals, samples, seed);
-    if let Some(i) = flag("--holdout-seed") {
+    let fresh = if let Some(i) = flag("--holdout-seed") {
         let holdout_seed = arg(args, i, seed);
         assert_ne!(
             holdout_seed, seed,
@@ -1169,7 +1170,10 @@ fn outcome_druecken(args: &[String]) {
             Some((n, mean)) => println!("selected best, fresh samples: {n} rows mean {mean:.2}"),
             None => println!("selected best, fresh samples: no matching rows"),
         }
-    }
+        Some(fresh)
+    } else {
+        None
+    };
     let mut text = String::new();
     for row in &rows {
         text += &serde_json::to_string(row).expect("serialise row");
@@ -1206,6 +1210,13 @@ fn outcome_druecken(args: &[String]) {
             c.mean_best - c.mean_chosen,
             c.best_share
         );
+        if let Some(fresh) = &fresh {
+            let c = compare_discards(fresh, player.as_ref(), 0.5);
+            println!(
+                "{name}, fresh samples: rows {} chosen {:.2}",
+                c.rows, c.mean_chosen
+            );
+        }
     }
 }
 
