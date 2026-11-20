@@ -885,9 +885,11 @@ driver does. `drive_coach` cancels a running review whenever a newer current
 decision needs analysis, so under continuous foreground activity faster than
 one review a queued review can be restarted indefinitely. **Starvation freedom
 is therefore not established**: the #72 starvation acceptance criterion stays
-open, to be closed by a test of the real worker driver with repeated
-preemptions and eventual draining after foreground activity stops. The
-ignored `debrief_paced_gui_worker_probe` shows only that evidence drains once
+open. The real GUI driver regression
+`repeatedly_preempted_coach_jobs_drain_after_play` forces multiple foreground
+preemptions and checks that the backlog drains after play stops; this finite
+case does not establish progress under continuous preemption. The ignored
+`debrief_paced_gui_worker_probe` likewise shows only that evidence drains once
 the game is over. Coach **off** now hands out no review work and resumes the
 retained backlog when turned on; this was a small fix, since reviews
 previously kept running for an invisible debriefing.
