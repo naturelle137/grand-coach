@@ -332,8 +332,9 @@ fn suit_feed_partner_fixture_widget_models_match_actual_sessions() {
     c.view.seat = Seat::Mittelhand;
     let mut s = session(&c);
     s.execute(Command::StartGuided).unwrap();
-    assert_eq!(s.guided().unwrap().step, S::Unsupported);
-    save("early", "unsupported", &s, &mut frames);
+    // Early Farbspiel feeding behind a partner master is now admitted.
+    assert_eq!(s.guided().unwrap().step, S::Orient);
+    save("early", "orient", &s, &mut frames);
     let c = cases::cases().remove(4);
     let mut s = session(&c);
     for n in [3, 7, 28] {
