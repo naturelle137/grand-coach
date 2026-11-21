@@ -878,6 +878,18 @@ the same seed). Total process CPU was 29.49 s and 28.68 s; peak process RSS was
 cancel first, so these observations neither establish a ratio nor separate
 host load from policy effects. They also do not measure GUI presentation.
 
+On 2026-11-21, the same interactive-budget diagnostic additionally compared
+both the complete privileged recordings and final moment/evidence JSON for
+six seeds at each of 0 and 5 ms delay; all 12 pairs matched. Each cell was a
+single sequential process on an unisolated host while a project gate compiled.
+At 0 ms, cancel/finish used 28.31/23.88 CPU seconds and peaked at
+880,308/479,976 KiB RSS; their largest foreground waits were 2.883 ms/1.569 s.
+At 5 ms, they used 28.87/28.07 CPU seconds and peaked at 586,444/467,168 KiB;
+their largest foreground waits were 5.513 ms/1.834 s. These process-wide
+observations do not isolate policy effects, establish a speed ratio, or measure
+GUI responsiveness. The full recordings remain local because they expose the
+deal. Cold and warm cache states were not controlled.
+
 **Decision (#72, no change to shipped behaviour):** the candidate saves CPU only
 under contention with think times shorter than one review, and pays with a
 foreground wait, including the interactive-budget observation above, conflicting
