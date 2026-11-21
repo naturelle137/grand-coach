@@ -3056,11 +3056,37 @@
       "pre_rule": null,
       "preplay": null,
       "reizen": null,
-      "rule": null,
-      "step": "Unsupported",
-      "task": null
+      "rule": {
+        "branch": "Null",
+        "candidates": [
+          0,
+          3,
+          4
+        ],
+        "card": 4,
+        "last": false,
+        "losers": [
+          0,
+          3,
+          4
+        ],
+        "partner_ahead": false,
+        "table_master": false,
+        "tie_break": "HighestPowerLast",
+        "tie_key": [
+          4,
+          0,
+          0
+        ],
+        "winner": "Vorhand",
+        "winners": [
+          6
+        ]
+      },
+      "step": "Act",
+      "task": "Null"
     },
-    "stage": "unsupported",
+    "stage": "rule",
     "table": {
       "acting": 0,
       "assist": {
