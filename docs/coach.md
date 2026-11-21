@@ -799,6 +799,10 @@ after cancellation is still running. **finish** is the candidate: the
 foreground waits until the running analysis completes. Both end with a drained
 queue; with `COACH_TRACE_EVIDENCE=1` the complete final moments of all six
 seeds were exactly equal between cancel and finish in every cell below.
+The probe now captures the first visible moment at game end or immediately
+after accepting the running worker, before waiting for cancelled workers.
+The historical measurements below used the later, post-settlement observation,
+so their first-moment times can overstate when the moment became visible.
 
 Measured on 2026-11-19, release build, six seeds, 24 samples × 20,000
 nodes/task, one run per cell, host not isolated (load average about 10 from

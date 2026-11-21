@@ -100,7 +100,9 @@ fn content(
             GuidedStep::Orient | GuidedStep::Check | GuidedStep::Narrow | GuidedStep::Act
         )
     {
-        ui.label(i.t(if table.current_trick.len() == 2 {
+        ui.label(i.t(if g.lead.is_some() {
+            "guided-null-defender-lead-role"
+        } else if table.current_trick.len() == 2 {
             "guided-null-defender-last-role"
         } else {
             "guided-null-defender-role"
@@ -179,7 +181,11 @@ fn content(
             "guided-lead-definition"
         }));
         ui.label(i.t(if null {
-            "guided-null-lead-limit"
+            if null_defender {
+                "guided-null-defender-lead-limit"
+            } else {
+                "guided-null-lead-limit"
+            }
         } else if g.lead_trumpf {
             "guided-draw-trumpf-risk"
         } else {

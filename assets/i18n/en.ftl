@@ -1176,3 +1176,6 @@ guided-kontra-ouvert-rule = Easy always chooses No Kontra in this round without 
 guided-kontra-ouvert-declined = You chose No Kontra before the reveal.
 guided-kontra-ouvert-yes = Yes
 guided-kontra-ouvert-no = No
+
+guided-null-defender-lead-role = You defend in Null and lead. The declarer must take a trick to lose; neither reply is known.
+guided-null-defender-lead-limit = Both replies are unknown. This heuristic guarantees neither the trick nor the game.

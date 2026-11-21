@@ -59,6 +59,7 @@ const SEED: u64 = 21;
 /// Scenarios whose state needs another series seed: with seed 21 the
 /// human never plays second to the declarer's lead in the two games.
 const SEEDS: &[(&str, u64)] = &[
+    ("guided-null-defender-opening", 1282),
     ("coach-lesson-overtake", 1),
     // The human plays Hand at bid 36: Herz falls short, Kreuz is announced.
     ("guided-ann-orient", 7),
@@ -201,6 +202,7 @@ const OPEN_DISPLAY: &[&str] = &[
 ];
 
 const SCENARIOS: &[(&str, Scenario)] = &[
+    ("guided-null-defender-opening", null_defender_opening),
     ("guided-grand-early-feed-orient-de", early_feed_orient_de),
     (
         "guided-grand-early-feed-orient-de-narrow",
@@ -3849,4 +3851,16 @@ fn live_overview_de(h: &mut Harness<'_, GrandCoachApp>) {
 fn live_overview_en(h: &mut Harness<'_, GrandCoachApp>) {
     learning_file(h, "live-abstich-overview-en", None);
     live_abstich_flow::stage(h, Language::En, "overview");
+}
+
+fn null_defender_opening(h: &mut Harness<'_, GrandCoachApp>) {
+    let i = I18n::new(Language::De);
+    h.state_mut().opponent_delay = 0.0;
+    guided_support::settle(h);
+    guided_support::click(h, &i.t("button-pass"));
+    guided_support::settle(h);
+    guided_support::click(h, &i.t("guided-start"));
+    guided_support::null_click(h, &i.t("guided-lead-defender"));
+    guided_support::null_click(h, &i.t("guided-unknown"));
+    h.get_by_label(&i.t("guided-rule-null-lead"));
 }
