@@ -1179,13 +1179,13 @@ packaging or release evidence. #131 later phases remain open.
 
 ## Null defender following the declarer (#131)
 
-A non-Ouvert Null defender acting second after the declarer's lead can
+A Null defender acting second after the declarer's lead can
 compare legal cards that leave the declarer ahead for now. Easy chooses the
 highest Null rank among those cards, with the last exact tie in legal order;
 the partner may still overtake. All legal cards remain playable. This is a
 bounded heuristic, not a guarantee of winning or a claim about unseen cards.
-This second-seat lesson excludes partner leads, absent losing cards, restricted actions,
-Ouvert and other defender turns. It uses the public trick and own hand, and
+This second-seat lesson excludes partner leads, absent losing cards, restricted actions
+and other defender turns. Null Ouvert requires a consistent revealed hand. It uses the public trick and own hand, and
 observes the actual third card and individual winner.
 
 For a reproducible ordinary route, use seed 2115 and a three-game series
