@@ -34,6 +34,18 @@ fn ouvert_declarer_opening_uses_the_same_null_rule() {
         let mut unrevealed = view.clone();
         unrevealed.declarer_cards = None;
         assert!(lesson(&unrevealed).is_none());
+        let mut inconsistent = view.clone();
+        inconsistent.declarer_cards = Some(Default::default());
+        assert!(lesson(&inconsistent).is_none());
+        let mut restricted = view.clone();
+        restricted.legal_actions.pop();
+        assert!(lesson(&restricted).is_none());
+        for action in &view.legal_actions {
+            let Action::Play(card) = action else {
+                panic!("expected a play")
+            };
+            assert!(l.check(Step::Check, Answer::Card(*card)));
+        }
         let (cards, winner) = c.paths[0];
         for card in cards {
             game.apply(Action::Play(card)).unwrap();
@@ -211,5 +223,73 @@ fn defender_opening_is_core_validated_and_keeps_hidden_deals_private() {
     }
     let mut bad = games[0].view(Seat::Vorhand);
     bad.contract.as_mut().unwrap().ouvert = true;
+    assert!(lesson(&bad).is_none());
+}
+
+#[test]
+fn ouvert_defender_opening_respects_reveal_and_hidden_partner() {
+    let mut hands = [
+        CardSet::from_bits(2214726045),
+        CardSet::from_bits(156542018),
+        CardSet::from_bits(313086496),
+    ];
+    let mut skat = CardSet::from_bits(1610612736);
+    let mut games = Vec::new();
+    for swapped in [false, true] {
+        if swapped {
+            let a = hands[2].iter().next().unwrap();
+            let b = skat.iter().next().unwrap();
+            hands[2].remove(a);
+            hands[2].insert(b);
+            skat.remove(b);
+            skat.insert(a);
+        }
+        let mut game = Game::from_deal(
+            Deal::new(hands, skat).unwrap(),
+            RuleConfig { kontra_re: false },
+        );
+        let mut announcement = Announcement::plain(GameType::Null);
+        announcement.ouvert = true;
+        for action in [
+            Action::Bid(18),
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(announcement),
+        ] {
+            game.apply(action).unwrap();
+        }
+        games.push(game);
+    }
+    let view = games[0].view(Seat::Vorhand);
+    assert_ne!(view.declarer, Some(Seat::Vorhand));
+    let revealed = view.declarer_cards.unwrap();
+    assert_eq!(revealed.len(), 10);
+    let l = lesson(&view).unwrap();
+    assert_eq!(l, lesson(&games[1].view(Seat::Vorhand)).unwrap());
+    assert_eq!(l.knowledge.known_elsewhere, revealed);
+    assert_eq!(l.rule, skat_analysis::baseline::rule(&view).unwrap());
+    assert_eq!(l.lead_declarer, Some(false));
+    for action in &view.legal_actions {
+        let Action::Play(card) = action else {
+            panic!("card action")
+        };
+        assert!(l.check(Step::Check, Answer::Card(*card)));
+        let mut game = games[0].clone();
+        game.apply(*action).unwrap();
+        for _ in 0..2 {
+            let seat = game.current_seat().unwrap();
+            let reply = game.view(seat).legal_actions[0];
+            game.apply(reply).unwrap();
+        }
+        assert_eq!(game.view(Seat::Vorhand).tricks.len(), 1);
+    }
+    for cards in [None, Some(view.hand), Some(CardSet::EMPTY)] {
+        let mut bad = view.clone();
+        bad.declarer_cards = cards;
+        assert!(lesson(&bad).is_none());
+    }
+    let mut bad = view.clone();
+    bad.legal_actions.pop();
     assert!(lesson(&bad).is_none());
 }

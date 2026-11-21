@@ -749,3 +749,18 @@ slow-test annotation. The screenshot example includes the `live-abstich-*` entry
 help, skip, unsupported, return and overview views, including narrow answers.
 Compare exported live recordings before/after these interactions to check
 nonmutation. No unchanged RC/gallery campaign or learner observations are implied.
+
+## Debrief scheduling (#72)
+
+FAST includes controlled sustained-foreground progress and FIFO-overtaking
+regressions in `gui-egui`, both-lane off/reset/practice lifecycle checks, and
+`skat-app --test coach` input/result equality for the independent review lane.
+Existing coach cancellation/retry, new-game, stale-result, open-display,
+God-Mode and hidden-deal tests retain their evidence requirements.
+
+For manual paired headless timing, run
+`cargo test --locked -p gui-egui --lib app::tests::debrief_paced_gui_worker_probe -- --ignored --nocapture --test-threads=1`
+with `SKAT_COACH_POLICY=cancel|fair`, `SKAT_COACH_NODES=100000000`,
+`SKAT_COACH_DELAY=0|5` and `SKAT_COACH_ROUNDS=2`. Compare the same seeds and
+[measurement limits](coach.md#bounded-fair-review-control-72). The old driver
+exists only under `cfg(test)`; it is not a product setting.

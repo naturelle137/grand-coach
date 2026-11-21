@@ -99,7 +99,11 @@ fn content(
         )
     {
         ui.label(i.t(if g.lead.is_some() {
-            "guided-null-defender-lead-role"
+            if table.contract.is_some_and(|c| c.ouvert) {
+                "guided-null-ouvert-defender-lead-role"
+            } else {
+                "guided-null-defender-lead-role"
+            }
         } else if table.current_trick.len() == 2 {
             "guided-null-defender-last-role"
         } else {
@@ -180,7 +184,11 @@ fn content(
         }));
         ui.label(i.t(if null {
             if null_defender {
-                "guided-null-defender-lead-limit"
+                if table.contract.is_some_and(|c| c.ouvert) {
+                    "guided-null-ouvert-defender-lead-limit"
+                } else {
+                    "guided-null-defender-lead-limit"
+                }
             } else {
                 "guided-null-lead-limit"
             }
@@ -274,6 +282,9 @@ fn content(
             ));
         } else {
             ui.label(i.t(key));
+        }
+        if rule.branch == GuidedBranch::UnderPartner && table.contract.is_some_and(|c| c.ouvert) {
+            ui.label(i.t("guided-under-ouvert"));
         }
         if let Some(condition) = g.early_condition {
             ui.label(i.t(match condition {

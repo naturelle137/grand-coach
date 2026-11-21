@@ -102,14 +102,15 @@ pub struct Lesson {
 }
 
 /// Select only tested branches, with real alternatives and candidates:
-/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus non-Ouvert Farbspiel/Grand WinEarly and non-Ouvert Farbspiel/Grand last-seat FeedPartner. Grand
+/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus Grand Ouvert
+/// defender UnderPartner and non-Ouvert Farbspiel/Grand WinEarly and last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
 /// and at least one losing card; early FeedPartner (Farbspiel or Grand) requires a follow-class master; Fallback stays excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. A defender may
 /// lead the first trick in Vorhand, act second after the declarer leads, or last with the declarer ahead.
-/// Null Ouvert also admits the declarer's opening lead and second/last-seat turns,
-/// and the defender acting second after a declarer lead, after the reveal.
+/// Null Ouvert admits defender opening leads and second-seat play after a declarer lead,
+/// and the declarer's opening and second/last-seat turns after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Grand Ouvert declarer
 /// WinLast admits a validated last-seat view. LeadMaster (including Ouvert
@@ -163,19 +164,41 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                     .flat_map(|t| t.cards)
                     .all(|c| !cards.contains(c))
         });
+    let ouvert_grand_under = game == GameType::Grand
+        && contract.ouvert
+        && contract.hand
+        && contract.schneider
+        && contract.schwarz
+        && view.hand_game == Some(true)
+        && view.own_skat.is_none()
+        && view.declarer == Some(view.seat.next())
+        && view.current_seat == Some(view.seat)
+        && matches!(view.current_trick.cards, [Some(_), None, None])
+        && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+        && view.declarer_cards.is_some_and(|cards| {
+            cards.len() == view.hand_sizes[view.seat.next().index()] as usize
+                && (cards & view.hand).is_empty()
+                && (cards & Knowledge::from_view(view).played).is_empty()
+        })
+        && view.legal_actions
+            == skat_core::legal_cards(game, view.hand, view.current_trick.led())
+                .iter()
+                .map(Action::Play)
+                .collect::<Vec<_>>();
     let null = game == GameType::Null
         && (!contract.ouvert
+            || view.current_trick.cards == [None; 3]
             || ouvert_null_defender
             || (view.declarer == Some(view.seat)
                 && view.declarer_cards == Some(view.hand)
-                && (view.current_trick.cards == [None; 3]
-                    || matches!(view.current_trick.cards, [Some(_), None, None])
+                && (matches!(view.current_trick.cards, [Some(_), None, None])
                     || matches!(view.current_trick.cards, [Some(_), Some(_), None]))));
     if view.phase != Phase::Spiel
         || !(matches!(game, GameType::Farbe(_))
             || grand
             || ouvert_grand_lead
             || ouvert_grand_last
+            || ouvert_grand_under
             || null)
     {
         return None;
@@ -227,7 +250,12 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || view.hand_sizes != [10; 3]
             || view.result.is_some()
             || if contract.ouvert {
-                view.declarer_cards != Some(view.hand)
+                if null_defender {
+                    view.declarer_cards
+                        .is_none_or(|cards| cards.len() != 10 || !(cards & view.hand).is_empty())
+                } else {
+                    view.declarer_cards != Some(view.hand)
+                }
             } else {
                 view.declarer_cards.is_some()
             }
@@ -367,6 +395,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     view.declarer?;
     let rule = baseline::rule(view)?;
     if (ouvert_grand_last && rule.branch != Branch::WinLast)
+        || (ouvert_grand_under && rule.branch != Branch::UnderPartner)
         || view.legal_actions.len() < 2
         || rule.candidates.is_empty()
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
