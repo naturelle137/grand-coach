@@ -130,7 +130,11 @@ fn frozen_deals_every_completion_exact_null_key_and_scope() {
         }
         assert_eq!(
             l.is_some(),
-            c.supported || matches!(c.id, "real-early" | "real-defender-declarer-ahead"),
+            c.supported
+                || matches!(
+                    c.id,
+                    "real-early" | "real-defender-declarer-ahead" | "real-ouvert"
+                ),
             "{} applicability",
             c.id
         );
@@ -171,7 +175,7 @@ fn frozen_deals_every_completion_exact_null_key_and_scope() {
     assert_eq!(original, 30, "every frozen original completion");
     assert_eq!(
         completions,
-        30 + 10 + 4,
+        30 + 10 + 4 + 4,
         "original, changed queen, real defender"
     );
 }
@@ -184,6 +188,8 @@ fn hand_and_pickup_hidden_substitutions_preserve_entire_view_and_actual_lesson()
         ("mixed-ten", "VH H7", "Skat DK"),
         ("mixed-ten", "VH H7", "MH S7"),
         ("pickup-mixed", "VH H7", "MH S7"),
+        ("real-ouvert", "VH H7", "Skat DK"),
+        ("real-ouvert", "VH H7", "MH S7"),
     ] {
         let c = by(base);
         let x = c.position().view(Seat::Hinterhand);
@@ -279,5 +285,31 @@ fn synthetic_and_malformed_views_never_get_a_null_lesson() {
         } else {
             assert_eq!(l, None, "{id}");
         }
+    }
+}
+
+#[test]
+fn ouvert_last_requires_revealed_matching_hand_and_exact_actions() {
+    let c = cases().into_iter().find(|c| c.id == "real-ouvert").unwrap();
+    let v = c.position().view(Seat::Hinterhand);
+    assert_eq!(v.declarer_cards, Some(v.hand));
+    assert_eq!(lesson(&v).unwrap().rule.card, card("C8"));
+    for edit in 0..4 {
+        let mut bad = v.clone();
+        match edit {
+            0 => bad.declarer_cards = None,
+            1 => bad.declarer_cards = Some(set("C7")),
+            2 => {
+                bad.legal_actions.pop();
+            }
+            _ => bad.current_trick.cards[1] = None,
+        }
+        assert!(lesson(&bad).is_none());
+    }
+    for (id, expected) in [("no-loser", None), ("void-last-tie", Some("DJ"))] {
+        let mut c = cases().into_iter().find(|c| c.id == id).unwrap();
+        c.ouvert = true;
+        let v = c.position().view(Seat::Hinterhand);
+        assert_eq!(lesson(&v).map(|l| l.rule.card), expected.map(card));
     }
 }
