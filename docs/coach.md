@@ -799,6 +799,13 @@ after cancellation is still running. **finish** is the candidate: the
 foreground waits until the running analysis completes. Both end with a drained
 queue; with `COACH_TRACE_EVIDENCE=1` the complete final moments of all six
 seeds were exactly equal between cancel and finish in every cell below.
+`COACH_TRACE_RECORDING=1` also emits the privileged full game recording;
+these local diagnostic traces reveal the deal and must not be shared as ordinary
+player views. On 2026-11-21, release runs with six seeds, 24 samples and
+20,000 nodes/task compared the complete JSON recordings and final moments
+pairwise for cancel and finish at both 0 and 5 ms delay: all twelve pairs
+matched. These fixed-action Easy-opponent traces do not establish equivalence
+for other games or a performance improvement.
 The probe now captures the first visible moment at game end or immediately
 after accepting the running worker, before waiting for cancelled workers.
 The historical measurements below used the later, post-settlement observation,
