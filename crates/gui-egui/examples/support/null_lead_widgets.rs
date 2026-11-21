@@ -32,7 +32,9 @@ pub fn inventory() -> Vec<serde_json::Value> {
     let mut result = Vec::new();
     for language in ["de", "en"] {
         for (suffix, width, height) in [("", 1440, 1000), ("-narrow", 960, 640)] {
-            result.push(serde_json::json!({"name":format!("guided-null-lead-ouvert-reveal-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"ouvert"}));
+            for stage in ["reveal", "observe"] {
+                result.push(serde_json::json!({"name":format!("guided-null-lead-ouvert-{stage}-{language}{suffix}"),"stage":stage,"language":language,"width":width,"height":height,"kind":"ouvert"}));
+            }
             for stage in STAGES {
                 result.push(serde_json::json!({"name":format!("guided-null-lead-{stage}-{language}{suffix}"),"stage":stage,"language":language,"width":width,"height":height,"kind":"ordinary"}));
             }
