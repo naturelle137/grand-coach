@@ -1160,24 +1160,33 @@ pub fn phase_of(legal: &[u32]) -> DecisionPhase {
 }
 
 /// Pre-play categories whose frequency can be hidden by aggregate agreement.
-pub const PREPLAY_CATEGORIES: [&str; 4] = ["pass", "hand", "null", "schneider/schwarz/ouvert"];
+pub const PREPLAY_CATEGORIES: [&str; 6] = [
+    "pass",
+    "hand",
+    "null",
+    "schneider/schwarz/ouvert",
+    "kontra",
+    "re",
+];
 
-fn preplay_categories(action: Action) -> [bool; 4] {
+fn preplay_categories(action: Action) -> [bool; 6] {
     [
         action == Action::Pass,
         action == Action::Hand,
         matches!(action, Action::Announce(a) if a.game == GameType::Null),
         matches!(action, Action::Announce(a) if a.schneider || a.schwarz || a.ouvert),
+        action == Action::Kontra,
+        action == Action::Re,
     ]
 }
 
 fn count_categories(
-    counts: &mut [(usize, usize, usize, usize); 4],
+    counts: &mut [(usize, usize, usize, usize); 6],
     legal: &[u32],
     teacher: Action,
     predicted: Action,
 ) {
-    let mut available = [false; 4];
+    let mut available = [false; 6];
     for &index in legal {
         for (available, category) in available.iter_mut().zip(preplay_categories(
             action_at(index as usize).expect("legal action"),
@@ -1198,7 +1207,7 @@ fn count_categories(
 }
 
 /// Counts for each phase and each pre-play category.
-pub type PhaseAgreement = ([(usize, usize); 7], [(usize, usize, usize, usize); 4]);
+pub type PhaseAgreement = ([(usize, usize); 7], [(usize, usize, usize, usize); 6]);
 
 /// Per-phase `(rows, rows where the most probable legal action is the
 /// teacher's)` of `net` on `examples`, in [`DecisionPhase::ALL`] order,
@@ -1214,7 +1223,7 @@ pub fn phase_agreement(net: &PolicyValueNet, examples: &Examples) -> PhaseAgreem
         .unwrap_or_else(Device::flex);
     let inputs = net.inputs();
     let mut out = [(0, 0); 7];
-    let mut categories = [(0, 0, 0, 0); 4];
+    let mut categories = [(0, 0, 0, 0); 6];
     let all: Vec<usize> = (0..examples.rows()).collect();
     for chunk in all.chunks(EVAL_BATCH) {
         let l = losses(net, None, examples.batch(chunk, inputs, &device));
@@ -1849,13 +1858,13 @@ mod phase_tests {
         use skat_core::Announcement;
         assert_eq!(
             preplay_categories(Action::Pass),
-            [true, false, false, false]
+            [true, false, false, false, false, false]
         );
         assert_eq!(
             preplay_categories(Action::Hand),
-            [false, true, false, false]
+            [false, true, false, false, false, false]
         );
-        assert_eq!(preplay_categories(Action::TakeSkat), [false; 4]);
+        assert_eq!(preplay_categories(Action::TakeSkat), [false; 6]);
         assert_eq!(
             preplay_categories(Action::Announce(Announcement {
                 game: GameType::Null,
@@ -1863,13 +1872,13 @@ mod phase_tests {
                 schwarz: false,
                 ouvert: true,
             })),
-            [false, false, true, true]
+            [false, false, true, true, false, false]
         );
     }
 
     #[test]
     fn category_overlap_is_counted_per_position() {
-        let mut counts = [(0, 0, 0, 0); 4];
+        let mut counts = [(0, 0, 0, 0); 6];
         let pass = skat_nn::action_index(Action::Pass).unwrap() as u32;
         let hold = skat_nn::action_index(Action::Hold).unwrap() as u32;
         count_categories(&mut counts, &[pass, hold], Action::Pass, Action::Hold);
@@ -1887,6 +1896,26 @@ mod phase_tests {
         count_categories(&mut counts, &legal, null, ouvert);
         assert_eq!(counts[2], (1, 1, 1, 1));
         assert_eq!(counts[3], (0, 1, 0, 1));
+        let kontra = skat_nn::action_index(Action::Kontra).unwrap() as u32;
+        let decline = skat_nn::action_index(Action::KeinKontra).unwrap() as u32;
+        let re = skat_nn::action_index(Action::Re).unwrap() as u32;
+        let kein_re = skat_nn::action_index(Action::KeinRe).unwrap() as u32;
+        count_categories(
+            &mut counts,
+            &[kontra, decline],
+            Action::Kontra,
+            Action::KeinKontra,
+        );
+        count_categories(
+            &mut counts,
+            &[kontra, decline],
+            Action::KeinKontra,
+            Action::Kontra,
+        );
+        count_categories(&mut counts, &[re, kein_re], Action::Re, Action::Re);
+        count_categories(&mut counts, &[re, kein_re], Action::KeinRe, Action::Re);
+        assert_eq!(counts[4], (1, 1, 0, 2));
+        assert_eq!(counts[5], (1, 2, 1, 2));
     }
 
     #[test]

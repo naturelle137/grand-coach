@@ -544,7 +544,7 @@ alone still does not establish their playing strength. Existing combined
 Kontra/Re results above remain the measurements actually performed.
 
 All-phase `evaluate` also reports teacher and greedy-model counts for Pass,
-Hand, Null and Schneider/Schwarz/Ouvert announcements on the same held-out
+Hand, Null, Schneider/Schwarz/Ouvert announcements, Kontra and Re on the same held-out
 views. The report also counts positions where both choices fall in each category;
 this need not mean the exact actions match. The available count gives positions
 where at least one legal action belongs to the category; it is a per-position
