@@ -16,6 +16,7 @@ pub fn names() -> Vec<String> {
             matches!(
                 (f["case"].as_str().unwrap(), f["stage"].as_str().unwrap()),
                 ("mixed-ten", "rule" | "observe" | "complete")
+                    | ("real-ouvert", "rule" | "observe" | "complete")
                     | ("void-last-tie", "rule" | "complete")
                     | ("pickup-mixed", "memory")
                     | ("void-changed-queen" | "printed-bube", "rule")

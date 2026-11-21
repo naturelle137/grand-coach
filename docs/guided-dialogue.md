@@ -838,7 +838,8 @@ is established by these technical checks.
 
 The Null opening-lead dialogue also admits a Null Ouvert declarer after the
 own hand is revealed. It uses the same permitted-view Easy rule and preserves
-free choice; defender and later Ouvert turns remain unsupported.
+free choice; defender and other later Ouvert turns remain unsupported except
+the last-seat declarer dialogue below.
 
 `guided::lesson` version 1 extends the explicit heuristic dialogue (not the
 six-lesson mechanism catalogue) to Spiel, a Null declarer in physical
@@ -1280,6 +1281,17 @@ branches remain unsupported. The core-accepted fixture in
 `guided_suit_lead_master.rs` announces Grand Ouvert after Hand and verifies
 the candidate set and the revealed-hand boundary; the app test exercises
 reveal, free play and observation. No learner outcome is implied.
+
+## Null Ouvert declarer playing last (#293)
+
+After the reveal, a Null Ouvert declarer acting last may use the existing
+last-seat dialogue when the revealed hand matches the acting hand and Easy
+has a losing candidate. Easy selects the highest Null rank among losing cards,
+with the last exact tie in legal order; every legal card remains playable.
+The completed trick records the actual winner. Second-seat Ouvert turns and
+inconsistent or restricted views retain the fallback. The core-replayed
+`real-ouvert` fixture checks all four legal choices and hidden substitutions.
+These checks do not establish learning efficacy.
 
 ## Grand Ouvert declarer DrawTrumpf lead (#131)
 
