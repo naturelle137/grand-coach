@@ -67,6 +67,13 @@ separate factual oracles.
   particular, `is_master` excludes only a higher card in the same follow
   class; it does not exclude trumping. These branches report unsupported.
 
+Unsupported card-play turns identify the public contract and whether the
+player leads, plays second or plays last. A revealed Ouvert hand is named only
+when present in the permitted table view. No rule or preferred card is exposed;
+return leaves every legal card available. Kontra/Re retains its own fallback.
+This descriptive fallback does not extend the rule-backed lesson scope or imply
+learner efficacy.
+
 All predicates use `Knowledge`, `TrickState`, the public trick, own permitted
 hand and legal actions. Provenance is `Source::Trick` or an empty-trick `Source::Lead`, own hand/known Skat and
 the announced game's rules. Outstanding/unseen is not a location. Memory uses
