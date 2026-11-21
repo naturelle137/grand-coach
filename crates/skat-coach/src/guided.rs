@@ -111,7 +111,7 @@ pub struct Lesson {
 /// The declarer's opening lead also admits Null Ouvert after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Non-Ouvert Farbspiel/Grand
-/// LeadMaster (including Ouvert Farbspiel and Grand declarer) and Grand declarer DrawTrumpf (including Ouvert) also admit the own empty-trick lead
+/// Grand Ouvert declarer WinLast in last seat, LeadMaster (including Ouvert Farbspiel and Grand declarer), and Grand declarer DrawTrumpf (including Ouvert) admit their tested views
 /// with an exact pure core-legal action list; other lead branches stay excluded.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
@@ -125,11 +125,32 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         && contract.schwarz
         && view.declarer_cards == Some(view.hand)
         && view.current_trick.cards == [None; 3];
+    let ouvert_grand_last = game == GameType::Grand
+        && contract.ouvert
+        && view.declarer == Some(view.seat)
+        && contract.hand
+        && contract.schneider
+        && contract.schwarz
+        && view.hand_game == Some(true)
+        && view.own_skat.is_none()
+        && view.declarer_cards == Some(view.hand)
+        && view.current_seat == Some(view.seat)
+        && matches!(view.current_trick.cards, [Some(_), Some(_), None])
+        && view.current_trick.leader.map(|s| s.next().next()) == Some(view.seat)
+        && view.legal_actions
+            == skat_core::legal_cards(game, view.hand, view.current_trick.led())
+                .iter()
+                .map(Action::Play)
+                .collect::<Vec<_>>();
     let null = game == GameType::Null
         && (!contract.ouvert
             || (view.declarer == Some(view.seat) && view.current_trick.cards == [None; 3]));
     if view.phase != Phase::Spiel
-        || !(matches!(game, GameType::Farbe(_)) || grand || ouvert_grand_lead || null)
+        || !(matches!(game, GameType::Farbe(_))
+            || grand
+            || ouvert_grand_lead
+            || ouvert_grand_last
+            || null)
     {
         return None;
     }
@@ -319,7 +340,8 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     view.declarer?;
     let rule = baseline::rule(view)?;
-    if view.legal_actions.len() < 2
+    if (ouvert_grand_last && rule.branch != Branch::WinLast)
+        || view.legal_actions.len() < 2
         || rule.candidates.is_empty()
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
         || !(matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
