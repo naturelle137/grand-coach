@@ -1302,3 +1302,18 @@ guarantee a result. Every legal card stays playable and the actual replies are
 observed. Other Grand Ouvert branches remain unsupported. The core-accepted
 Ouvert Hand witness in `guided_draw_trumpf.rs` and the app test exercise this
 branch and its visibility and legal-action boundaries.
+
+## Grand Ouvert declarer playing last (#131)
+
+The declarer acting last with a matching revealed hand can use the existing
+`WinLast` dialogue when the complete core-legal card list has at least two
+choices. Easy selects its lowest winning card; every legal card remains
+playable and the completed trick reports the actual winner. Other Ouvert
+turns remain outside this admission.
+
+The core fixture in `guided_grand.rs` announces Grand Ouvert Hand in
+Hinterhand: after Kreuz-König and Kreuz-Acht, Kreuz-Ass wins and Kreuz-Dame
+does not. Replacing the lead with Kreuz-Neun makes both cards winners.
+Swapping an unseen defender card with the unknown Skat preserves the permitted
+view and lesson. Enter the dialogue, reveal the rule, play either card and
+inspect the actual winner; no learner outcome is inferred from this check.
