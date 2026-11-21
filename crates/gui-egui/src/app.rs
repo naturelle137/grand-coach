@@ -104,12 +104,61 @@ impl Drop for Thinking {
 }
 
 /// A coach analysis computed on a background thread. Dropping it cancels
-/// the computation (a new game or series started, or the current decision
-/// goes before a review).
+/// the computation (coach-off, a new game/series or abandoned practice).
 struct CoachThinking {
     job: CoachJob,
     result: Receiver<CoachResult>,
     cancel: Cancel,
+}
+
+// Includes cancelled and parked live/practice workers until their threads exit.
+static COACH_WORKERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+struct CoachPermit;
+
+impl Drop for CoachPermit {
+    fn drop(&mut self) {
+        COACH_WORKERS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+impl CoachThinking {
+    fn spawn(job: CoachJob, ctx: &egui::Context) -> Option<Self> {
+        use std::sync::atomic::Ordering;
+        let mut count = COACH_WORKERS.load(Ordering::SeqCst);
+        loop {
+            if count >= 2 {
+                return None;
+            }
+            match COACH_WORKERS.compare_exchange_weak(
+                count,
+                count + 1,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => break,
+                Err(actual) => count = actual,
+            }
+        }
+        let permit = CoachPermit;
+        let (sender, result) = std::sync::mpsc::channel();
+        let cancel = Cancel::new();
+        let (stop, repaint, run) = (cancel.clone(), ctx.clone(), job.clone());
+        std::thread::spawn(move || {
+            let _permit = permit;
+            let final_result = run.run_with_preview(Some(&stop), |preview| {
+                let _ = sender.send(preview);
+                repaint.request_repaint();
+            });
+            let _ = sender.send(final_result);
+            repaint.request_repaint();
+        });
+        Some(Self {
+            job,
+            result,
+            cancel,
+        })
+    }
 }
 
 impl Drop for CoachThinking {
@@ -136,6 +185,7 @@ struct Parked {
     show_trick_until: f64,
     new_series: Option<NewSeries>,
     coach_thinking: Option<CoachThinking>,
+    review_thinking: Option<CoachThinking>,
     quiz_value: u8,
     learning_attempt: Option<skat_app::AttemptId>,
 }
@@ -198,6 +248,9 @@ pub struct GrandCoachApp {
     show_seed: bool,
     /// Coach analysis being computed.
     coach_thinking: Option<CoachThinking>,
+    review_thinking: Option<CoachThinking>,
+    #[cfg(test)]
+    baseline_coach: bool,
     /// Number chosen for the open counting question.
     quiz_value: u8,
     /// God Mode: show every card face up (on by default); off, the
@@ -251,6 +304,9 @@ impl GrandCoachApp {
             new_series: None,
             show_seed: false,
             coach_thinking: None,
+            review_thinking: None,
+            #[cfg(test)]
+            baseline_coach: false,
             quiz_value: 0,
             see_all: true,
             practice: None,
@@ -465,6 +521,7 @@ impl GrandCoachApp {
             show_trick_until: replace(&mut self.show_trick_until, 0.0),
             new_series: self.new_series.take(),
             coach_thinking: self.coach_thinking.take(),
+            review_thinking: self.review_thinking.take(),
             quiz_value: replace(&mut self.quiz_value, 0),
             learning_attempt: self.learning_attempt.take(),
         }
@@ -484,6 +541,7 @@ impl GrandCoachApp {
         self.show_trick_until = parked.show_trick_until;
         self.new_series = parked.new_series;
         self.coach_thinking = parked.coach_thinking;
+        self.review_thinking = parked.review_thinking;
         self.quiz_value = parked.quiz_value;
         self.learning_attempt = parked.learning_attempt;
         drop(current);
@@ -694,6 +752,7 @@ impl GrandCoachApp {
                 {
                     // A new game: the analyses of the last one are dropped.
                     self.coach_thinking = None;
+                    self.review_thinking = None;
                 }
                 let trick_done = events.iter().any(|e| {
                     matches!(
@@ -836,59 +895,91 @@ impl GrandCoachApp {
         ctx.request_repaint_after(std::time::Duration::from_secs_f64(wait));
     }
 
-    /// Runs the coach analysis the session asks for on a background thread
-    /// and hands the result back; the window stays responsive meanwhile.
-    /// A decision played meanwhile keeps its analysis running: it backs
-    /// the note and the debriefing. The current decision goes first: an
-    /// analysis of an earlier one is cancelled and rerun afterwards.
+    /// Two bounded lanes: the oldest review keeps running while current
+    /// decisions change. A cancelled foreground worker keeps its slot until exit.
     fn drive_coach(&mut self, ctx: &egui::Context, now: f64) {
-        if let Some(thinking) = &self.coach_thinking
-            && let Some(next) = self.session.coach_job()
+        #[cfg(test)]
+        if self.baseline_coach {
+            self.drive_coach_baseline(ctx, now);
+            return;
+        }
+        let mut events = Vec::new();
+        let mut accepted = false;
+        let off = self.session.coach_settings().level == CoachLevel::Off;
+        for slot in [&mut self.coach_thinking, &mut self.review_thinking] {
+            if off && let Some(worker) = slot.as_ref() {
+                worker.cancel.cancel();
+            }
+            if let Some(worker) = slot.as_ref() {
+                match worker.result.try_recv() {
+                    Ok(result) => {
+                        let cancelled = worker.cancel.is_cancelled();
+                        if !result.is_preview() {
+                            *slot = None;
+                        }
+                        if !cancelled {
+                            match self.session.finish_coach(result) {
+                                Ok(out) => {
+                                    accepted = true;
+                                    events.extend(out);
+                                }
+                                Err(AppError::StaleCoachResult) => {}
+                                Err(error) => self.error = Some(error),
+                            }
+                        }
+                    }
+                    Err(TryRecvError::Disconnected) => *slot = None,
+                    Err(TryRecvError::Empty) => {}
+                }
+            }
+        }
+        if accepted {
+            self.handle(Ok(events), now);
+        }
+        if off {
+            return;
+        }
+        let next = self.session.coach_job();
+        if let Some(worker) = self.coach_thinking.as_ref()
+            && let Some(next) = next.as_ref()
             && !next.is_review()
-            && !next.same_decision(&thinking.job)
+            && !next.same_decision(&worker.job)
         {
-            self.coach_thinking = None;
+            if self.review_thinking.is_none()
+                && !worker.cancel.is_cancelled()
+                && self
+                    .session
+                    .coach_review_job()
+                    .is_some_and(|job| job.same_decision(&worker.job))
+            {
+                self.review_thinking = self.coach_thinking.take();
+            } else {
+                worker.cancel.cancel();
+            }
         }
         if self.coach_thinking.is_none()
-            && let Some(job) = self.session.coach_job()
+            && let Some(job) = next.filter(|job| !job.is_review())
+            && !self
+                .review_thinking
+                .as_ref()
+                .is_some_and(|w| w.job.same_decision(&job))
         {
-            let (sender, result) = std::sync::mpsc::channel();
-            let cancel = Cancel::new();
-            let (stop, repaint) = (cancel.clone(), ctx.clone());
-            let run = job.clone();
-            std::thread::spawn(move || {
-                // The receiver is gone if the analysis was dropped.
-                let final_result = run.run_with_preview(Some(&stop), |preview| {
-                    let _ = sender.send(preview);
-                    repaint.request_repaint();
-                });
-                let _ = sender.send(final_result);
-                repaint.request_repaint();
-            });
-            self.coach_thinking = Some(CoachThinking {
-                job,
-                result,
-                cancel,
-            });
+            self.coach_thinking = CoachThinking::spawn(job, ctx);
         }
-        if let Some(thinking) = &self.coach_thinking {
-            match thinking.result.try_recv() {
-                Ok(result) => {
-                    if !result.is_preview() {
-                        self.coach_thinking = None;
-                    } else {
-                        ctx.request_repaint();
-                    }
-                    match self.session.finish_coach(result) {
-                        Ok(events) => self.handle(Ok(events), now),
-                        // Computed for an earlier decision: ignore it.
-                        Err(AppError::StaleCoachResult) => {}
-                        Err(error) => self.error = Some(error),
-                    }
-                }
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => self.coach_thinking = None,
-            }
+        if self.review_thinking.is_none()
+            && let Some(job) = self.session.coach_review_job()
+            && !self
+                .coach_thinking
+                .as_ref()
+                .is_some_and(|w| w.job.same_decision(&job))
+        {
+            self.review_thinking = CoachThinking::spawn(job, ctx);
+        }
+        if self.coach_thinking.is_some()
+            || self.review_thinking.is_some()
+            || self.session.coach_job().is_some()
+        {
+            ctx.request_repaint_after(std::time::Duration::from_millis(5));
         }
     }
 
@@ -2569,6 +2660,7 @@ impl GrandCoachApp {
             self.thinking = None;
             self.ready = None;
             self.coach_thinking = None;
+            self.review_thinking = None;
             self.error = None;
             self.selected = CardSet::EMPTY;
             // A new series is a new learning-history attempt.
@@ -2841,6 +2933,61 @@ impl eframe::App for GrandCoachApp {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64(
                 self.show_trick_until - now,
             ));
+        }
+    }
+}
+
+// Frozen pre-#72 driver, solely for paired headless timing comparisons.
+#[cfg(test)]
+impl GrandCoachApp {
+    fn drive_coach_baseline(&mut self, ctx: &egui::Context, now: f64) {
+        if let Some(thinking) = &self.coach_thinking
+            && let Some(next) = self.session.coach_job()
+            && !next.is_review()
+            && !next.same_decision(&thinking.job)
+        {
+            self.coach_thinking = None;
+        }
+        if self.coach_thinking.is_none()
+            && let Some(job) = self.session.coach_job()
+        {
+            let (sender, result) = std::sync::mpsc::channel();
+            let cancel = Cancel::new();
+            let (stop, repaint) = (cancel.clone(), ctx.clone());
+            let run = job.clone();
+            std::thread::spawn(move || {
+                // The receiver is gone if the analysis was dropped.
+                let final_result = run.run_with_preview(Some(&stop), |preview| {
+                    let _ = sender.send(preview);
+                    repaint.request_repaint();
+                });
+                let _ = sender.send(final_result);
+                repaint.request_repaint();
+            });
+            self.coach_thinking = Some(CoachThinking {
+                job,
+                result,
+                cancel,
+            });
+        }
+        if let Some(thinking) = &self.coach_thinking {
+            match thinking.result.try_recv() {
+                Ok(result) => {
+                    if !result.is_preview() {
+                        self.coach_thinking = None;
+                    } else {
+                        ctx.request_repaint();
+                    }
+                    match self.session.finish_coach(result) {
+                        Ok(events) => self.handle(Ok(events), now),
+                        // Computed for an earlier decision: ignore it.
+                        Err(AppError::StaleCoachResult) => {}
+                        Err(error) => self.error = Some(error),
+                    }
+                }
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => self.coach_thinking = None,
+            }
         }
     }
 }
@@ -3443,83 +3590,340 @@ mod tests {
     }
 
     #[test]
-    fn repeatedly_preempted_coach_jobs_drain_after_play() {
-        use egui_kittest::Harness;
-        let mut h = Harness::builder().build_eframe(|cc| {
+    fn pending_reviews_do_not_cancel_other_useful_work_without_a_foreground_request() {
+        let ctx = egui::Context::default();
+        let mut app = GrandCoachApp::new(&ctx, easy_series());
+        app.session.set_coach_budget(skat_app::Budget {
+            samples: 1,
+            nodes_per_task: 10,
+        });
+        app.set_coach(CoachSettings {
+            level: CoachLevel::EveryMove,
+            ..CoachSettings::default()
+        });
+        let mut jobs = Vec::new();
+        loop {
+            app.session.run_opponents();
+            let view = app.session.view();
+            let Some(&first) = view.legal_actions.first() else {
+                break;
+            };
+            jobs.push(app.session.coach_job().unwrap());
+            let action =
+                if view.phase == Phase::Reizen && view.legal_actions.contains(&Action::Pass) {
+                    Action::Pass
+                } else {
+                    first
+                };
+            app.act(action, 0.0);
+        }
+        assert!(jobs.len() > 1);
+        assert!(!jobs[0].same_decision(jobs.last().unwrap()));
+        assert!(app.session.coach_job().unwrap().is_review());
+        let (_oldest_sender, oldest_result) = std::sync::mpsc::channel();
+        let (_later_sender, later_result) = std::sync::mpsc::channel();
+        let later_cancel = Cancel::new();
+        app.review_thinking = Some(CoachThinking {
+            job: jobs[0].clone(),
+            result: oldest_result,
+            cancel: Cancel::new(),
+        });
+        app.coach_thinking = Some(CoachThinking {
+            job: jobs.last().unwrap().clone(),
+            result: later_result,
+            cancel: later_cancel.clone(),
+        });
+        for _ in 0..32 {
+            app.drive_coach(&ctx, 0.0);
+        }
+        assert!(!later_cancel.is_cancelled());
+        assert!(app.coach_thinking.is_some());
+    }
+
+    #[test]
+    fn fair_and_cancel_drivers_preserve_recordings_and_final_moments() {
+        let play = |baseline| {
+            let ctx = egui::Context::default();
             let mut app = GrandCoachApp::new(
-                &cc.egui_ctx,
+                &ctx,
                 SessionConfig {
-                    seed: 5,
+                    seed: 2,
                     series: SeriesLength::Fixed(1),
                     opponents: Opponents::Levels([Level::Easy; 2]),
                     ..SessionConfig::default()
                 },
             );
+            app.baseline_coach = baseline;
             app.session.set_coach_budget(skat_app::Budget {
-                samples: 1,
-                nodes_per_task: 10,
+                samples: 2,
+                nodes_per_task: 20_000,
             });
-            app.session
-                .execute(Command::SetCoach(CoachSettings {
-                    level: CoachLevel::EveryMove,
-                    ..CoachSettings::default()
-                }))
-                .unwrap();
-            app
+            app.set_coach(CoachSettings {
+                level: CoachLevel::EveryMove,
+                ..CoachSettings::default()
+            });
+            loop {
+                app.session.run_opponents();
+                app.drive_coach(&ctx, 0.0);
+                let view = app.session.view();
+                let Some(&first) = view.legal_actions.first() else {
+                    break;
+                };
+                let action =
+                    if view.phase == Phase::Reizen && view.legal_actions.contains(&Action::Pass) {
+                        Action::Pass
+                    } else {
+                        first
+                    };
+                app.act(action, 0.0);
+            }
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+            while app.session.coach_job().is_some()
+                || app.coach_thinking.is_some()
+                || app.review_thinking.is_some()
+            {
+                app.drive_coach(&ctx, 0.0);
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "reviews did not drain"
+                );
+                std::thread::yield_now();
+            }
+            let Some(skat_app::Debriefing::Ready(moments)) = app.session.view().coach.debriefing
+            else {
+                panic!("not ready")
+            };
+            assert!(!moments.is_empty());
+            (
+                moments,
+                serde_json::to_value(app.session.export_current_recording_privileged().unwrap())
+                    .unwrap(),
+            )
+        };
+        assert_eq!(play(true), play(false));
+    }
+
+    #[test]
+    fn reviews_progress_while_foreground_keeps_preempting() {
+        let ctx = egui::Context::default();
+        let mut app = GrandCoachApp::new(
+            &ctx,
+            SessionConfig {
+                seed: 5,
+                series: SeriesLength::Fixed(1),
+                opponents: Opponents::Levels([Level::Easy; 2]),
+                ..SessionConfig::default()
+            },
+        );
+        app.session.set_coach_budget(skat_app::Budget {
+            samples: 1,
+            nodes_per_task: 10,
         });
-        let ctx = h.ctx.clone();
+        app.set_coach(CoachSettings {
+            level: CoachLevel::EveryMove,
+            ..CoachSettings::default()
+        });
+        let mut review: Option<(CoachJob, std::sync::mpsc::Sender<CoachResult>, Cancel)> = None;
+        let mut foreground_senders = Vec::new();
         let mut preemptions = 0;
         loop {
-            h.state_mut().session.run_opponents();
-            let view = h.state().session.view();
+            app.session.run_opponents();
+            let view = app.session.view();
             let Some(&first) = view.legal_actions.first() else {
                 break;
             };
-            let action = if view.phase == skat_app::Phase::Reizen
-                && view.legal_actions.contains(&Action::Pass)
-            {
-                Action::Pass
-            } else {
-                first
-            };
-            h.state_mut().act(action, 0.0);
-            let Some(job) = h.state().session.coach_job().filter(|job| job.is_review()) else {
-                continue;
-            };
-            let (sender, result) = std::sync::mpsc::channel();
-            let cancel = Cancel::new();
-            h.state_mut().coach_thinking = Some(CoachThinking {
-                job,
-                result,
-                cancel: cancel.clone(),
-            });
-            h.state_mut().session.run_opponents();
-            if h.state()
-                .session
-                .coach_job()
-                .is_some_and(|job| !job.is_review())
-            {
-                h.state_mut().drive_coach(&ctx, 0.0);
-                assert!(cancel.is_cancelled(), "old worker must be preempted");
+            let job = app.session.coach_job().unwrap();
+            if let Some(worker) = app.coach_thinking.as_ref() {
+                let cancelled = worker.cancel.clone();
+                app.drive_coach(&ctx, 0.0);
+                assert!(cancelled.is_cancelled());
+                // Cancellation does not free a slot while its thread is alive.
+                assert!(app.coach_thinking.as_ref().unwrap().cancel.is_cancelled());
                 preemptions += 1;
             }
-            drop(sender);
+            // Controlled foreground worker: keep it blocked until the next
+            // request so the pressure never waits for normal analysis to finish.
+            let (sender, result) = std::sync::mpsc::channel();
+            foreground_senders.push(sender);
+            app.coach_thinking = Some(CoachThinking {
+                job,
+                result,
+                cancel: Cancel::new(),
+            });
+            if let Some((oldest, sender, cancel)) = &review {
+                for _ in 0..32 {
+                    app.drive_coach(&ctx, 0.0);
+                }
+                assert!(
+                    !Cancel::is_cancelled(cancel),
+                    "review must survive foreground pressure"
+                );
+                if preemptions == 3 {
+                    let oldest: &CoachJob = oldest;
+                    sender.send(oldest.run(None)).unwrap();
+                    app.drive_coach(&ctx, 0.0);
+                    assert!(
+                        !app.session
+                            .coach_review_job()
+                            .unwrap()
+                            .same_decision(oldest)
+                    );
+                    assert!(
+                        !app.session.view().legal_actions.is_empty(),
+                        "progress before play stops"
+                    );
+                    break;
+                }
+            }
+            let action =
+                if view.phase == Phase::Reizen && view.legal_actions.contains(&Action::Pass) {
+                    Action::Pass
+                } else {
+                    first
+                };
+            app.act(action, 0.0);
+            if review.is_none()
+                && let Some(job) = app.session.coach_review_job()
+            {
+                let (sender, result) = std::sync::mpsc::channel();
+                let cancel = Cancel::new();
+                review = Some((job.clone(), sender, cancel.clone()));
+                app.review_thinking = Some(CoachThinking {
+                    job,
+                    result,
+                    cancel,
+                });
+            }
         }
-        assert!(preemptions >= 2);
-        h.state_mut().coach_thinking = None;
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        while h.state().session.coach_job().is_some() || h.state().coach_thinking.is_some() {
-            h.state_mut().drive_coach(&ctx, 0.0);
-            assert!(
-                std::time::Instant::now() < deadline,
-                "debrief did not drain"
-            );
-            std::thread::yield_now();
+        assert_eq!(preemptions, 3);
+        assert!(COACH_WORKERS.load(std::sync::atomic::Ordering::SeqCst) <= 2);
+    }
+
+    #[test]
+    fn newer_foreground_cannot_overtake_the_oldest_queued_review() {
+        let ctx = egui::Context::default();
+        let mut app = GrandCoachApp::new(&ctx, easy_series());
+        app.session.set_coach_budget(skat_app::Budget {
+            samples: 1,
+            nodes_per_task: 10,
+        });
+        app.set_coach(CoachSettings {
+            level: CoachLevel::EveryMove,
+            ..CoachSettings::default()
+        });
+        let mut jobs = Vec::new();
+        for _ in 0..3 {
+            app.session.run_opponents();
+            let view = app.session.view();
+            jobs.push(app.session.coach_job().unwrap());
+            if jobs.len() == 3 {
+                break;
+            }
+            let action =
+                if view.phase == Phase::Reizen && view.legal_actions.contains(&Action::Pass) {
+                    Action::Pass
+                } else {
+                    view.legal_actions[0]
+                };
+            app.act(action, 0.0);
         }
-        assert!(matches!(
-            h.state().session.view().coach.debriefing,
-            Some(skat_app::Debriefing::Ready(_))
-        ));
+        let (_sender, result) = std::sync::mpsc::channel();
+        let cancel = Cancel::new();
+        app.coach_thinking = Some(CoachThinking {
+            job: jobs[1].clone(),
+            result,
+            cancel: cancel.clone(),
+        });
+        app.drive_coach(&ctx, 0.0);
+        assert!(
+            cancel.is_cancelled(),
+            "newer work must not take the review lane"
+        );
+        if let Some(worker) = &app.review_thinking {
+            assert!(worker.job.same_decision(&jobs[0]));
+        }
+        assert!(
+            app.session
+                .coach_review_job()
+                .unwrap()
+                .same_decision(&jobs[0])
+        );
+    }
+
+    #[test]
+    fn both_coach_lanes_cancel_on_off_new_game_and_restore_with_practice() {
+        let ctx = egui::Context::default();
+        let mut app = GrandCoachApp::new(&ctx, easy_series());
+        app.session.set_coach_budget(skat_app::Budget {
+            samples: 1,
+            nodes_per_task: 10,
+        });
+        app.session.run_opponents();
+        app.set_coach(CoachSettings {
+            level: CoachLevel::EveryMove,
+            ..CoachSettings::default()
+        });
+        let job = app.session.coach_job().unwrap();
+        let (sender, result) = std::sync::mpsc::channel();
+        let cancel = Cancel::new();
+        app.review_thinking = Some(CoachThinking {
+            job: job.clone(),
+            result,
+            cancel: cancel.clone(),
+        });
+        let recording = app.session.export_current_recording_privileged().unwrap();
+        app.start_practice(recording).unwrap();
+        assert!(app.review_thinking.is_none());
+        assert!(!cancel.is_cancelled());
+        let live = app.practice.take().unwrap().live;
+        app.unpark(live);
+        assert!(
+            app.review_thinking
+                .as_ref()
+                .unwrap()
+                .job
+                .same_decision(&job)
+        );
+        let (foreground_sender, foreground_result) = std::sync::mpsc::channel();
+        let foreground_cancel = Cancel::new();
+        app.coach_thinking = Some(CoachThinking {
+            job: job.clone(),
+            result: foreground_result,
+            cancel: foreground_cancel.clone(),
+        });
+        app.set_coach(CoachSettings {
+            level: CoachLevel::Off,
+            ..CoachSettings::default()
+        });
+        app.drive_coach(&ctx, 0.0);
+        assert!(cancel.is_cancelled());
+        assert!(foreground_cancel.is_cancelled());
+        drop(foreground_sender);
+        // A result already in flight cannot become advice after cancellation.
+        sender.send(job.run(None)).unwrap();
+        app.drive_coach(&ctx, 0.0);
+        assert!(app.session.coach_result().is_none());
+        app.set_coach(CoachSettings {
+            level: CoachLevel::EveryMove,
+            ..CoachSettings::default()
+        });
+        let (sender, result) = std::sync::mpsc::channel();
+        let cancel = Cancel::new();
+        app.review_thinking = Some(CoachThinking {
+            job: job.clone(),
+            result,
+            cancel: cancel.clone(),
+        });
+        app.handle(
+            Ok(vec![AppEvent::GameStarted {
+                number: 2,
+                dealer: PlayerId::HUMAN,
+            }]),
+            0.0,
+        );
+        assert!(cancel.is_cancelled());
+        assert!(sender.send(job.run(None)).is_err());
+        assert!(app.review_thinking.is_none());
     }
 
     #[test]
@@ -3571,7 +3975,9 @@ mod tests {
             let start = std::time::Instant::now();
             h.run_steps(1);
             durations.push(start.elapsed());
-            active += usize::from(h.state().coach_thinking.is_some());
+            active += usize::from(
+                h.state().coach_thinking.is_some() || h.state().review_thinking.is_some(),
+            );
         }
         assert!(active > 0);
         durations.sort();
@@ -3584,9 +3990,15 @@ mod tests {
     #[ignore = "manual: timing diagnostic"]
     fn debrief_paced_gui_worker_probe() {
         use egui_kittest::Harness;
-        for seed in 1..=6 {
+        let policy = std::env::var("SKAT_COACH_POLICY").unwrap_or_else(|_| "fair".into());
+        assert!(matches!(policy.as_str(), "fair" | "cancel"));
+        let nodes = std::env::var("SKAT_COACH_NODES").map_or(20_000, |n| n.parse().unwrap());
+        let rounds = std::env::var("SKAT_COACH_ROUNDS").map_or(1, |n| n.parse().unwrap());
+        let delays =
+            std::env::var("SKAT_COACH_DELAY").map_or(vec![0, 5], |n| vec![n.parse().unwrap()]);
+        for (round, seed) in (0..rounds).flat_map(|round| (1..=6).map(move |seed| (round, seed))) {
             let mut results = Vec::new();
-            for delay in [0, 5] {
+            for &delay in &delays {
                 let config = SessionConfig {
                     seed,
                     series: SeriesLength::Fixed(1),
@@ -3598,9 +4010,10 @@ mod tests {
                     .build_eframe(|cc| {
                         let mut app = GrandCoachApp::new(&cc.egui_ctx, config);
                         app.opponent_delay = 0.0;
+                        app.baseline_coach = policy == "cancel";
                         app.session.set_coach_budget(skat_app::Budget {
                             samples: 24,
-                            nodes_per_task: 20_000,
+                            nodes_per_task: nodes,
                         });
                         app.session
                             .execute(Command::SetCoach(CoachSettings {
@@ -3614,11 +4027,21 @@ mod tests {
                 let mut actions = 0;
                 let mut with_worker = 0;
                 let mut steps = Vec::new();
+                let mut first_useful = None;
+                let mut game_end = None;
                 let moments = loop {
                     let step = std::time::Instant::now();
                     h.run_steps(1);
                     steps.push(step.elapsed());
                     let view = h.state().session.view();
+                    if game_end.is_none() && view.coach.debriefing.is_some() {
+                        game_end = Some(start.elapsed());
+                    }
+                    if first_useful.is_none()
+                        && matches!(&view.coach.debriefing, Some(skat_app::Debriefing::Computing { moments, .. } | skat_app::Debriefing::Ready(moments)) if !moments.is_empty())
+                    {
+                        first_useful = Some(start.elapsed());
+                    }
                     if let Some(skat_app::Debriefing::Ready(moments)) = view.coach.debriefing {
                         break moments;
                     }
@@ -3635,25 +4058,47 @@ mod tests {
                         };
                         h.state_mut().act(action, 0.0);
                         actions += 1;
+                        let step = std::time::Instant::now();
                         h.run_steps(1);
+                        steps.push(step.elapsed());
                     } else {
                         std::thread::sleep(std::time::Duration::from_millis(1));
                     }
                     assert!(
-                        start.elapsed() < std::time::Duration::from_secs(30),
+                        start.elapsed() < std::time::Duration::from_secs(60),
                         "probe timed out"
                     );
                 };
+                let full = start.elapsed();
+                let full_after_finish = full.saturating_sub(game_end.unwrap());
+                let first_after_finish =
+                    first_useful.map(|time| time.saturating_sub(game_end.unwrap()));
                 steps.sort();
                 println!(
-                    "seed={seed} delay={delay} actions={actions} worker_on_action={with_worker} steps={} max_step={:?} total={:?}",
+                    "policy={policy} round={round} seed={seed} delay={delay} first={first_useful:?} first_after_finish={first_after_finish:?} full_after_finish={full_after_finish:?} actions={actions} worker_on_action={with_worker} steps={} p95_step={:?} max_step={:?} total={:?}",
                     steps.len(),
+                    steps[(steps.len() - 1) * 95 / 100],
                     steps.last().unwrap(),
-                    start.elapsed()
+                    full
                 );
+                if std::env::var_os("COACH_TRACE_EVIDENCE").is_some() {
+                    println!("gui_evidence={}", serde_json::to_string(&moments).unwrap());
+                    println!(
+                        "gui_recording={}",
+                        serde_json::to_string(
+                            &h.state()
+                                .session
+                                .export_current_recording_privileged()
+                                .unwrap()
+                        )
+                        .unwrap()
+                    );
+                }
                 results.push(moments);
             }
-            assert_eq!(results[0], results[1]);
+            for result in &results[1..] {
+                assert_eq!(results[0], *result);
+            }
         }
     }
 }
