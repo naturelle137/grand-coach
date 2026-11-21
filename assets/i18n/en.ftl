@@ -1181,3 +1181,5 @@ guided-null-defender-lead-role = You defend in Null and lead. The declarer must 
 guided-null-defender-lead-limit = Both replies are unknown. This heuristic guarantees neither the trick nor the game.
 
 guided-feed-ouvert-view = The declarer's hand is open. Easy chooses from your legal cards and the current trick; the open hand does not change this rule.
+guided-null-ouvert-defender-lead-role = You defend in Null Ouvert and lead. The declarer's hand is visible; your partner's hand is concealed.
+guided-null-ouvert-defender-lead-limit = The visible hand does not determine either reply. This heuristic guarantees neither the trick nor the game.
