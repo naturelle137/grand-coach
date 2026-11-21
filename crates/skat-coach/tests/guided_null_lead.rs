@@ -34,6 +34,18 @@ fn ouvert_declarer_opening_uses_the_same_null_rule() {
         let mut unrevealed = view.clone();
         unrevealed.declarer_cards = None;
         assert!(lesson(&unrevealed).is_none());
+        let mut inconsistent = view.clone();
+        inconsistent.declarer_cards = Some(Default::default());
+        assert!(lesson(&inconsistent).is_none());
+        let mut restricted = view.clone();
+        restricted.legal_actions.pop();
+        assert!(lesson(&restricted).is_none());
+        for action in &view.legal_actions {
+            let Action::Play(card) = action else {
+                panic!("expected a play")
+            };
+            assert!(l.check(Step::Check, Answer::Card(*card)));
+        }
         let (cards, winner) = c.paths[0];
         for card in cards {
             game.apply(Action::Play(card)).unwrap();
