@@ -396,11 +396,11 @@ fn observe_before_settling<S, T>(
     first
 }
 
-/// One background worker with the GUI's job policy (`drive_coach`): the current
-/// decision first, otherwise the oldest queued review. `cancel` mode drops a
-/// running analysis of an earlier decision when the current one needs analysis
-/// (baseline, as in egui); `finish` mode lets it complete first (candidate, no
-/// restart work). Usage: `--review-play cancel|finish|fair DELAY_MS GAMES NODES`.
+/// Paired scheduling controls: `cancel` reproduces historical egui preemption;
+/// `finish` awaits the old worker; `fair` protects the oldest review in a second
+/// slot and retains cancelled foreground work until exit. The GUI waits for
+/// that slot asynchronously; this diagnostic awaits it before the next action.
+/// Usage: `--review-play cancel|finish|fair DELAY_MS GAMES NODES`.
 fn review_play() {
     type Run = (
         skat_app::CoachJob,
@@ -822,7 +822,7 @@ mod tests {
     }
 
     /// A controlled worker that blocks after it was told to cancel: the new
-    /// analysis must start before the old worker exits (as in egui).
+    /// analysis must start before the old worker exits (historical cancel mode).
     #[test]
     fn current_analysis_starts_while_cancelled_worker_still_runs() {
         let cancel = Cancel::new();

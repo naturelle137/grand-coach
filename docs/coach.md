@@ -791,7 +791,7 @@ The completed-input cache no-go remains bounded to these distinct inputs.
 `coach_latency --review-play cancel|finish DELAY_MS GAMES NODES_PER_TASK` runs
 the historical single-lane egui job policy: the current
 decision first, otherwise the oldest queued review. The human acts after a fixed
-delay. **cancel** reproduces the shipped baseline, including its ordering: an
+delay. **cancel** reproduces the pre-control baseline, including its ordering: an
 unfinished analysis of an earlier decision gets a cancellation request, the
 current decision's analysis starts at once without joining the old worker (the
 two may overlap), and the cancelled decision stays queued and restarts from
