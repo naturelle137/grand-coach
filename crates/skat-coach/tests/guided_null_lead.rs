@@ -97,6 +97,9 @@ fn null_lead_non_absent_entire_lesson_privacy() {
 #[test]
 fn null_lead_named_boundaries_never_new_family_and_real_otherlead_histories() {
     for (id, v, _) in fixture::boundaries() {
+        if id == "defender" {
+            continue;
+        }
         assert!(
             lesson(&v).is_none_or(|l| l.game != GameType::Null || l.lead_declarer.is_none()),
             "{id}"
@@ -148,4 +151,65 @@ fn null_lead_additional_inconsistent_and_nonexact_api_guards() {
     assert!(lesson(&pickup).is_none());
     pickup.own_skat = Some(CardSet::from_bits((1 << 2) | (1 << 3)));
     assert!(lesson(&pickup).is_none());
+}
+
+#[test]
+fn defender_opening_is_core_validated_and_keeps_hidden_deals_private() {
+    let mut games = Vec::new();
+    let mut hands = [
+        CardSet::from_bits(2214726045),
+        CardSet::from_bits(156542018),
+        CardSet::from_bits(313086496),
+    ];
+    let mut skat = CardSet::from_bits(1610612736);
+    for swapped in [false, true] {
+        if swapped {
+            let a = hands[1].iter().next().unwrap();
+            let b = skat.iter().next().unwrap();
+            hands[1].remove(a);
+            hands[1].insert(b);
+            skat.remove(b);
+            skat.insert(a);
+        }
+        let mut g = Game::from_deal(
+            Deal::new(hands, skat).unwrap(),
+            RuleConfig { kontra_re: false },
+        );
+        for a in [
+            Action::Bid(18),
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(Announcement::plain(GameType::Null)),
+        ] {
+            g.apply(a).unwrap();
+        }
+        games.push(g);
+    }
+    let view = games[0].view(Seat::Vorhand);
+    assert_ne!(view.declarer, Some(Seat::Vorhand));
+    let l = lesson(&view).expect("defender opening");
+    assert_eq!(l, lesson(&games[1].view(Seat::Vorhand)).unwrap());
+    assert_eq!(l.rule.card, card(0)); // first zero-Augen seven in legal order
+    assert_eq!(l.lead_declarer, Some(false));
+    assert!(l.check(
+        Step::Orient,
+        Answer::Lead {
+            seat: Seat::Vorhand,
+            declarer: false
+        }
+    ));
+    for action in view.legal_actions {
+        let mut game = games[0].clone();
+        game.apply(action).unwrap();
+        for _ in 0..2 {
+            let seat = game.current_seat().unwrap();
+            let action = game.view(seat).legal_actions[0];
+            game.apply(action).unwrap();
+        }
+        assert_eq!(game.view(Seat::Vorhand).tricks.len(), 1);
+    }
+    let mut bad = games[0].view(Seat::Vorhand);
+    bad.contract.as_mut().unwrap().ouvert = true;
+    assert!(lesson(&bad).is_none());
 }

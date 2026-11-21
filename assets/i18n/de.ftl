@@ -1176,3 +1176,6 @@ guided-kontra-ouvert-rule = Easy wählt in dieser Runde immer Kein Kontra, ohne 
 guided-kontra-ouvert-declined = Du hast vor dem Aufdecken Kein Kontra gewählt.
 guided-kontra-ouvert-yes = Ja
 guided-kontra-ouvert-no = Nein
+
+guided-null-defender-lead-role = Du bist Gegenspieler im Null und spielst aus. Der Alleinspieler verliert, sobald er einen Stich macht; beide Antworten sind unbekannt.
+guided-null-defender-lead-limit = Beide Antworten sind unbekannt. Diese Faustregel garantiert weder den Stich noch den Spielgewinn.
