@@ -87,9 +87,10 @@ fn frozen_complete_deals_legal_order_every_completion_and_exact_feed_key() {
         // family; this updates current admission, not that historical oracle.
         let suit_now_supported = matches!(c.id, "A-suit" | "A-suit-corrected");
         let early_now_supported = c.id == "B-early-master-can-be-trumped";
+        let ouvert_now_supported = c.id == "A-ouvert";
         assert_eq!(
             feed,
-            c.supported || suit_now_supported || early_now_supported,
+            c.supported || suit_now_supported || early_now_supported || ouvert_now_supported,
             "{} applicability",
             c.id
         );
@@ -98,7 +99,11 @@ fn frozen_complete_deals_legal_order_every_completion_and_exact_feed_key() {
         }
         if c.id == "B-declarer-ahead" {
             assert_eq!(l.as_ref().unwrap().rule.branch, Branch::WinLast);
-        } else if !c.supported && !suit_now_supported && !early_now_supported {
+        } else if !c.supported
+            && !suit_now_supported
+            && !early_now_supported
+            && !ouvert_now_supported
+        {
             assert!(l.is_none(), "{} exclusion", c.id);
         }
         if feed {
@@ -142,4 +147,38 @@ fn hidden_permutation_preserves_the_entire_permitted_lesson() {
     let (a, b) = (a.view(Seat::Hinterhand), b.view(Seat::Hinterhand));
     assert_eq!(a, b);
     assert_eq!(lesson(&a), lesson(&b));
+}
+
+#[test]
+fn ouvert_feed_requires_consistent_reveal_and_acting_view() {
+    let c = cases().into_iter().find(|c| c.id == "A-ouvert").unwrap();
+    let v = c.position().view(Seat::Hinterhand);
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule.branch, Branch::FeedPartner);
+    // Kreuz 8, 9, Ass: the Ass has most Augen and overtakes partner's 10.
+    assert_eq!(l.rule.card, card(7));
+    assert_eq!(l.rule.candidates, vec![card(1), card(2), card(7)]);
+    // Swapping the partner's unplayed card with the unknown Skat preserves
+    // the whole permitted view, including the revealed declarer hand.
+    let mut swapped = cases().into_iter().find(|c| c.id == "A-ouvert").unwrap();
+    std::mem::swap(&mut swapped.hands[1][1], &mut swapped.skat[0]);
+    let same = swapped.position().view(Seat::Hinterhand);
+    assert_eq!(v, same);
+    assert_eq!(lesson(&v), lesson(&same));
+    assert_eq!(l.knowledge.known_elsewhere, v.declarer_cards.unwrap());
+    let mut bad = v.clone();
+    bad.declarer_cards = None;
+    assert!(lesson(&bad).is_none());
+    bad = v.clone();
+    bad.declarer_cards = Some(v.hand);
+    assert!(lesson(&bad).is_none());
+    bad = v.clone();
+    bad.legal_actions.pop();
+    assert!(lesson(&bad).is_none());
+    bad = v.clone();
+    bad.current_seat = Some(Seat::Mittelhand);
+    assert!(lesson(&bad).is_none());
+    bad = v.clone();
+    bad.contract.as_mut().unwrap().schwarz = false;
+    assert!(lesson(&bad).is_none());
 }

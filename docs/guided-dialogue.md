@@ -43,7 +43,7 @@ separate factual oracles.
   pickup information. In Farbspiel, all four Buben and the announced suit are
   Trumpf. A side master can be trumped; a lower Trumpf can be overtrumped.
   Unknown holders stay unknown.
-- **FeedPartner:** non-Ouvert Grand (#163, below) or
+- **FeedPartner:** Grand, including a validated last-seat Grand Ouvert defender (#316), or
   [Farbspiel](#farbspiel-last-seat-feedpartner-185) (#185), defender last to
   the current trick, partner ahead, at least two pure legal card actions.
 - **LeadMaster:** non-Ouvert Grand (#171) and [Farbspiel](#farbspiel-lead-with-a-follow-class-master-182) (#182), own empty-trick
@@ -58,7 +58,7 @@ separate factual oracles.
   with the declarer ahead, with at least two exact legal actions and a current loser.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
   early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
-  single legal action, other Grand branches, Ouvert Grand, other Null card play or
+  single legal action, unsupported Grand Ouvert branches, other Null card play or
   card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
   Ansage and Kontra/Re: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
@@ -1328,3 +1328,21 @@ playable; the actual third card and winner are observed. The core-replayed
 mixed Hand fixture checks candidates, reveal and legal-action boundaries,
 and the session test checks each legal choice and its actual continuation.
 These checks do not establish learner outcomes.
+
+## Grand Ouvert last-seat FeedPartner (#316)
+
+A defender acting last may deliberately enter the shared `FeedPartner` dialogue
+when the partner currently leads. The contract must be Grand Hand Ouvert with
+Schneider and Schwarz, the revealed declarer hand must match its public size
+and contain neither the learner's nor already played cards, and the acting view
+must carry the exact core-legal actions. Other Grand Ouvert branches remain
+outside this increment. Easy's unchanged last-seat rule ranks all legal cards by
+nontrump preference and printed Augen, with the last exact tie. It does not use
+the revealed hand to choose. The learner can play any legal card, including one
+that overtakes the partner; observation reports the actual completed winner.
+
+The core-replayed `A-ouvert` fixture has VH declarer, MH partner ahead, and HH
+acting last: Kreuz 8, 9 and Ass are legal, Easy selects Ass, and the actual
+winners are MH, MH and HH respectively. Invalid reveal, turn, contract and
+restricted action views are excluded. Technical tests do not establish learner
+efficacy or complete #131.

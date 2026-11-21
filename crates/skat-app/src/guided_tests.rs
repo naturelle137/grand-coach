@@ -2501,7 +2501,10 @@ mod feed_fixture;
 
 #[test]
 fn grand_feed_fixture_only_overtake_names_human_winner_and_preserves_all_candidates() {
-    for c in feed_fixture::cases().into_iter().filter(|c| c.supported) {
+    for c in feed_fixture::cases()
+        .into_iter()
+        .filter(|c| c.supported || c.id == "A-ouvert")
+    {
         for (&n, &winner) in c.legal.iter().zip(c.completed) {
             let mut s = Session::new(SessionConfig::default());
             s.dealer = PlayerId(0); // human is HH in these explicitly labelled fixtures
@@ -2510,7 +2513,7 @@ fn grand_feed_fixture_only_overtake_names_human_winner_and_preserves_all_candida
             respond(&mut s, G::Reveal).unwrap();
             assert_eq!(
                 s.guided().unwrap().rule.unwrap().card.index(),
-                c.choice.unwrap()
+                c.choice.unwrap_or(7)
             );
             s.execute(Command::Act(Action::Play(feed_fixture::card(n))))
                 .unwrap();
@@ -3895,4 +3898,58 @@ fn grand_ouvert_last_snapshot() {
         serde_json::json!({"table": s.view(), "guided": guided}),
         expected
     );
+}
+
+#[test]
+fn grand_ouvert_feed_widget_snapshot() {
+    let c = feed_fixture::cases()
+        .into_iter()
+        .find(|c| c.id == "A-ouvert")
+        .unwrap();
+    let mut s = Session::new(SessionConfig::default());
+    s.dealer = PlayerId(0);
+    s.game = c.position();
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    let mut guided = serde_json::to_value(s.guided().unwrap()).unwrap();
+    guided["id"]["lineage"] = 0.into();
+    guided["id"]["generation"] = 0.into();
+    let value = serde_json::json!({"table": s.view(), "guided": guided});
+    if let Ok(path) = std::env::var("SKAT_OUVERT_FEED_SNAPSHOT") {
+        std::fs::write(path, serde_json::to_string_pretty(&value).unwrap() + "\n").unwrap();
+    } else {
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../gui-egui/tests/fixtures/grand-ouvert-feed.json"
+        ))
+        .unwrap();
+        assert_eq!(value, expected);
+    }
+}
+
+#[test]
+fn grand_ouvert_feed_attempt_and_return_preserve_the_game() {
+    let c = feed_fixture::cases()
+        .into_iter()
+        .find(|c| c.id == "A-ouvert")
+        .unwrap();
+    let mut s = Session::new(SessionConfig::default());
+    s.dealer = PlayerId(0);
+    s.game = c.position();
+    let before = s.view();
+    s.execute(Command::StartGuided).unwrap();
+    assert!(s.guided().unwrap().rule.is_none());
+    respond(&mut s, G::Answer(A::Seat(Some(Seat::Mittelhand)))).unwrap();
+    respond(&mut s, G::Answer(A::Seat(None))).unwrap();
+    respond(&mut s, G::Answer(A::Card(feed_fixture::card(1)))).unwrap();
+    assert_eq!(
+        s.guided().unwrap().rule.unwrap().card,
+        feed_fixture::card(7)
+    );
+    assert_eq!(s.view().hand, before.hand);
+    assert_eq!(s.view().legal_actions, before.legal_actions);
+    assert_eq!(s.view().current_trick, before.current_trick);
+    respond(&mut s, G::Return).unwrap();
+    assert_eq!(s.view().hand, before.hand);
+    assert_eq!(s.view().legal_actions, before.legal_actions);
+    assert_eq!(s.view().current_trick, before.current_trick);
 }
