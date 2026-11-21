@@ -941,9 +941,9 @@ impl GrandCoachApp {
         }
         let next = self.session.coach_job();
         if let Some(worker) = self.coach_thinking.as_ref()
-            && !next
-                .as_ref()
-                .is_some_and(|job| job.same_decision(&worker.job))
+            && let Some(next) = next.as_ref()
+            && !next.is_review()
+            && !next.same_decision(&worker.job)
         {
             if self.review_thinking.is_none()
                 && !worker.cancel.is_cancelled()
@@ -3590,6 +3590,120 @@ mod tests {
     }
 
     #[test]
+    fn pending_reviews_do_not_cancel_other_useful_work_without_a_foreground_request() {
+        let ctx = egui::Context::default();
+        let mut app = GrandCoachApp::new(&ctx, easy_series());
+        app.session.set_coach_budget(skat_app::Budget {
+            samples: 1,
+            nodes_per_task: 10,
+        });
+        app.set_coach(CoachSettings {
+            level: CoachLevel::EveryMove,
+            ..CoachSettings::default()
+        });
+        let mut jobs = Vec::new();
+        loop {
+            app.session.run_opponents();
+            let view = app.session.view();
+            let Some(&first) = view.legal_actions.first() else {
+                break;
+            };
+            jobs.push(app.session.coach_job().unwrap());
+            let action =
+                if view.phase == Phase::Reizen && view.legal_actions.contains(&Action::Pass) {
+                    Action::Pass
+                } else {
+                    first
+                };
+            app.act(action, 0.0);
+        }
+        assert!(jobs.len() > 1);
+        assert!(!jobs[0].same_decision(jobs.last().unwrap()));
+        assert!(app.session.coach_job().unwrap().is_review());
+        let (_oldest_sender, oldest_result) = std::sync::mpsc::channel();
+        let (_later_sender, later_result) = std::sync::mpsc::channel();
+        let later_cancel = Cancel::new();
+        app.review_thinking = Some(CoachThinking {
+            job: jobs[0].clone(),
+            result: oldest_result,
+            cancel: Cancel::new(),
+        });
+        app.coach_thinking = Some(CoachThinking {
+            job: jobs.last().unwrap().clone(),
+            result: later_result,
+            cancel: later_cancel.clone(),
+        });
+        for _ in 0..32 {
+            app.drive_coach(&ctx, 0.0);
+        }
+        assert!(!later_cancel.is_cancelled());
+        assert!(app.coach_thinking.is_some());
+    }
+
+    #[test]
+    fn fair_and_cancel_drivers_preserve_recordings_and_final_moments() {
+        let play = |baseline| {
+            let ctx = egui::Context::default();
+            let mut app = GrandCoachApp::new(
+                &ctx,
+                SessionConfig {
+                    seed: 2,
+                    series: SeriesLength::Fixed(1),
+                    opponents: Opponents::Levels([Level::Easy; 2]),
+                    ..SessionConfig::default()
+                },
+            );
+            app.baseline_coach = baseline;
+            app.session.set_coach_budget(skat_app::Budget {
+                samples: 2,
+                nodes_per_task: 20_000,
+            });
+            app.set_coach(CoachSettings {
+                level: CoachLevel::EveryMove,
+                ..CoachSettings::default()
+            });
+            loop {
+                app.session.run_opponents();
+                app.drive_coach(&ctx, 0.0);
+                let view = app.session.view();
+                let Some(&first) = view.legal_actions.first() else {
+                    break;
+                };
+                let action =
+                    if view.phase == Phase::Reizen && view.legal_actions.contains(&Action::Pass) {
+                        Action::Pass
+                    } else {
+                        first
+                    };
+                app.act(action, 0.0);
+            }
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+            while app.session.coach_job().is_some()
+                || app.coach_thinking.is_some()
+                || app.review_thinking.is_some()
+            {
+                app.drive_coach(&ctx, 0.0);
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "reviews did not drain"
+                );
+                std::thread::yield_now();
+            }
+            let Some(skat_app::Debriefing::Ready(moments)) = app.session.view().coach.debriefing
+            else {
+                panic!("not ready")
+            };
+            assert!(!moments.is_empty());
+            (
+                moments,
+                serde_json::to_value(app.session.export_current_recording_privileged().unwrap())
+                    .unwrap(),
+            )
+        };
+        assert_eq!(play(true), play(false));
+    }
+
+    #[test]
     fn reviews_progress_while_foreground_keeps_preempting() {
         let ctx = egui::Context::default();
         let mut app = GrandCoachApp::new(
@@ -3914,11 +4028,15 @@ mod tests {
                 let mut with_worker = 0;
                 let mut steps = Vec::new();
                 let mut first_useful = None;
+                let mut game_end = None;
                 let moments = loop {
                     let step = std::time::Instant::now();
                     h.run_steps(1);
                     steps.push(step.elapsed());
                     let view = h.state().session.view();
+                    if game_end.is_none() && view.coach.debriefing.is_some() {
+                        game_end = Some(start.elapsed());
+                    }
                     if first_useful.is_none()
                         && matches!(&view.coach.debriefing, Some(skat_app::Debriefing::Computing { moments, .. } | skat_app::Debriefing::Ready(moments)) if !moments.is_empty())
                     {
@@ -3951,13 +4069,17 @@ mod tests {
                         "probe timed out"
                     );
                 };
+                let full = start.elapsed();
+                let full_after_finish = full.saturating_sub(game_end.unwrap());
+                let first_after_finish =
+                    first_useful.map(|time| time.saturating_sub(game_end.unwrap()));
                 steps.sort();
                 println!(
-                    "policy={policy} round={round} seed={seed} delay={delay} first={first_useful:?} actions={actions} worker_on_action={with_worker} steps={} p95_step={:?} max_step={:?} total={:?}",
+                    "policy={policy} round={round} seed={seed} delay={delay} first={first_useful:?} first_after_finish={first_after_finish:?} full_after_finish={full_after_finish:?} actions={actions} worker_on_action={with_worker} steps={} p95_step={:?} max_step={:?} total={:?}",
                     steps.len(),
                     steps[(steps.len() - 1) * 95 / 100],
                     steps.last().unwrap(),
-                    start.elapsed()
+                    full
                 );
                 if std::env::var_os("COACH_TRACE_EVIDENCE").is_some() {
                     println!("gui_evidence={}", serde_json::to_string(&moments).unwrap());

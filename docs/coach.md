@@ -917,8 +917,8 @@ worker is cancelled instead of overtaking it. Cancellation retains the slot
 until the worker exits. A process-wide atomic permit bounds live/practice coach
 computations to two, even across new games, series, repeated attempts and parked
 sessions. Each computation retains the existing CPU-count bound on its internal
-analysis threads; two computations can contend for those CPUs. Replay comments/reviews and opponent workers retain their separate
-existing bounds. No cache, analysis budget, seed, hidden-view input, quality or
+analysis threads; two computations can contend for those CPUs. Replay
+comments/reviews and opponent workers are separate and outside this cap. No cache, analysis budget, seed, hidden-view input, quality or
 moment-selection rule changes.
 
 With bounded analysis work and eventual OS thread service, each finite FIFO
@@ -932,7 +932,10 @@ controlled channels, repeatedly replaces the foreground decision and accepts
 the oldest review **before play stops**. The overtaking regression prevents
 fresh foreground work bypassing an older queued review. The lifecycle test
 covers both slots, coach-off, an already-in-flight result, practice restoration
-and game-reset channel isolation; existing app tests cover retries, stale
+and game-reset channel isolation. Another regression keeps useful work alive
+when no new foreground request exists (including game end), and a tiny real
+driver comparison checks full recordings and nonempty final moments. Existing
+app tests cover retries, stale
 lineages, God Mode, open display and hidden-deal substitution. The new
 `coach_review_job` exposes the same stored permitted snapshot independently of
 the current request, suppressing work while off or inside a permitted guided
@@ -946,12 +949,109 @@ performs that wait asynchronously. `COACH_TRACE_ROUNDS=2` repeats the same seeds
 in one process. `COACH_TRACE_EVIDENCE=1` additionally emits every accepted full
 explanation keyed by its input-derived sampling seed; `COACH_TRACE_RECORDING=1`
 emits privileged game traces. Completion is timestamped before serialising the
-final evidence. These local traces expose the deal and must remain private.
+final evidence. Both session-start totals and the remaining wait after game end
+are reported. These local traces expose the deal and must remain private.
 
 The ignored `debrief_paced_gui_worker_probe` runs the actual egui driver and a
 frozen test-only copy of the old driver. `SKAT_COACH_POLICY=cancel|fair`,
 `SKAT_COACH_NODES`, `SKAT_COACH_DELAY` and `SKAT_COACH_ROUNDS` select paired
 manual measurements; defaults remain fair, 20,000 nodes, both 0/5 ms delays and
-one round. It records first useful moment, full completion and headless step
+one round. It records first useful moment, full completion, the remaining wait
+after the GUI observes game end, and headless step
 p95/max including the post-action driver step. It is not physical-display or
 human-response latency.
+
+#### Interactive-budget paired measurements
+
+Measured on 2026-11-21, Intel Core i9-10900K (20 logical CPUs), 32 GB RAM,
+`skat-dev`, Rust 1.99.1, release app probe and optimized test-profile egui
+harness. Both use Classic Easy opponents, six fixed seeds, 24 samples and
+100,000,000 nodes/task, fixed legal actions, 0/5 ms synthetic think time and
+two passes in each process. Every game starts with an empty session result
+store. The repeat pass warms process/code/allocator state; it is **not** a
+shared analysis-cache hit. No shared result cache was added, and OS caches
+were not flushed; physical cold boot/startup is not measured. Timed session
+intervals exclude process setup (and initial harness construction).
+
+"Shared" uses all available CPUs on this unisolated host (load average
+around 35 before the matrix). "Contended" pins the whole process to CPU 2,
+shared with one owned Python busy loop. That also changes available analysis
+parallelism equally for both policies. Project builds/tests were stopped for
+the matrix; other host work was uncontrolled. CPU is process user + system
+for both passes, including diagnostic collection/output; RSS is whole-process
+peak across both passes, excluding the contention process. Cells are single
+paired processes, not statistical speed estimates.
+
+All **96 app traces** (48 policy pairs) match the six canonical seeded games
+across policy, delay, load and pass: all eleven full accepted explanations per
+game, complete final moment/evidence JSON and complete privileged recordings.
+Cancelled work is excluded from accepted evidence and remains queued. No
+budget, result semantics, input perspective or Classic gameplay output changed.
+
+The following first/full intervals are the **remaining wait after game end**,
+in ms, rounded to 0.1 ms. Full columns show the six-seed range separately for
+first and repeat passes. Foreground is the largest request-to-thread-start wait
+in the app harness; fair waits for cancellation exit synchronously here,
+whereas the GUI keeps accepting input and waits asynchronously. The app probe
+starts every scripted foreground request before advancing the trace, including
+at zero think time; the GUI can advance while cancellation settles. Their
+absolute times therefore describe different pacing controls, not interchangeable
+UI latency. Both preserve the same actions and final evidence.
+
+| Load | Think ms | Policy | First useful ms | Full first pass ms | Full repeat ms | Max foreground start ms | CPU s | RSS KiB |
+|---|---|---|---|---|---|---|---|---|
+| shared | 0 | cancel | 372.4–4985.1 | 1645.1–13200.9 | 976.1–3592.0 | 3.420 | 52.28 | 1,277,768 |
+| shared | 0 | fair | 42.5–1422.8 | 225.2–3427.6 | 151.6–2171.0 | 132.942 | 50.00 | 820,960 |
+| shared | 5 | fair | 0.0–1354.3 | 103.5–2725.4 | 141.9–1809.0 | 37.462 | 50.05 | 779,692 |
+| shared | 5 | cancel | 0.0–0.1 | 350.4–2094.3 | 156.1–1197.2 | 4.411 | 48.37 | 635,216 |
+| contended | 0 | cancel | 620.0–6571.2 | 1330.8–10493.8 | 1308.5–11261.4 | 2.209 | 35.28 | 216,588 |
+| contended | 0 | fair | 517.6–8839.8 | 1149.4–11617.7 | 1106.6–9137.3 | 15.818 | 27.64 | 152,580 |
+| contended | 5 | fair | 0.0–0.0 | 1147.5–8921.9 | 1106.8–8958.3 | 5.952 | 26.40 | 116,196 |
+| contended | 5 | cancel | 0.0–0.0 | 1114.6–8687.1 | 1169.4–8751.3 | 0.042 | 26.15 | 139,952 |
+
+The actual-driver egui harness also produced **96 matching traces**, including
+exact final moments and full recordings across policy, delay, load and pass.
+Its six canonical recordings/moments match the app probe's canonical games too.
+In all these final GUI cells, at least one useful verified moment was already
+available when the harness observed game end (first-after-finish rounds to
+0.0 ms). This is not a physical presentation-time measurement.
+
+| Load | Think ms | Policy | Full first pass ms | Full repeat ms | Largest per-game step p95 ms | Max step ms | CPU s | RSS KiB |
+|---|---|---|---|---|---|---|---|---|
+| shared | 0 | cancel | 601.6–3535.0 | 185.5–1296.7 | 12.904 | 155.581 | 83.33 | 598,132 |
+| shared | 0 | fair | 0.0–1022.5 | 0.0–1042.7 | 18.929 | 148.249 | 63.38 | 883,744 |
+| shared | 5 | fair | 0.0–950.4 | 0.0–918.6 | 15.960 | 138.877 | 63.38 | 938,560 |
+| shared | 5 | cancel | 143.8–1305.6 | 157.2–1267.3 | 8.022 | 62.805 | 80.16 | 594,296 |
+| contended | 0 | cancel | 1792.6–13610.8 | 1816.9–13826.5 | 2.041 | 67.199 | 52.95 | 145,064 |
+| contended | 0 | fair | 1927.3–20903.3 | 1345.0–13702.2 | 8.184 | 124.148 | 60.03 | 179,184 |
+| contended | 5 | fair | 1271.7–13645.5 | 1263.8–12530.4 | 2.281 | 71.376 | 48.30 | 153,800 |
+| contended | 5 | cancel | 1613.0–12279.0 | 1734.2–13475.3 | 4.969 | 96.192 | 55.26 | 149,584 |
+
+**Decision:** adopt the bounded fair control for guaranteed FIFO service under
+sustained foreground changes and a bound on overlapping live/practice coach
+computations, preserving quality and result semantics. The actual GUI's shared
+cells used less CPU and had shorter debrief waits here, but peaked at
+883,744–938,560 KiB rather than 594,296–598,132 KiB and had higher step p95.
+Under pinned contention at zero think time, the candidate also used **more**
+CPU (60.03 vs 52.95 s), had a 20.9 s full-wait outlier and worse step outliers.
+This is a real cost, not a universal latency/CPU win. The app stress control
+likewise delays some first useful moments and foreground starts (maximum
+132.942 ms here); it avoids waiting for a complete background review, not all
+scheduling delay. The global cap prevents unbounded cancellation cohorts;
+it does not impose an RSS ceiling or reserve CPU time for the UI.
+
+The no-new-foreground regression additionally caught an overbroad initial
+candidate condition: at game end it cancelled useful work solely because a
+different queued review was next. The corrected driver cancels only for a
+**different foreground request** and keeps useful idle/terminal work alive.
+The full GUI matrix above was rerun after that fix; its earlier matrix remains
+private diagnostic evidence and is not used for the final timing comparison.
+
+These single-process pairs, synthetic Easy traces and noisy host runs establish
+fixed-input equivalence and the bounded scheduling control, not a general speed
+ratio, frame deadline, reference-machine result, physical cold-start latency,
+Windows performance or learner benefit. Neither foreground analysis completion
+nor physical input-to-display latency is the request-to-start metric. Existing
+privacy tests and the complete local platform gate remain mandatory; native
+Windows CI verifies that platform separately. No neural/text-generation claim
+or additional cache is introduced.

@@ -476,7 +476,6 @@ fn review_play() {
         let (mut waits, mut max_wait) = (Duration::ZERO, Duration::ZERO);
         let mut reviewed_during_play = 0;
         let mut analyses = std::collections::BTreeMap::new();
-        let mut max_foreground_run = Duration::ZERO;
         loop {
             session.run_opponents();
             if let Some((job, _, rx)) = background.as_ref()
@@ -523,7 +522,6 @@ fn review_play() {
                 } else {
                     let (result, spent) = rx.recv().unwrap();
                     executed += spent;
-                    max_foreground_run = max_foreground_run.max(spent);
                     accept(&mut session, result, &mut analyses, job.seed());
                 }
             }
@@ -553,7 +551,6 @@ fn review_play() {
                     executed += spent;
                     let seed = job.seed();
                     running = None;
-                    max_foreground_run = max_foreground_run.max(spent);
                     accept(&mut session, result, &mut analyses, seed);
                 }
                 if let Some((job, _, rx)) = background.as_ref()
@@ -592,20 +589,18 @@ fn review_play() {
                 };
             session.execute(Command::Act(action)).unwrap();
         }
+        let game_end = start.elapsed();
         // In the fair arm either lane may publish the first useful moment.
         let mut fair_first = has_moments(&session).then(|| start.elapsed());
         if fair {
             while running.is_some() || background.is_some() {
-                for (slot, foreground) in [(&mut running, true), (&mut background, false)] {
+                for slot in [&mut running, &mut background] {
                     if let Some((job, _, rx)) = slot.as_ref()
                         && let Ok((result, spent)) = rx.try_recv()
                     {
                         let seed = job.seed();
                         *slot = None;
                         executed += spent;
-                        if foreground {
-                            max_foreground_run = max_foreground_run.max(spent);
-                        }
                         accept(&mut session, result, &mut analyses, seed);
                         if fair_first.is_none() && has_moments(&session) {
                             fair_first = Some(start.elapsed());
@@ -625,7 +620,6 @@ fn review_play() {
                 if let Some((job, _, rx)) = running.take() {
                     let (result, spent) = rx.recv().unwrap();
                     **executed += spent;
-                    max_foreground_run = max_foreground_run.max(spent);
                     accept(session, result, &mut analyses, job.seed());
                 }
             },
@@ -661,6 +655,8 @@ fn review_play() {
             panic!("unfinished")
         };
         let full = start.elapsed();
+        let full_after_finish = full.saturating_sub(game_end);
+        let first_after_finish = first.map(|time| time.saturating_sub(game_end));
         if std::env::var_os("COACH_TRACE_EVIDENCE").is_some() {
             println!("analyses={}", serde_json::to_string(&analyses).unwrap());
             println!("evidence={}", serde_json::to_string(&moments).unwrap());
@@ -673,7 +669,7 @@ fn review_play() {
             );
         }
         println!(
-            "round={round} seed={seed} mode={} delay_ms={delay} reviewed_during_play={reviewed_during_play} cancelled={cancelled} wasted={wasted:?} executed={executed:?} drained={drained} foreground_wait_total={waits:?} foreground_wait_max={max_wait:?} foreground_run_max={max_foreground_run:?} first={first:?} full={:?} moments={}",
+            "round={round} seed={seed} mode={} delay_ms={delay} reviewed_during_play={reviewed_during_play} cancelled={cancelled} wasted={wasted:?} executed={executed:?} drained={drained} foreground_wait_total={waits:?} foreground_wait_max={max_wait:?} first={first:?} full={:?} first_after_finish={first_after_finish:?} full_after_finish={full_after_finish:?} moments={}",
             args[2],
             full,
             moments.len()
