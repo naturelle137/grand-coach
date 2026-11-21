@@ -334,8 +334,12 @@ fn ouvert_gets_honest_exclusions_without_hidden_cards() {
     let view = current(&g);
     assert_eq!(view.legal_actions, vec![Action::Kontra, Action::KeinKontra]);
     assert_eq!(view.declarer_cards, None);
-    assert_eq!(kontra_exclusion(&view), Some(KontraExclusion::OuvertRound));
-    assert!(kontra_lesson(&view).is_none());
+    assert_eq!(kontra_exclusion(&view), None);
+    assert_eq!(
+        kontra_lesson(&view).unwrap().rule.action,
+        Action::KeinKontra
+    );
+    all_free(&g, &view);
     g.apply(Action::Kontra).unwrap();
     let view = current(&g);
     assert_eq!(view.legal_actions, vec![Action::Re, Action::KeinRe]);
@@ -723,12 +727,12 @@ fn observations_follow_the_actual_next_public_transition() {
 
 #[test]
 fn ouvert_round_uses_easys_actual_unconditional_choice_without_hidden_cards() {
-    for game in [HERZ, GameType::Grand] {
+    for game in [HERZ, GameType::Grand, GameType::Null] {
         for fifth in ["H9", "S8"] {
             let deal = deal_vh(&vh(fifth), HH, "D8 D9");
             let ann = Announcement {
-                schneider: true,
-                schwarz: true,
+                schneider: game != GameType::Null,
+                schwarz: game != GameType::Null,
                 ouvert: true,
                 ..Announcement::plain(game)
             };
