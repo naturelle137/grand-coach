@@ -53,7 +53,7 @@ separate factual oracles.
   or [second](#null-declarer-acting-second-169), with a current loser; the
   [opening lead](#null-opening-lead-176) also supports Ouvert. Both require
   at least two pure legal cards; the linked sections define the full guards.
-- **Null defender:** non-Ouvert, second after the declarer leads, or last
+- **Null defender:** non-Ouvert opening lead in Vorhand, second after the declarer leads, or last
   with the declarer ahead, with at least two exact legal actions and a current loser.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
   early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
@@ -1251,3 +1251,19 @@ masters by Augen, taking the last exact tie. A follow-class master can still
 be trumped; neither the open table display nor God Mode supplies defender hands
 to this dialogue. Other branches remain unsupported. Every legal card remains
 playable, and the actual replies are observed after the player's choice.
+
+## Null defender opening lead (#289)
+
+A non-Ouvert Null defender in Vorhand can enter the existing lead dialogue
+on the first empty trick, with at least two exact core-legal card actions.
+Easy minimises `(is_trump, Augen, Null power)` and keeps the first exact tie
+in legal order. Augen are a sorting cost, not Null scoring. The dialogue uses
+only the defender's hand and public contract; neither reply is known. Every
+legal card remains playable and both actual replies and the completed winner
+are observed. Later leads, Ouvert and restricted actions remain unsupported.
+The core-validated Hand fixture swaps a hidden defender card with the Skat
+without changing the entire lesson; it also checks all legal first leads.
+The ordinary seed 1282 with two Easy opponents reaches the dialogue after
+the human passes. Bilingual headless widgets exercise reveal, play, both
+replies and return at 1440 and 960 pixels. This technical evidence does not
+establish learner efficacy.

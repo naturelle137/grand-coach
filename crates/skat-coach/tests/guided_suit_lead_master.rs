@@ -68,7 +68,6 @@ fn suit_lead_master_boundaries_stay_excluded() {
         |v| v.hand_game = None,
         |v| v.own_skat = Some(fixture::set(&[17, 29])),
         |v| v.contract.as_mut().unwrap().ouvert = true,
-        |v| v.contract.as_mut().unwrap().game = GameType::Null,
         |v| v.contract = None,
     ];
     for (i, edit) in edits.iter().enumerate() {
@@ -76,6 +75,9 @@ fn suit_lead_master_boundaries_stay_excluded() {
         edit(&mut x);
         assert!(lesson(&x).is_none(), "edit{i}");
     }
+    let mut null = v.clone();
+    null.contract.as_mut().unwrap().game = GameType::Null;
+    assert!(lesson(&null).is_none_or(|l| l.rule.branch != skat_coach::guided::Branch::LeadMaster));
 }
 
 #[test]
