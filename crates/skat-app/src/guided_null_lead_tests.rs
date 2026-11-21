@@ -54,6 +54,46 @@ fn equal_dialogue(x: &Session, y: &Session) {
     b.id = a.id;
     assert_eq!(a, b);
 }
+
+#[test]
+fn null_ouvert_opening_dialogue_remains_manual_and_observes_replies() {
+    let mut s = Session::new(SessionConfig {
+        seed: 1,
+        series: SeriesLength::Fixed(1),
+        opponents: Opponents::Levels([Level::Easy; 2]),
+        kontra_re: false,
+        display: TableDisplay::Closed,
+        ..SessionConfig::default()
+    });
+    s.execute(Command::SetCoach(CoachSettings::default()))
+        .unwrap();
+    for _ in 0..2 {
+        s.execute(Command::AdvanceOpponent).unwrap();
+    }
+    for _ in 0..5 {
+        s.execute(Command::Act(Action::Hold)).unwrap();
+        s.execute(Command::AdvanceOpponent).unwrap();
+    }
+    s.execute(Command::Act(Action::Hand)).unwrap();
+    s.execute(Command::Act(Action::Announce(skat_core::Announcement {
+        game: NULL,
+        schneider: false,
+        schwarz: false,
+        ouvert: true,
+    })))
+    .unwrap();
+    let legal = s.view().legal_actions.clone();
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    assert_eq!(s.guided().unwrap().step, S::Act);
+    assert_eq!(s.view().legal_actions, legal);
+    s.execute(Command::Act(Action::Play(card(8)))).unwrap();
+    for _ in 0..2 {
+        s.execute(Command::AdvanceOpponent).unwrap();
+    }
+    assert_eq!(s.guided().unwrap().step, S::Observe);
+    assert_eq!(s.guided().unwrap().lead_replies.len(), 2);
+}
 #[test]
 fn null_lead_all_286_completed_observations_and_94_immediate_losses() {
     let mut total = 0;

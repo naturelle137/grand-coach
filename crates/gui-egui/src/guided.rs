@@ -92,7 +92,7 @@ fn content(
     }
     let null = table
         .contract
-        .is_some_and(|c| c.game == GameType::Null && !c.ouvert);
+        .is_some_and(|c| c.game == GameType::Null && (!c.ouvert || g.lead.is_some()));
     let null_defender = null && table.declarer != Some(skat_app::PlayerId::HUMAN);
     if null_defender
         && matches!(
