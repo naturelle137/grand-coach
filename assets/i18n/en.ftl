@@ -699,6 +699,7 @@ guided-retry = Try again
 guided-none = Nobody else
 guided-rule-card = The rule player plays { $card }.
 guided-rule-under = Partner leads, one player follows, no follow-class master. Easy stays underneath: nontrump, fewer Augen, lower rank; first exact tie. This does not guarantee that your partner keeps the trick: the declarer after you may overtake or trump it.
+guided-under-ouvert = The declarer's hand is open. Easy's rule does not separately examine it for this choice; check for yourself which cards can still follow.
 guided-rule-win = You play last. Among winning cards, Easy prefers nontrump, then lower rank. This does not guarantee winning the game.
 guided-candidates = This rule branch's candidates: { $cards }. All legal cards remain playable.
 guided-early-attempt = Which legal card overtakes the current lead? One player still follows.
@@ -1179,3 +1180,6 @@ guided-kontra-ouvert-no = No
 
 guided-null-defender-lead-role = You defend in Null and lead. The declarer must take a trick to lose; neither reply is known.
 guided-null-defender-lead-limit = Both replies are unknown. This heuristic guarantees neither the trick nor the game.
+
+guided-null-ouvert-defender-lead-role = You defend in Null Ouvert and lead. The declarer's hand is visible; your partner's hand is concealed.
+guided-null-ouvert-defender-lead-limit = The visible hand does not determine either reply. This heuristic guarantees neither the trick nor the game.

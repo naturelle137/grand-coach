@@ -23,7 +23,8 @@ Debug action bytes, seed order 0..200, Kontra/Re enabled). This freezes behavior
 it is not a strategic oracle. Explicit candidate expectations below provide
 separate factual oracles.
 
-- **UnderPartner:** Farbspiel or non-Ouvert Grand (#159, below), defender,
+- **UnderPartner:** Farbspiel, Grand (#159) or the bounded Grand Ouvert
+  defender view ([#315](#grand-ouvert-defender-under-partner-315)), defender,
   partner currently leads, one player
   follows, and the leading card is not a master of its follow class. With at
   least two legal cards and one losing candidate, Easy takes a loser by
@@ -54,11 +55,11 @@ separate factual oracles.
   [opening lead](#null-opening-lead-176) also supports Ouvert. Ouvert turns
   require the matching revealed hand. All require at least two pure legal cards;
   the linked sections define the full guards.
-- **Null defender:** non-Ouvert opening lead in Vorhand, second after the declarer leads, or last
+- **Null defender:** opening lead in Vorhand, including Ouvert after reveal; non-Ouvert second after the declarer leads, or last
   with the declarer ahead, with at least two exact legal actions and a current loser.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
   early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
-  single legal action, other Grand branches, other Ouvert Grand turns, other Null card play or
+  single legal action, other Grand branches, other Grand Ouvert turns, other Null card play or
   card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
   Ansage and Kontra/Re: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
@@ -1256,15 +1257,17 @@ playable, and the actual replies are observed after the player's choice.
 
 ## Null defender opening lead (#289)
 
-A non-Ouvert Null defender in Vorhand can enter the existing lead dialogue
+A Null or Null Ouvert defender in Vorhand can enter the existing lead dialogue
 on the first empty trick, with at least two exact core-legal card actions.
 Easy minimises `(is_trump, Augen, Null power)` and keeps the first exact tie
 in legal order. Augen are a sorting cost, not Null scoring. The dialogue uses
-only the defender's hand and public contract; neither reply is known. Every
+the defender's hand, public contract and, in Ouvert, the revealed declarer
+hand; the partner's hand remains concealed and neither reply is known. Every
 legal card remains playable and both actual replies and the completed winner
-are observed. Later leads, Ouvert and restricted actions remain unsupported.
-The core-validated Hand fixture swaps a hidden defender card with the Skat
-without changing the entire lesson; it also checks all legal first leads.
+are observed. Later leads, other Ouvert defender turns and restricted actions
+remain unsupported. The core-validated Ouvert Hand fixture swaps a concealed
+partner card with the Skat without changing the lesson; it checks all legal
+first leads and rejects missing or inconsistent reveals.
 The ordinary seed 1282 with two Easy opponents reaches the dialogue after
 the human passes. Bilingual headless widgets exercise reveal, play, both
 replies and return at 1440 and 960 pixels. This technical evidence does not
@@ -1339,3 +1342,16 @@ playable; the actual third card and winner are observed. The core-replayed
 mixed Hand fixture checks candidates, reveal and legal-action boundaries,
 and the session test checks each legal choice and its actual continuation.
 These checks do not establish learner outcomes.
+
+## Grand Ouvert defender under partner (#315)
+
+A defender acting second after the partner may enter the existing
+`UnderPartner` dialogue in Grand Ouvert when the revealed declarer hand and
+the exact core-legal actions form a consistent view. The shared Easy rule
+selects a current loser by nontrump, fewer Augen, then lower power, with the
+first exact tie. Its follow-class master test does not separately examine
+the revealed hand; the dialog says so. Every legal card remains playable,
+and the actual declarer reply and winner are observed. Other Ouvert branches
+remain outside this increment. The core fixture covers hidden Skat swaps,
+reveal and legal-action boundaries, and all legal choices; the app exercises
+attempt, reveal and actual continuation. No learner efficacy is inferred.
