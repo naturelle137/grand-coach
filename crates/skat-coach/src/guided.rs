@@ -111,7 +111,7 @@ pub struct Lesson {
 /// Null Ouvert also admits the declarer's opening lead and last-seat turn after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Non-Ouvert Farbspiel/Grand
-/// LeadMaster (including Ouvert Farbspiel and Grand declarer) and Grand declarer DrawTrumpf also admit the own empty-trick lead
+/// LeadMaster (including Ouvert Farbspiel and Grand declarer) and Grand declarer DrawTrumpf (including Ouvert) also admit the own empty-trick lead
 /// with an exact pure core-legal action list; other lead branches stay excluded.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
@@ -245,7 +245,9 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         let admitted = match rule.branch {
             Branch::LeadMaster => !game.is_trump(rule.card),
             Branch::DrawTrumpf => {
-                grand && view.declarer == Some(view.seat) && game.is_trump(rule.card)
+                (grand || ouvert_grand_lead)
+                    && view.declarer == Some(view.seat)
+                    && game.is_trump(rule.card)
             }
             _ => false,
         };

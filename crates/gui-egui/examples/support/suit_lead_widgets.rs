@@ -25,6 +25,7 @@ pub fn inventory() -> Vec<serde_json::Value> {
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-god-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"god-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-ouvert-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"ouvert-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-grand-ouvert-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"grand-ouvert-fixture"}));
+            result.push(serde_json::json!({"name":format!("guided-suit-lead-master-grand-ouvert-draw-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"grand-ouvert-draw-fixture"}));
             for stage in STAGES {
                 result.push(serde_json::json!({"name":format!("guided-suit-lead-master-{stage}-{language}{suffix}"),"stage":stage,"language":language,"width":width,"height":height,"kind":"ordinary"}));
             }
@@ -53,6 +54,7 @@ pub fn render(name: &str, out: Option<&str>) {
     if entry["kind"] == "god-fixture"
         || entry["kind"] == "ouvert-fixture"
         || entry["kind"] == "grand-ouvert-fixture"
+        || entry["kind"] == "grand-ouvert-draw-fixture"
     {
         let builder = Harness::builder().with_size(size);
         let builder = if out.is_some() {
@@ -61,9 +63,12 @@ pub fn render(name: &str, out: Option<&str>) {
             builder
         };
 
-        let grand_ouvert = entry["kind"] == "grand-ouvert-fixture";
+        let grand_draw = entry["kind"] == "grand-ouvert-draw-fixture";
+        let grand_ouvert = entry["kind"] == "grand-ouvert-fixture" || grand_draw;
         let ouvert = entry["kind"] == "ouvert-fixture" || grand_ouvert;
-        let fixture: serde_json::Value = serde_json::from_str(if grand_ouvert {
+        let fixture: serde_json::Value = serde_json::from_str(if grand_draw {
+            include_str!("../../tests/fixtures/grand-ouvert-draw.json")
+        } else if grand_ouvert {
             include_str!("../../tests/fixtures/grand-lead-master-ouvert.json")
         } else if ouvert {
             include_str!("../../tests/fixtures/suit-lead-master-ouvert.json")
