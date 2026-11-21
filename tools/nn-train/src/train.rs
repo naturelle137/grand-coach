@@ -68,7 +68,7 @@ use serde::{Deserialize, Serialize};
 use skat_ai::{KontraRule, Status, kontra_by_rules, kontra_rule};
 use skat_core::{Action, GameType, OmniscientView, PlayerView};
 use skat_nn::{
-    ACTIONS, ENCODER_VERSION, MIN_LAYERS, ModelHeader, NetShape, Phases, PolicyValueNet,
+    ACTIONS, ENCODER_VERSION, MIN_LAYERS, ModelHeader, NetShape, Phases, PolicyValueNet, action_at,
     action_index, encode, sha256, unseen_cards, write_model,
 };
 
@@ -1159,9 +1159,25 @@ pub fn phase_of(legal: &[u32]) -> DecisionPhase {
     }
 }
 
+/// Pre-play categories whose frequency can be hidden by aggregate agreement.
+pub const PREPLAY_CATEGORIES: [&str; 4] = ["pass", "hand", "null", "schneider/schwarz/ouvert"];
+
+fn preplay_categories(action: Action) -> [bool; 4] {
+    [
+        action == Action::Pass,
+        action == Action::Hand,
+        matches!(action, Action::Announce(a) if a.game == GameType::Null),
+        matches!(action, Action::Announce(a) if a.schneider || a.schwarz || a.ouvert),
+    ]
+}
+
+/// Counts for each phase and each pre-play category.
+pub type PhaseAgreement = ([(usize, usize); 7], [(usize, usize); 4]);
+
 /// Per-phase `(rows, rows where the most probable legal action is the
-/// teacher's)` of `net` on `examples`, in [`DecisionPhase::ALL`] order.
-pub fn phase_agreement(net: &PolicyValueNet, examples: &Examples) -> [(usize, usize); 7] {
+/// teacher's)` of `net` on `examples`, in [`DecisionPhase::ALL`] order,
+/// and `(teacher, model)` counts in [`PREPLAY_CATEGORIES`] order.
+pub fn phase_agreement(net: &PolicyValueNet, examples: &Examples) -> PhaseAgreement {
     let device = net
         .devices()
         .into_iter()
@@ -1169,6 +1185,7 @@ pub fn phase_agreement(net: &PolicyValueNet, examples: &Examples) -> [(usize, us
         .unwrap_or_else(Device::flex);
     let inputs = net.inputs();
     let mut out = [(0, 0); 7];
+    let mut categories = [(0, 0); 4];
     let all: Vec<usize> = (0..examples.rows()).collect();
     for chunk in all.chunks(EVAL_BATCH) {
         let l = losses(net, None, examples.batch(chunk, inputs, &device));
@@ -1181,12 +1198,23 @@ pub fn phase_agreement(net: &PolicyValueNet, examples: &Examples) -> [(usize, us
                 .position(|&p| p == phase)
                 .expect("listed");
             out[slot].0 += 1;
-            out[slot].1 += usize::from(
-                best(&logits[b * ACTIONS..][..ACTIONS], legal) == examples.chosen[r] as usize,
-            );
+            let predicted = best(&logits[b * ACTIONS..][..ACTIONS], legal);
+            let teacher = examples.chosen[r] as usize;
+            out[slot].1 += usize::from(predicted == teacher);
+            let teacher =
+                preplay_categories(action_at(legal[teacher] as usize).expect("legal action"));
+            let predicted =
+                preplay_categories(action_at(legal[predicted] as usize).expect("legal action"));
+            for (counts, (t, p)) in categories
+                .iter_mut()
+                .zip(teacher.into_iter().zip(predicted))
+            {
+                counts.0 += usize::from(t);
+                counts.1 += usize::from(p);
+            }
         }
     }
-    out
+    (out, categories)
 }
 
 /// Metrics of `net` (no autodiff, on the device the net lives on) on `examples`.
@@ -1791,6 +1819,29 @@ mod tests {
 #[cfg(test)]
 mod phase_tests {
     use super::*;
+
+    #[test]
+    fn preplay_categories_distinguish_choices() {
+        use skat_core::Announcement;
+        assert_eq!(
+            preplay_categories(Action::Pass),
+            [true, false, false, false]
+        );
+        assert_eq!(
+            preplay_categories(Action::Hand),
+            [false, true, false, false]
+        );
+        assert_eq!(preplay_categories(Action::TakeSkat), [false; 4]);
+        assert_eq!(
+            preplay_categories(Action::Announce(Announcement {
+                game: GameType::Null,
+                schneider: false,
+                schwarz: false,
+                ouvert: true,
+            })),
+            [false, false, true, true]
+        );
+    }
 
     #[test]
     fn phase_is_told_from_legal_indices() {

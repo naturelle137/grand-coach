@@ -542,3 +542,8 @@ All-phase `evaluate` reports teacher agreement for Kontra and Re separately,
 including each row count. This distinguishes the two decisions; agreement
 alone still does not establish their playing strength. Existing combined
 Kontra/Re results above remain the measurements actually performed.
+
+All-phase `evaluate` also reports teacher and greedy-model counts for Pass,
+Hand, Null and Schneider/Schwarz/Ouvert announcements on the same held-out
+views. Categories may overlap. These are conditional on teacher-generated
+views, not complete-game rates, and do not establish playing strength.
