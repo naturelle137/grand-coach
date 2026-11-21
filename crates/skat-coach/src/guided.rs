@@ -518,7 +518,7 @@ impl PreLesson {
     }
 }
 
-/// A Farbspiel, Grand (also Ouvert) or non-Ouvert Null Kontra or immediate Re lesson from
+/// A Farbspiel, Grand or Null Kontra or immediate Re lesson (including Ouvert Re) from
 /// Easy's shared rule. Never passed to the frontend before disclosure.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -561,10 +561,7 @@ fn kontra_support(view: &PlayerView) -> Result<KontraLesson, KontraExclusion> {
     if view.legal_actions.contains(&Action::KeinKontra) {
         return Err(KontraExclusion::OuvertRound);
     }
-    let contract = view.contract.ok_or(KontraExclusion::Restricted)?;
-    if contract.ouvert && contract.game == GameType::Null {
-        return Err(KontraExclusion::Ouvert);
-    }
+    view.contract.ok_or(KontraExclusion::Restricted)?;
     let rule = baseline::kontra_rule(view).ok_or(KontraExclusion::Restricted)?;
     let declarer = view.declarer.ok_or(KontraExclusion::Restricted)?;
     let consistent = match rule.call {

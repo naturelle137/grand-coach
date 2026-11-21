@@ -339,8 +339,12 @@ fn ouvert_gets_honest_exclusions_without_hidden_cards() {
     g.apply(Action::Kontra).unwrap();
     let view = current(&g);
     assert_eq!(view.legal_actions, vec![Action::Re, Action::KeinRe]);
-    assert_eq!(kontra_exclusion(&view), Some(KontraExclusion::Ouvert));
-    assert!(kontra_lesson(&view).is_none());
+    let lesson = kontra_lesson(&view).expect("Null Ouvert Re is guided");
+    assert_eq!(kontra_exclusion(&view), None);
+    assert!(lesson.rule.null && lesson.rule.ouvert && !lesson.rule.wants);
+    assert_eq!(lesson.rule.action, Action::KeinRe);
+    checks_null(&lesson, 4);
+    all_free(&g, &view);
 }
 
 /// Ouvert Hand game by HH, VH says Kontra in the round before the reveal; the

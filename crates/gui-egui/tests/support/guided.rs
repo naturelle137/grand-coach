@@ -240,6 +240,8 @@ pub enum KontraAt {
     /// The human declares an Ouvert Hand Farbspiel itself (#271) and answers
     /// the defenders' Kontra (guided Re).
     OuvertDeclarer,
+    /// Null Ouvert declarer answering Kontra.
+    NullOuvertDeclarer,
 }
 
 /// As [`enter_kontra`], stopping at the first offer in the contract `at`;
@@ -261,11 +263,16 @@ pub fn enter_kontra_in(
         settle(h);
         let v = h.state().session().view();
         let here = v.contract.is_some_and(|c| match at {
-            _ if c.ouvert => matches!(at, KontraAt::Ouvert | KontraAt::OuvertDeclarer),
+            _ if c.ouvert => {
+                matches!(
+                    at,
+                    KontraAt::Ouvert | KontraAt::OuvertDeclarer | KontraAt::NullOuvertDeclarer
+                ) && (at != KontraAt::NullOuvertDeclarer || c.game == GameType::Null)
+            }
             KontraAt::Farbe => matches!(c.game, GameType::Farbe(_)),
             KontraAt::Grand => c.game == GameType::Grand,
             KontraAt::Null => c.game == GameType::Null,
-            KontraAt::Ouvert | KontraAt::OuvertDeclarer => false,
+            KontraAt::Ouvert | KontraAt::OuvertDeclarer | KontraAt::NullOuvertDeclarer => false,
         });
         if here && v.legal_actions.contains(&wanted) {
             click(h, &i.t("guided-start"));
@@ -280,7 +287,9 @@ pub fn enter_kontra_in(
             return;
         }
         assert!(!v.series_finished, "guided walkthrough needs free play");
-        if at == KontraAt::OuvertDeclarer && v.legal_actions.contains(&Action::Hand) {
+        if matches!(at, KontraAt::OuvertDeclarer | KontraAt::NullOuvertDeclarer)
+            && v.legal_actions.contains(&Action::Hand)
+        {
             click(h, &i.t("button-hand"));
             continue;
         }
@@ -296,7 +305,11 @@ pub fn enter_kontra_in(
                 .into_iter()
                 .min_by_key(|&s| v.hand.iter().filter(|c| c.suit() == s).count())
                 .unwrap();
-            let game = GameType::Farbe(suit);
+            let game = if at == KontraAt::NullOuvertDeclarer {
+                GameType::Null
+            } else {
+                GameType::Farbe(suit)
+            };
             assert!(
                 v.legal_actions
                     .contains(&Action::Announce(Announcement::plain(game)))
@@ -304,7 +317,7 @@ pub fn enter_kontra_in(
             h.get_by_role_and_label(Role::RadioButton, &game_name(&i, game))
                 .click();
             h.run_steps(4);
-            if at == KontraAt::OuvertDeclarer {
+            if matches!(at, KontraAt::OuvertDeclarer | KontraAt::NullOuvertDeclarer) {
                 h.get_by_label(&i.t("contract-ouvert")).click();
                 h.run_steps(4);
             }
