@@ -464,9 +464,12 @@ Reconstructing the display from the final deal would leak later information.
   a hidden debriefing); they resume if the coach is turned on again and are
   still dropped by the next game. The optional learned ordering below changes
   only review priority. The
-  frontend cancels a running review when the current decision needs an
-  analysis. A cancelled review stays queued; the next game drops the
-  queue. `Session::coach_result` exposes the full analysis for tools and
+  frontend uses a current-decision lane and a review lane. The oldest review
+  continues through foreground changes; a displaced foreground analysis may
+  occupy the review lane only if it is that oldest review. Otherwise it is
+  cancelled and retains its slot until exit. At most two live/practice coach
+  computations run, including cancelled and parked work. A cancelled review stays
+  queued; coach-off cancels both lanes, and the next game drops the queue. `Session::coach_result` exposes the full analysis for tools and
   tests only.
 - `Session::coach_job` hands out the analysis of the human's view when one
   is due; the frontend runs it off the UI thread. `finish_coach` accepts it
@@ -786,7 +789,7 @@ The completed-input cache no-go remains bounded to these distinct inputs.
 ### Scheduler candidate study (#72)
 
 `coach_latency --review-play cancel|finish DELAY_MS GAMES NODES_PER_TASK` runs
-one real worker thread with the egui job policy (`drive_coach`): the current
+the historical single-lane egui job policy: the current
 decision first, otherwise the oldest queued review. The human acts after a fixed
 delay. **cancel** reproduces the shipped baseline, including its ordering: an
 unfinished analysis of an earlier decision gets a cancellation request, the
@@ -890,30 +893,65 @@ observations do not isolate policy effects, establish a speed ratio, or measure
 GUI responsiveness. The full recordings remain local because they expose the
 deal. Cold and warm cache states were not controlled.
 
-**Decision (#72, no change to shipped behaviour):** the candidate saves CPU only
+**Finish-first decision (#72):** the candidate saves CPU only
 under contention with think times shorter than one review, and pays with a
 foreground wait, including the interactive-budget observation above, conflicting
-with the current-decision-first rule (D-59). The shipped
-cancel-and-restart policy, Classic ordering and results stay unchanged. A bounded
-variant would need a progress or deadline signal from the analysis that does not
-exist; the question is reopened if a measured session shows restart work
-dominating at the interactive budget. Together with the identical-input cache
-no-go this records a no-benefit result for these two candidates, not a general
-claim.
+with the current-decision-first rule (D-59). Finish-first is rejected;
+Classic ordering and analysis results stay unchanged. This is a bounded
+no-go for finish-first and identical-input caching, not for every scheduler.
+The two-lane control below addresses progress independently of analysis
+progress/deadline signals.
 
-Lifecycle tests (`skat-app/tests/coach.rs`): cancelled reviews stay queued and
-rerun identically, and a cancel-and-restart game and a finish-first game end
-with identical evidence. That scheduling model serves one review per
-foreground decision synchronously; it does **not** show that the real GUI
-driver does. `drive_coach` cancels a running review whenever a newer current
-decision needs analysis, so under continuous foreground activity faster than
-one review a queued review can be restarted indefinitely. **Starvation freedom
-is therefore not established**: the #72 starvation acceptance criterion stays
-open. The real GUI driver regression
-`repeatedly_preempted_coach_jobs_drain_after_play` forces multiple foreground
-preemptions and checks that the backlog drains after play stops; this finite
-case does not establish progress under continuous preemption. The ignored
-`debrief_paced_gui_worker_probe` likewise shows only that evidence drains once
-the game is over. Coach **off** now hands out no review work and resumes the
-retained backlog when turned on; this was a small fix, since reviews
-previously kept running for an invisible debriefing.
+The historical synchronous lifecycle model in `skat-app/tests/coach.rs`
+proves identical final evidence after cancellation/retry, but not progress of
+the real driver under continuous preemption. The old driver's finite
+post-game drainage likewise did not establish starvation freedom. These limits
+of the previous measurements are preserved; they are not a general no-go.
+
+### Bounded fair review control (#72)
+
+The egui driver now keeps one foreground slot and one FIFO review slot. A
+running review is never cancelled for a newer foreground request. Only the
+oldest queued decision can enter the review slot; a newer displaced foreground
+worker is cancelled instead of overtaking it. Cancellation retains the slot
+until the worker exits. A process-wide atomic permit bounds live/practice coach
+computations to two, even across new games, series, repeated attempts and parked
+sessions. Each computation retains the existing CPU-count bound on its internal
+analysis threads; two computations can contend for those CPUs. Replay comments/reviews and opponent workers retain their separate
+existing bounds. No cache, analysis budget, seed, hidden-view input, quality or
+moment-selection rule changes.
+
+With bounded analysis work and eventual OS thread service, each finite FIFO
+predecessor completes even while foreground requests continue. Coach-off,
+new-game and abandoned attempts deliberately cancel work rather than promising
+progress for discarded contexts. Off retains the queue for resume; completed
+results from cancelled slots are ignored. Existing lineage/budget checks still
+reject stale results. Practice parks and restores both live lanes.
+`reviews_progress_while_foreground_keeps_preempting` holds real input jobs behind
+controlled channels, repeatedly replaces the foreground decision and accepts
+the oldest review **before play stops**. The overtaking regression prevents
+fresh foreground work bypassing an older queued review. The lifecycle test
+covers both slots, coach-off, an already-in-flight result, practice restoration
+and game-reset channel isolation; existing app tests cover retries, stale
+lineages, God Mode, open display and hidden-deal substitution. The new
+`coach_review_job` exposes the same stored permitted snapshot independently of
+the current request, suppressing work while off or inside a permitted guided
+dialogue. Its input/result equality is tested against the ordinary job API.
+
+The comparison entrypoint is now
+`coach_latency --review-play cancel|finish|fair DELAY_MS GAMES NODES_PER_TASK`.
+`fair` models the two slots and waits only for an already-cancelled foreground
+worker to release its slot, never for a whole background review. The real GUI
+performs that wait asynchronously. `COACH_TRACE_ROUNDS=2` repeats the same seeds
+in one process. `COACH_TRACE_EVIDENCE=1` additionally emits every accepted full
+explanation keyed by its input-derived sampling seed; `COACH_TRACE_RECORDING=1`
+emits privileged game traces. Completion is timestamped before serialising the
+final evidence. These local traces expose the deal and must remain private.
+
+The ignored `debrief_paced_gui_worker_probe` runs the actual egui driver and a
+frozen test-only copy of the old driver. `SKAT_COACH_POLICY=cancel|fair`,
+`SKAT_COACH_NODES`, `SKAT_COACH_DELAY` and `SKAT_COACH_ROUNDS` select paired
+manual measurements; defaults remain fair, 20,000 nodes, both 0/5 ms delays and
+one round. It records first useful moment, full completion and headless step
+p95/max including the post-action driver step. It is not physical-display or
+human-response latency.
