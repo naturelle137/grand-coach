@@ -396,11 +396,11 @@ fn observe_before_settling<S, T>(
     first
 }
 
-/// One background worker with the GUI's job policy (`drive_coach`): the current
-/// decision first, otherwise the oldest queued review. `cancel` mode drops a
-/// running analysis of an earlier decision when the current one needs analysis
-/// (baseline, as in egui); `finish` mode lets it complete first (candidate, no
-/// restart work). Usage: `--review-play cancel|finish DELAY_MS GAMES NODES`.
+/// Paired scheduling controls: `cancel` reproduces historical egui preemption;
+/// `finish` awaits the old worker; `fair` protects the oldest review in a second
+/// slot and retains cancelled foreground work until exit. The GUI waits for
+/// that slot asynchronously; this diagnostic awaits it before the next action.
+/// Usage: `--review-play cancel|finish|fair DELAY_MS GAMES NODES`.
 fn review_play() {
     type Run = (
         skat_app::CoachJob,
@@ -419,11 +419,26 @@ fn review_play() {
         });
         (job, cancel, rx)
     }
+    fn accept(
+        session: &mut Session,
+        result: skat_app::CoachResult,
+        analyses: &mut std::collections::BTreeMap<u64, skat_app::coach_model::Explanation>,
+        seed: u64,
+    ) {
+        let explanation = result.explanation().cloned();
+        if session.finish_coach(result).is_ok()
+            && let Some(explanation) = explanation
+            && let Some(previous) = analyses.insert(seed, explanation.clone())
+        {
+            assert_eq!(previous, explanation);
+        }
+    }
     let args: Vec<String> = std::env::args().collect();
+    let fair = args[2] == "fair";
     let preempt = match args[2].as_str() {
-        "cancel" => true,
+        "cancel" | "fair" => true,
         "finish" => false,
-        _ => panic!("mode cancel|finish"),
+        _ => panic!("mode cancel|finish|fair"),
     };
     let delay = args[3].parse::<u64>().unwrap();
     let games = args[4].parse::<u64>().unwrap();
@@ -435,7 +450,8 @@ fn review_play() {
                 if !moments.is_empty()
         )
     };
-    for seed in 1..=games {
+    let rounds = std::env::var("COACH_TRACE_ROUNDS").map_or(1, |n| n.parse().unwrap());
+    for (round, seed) in (0..rounds).flat_map(|round| (1..=games).map(move |seed| (round, seed))) {
         let mut session = Session::new(SessionConfig {
             seed,
             series: SeriesLength::Fixed(1),
@@ -454,11 +470,23 @@ fn review_play() {
             .unwrap();
         let start = Instant::now();
         let mut running: Option<Run> = None;
+        let mut background: Option<Run> = None;
         let mut cancelled_runs = Vec::new();
         let (mut cancelled, mut wasted, mut executed) = (0, Duration::ZERO, Duration::ZERO);
         let (mut waits, mut max_wait) = (Duration::ZERO, Duration::ZERO);
+        let mut reviewed_during_play = 0;
+        let mut analyses = std::collections::BTreeMap::new();
         loop {
             session.run_opponents();
+            if let Some((job, _, rx)) = background.as_ref()
+                && let Ok((result, spent)) = rx.try_recv()
+            {
+                executed += spent;
+                let seed = job.seed();
+                background = None;
+                accept(&mut session, result, &mut analyses, seed);
+                reviewed_during_play += 1;
+            }
             let view = session.view();
             if view.legal_actions.is_empty() {
                 break;
@@ -471,7 +499,22 @@ fn review_play() {
                 let stale = session
                     .coach_job()
                     .is_some_and(|n| !n.is_review() && !n.same_decision(&job));
-                if stale && preempt {
+                if stale
+                    && fair
+                    && background.is_none()
+                    && session
+                        .coach_review_job()
+                        .is_some_and(|oldest| oldest.same_decision(&job))
+                {
+                    background = Some((job, cancel, rx));
+                } else if stale && fair {
+                    // Retain the foreground slot until its cancelled thread exits.
+                    cancel.cancel();
+                    let (_, spent) = rx.recv().unwrap();
+                    cancelled += 1;
+                    wasted += spent;
+                    executed += spent;
+                } else if stale && preempt {
                     // As in egui: request cancellation and start the current
                     // analysis at once; the old worker may still be running.
                     cancel.cancel();
@@ -479,7 +522,7 @@ fn review_play() {
                 } else {
                     let (result, spent) = rx.recv().unwrap();
                     executed += spent;
-                    let _ = session.finish_coach(result);
+                    accept(&mut session, result, &mut analyses, job.seed());
                 }
             }
             let current = session.coach_job().unwrap();
@@ -487,23 +530,54 @@ fn review_play() {
             start_after_cancel(abandoned, &mut cancelled_runs, || {
                 running = Some(spawn_run(current));
             });
+            if fair
+                && background.is_none()
+                && let Some(job) = session.coach_review_job()
+                && !running
+                    .as_ref()
+                    .is_some_and(|(other, _, _)| job.same_decision(other))
+            {
+                background = Some(spawn_run(job));
+            }
             let wait = shown.elapsed();
             waits += wait;
             max_wait = max_wait.max(wait);
             // Human think time: the worker runs, then queued reviews follow.
             let until = Instant::now() + Duration::from_millis(delay);
             while Instant::now() < until {
-                if let Some((_, _, rx)) = running.as_ref()
+                if let Some((job, _, rx)) = running.as_ref()
                     && let Ok((result, spent)) = rx.try_recv()
                 {
                     executed += spent;
+                    let seed = job.seed();
                     running = None;
-                    let _ = session.finish_coach(result);
+                    accept(&mut session, result, &mut analyses, seed);
+                }
+                if let Some((job, _, rx)) = background.as_ref()
+                    && let Ok((result, spent)) = rx.try_recv()
+                {
+                    executed += spent;
+                    let seed = job.seed();
+                    background = None;
+                    accept(&mut session, result, &mut analyses, seed);
+                    reviewed_during_play += 1;
                 }
                 if running.is_none()
                     && let Some(job) = session.coach_job()
+                    && !background
+                        .as_ref()
+                        .is_some_and(|(other, _, _)| job.same_decision(other))
                 {
                     running = Some(spawn_run(job));
+                }
+                if fair
+                    && background.is_none()
+                    && let Some(job) = session.coach_review_job()
+                    && !running
+                        .as_ref()
+                        .is_some_and(|(other, _, _)| job.same_decision(other))
+                {
+                    background = Some(spawn_run(job));
                 }
                 std::thread::sleep(Duration::from_micros(200));
             }
@@ -515,6 +589,27 @@ fn review_play() {
                 };
             session.execute(Command::Act(action)).unwrap();
         }
+        let game_end = start.elapsed();
+        // In the fair arm either lane may publish the first useful moment.
+        let mut fair_first = has_moments(&session).then(|| start.elapsed());
+        if fair {
+            while running.is_some() || background.is_some() {
+                for slot in [&mut running, &mut background] {
+                    if let Some((job, _, rx)) = slot.as_ref()
+                        && let Ok((result, spent)) = rx.try_recv()
+                    {
+                        let seed = job.seed();
+                        *slot = None;
+                        executed += spent;
+                        accept(&mut session, result, &mut analyses, seed);
+                        if fair_first.is_none() && has_moments(&session) {
+                            fair_first = Some(start.elapsed());
+                        }
+                    }
+                }
+                std::thread::sleep(Duration::from_micros(200));
+            }
+        }
         // Observe before waiting for cancelled workers, then drain the queue.
         let mut state = (&mut session, &mut executed, &mut cancelled, &mut wasted);
         let mut first = observe_before_settling(
@@ -522,10 +617,10 @@ fn review_play() {
             |(session, _, _, _)| has_moments(session),
             |_| start.elapsed(),
             |(session, executed, _, _)| {
-                if let Some((_, _, rx)) = running.take() {
+                if let Some((job, _, rx)) = running.take() {
                     let (result, spent) = rx.recv().unwrap();
                     **executed += spent;
-                    let _ = session.finish_coach(result);
+                    accept(session, result, &mut analyses, job.seed());
                 }
             },
             |(_, executed, cancelled, wasted)| {
@@ -537,10 +632,19 @@ fn review_play() {
                 }
             },
         );
+        first = fair_first.or(first);
+        if let Some((job, _, rx)) = background.take() {
+            let (result, spent) = rx.recv().unwrap();
+            executed += spent;
+            accept(&mut session, result, &mut analyses, job.seed());
+            if first.is_none() && has_moments(&session) {
+                first = Some(start.elapsed());
+            }
+        }
         let mut drained = 0;
         while let Some(job) = session.coach_job() {
             let began = Instant::now();
-            session.finish_coach(job.run(None)).unwrap();
+            accept(&mut session, job.run(None), &mut analyses, job.seed());
             executed += began.elapsed();
             drained += 1;
             if first.is_none() && has_moments(&session) {
@@ -550,7 +654,11 @@ fn review_play() {
         let Some(Debriefing::Ready(moments)) = session.view().coach.debriefing else {
             panic!("unfinished")
         };
+        let full = start.elapsed();
+        let full_after_finish = full.saturating_sub(game_end);
+        let first_after_finish = first.map(|time| time.saturating_sub(game_end));
         if std::env::var_os("COACH_TRACE_EVIDENCE").is_some() {
+            println!("analyses={}", serde_json::to_string(&analyses).unwrap());
             println!("evidence={}", serde_json::to_string(&moments).unwrap());
         }
         if std::env::var_os("COACH_TRACE_RECORDING").is_some() {
@@ -561,9 +669,9 @@ fn review_play() {
             );
         }
         println!(
-            "seed={seed} mode={} delay_ms={delay} cancelled={cancelled} wasted={wasted:?} executed={executed:?} drained={drained} foreground_wait_total={waits:?} foreground_wait_max={max_wait:?} first={first:?} full={:?} moments={}",
+            "round={round} seed={seed} mode={} delay_ms={delay} reviewed_during_play={reviewed_during_play} cancelled={cancelled} wasted={wasted:?} executed={executed:?} drained={drained} foreground_wait_total={waits:?} foreground_wait_max={max_wait:?} first={first:?} full={:?} first_after_finish={first_after_finish:?} full_after_finish={full_after_finish:?} moments={}",
             args[2],
-            start.elapsed(),
+            full,
             moments.len()
         );
     }
@@ -714,7 +822,7 @@ mod tests {
     }
 
     /// A controlled worker that blocks after it was told to cancel: the new
-    /// analysis must start before the old worker exits (as in egui).
+    /// analysis must start before the old worker exits (historical cancel mode).
     #[test]
     fn current_analysis_starts_while_cancelled_worker_still_runs() {
         let cancel = Cancel::new();
