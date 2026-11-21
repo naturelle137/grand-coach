@@ -380,6 +380,22 @@ fn start_after_cancel<T>(
     settle_later.extend(abandoned);
 }
 
+fn observe_before_settling<S, T>(
+    state: &mut S,
+    visible: impl Fn(&S) -> bool,
+    now: impl Fn(&S) -> T,
+    finish_active: impl FnOnce(&mut S),
+    settle_cancelled: impl FnOnce(&mut S),
+) -> Option<T> {
+    let mut first = visible(state).then(|| now(state));
+    finish_active(state);
+    if first.is_none() && visible(state) {
+        first = Some(now(state));
+    }
+    settle_cancelled(state);
+    first
+}
+
 /// One background worker with the GUI's job policy (`drive_coach`): the current
 /// decision first, otherwise the oldest queued review. `cancel` mode drops a
 /// running analysis of an earlier decision when the current one needs analysis
@@ -441,7 +457,6 @@ fn review_play() {
         let mut cancelled_runs = Vec::new();
         let (mut cancelled, mut wasted, mut executed) = (0, Duration::ZERO, Duration::ZERO);
         let (mut waits, mut max_wait) = (Duration::ZERO, Duration::ZERO);
-        let mut first = None;
         loop {
             session.run_opponents();
             let view = session.view();
@@ -500,22 +515,28 @@ fn review_play() {
                 };
             session.execute(Command::Act(action)).unwrap();
         }
-        // Game over: settle the worker, then drain the queue.
-        if let Some((_, _, rx)) = running.take() {
-            let (result, spent) = rx.recv().unwrap();
-            executed += spent;
-            let _ = session.finish_coach(result);
-        }
-        // Cancelled workers exit on their own; their time is wasted work.
-        for rx in cancelled_runs {
-            let (_, spent): (skat_app::CoachResult, Duration) = rx.recv().unwrap();
-            cancelled += 1;
-            wasted += spent;
-            executed += spent;
-        }
-        if has_moments(&session) {
-            first = Some(start.elapsed());
-        }
+        // Observe before waiting for cancelled workers, then drain the queue.
+        let mut state = (&mut session, &mut executed, &mut cancelled, &mut wasted);
+        let mut first = observe_before_settling(
+            &mut state,
+            |(session, _, _, _)| has_moments(session),
+            |_| start.elapsed(),
+            |(session, executed, _, _)| {
+                if let Some((_, _, rx)) = running.take() {
+                    let (result, spent) = rx.recv().unwrap();
+                    **executed += spent;
+                    let _ = session.finish_coach(result);
+                }
+            },
+            |(_, executed, cancelled, wasted)| {
+                for rx in cancelled_runs {
+                    let (_, spent): (skat_app::CoachResult, Duration) = rx.recv().unwrap();
+                    **cancelled += 1;
+                    **wasted += spent;
+                    **executed += spent;
+                }
+            },
+        );
         let mut drained = 0;
         while let Some(job) = session.coach_job() {
             let began = Instant::now();
@@ -653,6 +674,37 @@ fn worker_play() {
 mod tests {
     use super::*;
     use std::sync::{Arc, atomic::AtomicBool, atomic::Ordering, mpsc};
+
+    #[test]
+    fn first_moment_is_observed_before_cancelled_workers_settle() {
+        #[derive(Default)]
+        struct State {
+            now: u64,
+            visible: bool,
+        }
+        for (initially_visible, active_makes_visible, expected) in [
+            (true, false, Some(0)),
+            (false, true, Some(10)),
+            (false, false, None),
+        ] {
+            let mut state = State {
+                visible: initially_visible,
+                ..State::default()
+            };
+            let first = observe_before_settling(
+                &mut state,
+                |s| s.visible,
+                |s| s.now,
+                |s| {
+                    s.now += 10;
+                    s.visible |= active_makes_visible;
+                },
+                |s| s.now += 100,
+            );
+            assert_eq!(state.now, 110);
+            assert_eq!(first, expected);
+        }
+    }
 
     /// A controlled worker that blocks after it was told to cancel: the new
     /// analysis must start before the old worker exits (as in egui).
