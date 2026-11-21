@@ -1179,3 +1179,6 @@ guided-kontra-ouvert-no = No
 
 guided-null-defender-lead-role = You defend in Null and lead. The declarer must take a trick to lose; neither reply is known.
 guided-null-defender-lead-limit = Both replies are unknown. This heuristic guarantees neither the trick nor the game.
+
+guided-null-ouvert-defender-lead-role = You defend in Null Ouvert and lead. The declarer's hand is visible; your partner's hand is concealed.
+guided-null-ouvert-defender-lead-limit = The visible hand does not determine either reply. This heuristic guarantees neither the trick nor the game.

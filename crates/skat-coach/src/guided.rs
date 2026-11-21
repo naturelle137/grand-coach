@@ -108,7 +108,7 @@ pub struct Lesson {
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. A defender may
 /// lead the first trick in Vorhand, act second after the declarer leads, or last with the declarer ahead.
-/// Null Ouvert also admits the declarer's opening lead and second/last-seat turns after the reveal.
+/// Null Ouvert admits defender opening leads and the declarer's opening and second/last-seat turns after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Grand Ouvert declarer
 /// and Farbspiel declarer WinLast admit a validated last-seat view. LeadMaster (including Ouvert
@@ -145,10 +145,10 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     let null = game == GameType::Null
         && (!contract.ouvert
+            || view.current_trick.cards == [None; 3]
             || (view.declarer == Some(view.seat)
                 && view.declarer_cards == Some(view.hand)
-                && (view.current_trick.cards == [None; 3]
-                    || matches!(view.current_trick.cards, [Some(_), None, None])
+                && (matches!(view.current_trick.cards, [Some(_), None, None])
                     || matches!(view.current_trick.cards, [Some(_), Some(_), None]))));
     if view.phase != Phase::Spiel
         || !(matches!(game, GameType::Farbe(_))
@@ -206,7 +206,12 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || view.hand_sizes != [10; 3]
             || view.result.is_some()
             || if contract.ouvert {
-                view.declarer_cards != Some(view.hand)
+                if null_defender {
+                    view.declarer_cards
+                        .is_none_or(|cards| cards.len() != 10 || !(cards & view.hand).is_empty())
+                } else {
+                    view.declarer_cards != Some(view.hand)
+                }
             } else {
                 view.declarer_cards.is_some()
             }
