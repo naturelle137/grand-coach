@@ -453,15 +453,14 @@ after a declining card that card and trick (Kontra is no longer offered after
 the own first card). Automated turns are followed; the learner's next own
 action, a new game, coach off or replay ends the dialogue.
 
-Ouvert Farbspiel and Grand (#271) use the same rule on the learner's permitted
+Ouvert Farbspiel, Grand (#271) and Null use the same rule on the learner's permitted
 view: the declarer's reply after the Ouvert Kontra round is guided like any
-Re. Ouvert reveals the declarer hand to the defenders; the dialogue says that
-this view is available, but Easy's rule counts only the learner's own cards,
+Re. Ouvert reveals the declarer hand to the defenders after the Re reply; the dialogue
+describes the reveal without saying it has already occurred. Easy's rule uses only the learner's own cards,
 known Skat and public facts, so nothing beyond that view is inferred and
 swapping hidden cards leaves it unchanged (fixtures: Herz and Grand Hand
-Ouvert at strength 90 and 89). A Null Ouvert contract keeps the
-no-assessment exclusion, the Ouvert round before the reveal (no declarer card is
-shown) and restricted or inconsistent views (absent contract,
+Ouvert at strength 90 and 89, and Null Ouvert without an assessment). The
+Ouvert round before the reveal (no declarer card is shown) and restricted or inconsistent views (absent contract,
 seat or level not matching the call, Easy's choice not legal) report their own
 unsupported text; all calls and cards stay free.
 
