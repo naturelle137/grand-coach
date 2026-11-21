@@ -21,7 +21,7 @@ appeared when the player acted. Platform coverage and release checks are in
 | Second frontend (M9) | Frontend-independent session API. | Add Godot via gdext after the desktop training and release work. |
 
 The Null Ouvert Re reply uses the Null no-assessment dialogue. The Null opening-lead dialogue also supports a revealed Null Ouvert hand for
-the Vorhand declarer. Other Ouvert card-play branches remain open.
+the Vorhand declarer. Grand Ouvert declarer `LeadMaster` also supports an own empty-trick lead; other Ouvert card-play branches remain open.
 
 Release 1.0 also requires [modern egui #134](https://github.com/naturelle137/grand-coach/issues/134)
 to be implemented, independently reviewed, tested and merged through the

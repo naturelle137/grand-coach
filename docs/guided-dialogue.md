@@ -1267,3 +1267,16 @@ The ordinary seed 1282 with two Easy opponents reaches the dialogue after
 the human passes. Bilingual headless widgets exercise reveal, play, both
 replies and return at 1440 and 960 pixels. This technical evidence does not
 establish learner efficacy.
+
+## Ouvert Grand declarer lead (#131)
+
+The existing `LeadMaster` dialogue also admits the declarer's own empty-trick
+lead in Grand Ouvert when the revealed hand matches the acting hand and Easy
+selects a non-Trumpf follow-class master. At least two exact legal actions are
+required. Easy chooses the highest Augen among those masters, breaking ties by
+the last card in legal order. A side master can still be trumped; all legal
+cards remain playable and the actual replies are observed. Other Grand Ouvert
+branches remain unsupported. The core-accepted fixture in
+`guided_suit_lead_master.rs` announces Grand Ouvert after Hand and verifies
+the candidate set and the revealed-hand boundary; the app test exercises
+reveal, free play and observation. No learner outcome is implied.
