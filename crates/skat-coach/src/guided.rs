@@ -111,16 +111,26 @@ pub struct Lesson {
 /// The declarer's opening lead also admits Null Ouvert after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Non-Ouvert Farbspiel/Grand
-/// LeadMaster (including Ouvert Farbspiel declarer) and Grand declarer DrawTrumpf also admit the own empty-trick lead
+/// LeadMaster (including Ouvert Farbspiel and Grand declarer) and Grand declarer DrawTrumpf also admit the own empty-trick lead
 /// with an exact pure core-legal action list; other lead branches stay excluded.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
     let game = contract.game;
     let grand = game == GameType::Grand && !contract.ouvert;
+    let ouvert_grand_lead = game == GameType::Grand
+        && contract.ouvert
+        && view.declarer == Some(view.seat)
+        && contract.hand
+        && contract.schneider
+        && contract.schwarz
+        && view.declarer_cards == Some(view.hand)
+        && view.current_trick.cards == [None; 3];
     let null = game == GameType::Null
         && (!contract.ouvert
             || (view.declarer == Some(view.seat) && view.current_trick.cards == [None; 3]));
-    if view.phase != Phase::Spiel || !(matches!(game, GameType::Farbe(_)) || grand || null) {
+    if view.phase != Phase::Spiel
+        || !(matches!(game, GameType::Farbe(_)) || grand || ouvert_grand_lead || null)
+    {
         return None;
     }
     // Checked before the shared rule, which assumes a declarer during play.
@@ -205,7 +215,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 && contract.schneider
                 && contract.schwarz
                 && view.declarer_cards == Some(view.hand)));
-    if (grand || suit) && view.current_trick.cards[0].is_none() {
+    if (grand || ouvert_grand_lead || suit) && view.current_trick.cards[0].is_none() {
         if view.current_trick.cards != [None; 3]
             || view.current_trick.leader != view.tricks.last().map(|t| t.winner)
             || view.tricks.last().is_some_and(|t| t.winner != view.seat)
