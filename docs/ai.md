@@ -530,3 +530,10 @@ to Classic therefore does not close the gap: the shortfall lies in Drücken and
 card play, not in the missing Hand/announcements. The model is still weaker
 than Classic Strong; no strength is claimed, nothing is shipped and #74 stays
 open.
+
+For controlled comparisons, `calibrate` also accepts
+`'split:nn:PRE.gcnn@strong|nn:SPIEL.gcnn@strong'`: the first profile decides
+before Spiel, the second decides Spiel including Kontra/Re. Each retains its
+own Classic fallback and the report identifies both models. This enables
+separate assessment of existing models; it is not a strength result or a
+change to the shipped opponent. No training is authorised by this option.
