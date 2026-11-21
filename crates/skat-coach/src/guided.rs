@@ -110,9 +110,10 @@ pub struct Lesson {
 /// lead the first trick in Vorhand, act second after the declarer leads, or last with the declarer ahead.
 /// The declarer's opening lead also admits Null Ouvert after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
-/// restricted or inconsistent views stay excluded here. Non-Ouvert Farbspiel/Grand
-/// Grand Ouvert declarer WinLast in last seat, LeadMaster (including Ouvert Farbspiel and Grand declarer), and Grand declarer DrawTrumpf (including Ouvert) admit their tested views
-/// with an exact pure core-legal action list; other lead branches stay excluded.
+/// restricted or inconsistent views stay excluded here. Grand Ouvert declarer
+/// WinLast admits a validated last-seat view. LeadMaster (including Ouvert
+/// Farbspiel and Grand declarer) and Grand declarer DrawTrumpf (including
+/// Ouvert) admit tested own leads with an exact core-legal action list.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
     let game = contract.game;
