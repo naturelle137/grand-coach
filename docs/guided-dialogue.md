@@ -454,14 +454,13 @@ after a declining card that card and trick (Kontra is no longer offered after
 the own first card). Automated turns are followed; the learner's next own
 action, a new game, coach off or replay ends the dialogue.
 
-Ouvert Farbspiel and Grand (#271) guide the defender's decision before the
+Ouvert Farbspiel, Grand (#271) and Null (#308) guide the defender's decision before the
 reveal: Easy always chooses `KeinKontra` without assessing the hand. The hand
 is hidden at that decision and becomes visible to defenders after the round.
 The declarer's Re reply in Farbspiel, Grand and Null Ouvert is guided like any
 Re; Null keeps its no-assessment explanation. Easy uses only the learner's own
 cards, known Skat and public facts; swapping hidden cards leaves the dialogue
-unchanged. Null Ouvert's separate pre-reveal round remains unsupported, as do
-restricted or inconsistent views (absent contract,
+unchanged. Restricted or inconsistent views (absent contract,
 seat or level not matching the call, Easy's choice not legal) report their own
 unsupported text; all calls and cards stay free.
 
@@ -481,7 +480,7 @@ Swapping unseen cards (opponents, unknown Hand Skat) leaves lesson and app
 dialogue identical. Further legal positions: ineligible bidding (MH passes at
 once, VH passes: no offer), the setting off, VH after its first card (no
 offer, while MH may still say Kontra), MH after Kontra and Re/KeinRe, Null
-ouvert round and the following Re (exclusions). Labelled synthetic views test restricted legal
+ouvert round and the following Re (supported). Labelled synthetic views test restricted legal
 lists, an absent contract and a declarer offered Kontra. App tests cover
 wrong/retry/reveal, every legal action with the actual observation, the
 exact declining card, Re/KeinRe with the resumed play, stale and replaced
@@ -532,7 +531,7 @@ identity and God Mode parity. In the ordinary app with Kontra/Re on, seed 848
 (first game) reaches a Grand defence with two Buben where the human says
 Kontra and the declarer's actual reply is shown, seed 1282 (first game) a
 Null defence where the human declines with a card; seed 848's second game
-reaches the Null ouvert round with its exclusion text. No automatic opponent
+reaches the Null ouvert round with the same pre-reveal dialogue. No automatic opponent
 says Kontra in a non-Ouvert Grand or Null, so the learner's Grand/Null Re
 reply is reached only by the core-replayed app fixtures above, not in an
 ordinary-app walkthrough or screenshot.
@@ -1242,7 +1241,7 @@ answers and retries, deliberate reveal, memory, stale ids and return. The
 orientation, rule, observation question and feedback. These are technical
 checks, not learner or transfer observations; the wider #131 later-phase
 criterion remains open (Grand/Null remaining branches, Ouvert and
-the Null Ouvert Kontra round).
+other unsupported decisions).
 
 ## Ouvert Farbspiel declarer lead (#273)
 

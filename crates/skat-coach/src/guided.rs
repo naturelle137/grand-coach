@@ -598,13 +598,10 @@ pub fn kontra_exclusion(view: &PlayerView) -> Option<KontraExclusion> {
 
 fn kontra_support(view: &PlayerView) -> Result<KontraLesson, KontraExclusion> {
     let contract = view.contract.ok_or(KontraExclusion::Restricted)?;
-    if view.legal_actions.contains(&Action::KeinKontra) {
-        if contract.ouvert && contract.game == GameType::Null {
-            return Err(KontraExclusion::OuvertRound);
-        }
-        if !contract.ouvert || view.legal_actions != [Action::Kontra, Action::KeinKontra] {
-            return Err(KontraExclusion::Restricted);
-        }
+    if view.legal_actions.contains(&Action::KeinKontra)
+        && (!contract.ouvert || view.legal_actions != [Action::Kontra, Action::KeinKontra])
+    {
+        return Err(KontraExclusion::Restricted);
     }
     let rule = baseline::kontra_rule(view).ok_or(KontraExclusion::Restricted)?;
     let declarer = view.declarer.ok_or(KontraExclusion::Restricted)?;
