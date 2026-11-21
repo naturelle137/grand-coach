@@ -1264,3 +1264,14 @@ branches remain unsupported. The core-accepted fixture in
 `guided_suit_lead_master.rs` announces Grand Ouvert after Hand and verifies
 the candidate set and the revealed-hand boundary; the app test exercises
 reveal, free play and observation. No learner outcome is implied.
+
+## Grand Ouvert declarer DrawTrumpf lead (#131)
+
+The existing Grand declarer `DrawTrumpf` dialogue also accepts an own
+empty-trick lead in Grand Ouvert after the hand is revealed and matches the
+acting hand. The shared Easy rule selects its highest-power own Bube while
+Trumpf remains unaccounted for; this does not locate the unseen Buben or
+guarantee a result. Every legal card stays playable and the actual replies are
+observed. Other Grand Ouvert branches remain unsupported. The core-accepted
+Ouvert Hand witness in `guided_draw_trumpf.rs` and the app test exercise this
+branch and its visibility and legal-action boundaries.
