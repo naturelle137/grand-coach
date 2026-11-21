@@ -25,6 +25,8 @@
 //! of thumb (`Profile::search_kontra`). Kontra/Re is on.
 //! `nn-easy:<path>`, `nn-medium:<path>` and `nn-strong:<path>` use the
 //! shared experimental app temperature profiles and matching Classic fallback.
+//! `split:<pre-play spec>|<Spiel spec>` combines two existing profiles;
+//! Kontra/Re belongs to Spiel. Each profile retains its own fallback.
 //! `two-stage` uses the opt-in two-stage Strong proposal.
 //! `hybrid:<path>` uses experimental learned proposals verified by Strong,
 //! with fixed Strong fallback; it accepts no level or `+ak` suffix.
@@ -93,6 +95,7 @@ fn profile(spec: &str) -> Profile {
 /// a Classic fallback profile.
 #[derive(Clone)]
 enum Side {
+    Split(Box<Side>, Box<Side>),
     TwoStage,
     Experimental,
     Classic(Profile),
@@ -101,6 +104,7 @@ enum Side {
 }
 
 enum Seated {
+    Split(Box<Seated>, Box<Seated>),
     TwoStage(Opponent),
     Experimental(skat_ai::ExperimentalOpponent),
     Classic(Opponent),
@@ -111,6 +115,12 @@ enum Seated {
 impl Player for Seated {
     fn decide(&self, view: &PlayerView, cancel: Option<&Cancel>) -> Option<Decision> {
         match self {
+            Seated::Split(pre, spiel) => if view.phase == skat_core::Phase::Spiel {
+                spiel
+            } else {
+                pre
+            }
+            .decide(view, cancel),
             Seated::TwoStage(o) => o
                 .decide_two_stage(view, cancel, skat_analysis::TwoStage::PROPOSAL)
                 .map(|(decision, _, _)| decision),
@@ -124,6 +134,16 @@ impl Player for Seated {
 
 impl Side {
     fn parse(spec: &str) -> Side {
+        if let Some(rest) = spec.strip_prefix("split:") {
+            let (pre, spiel) = rest
+                .split_once('|')
+                .expect("split:<pre-play spec>|<Spiel spec>");
+            assert!(
+                !pre.starts_with("split:") && !spiel.starts_with("split:") && !spiel.contains('|'),
+                "nested split profiles are unsupported"
+            );
+            return Side::Split(Box::new(Side::parse(pre)), Box::new(Side::parse(spiel)));
+        }
         if let Some(path) = spec.strip_prefix("hybrid:") {
             let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
             let model = NeuralModel::load(&bytes, &skat_nn::sha256(&bytes))
@@ -187,6 +207,9 @@ impl Side {
 
     fn seat(&self, seed: u64) -> Seated {
         match self {
+            Side::Split(pre, spiel) => {
+                Seated::Split(Box::new(pre.seat(seed)), Box::new(spiel.seat(seed)))
+            }
             Side::TwoStage => Seated::TwoStage(Opponent::new(Level::Strong, seed)),
             Side::Hybrid(model) => Seated::Hybrid(HybridOpponent::new(Ok(model.clone()), seed)),
             Side::Experimental => Seated::Experimental(skat_ai::ExperimentalOpponent {
@@ -204,6 +227,11 @@ impl Side {
 
     fn describe(&self) -> String {
         match self {
+            Side::Split(pre, spiel) => format!(
+                "pre-play: {}; Spiel (including Kontra/Re): {}",
+                pre.describe(),
+                spiel.describe()
+            ),
             Side::TwoStage => "experimental two-stage Strong proposal".into(),
             Side::Hybrid(model) => {
                 let hash: String = model.sha256().iter().map(|b| format!("{b:02x}")).collect();
@@ -574,6 +602,50 @@ mod tests {
         };
         assert_eq!(legacy.choice, Choice::Policy);
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn split_profile_dispatches_each_phase_and_reports_both_models() {
+        let pre = skat_nn::fixture_model(21, Phases::ALL);
+        let spiel = skat_nn::fixture_model(22, Phases::SPIEL);
+        let dir = std::env::temp_dir();
+        let pre_path = dir.join(format!("gc-split-pre-{}.gcnn", std::process::id()));
+        let spiel_path = dir.join(format!("gc-split-spiel-{}.gcnn", std::process::id()));
+        std::fs::write(&pre_path, &pre).unwrap();
+        std::fs::write(&spiel_path, &spiel).unwrap();
+        let pre_spec = format!("nn:{}@easy", pre_path.display());
+        let spiel_spec = format!("nn:{}@easy+ak", spiel_path.display());
+        let side = Side::parse(&format!("split:{pre_spec}|{spiel_spec}"));
+        let description = side.describe();
+        for bytes in [&pre, &spiel] {
+            let hash: String = skat_nn::sha256(bytes)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect();
+            assert!(description.contains(&hash));
+        }
+        let split = side.seat(42);
+        let pre_player = Side::parse(&pre_spec).seat(42);
+        let spiel_player = Side::parse(&spiel_spec).seat(42);
+        let mut seen_spiel = false;
+        for seed in 0..20 {
+            let mut game = skat_core::Game::new(seed, RuleConfig { kontra_re: true });
+            while let Some(seat) = game.current_seat() {
+                let view = game.view(seat);
+                let expected = if view.phase == skat_core::Phase::Spiel {
+                    seen_spiel = true;
+                    spiel_player.decide(&view, None)
+                } else {
+                    pre_player.decide(&view, None)
+                };
+                let actual = split.decide(&view, None);
+                assert_eq!(actual, expected);
+                game.apply(actual.unwrap().action).unwrap();
+            }
+        }
+        assert!(seen_spiel);
+        std::fs::remove_file(pre_path).unwrap();
+        std::fs::remove_file(spiel_path).unwrap();
     }
 
     #[test]
