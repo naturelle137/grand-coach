@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Bounded guided Farbspiel, non-Ouvert Grand and opening/second/last-seat Null
+//! Bounded guided Farbspiel, Grand and opening/second/last-seat Null
 //! declarer and bounded defender card play, Reizen,
 //! Skataufnahme, Drücken, Ansage and Kontra/Re lessons. Exact
 //! rule provenance, never search ranking.
@@ -111,7 +111,7 @@ pub struct Lesson {
 /// Null Ouvert also admits the declarer's opening lead and last-seat turn after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Grand Ouvert declarer
-/// WinLast admits a validated last-seat view. LeadMaster (including Ouvert
+/// WinLast and WinEarly admit validated last- and second-seat views. LeadMaster (including Ouvert
 /// Farbspiel and Grand declarer) and Grand declarer DrawTrumpf (including
 /// Ouvert) admit tested own leads with an exact core-legal action list.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
@@ -143,6 +143,23 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .iter()
                 .map(Action::Play)
                 .collect::<Vec<_>>();
+    let ouvert_grand_early = game == GameType::Grand
+        && contract.ouvert
+        && view.declarer == Some(view.seat)
+        && contract.hand
+        && contract.schneider
+        && contract.schwarz
+        && view.hand_game == Some(true)
+        && view.own_skat.is_none()
+        && view.declarer_cards == Some(view.hand)
+        && view.current_seat == Some(view.seat)
+        && matches!(view.current_trick.cards, [Some(_), None, None])
+        && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+        && view.legal_actions
+            == skat_core::legal_cards(game, view.hand, view.current_trick.led())
+                .iter()
+                .map(Action::Play)
+                .collect::<Vec<_>>();
     let null = game == GameType::Null
         && (!contract.ouvert
             || (view.declarer == Some(view.seat)
@@ -154,6 +171,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || grand
             || ouvert_grand_lead
             || ouvert_grand_last
+            || ouvert_grand_early
             || null)
     {
         return None;
@@ -344,12 +362,13 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     view.declarer?;
     let rule = baseline::rule(view)?;
-    if (ouvert_grand_last && rule.branch != Branch::WinLast)
+    if (ouvert_grand_early && rule.branch != Branch::WinEarly)
+        || (ouvert_grand_last && rule.branch != Branch::WinLast)
         || view.legal_actions.len() < 2
         || rule.candidates.is_empty()
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
         || !(matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
-            || ((grand || suit_early) && rule.branch == Branch::WinEarly)
+            || ((grand || suit_early || ouvert_grand_early) && rule.branch == Branch::WinEarly)
             || (rule.branch == Branch::FeedPartner
                 && (((grand || suit_feed) && rule.last)
                     || (feed_early && rule.partner_ahead && rule.table_master)))
