@@ -1239,6 +1239,16 @@ pub fn null_lead_flow(
     stage: &str,
     chosen: u8,
 ) {
+    null_lead_flow_with_ouvert(h, language, stage, chosen, false);
+}
+
+pub fn null_lead_flow_with_ouvert(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    stage: &str,
+    chosen: u8,
+    ouvert: bool,
+) {
     use skat_app::*;
     let i = I18n::new(language);
     h.state_mut().set_language(language);
@@ -1256,6 +1266,11 @@ pub fn null_lead_flow(
     click(h, &i.t("button-hand"));
     h.get_by_role_and_label(Role::RadioButton, "Null").click();
     h.run_steps(4);
+    if ouvert {
+        h.get_by_role_and_label(Role::CheckBox, &i.t("contract-ouvert"))
+            .click();
+        h.run_steps(4);
+    }
     click(h, &i.t("button-announce"));
     settle(h);
     let v = h.state().session().view();

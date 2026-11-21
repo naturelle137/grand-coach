@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Bounded guided Farbspiel, non-Ouvert Grand and opening/second/last-seat non-Ouvert Null
+//! Bounded guided Farbspiel, non-Ouvert Grand and opening/second/last-seat Null
 //! declarer and bounded defender card play, Reizen,
 //! Skataufnahme, Drücken, Ansage and non-Ouvert Kontra/Re lessons. Exact
 //! rule provenance, never search ranking.
@@ -108,7 +108,8 @@ pub struct Lesson {
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. A defender may
 /// act second after the declarer leads, or last with the declarer ahead.
-/// `Branch::Null` is broader; other defender turns, later own leads, Ouvert and
+/// The declarer's opening lead also admits Null Ouvert after the reveal.
+/// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Non-Ouvert Farbspiel/Grand
 /// LeadMaster (including Ouvert Farbspiel declarer) and Grand declarer DrawTrumpf also admit the own empty-trick lead
 /// with an exact pure core-legal action list; other lead branches stay excluded.
@@ -116,7 +117,9 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
     let game = contract.game;
     let grand = game == GameType::Grand && !contract.ouvert;
-    let null = game == GameType::Null && !contract.ouvert;
+    let null = game == GameType::Null
+        && (!contract.ouvert
+            || (view.declarer == Some(view.seat) && view.current_trick.cards == [None; 3]));
     if view.phase != Phase::Spiel || !(matches!(game, GameType::Farbe(_)) || grand || null) {
         return None;
     }
@@ -166,7 +169,11 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || view.hand.len() != 10
             || view.hand_sizes != [10; 3]
             || view.result.is_some()
-            || view.declarer_cards.is_some()
+            || if contract.ouvert {
+                view.declarer_cards != Some(view.hand)
+            } else {
+                view.declarer_cards.is_some()
+            }
             || view.own_skat.is_some_and(|s| !(s & view.hand).is_empty())
             || view.legal_actions.len() < 2
         {
