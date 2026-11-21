@@ -484,48 +484,52 @@ fn null_lead_return_at_every_stage_preserves_game_and_next_game_clears_identity(
 
 #[test]
 fn null_defender_opening_dialogue_observes_both_replies_for_every_lead() {
-    let c = cases().remove(0);
-    let mut s = Session::new(SessionConfig {
-        opponents: Opponents::Levels([Level::Easy; 2]),
-        kontra_re: false,
-        ..SessionConfig::default()
-    });
-    s.dealer = PlayerId(2);
-    s.game = skat_core::Game::from_deal(c.deal, skat_core::RuleConfig { kontra_re: false });
-    s.recording.deal = c.deal;
-    for a in [
-        Action::Bid(18),
-        Action::Pass,
-        Action::Pass,
-        Action::Hand,
-        Action::Announce(skat_core::Announcement::plain(NULL)),
-    ] {
-        s.apply(a).unwrap();
-    }
-    for action in s.view().legal_actions {
-        let mut s = s.clone();
-        s.execute(Command::StartGuided).unwrap();
-        assert!(s.guided().unwrap().rule.is_none());
-        respond(
-            &mut s,
-            G::Answer(A::Lead {
-                seat: Seat::Vorhand,
-                declarer: false,
-            }),
-        )
-        .unwrap();
-        respond(&mut s, G::Reveal).unwrap();
-        s.execute(Command::Act(action)).unwrap();
-        for _ in 0..2 {
-            s.execute(Command::AdvanceOpponent).unwrap();
+    for ouvert in [false, true] {
+        let c = cases().remove(0);
+        let mut s = Session::new(SessionConfig {
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            kontra_re: false,
+            ..SessionConfig::default()
+        });
+        s.dealer = PlayerId(2);
+        s.game = skat_core::Game::from_deal(c.deal, skat_core::RuleConfig { kontra_re: false });
+        s.recording.deal = c.deal;
+        let mut announcement = skat_core::Announcement::plain(NULL);
+        announcement.ouvert = ouvert;
+        for a in [
+            Action::Bid(18),
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(announcement),
+        ] {
+            s.apply(a).unwrap();
         }
-        assert_eq!(s.guided().unwrap().lead_replies.len(), 2);
-        respond(&mut s, G::Reveal).unwrap();
-        assert_eq!(
-            s.guided().unwrap().observation.unwrap().winner,
-            Some(s.game.tricks()[0].winner)
-        );
-        respond(&mut s, G::Return).unwrap();
-        assert!(s.guided().is_none());
+        for action in s.view().legal_actions {
+            let mut s = s.clone();
+            s.execute(Command::StartGuided).unwrap();
+            assert!(s.guided().unwrap().rule.is_none());
+            respond(
+                &mut s,
+                G::Answer(A::Lead {
+                    seat: Seat::Vorhand,
+                    declarer: false,
+                }),
+            )
+            .unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+            s.execute(Command::Act(action)).unwrap();
+            for _ in 0..2 {
+                s.execute(Command::AdvanceOpponent).unwrap();
+            }
+            assert_eq!(s.guided().unwrap().lead_replies.len(), 2);
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().observation.unwrap().winner,
+                Some(s.game.tricks()[0].winner)
+            );
+            respond(&mut s, G::Return).unwrap();
+            assert!(s.guided().is_none());
+        }
     }
 }
