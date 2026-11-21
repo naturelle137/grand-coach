@@ -501,10 +501,16 @@ fn review_play() {
             session.execute(Command::Act(action)).unwrap();
         }
         // Game over: settle the worker, then drain the queue.
+        if has_moments(&session) {
+            first = Some(start.elapsed());
+        }
         if let Some((_, _, rx)) = running.take() {
             let (result, spent) = rx.recv().unwrap();
             executed += spent;
             let _ = session.finish_coach(result);
+        }
+        if first.is_none() && has_moments(&session) {
+            first = Some(start.elapsed());
         }
         // Cancelled workers exit on their own; their time is wasted work.
         for rx in cancelled_runs {
@@ -512,9 +518,6 @@ fn review_play() {
             cancelled += 1;
             wasted += spent;
             executed += spent;
-        }
-        if has_moments(&session) {
-            first = Some(start.elapsed());
         }
         let mut drained = 0;
         while let Some(job) = session.coach_job() {
