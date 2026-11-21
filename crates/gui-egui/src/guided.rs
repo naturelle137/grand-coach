@@ -90,9 +90,7 @@ fn content(
             &[("seat", text::seat(i, partner.seat).into())],
         ));
     }
-    let null = table
-        .contract
-        .is_some_and(|c| c.game == GameType::Null && (!c.ouvert || g.lead.is_some()));
+    let null = table.contract.is_some_and(|c| c.game == GameType::Null);
     let null_defender = null && table.declarer != Some(skat_app::PlayerId::HUMAN);
     if null_defender
         && matches!(

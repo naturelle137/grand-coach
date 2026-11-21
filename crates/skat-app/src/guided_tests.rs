@@ -3026,6 +3026,34 @@ fn null_middle_every_candidate_and_continuation_observes_actual_third_winner() {
 }
 
 #[test]
+fn null_ouvert_middle_dialogue_observes_the_actual_reply() {
+    let mut c = middle_fixture::cases()
+        .into_iter()
+        .find(|c| c.id == "mixed-hand")
+        .unwrap();
+    for action in &mut c.history {
+        if let Action::Announce(announcement) = action {
+            announcement.ouvert = true;
+        }
+    }
+    for &(candidate, third, winner) in &c.completions {
+        let mut s = middle_fixture_session(&c);
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        s.execute(Command::Act(Action::Play(middle_fixture::card(candidate))))
+            .unwrap();
+        s.apply(Action::Play(middle_fixture::card(third))).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(winner)
+        );
+        respond(&mut s, G::Return).unwrap();
+        assert!(s.guided().is_none());
+    }
+}
+
+#[test]
 fn null_middle_full_dialogue_hidden_substitutions_even_in_god_mode() {
     let cs = middle_fixture::cases();
     for (a, b) in [
@@ -3145,7 +3173,7 @@ fn null_middle_fixture_widget_models_match_checked_sessions() {
             g["id"]["generation"] = 0.into();
             frames.push(serde_json::json!({"case":c.id,"stage":stage,"table":s.view(),"guided":g}));
         };
-        if !c.admitted {
+        if !c.admitted && c.id != "ouvert" {
             save("unsupported", &s);
             continue;
         }
