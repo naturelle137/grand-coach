@@ -27,6 +27,7 @@ pub fn inventory() -> Vec<serde_json::Value> {
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-grand-ouvert-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"grand-ouvert-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-grand-ouvert-draw-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"grand-ouvert-draw-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-grand-ouvert-last-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"grand-ouvert-last-fixture"}));
+            result.push(serde_json::json!({"name":format!("guided-suit-lead-master-suit-ouvert-last-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"suit-ouvert-last-fixture"}));
             for stage in STAGES {
                 result.push(serde_json::json!({"name":format!("guided-suit-lead-master-{stage}-{language}{suffix}"),"stage":stage,"language":language,"width":width,"height":height,"kind":"ordinary"}));
             }
@@ -57,6 +58,7 @@ pub fn render(name: &str, out: Option<&str>) {
         || entry["kind"] == "grand-ouvert-fixture"
         || entry["kind"] == "grand-ouvert-draw-fixture"
         || entry["kind"] == "grand-ouvert-last-fixture"
+        || entry["kind"] == "suit-ouvert-last-fixture"
     {
         let builder = Harness::builder().with_size(size);
         let builder = if out.is_some() {
@@ -65,11 +67,14 @@ pub fn render(name: &str, out: Option<&str>) {
             builder
         };
 
+        let suit_last = entry["kind"] == "suit-ouvert-last-fixture";
         let grand_last = entry["kind"] == "grand-ouvert-last-fixture";
         let grand_draw = entry["kind"] == "grand-ouvert-draw-fixture";
         let grand_ouvert = entry["kind"] == "grand-ouvert-fixture" || grand_draw || grand_last;
-        let ouvert = entry["kind"] == "ouvert-fixture" || grand_ouvert;
-        let fixture: serde_json::Value = serde_json::from_str(if grand_last {
+        let ouvert = entry["kind"] == "ouvert-fixture" || grand_ouvert || suit_last;
+        let fixture: serde_json::Value = serde_json::from_str(if suit_last {
+            include_str!("../../tests/fixtures/suit-ouvert-last.json")
+        } else if grand_last {
             include_str!("../../tests/fixtures/grand-ouvert-last.json")
         } else if grand_draw {
             include_str!("../../tests/fixtures/grand-ouvert-draw.json")

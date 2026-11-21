@@ -29,7 +29,7 @@ separate factual oracles.
   least two legal cards and one losing candidate, Easy takes a loser by
   `(is_trump, Augen, power)`, first exact tie. A nonchosen losing candidate may
   serve the same immediate purpose. This does not secure the partner's trick.
-- **WinLast:** Farbspiel or non-Ouvert Grand (#157, below), last seat,
+- **WinLast:** Farbspiel or Grand (#157, below), including [Ouvert declarer last](#farbspiel-ouvert-declarer-playing-last-318), last seat,
   opposing party leads, at least two legal cards and a winning candidate. Easy takes a winner by `(is_trump, power)`,
   first exact tie. Other winning cards still win this trick. No claim about
   their future strategic value or the final game result follows.
@@ -1329,3 +1329,14 @@ playable; the actual third card and winner are observed. The core-replayed
 mixed Hand fixture checks candidates, reveal and legal-action boundaries,
 and the session test checks each legal choice and its actual continuation.
 These checks do not establish learner outcomes.
+
+## Farbspiel Ouvert declarer playing last (#318)
+
+The declarer acting last with a matching revealed hand and a complete legal
+card list can enter the shared `WinLast` dialogue. Every legal card remains
+playable; the completed trick reports its actual winner. The Hand Skat and
+defender cards remain unknown. The core fixture tests winning and losing
+choices, hidden-card substitution and malformed views; app tests exercise
+attempt, reveal, observation and return. The seeded egui test also walks the
+real bilingual widgets from bidding through return to play. These checks do not establish
+learning efficacy.

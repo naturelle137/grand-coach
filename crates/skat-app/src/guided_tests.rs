@@ -1577,18 +1577,52 @@ fn grand_last(declarer: Seat, deal: skat_core::Deal, plays: &[&str]) -> Session 
 fn grand_win_last_both_roles_attempt_reveal_every_legal_card_and_actual_trick() {
     use fixture::card as c;
     // (declarer, lead, partner/opponent card, Easy's card, winning cards)
-    for (declarer, led, second, easy, winning, ouvert) in [
-        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"], true),
-        (Seat::Hinterhand, "C9", "C8", "CQ", vec!["CQ", "CA"], false),
-        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"], false),
-        (Seat::Vorhand, "C9", "C7", "CQ", vec!["CQ", "CA"], false),
-        (Seat::Vorhand, "CK", "C7", "CA", vec!["CA"], false),
+    for (declarer, led, second, easy, winning, ouvert, game) in [
+        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"], true, GRAND),
+        (
+            Seat::Hinterhand,
+            "CK",
+            "C8",
+            "CA",
+            vec!["CA"],
+            true,
+            skat_core::GameType::Farbe(skat_core::Suit::Herz),
+        ),
+        (
+            Seat::Hinterhand,
+            "C9",
+            "C8",
+            "CQ",
+            vec!["CQ", "CA"],
+            true,
+            skat_core::GameType::Farbe(skat_core::Suit::Herz),
+        ),
+        (
+            Seat::Hinterhand,
+            "C9",
+            "C8",
+            "CQ",
+            vec!["CQ", "CA"],
+            false,
+            GRAND,
+        ),
+        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"], false, GRAND),
+        (
+            Seat::Vorhand,
+            "C9",
+            "C7",
+            "CQ",
+            vec!["CQ", "CA"],
+            false,
+            GRAND,
+        ),
+        (Seat::Vorhand, "CK", "C7", "CA", vec!["CA"], false, GRAND),
     ] {
         let deal = fixture::deal();
         let actions = fixture::contract_actions(
             deal,
             declarer,
-            fixture::hand_game(GRAND, ouvert),
+            fixture::hand_game(game, ouvert),
             &[led, second],
         );
         let s = grand_session(Seat::Hinterhand, deal, false, &actions);
@@ -3889,6 +3923,32 @@ fn grand_ouvert_last_snapshot() {
     guided["id"]["generation"] = 0.into();
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../gui-egui/tests/fixtures/grand-ouvert-last.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        serde_json::json!({"table": s.view(), "guided": guided}),
+        expected
+    );
+}
+
+#[test]
+fn suit_ouvert_last_snapshot() {
+    let deal = fixture::deal();
+    let game = skat_core::GameType::Farbe(skat_core::Suit::Herz);
+    let actions = fixture::contract_actions(
+        deal,
+        Seat::Hinterhand,
+        fixture::hand_game(game, true),
+        &["CK", "C8"],
+    );
+    let mut s = grand_session(Seat::Hinterhand, deal, false, &actions);
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    let mut guided = serde_json::to_value(s.guided().unwrap()).unwrap();
+    guided["id"]["lineage"] = 0.into();
+    guided["id"]["generation"] = 0.into();
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../gui-egui/tests/fixtures/suit-ouvert-last.json"
     ))
     .unwrap();
     assert_eq!(
