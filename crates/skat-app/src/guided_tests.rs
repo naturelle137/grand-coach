@@ -1219,17 +1219,22 @@ fn ouvert_kontra_offers_get_honest_fallbacks() {
             assert!(s.guided().is_none());
         }
     }
-    // Null ouvert after the separate round: the declarer's Re reply stays excluded.
+    // Null Ouvert Re uses the same no-assessment dialogue as plain Null.
     let mut s = kontra_session(Seat::Hinterhand, deal, ouvert);
     s.apply(Action::Kontra).unwrap();
-    assert_eq!(s.view().legal_actions, vec![Action::Re, Action::KeinRe]);
+    let before = s.view();
     s.execute(Command::StartGuided).unwrap();
-    let g = s.guided().unwrap();
-    assert_eq!(
-        (g.step, g.kontra_exclusion),
-        (S::Unsupported, Some(X::Ouvert))
-    );
-    assert!(g.kontra.is_none() && g.kontra_rule.is_none());
+    respond(&mut s, G::Answer(A::Factor(4))).unwrap();
+    respond(&mut s, G::Answer(A::Applies(false))).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    let rule = kontra_rule(&s.guided().unwrap());
+    assert!(rule.ouvert && rule.null && !rule.wants);
+    assert_eq!(rule.action, Action::KeinRe);
+    for action in before.legal_actions {
+        let mut chosen = s.clone();
+        chosen.execute(Command::Act(action)).unwrap();
+        assert_eq!(chosen.guided().unwrap().step, S::Waiting);
+    }
 }
 
 #[test]

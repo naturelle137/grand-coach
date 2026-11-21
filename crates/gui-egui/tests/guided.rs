@@ -1291,3 +1291,47 @@ fn guided_ouvert_re_widgets_state_the_view_retry_reveal_and_keep_all_actions_in_
         }
     }
 }
+
+/// Null Ouvert Re uses the no-assessment question and keeps both replies free.
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn guided_null_ouvert_re_widgets_in_de_en() {
+    use skat_app::Action;
+    let output = std::env::var("NULL_OUVERT_SCREENSHOTS").ok();
+    for language in [Language::De, Language::En] {
+        let config = SessionConfig {
+            seed: 1,
+            series: SeriesLength::Free,
+            kontra_re: true,
+            opponents: Opponents::Levels([Level::Rookie; 2]),
+            ..SessionConfig::default()
+        };
+        let mut h = Harness::builder()
+            .with_size([1600.0, 1200.0])
+            .build_eframe(move |cc| GrandCoachApp::new(&cc.egui_ctx, config));
+        let i = I18n::new(language);
+        enter_kontra_in(&mut h, language, true, KontraAt::NullOuvertDeclarer);
+        let before = h.state().session().view();
+        click(
+            &mut h,
+            &i.tf("guided-kontra-factor-button", &[("factor", 4.into())]),
+        );
+        click(&mut h, &i.t("guided-reveal"));
+        let rule = h.state().session().guided().unwrap().kontra_rule.unwrap();
+        assert!(rule.null && rule.ouvert);
+        assert_eq!(rule.action, Action::KeinRe);
+        assert_eq!(
+            h.state().session().view().legal_actions,
+            before.legal_actions
+        );
+        if let Some(dir) = &output {
+            h.render()
+                .unwrap()
+                .save(format!("{dir}/null-ouvert-re-{language:?}.png"))
+                .unwrap();
+        }
+        for action in [Action::Re, Action::KeinRe] {
+            assert!(before.legal_actions.contains(&action));
+        }
+    }
+}

@@ -399,7 +399,8 @@ quality.
 ### Guided Kontra and Re (#153, #155)
 
 The same entry supports a core-offered Kontra at a non-Ouvert Farbspiel,
-Grand or Null card turn and the declarer's immediate Re reply. Evidence is
+Grand or Null card turn and the declarer's immediate Re reply, including
+Null Ouvert Re. Evidence is
 `skat_analysis::baseline::kontra_rule`, the path Easy calls: the call (and so
 the role), contract, public level, the own Trumpf count against 5 (never in
 Null) or the strength of the own hand plus the known own Skat against 90, the
@@ -415,8 +416,7 @@ condition is a heuristic, not proof of a winning defence or a probability.
 Every card and call stays free; declining in card play means playing a card,
 `KeinKontra` exists only in the Ouvert round. After the learner's action the
 dialogue waits for the actual declarer reply, the resumed card or the
-declining card itself, across automated turns. Ouvert, the Ouvert round and
-restricted views report their own unsupported text. Memory is unavailable;
+declining card itself, across automated turns. The separate Ouvert round and restricted views report their own unsupported text. Memory is unavailable;
 estimates stay separately requested.
 
 Grand uses the same count questions: only the four Buben are Trumpf, so a
