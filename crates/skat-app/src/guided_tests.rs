@@ -1600,13 +1600,21 @@ fn grand_last(declarer: Seat, deal: skat_core::Deal, plays: &[&str]) -> Session 
 fn grand_win_last_both_roles_attempt_reveal_every_legal_card_and_actual_trick() {
     use fixture::card as c;
     // (declarer, lead, partner/opponent card, Easy's card, winning cards)
-    for (declarer, led, second, easy, winning) in [
-        (Seat::Hinterhand, "C9", "C8", "CQ", vec!["CQ", "CA"]),
-        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"]),
-        (Seat::Vorhand, "C9", "C7", "CQ", vec!["CQ", "CA"]),
-        (Seat::Vorhand, "CK", "C7", "CA", vec!["CA"]),
+    for (declarer, led, second, easy, winning, ouvert) in [
+        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"], true),
+        (Seat::Hinterhand, "C9", "C8", "CQ", vec!["CQ", "CA"], false),
+        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"], false),
+        (Seat::Vorhand, "C9", "C7", "CQ", vec!["CQ", "CA"], false),
+        (Seat::Vorhand, "CK", "C7", "CA", vec!["CA"], false),
     ] {
-        let s = grand_last(declarer, fixture::deal(), &[led, second]);
+        let deal = fixture::deal();
+        let actions = fixture::contract_actions(
+            deal,
+            declarer,
+            fixture::hand_game(GRAND, ouvert),
+            &[led, second],
+        );
+        let s = grand_session(Seat::Hinterhand, deal, false, &actions);
         let legal = s.view().legal_actions;
         assert_eq!(
             legal,
@@ -1762,7 +1770,7 @@ fn grand_kontra_precedence_exclusions_and_lifecycle_boundaries() {
     assert!(s.guided().unwrap().rule.is_none());
 
     // Grand partner-ahead Fallback without a losing card (MH holds only
-    // CT/CK in Kreuz, #159) and Ouvert Grand WinLast: honest fallback.
+    // CT/CK in Kreuz, #159): honest fallback.
     let no_loser = fixture::swap(
         fixture::swap(fixture::deal(), fixture::card("C7"), fixture::card("CK")),
         fixture::card("C8"),
@@ -1774,17 +1782,8 @@ fn grand_kontra_precedence_exclusions_and_lifecycle_boundaries() {
         fixture::hand_game(GRAND, false),
         &["C9"],
     );
-    let ouvert = fixture::contract_actions(
-        fixture::deal(),
-        Seat::Hinterhand,
-        fixture::hand_game(GRAND, true),
-        &["C9", "C8"],
-    );
-    for (human, deal, actions) in [
-        (Seat::Mittelhand, no_loser, under),
-        (Seat::Hinterhand, fixture::deal(), ouvert),
-    ] {
-        let mut s = grand_session(human, deal, false, &actions);
+    {
+        let mut s = grand_session(Seat::Mittelhand, no_loser, false, &under);
         assert!(s.view().legal_actions.len() >= 2);
         s.execute(Command::StartGuided).unwrap();
         let g = s.guided().unwrap();
@@ -3852,4 +3851,29 @@ fn ouvert_kontra_round_guides_both_free_calls() {
             assert!(chosen.guided().is_some());
         }
     }
+}
+
+#[test]
+fn grand_ouvert_last_snapshot() {
+    let deal = fixture::deal();
+    let actions = fixture::contract_actions(
+        deal,
+        Seat::Hinterhand,
+        fixture::hand_game(GRAND, true),
+        &["CK", "C8"],
+    );
+    let mut s = grand_session(Seat::Hinterhand, deal, false, &actions);
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    let mut guided = serde_json::to_value(s.guided().unwrap()).unwrap();
+    guided["id"]["lineage"] = 0.into();
+    guided["id"]["generation"] = 0.into();
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../gui-egui/tests/fixtures/grand-ouvert-last.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        serde_json::json!({"table": s.view(), "guided": guided}),
+        expected
+    );
 }
