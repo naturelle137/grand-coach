@@ -545,5 +545,7 @@ Kontra/Re results above remain the measurements actually performed.
 
 All-phase `evaluate` also reports teacher and greedy-model counts for Pass,
 Hand, Null and Schneider/Schwarz/Ouvert announcements on the same held-out
-views. Categories may overlap. These are conditional on teacher-generated
-views, not complete-game rates, and do not establish playing strength.
+views. The report also counts positions where both choices fall in each category;
+this need not mean the exact actions match. Categories may overlap. These counts
+are conditional on teacher-generated views, not complete-game rates, and do not
+establish playing strength.
