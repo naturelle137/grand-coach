@@ -537,3 +537,8 @@ before Spiel, the second decides Spiel including Kontra/Re. Each retains its
 own Classic fallback and the report identifies both models. This enables
 separate assessment of existing models; it is not a strength result or a
 change to the shipped opponent. No training is authorised by this option.
+
+All-phase `evaluate` reports teacher agreement for Kontra and Re separately,
+including each row count. This distinguishes the two decisions; agreement
+alone still does not establish their playing strength. Existing combined
+Kontra/Re results above remain the measurements actually performed.

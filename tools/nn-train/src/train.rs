@@ -1088,20 +1088,23 @@ pub enum DecisionPhase {
     Druecken,
     /// Announce.
     Ansage,
-    /// Kontra or Re offered (alongside cards).
-    KontraRe,
+    /// Kontra offered (possibly alongside cards).
+    Kontra,
+    /// Re offered (possibly alongside cards).
+    Re,
     /// Plain card play.
     Cards,
 }
 
 impl DecisionPhase {
     /// All phases in reporting order.
-    pub const ALL: [DecisionPhase; 6] = [
+    pub const ALL: [DecisionPhase; 7] = [
         DecisionPhase::Reizen,
         DecisionPhase::Pickup,
         DecisionPhase::Druecken,
         DecisionPhase::Ansage,
-        DecisionPhase::KontraRe,
+        DecisionPhase::Kontra,
+        DecisionPhase::Re,
         DecisionPhase::Cards,
     ];
 
@@ -1112,7 +1115,8 @@ impl DecisionPhase {
             DecisionPhase::Pickup => "hand/pickup",
             DecisionPhase::Druecken => "druecken",
             DecisionPhase::Ansage => "ansage",
-            DecisionPhase::KontraRe => "kontra/re",
+            DecisionPhase::Kontra => "kontra",
+            DecisionPhase::Re => "re",
             DecisionPhase::Cards => "cards",
         }
     }
@@ -1138,8 +1142,10 @@ pub fn phase_of(legal: &[u32]) -> DecisionPhase {
     let discard = announce - 496;
     let calls = discard - 4;
     let any = |lo: usize, hi: usize| legal.iter().any(|&a| (lo..hi).contains(&(a as usize)));
-    if any(kontra, ACTIONS) {
-        DecisionPhase::KontraRe
+    if any(kontra, kontra + 2) {
+        DecisionPhase::Kontra
+    } else if any(kontra + 2, ACTIONS) {
+        DecisionPhase::Re
     } else if any(announce, cards) {
         DecisionPhase::Ansage
     } else if any(discard, announce) {
@@ -1155,14 +1161,14 @@ pub fn phase_of(legal: &[u32]) -> DecisionPhase {
 
 /// Per-phase `(rows, rows where the most probable legal action is the
 /// teacher's)` of `net` on `examples`, in [`DecisionPhase::ALL`] order.
-pub fn phase_agreement(net: &PolicyValueNet, examples: &Examples) -> [(usize, usize); 6] {
+pub fn phase_agreement(net: &PolicyValueNet, examples: &Examples) -> [(usize, usize); 7] {
     let device = net
         .devices()
         .into_iter()
         .next()
         .unwrap_or_else(Device::flex);
     let inputs = net.inputs();
-    let mut out = [(0, 0); 6];
+    let mut out = [(0, 0); 7];
     let all: Vec<usize> = (0..examples.rows()).collect();
     for chunk in all.chunks(EVAL_BATCH) {
         let l = losses(net, None, examples.batch(chunk, inputs, &device));
@@ -1795,7 +1801,9 @@ mod phase_tests {
         assert_eq!(phase_of(&[67, 100]), DecisionPhase::Druecken);
         assert_eq!(phase_of(&[cards - 22, cards - 1]), DecisionPhase::Ansage);
         assert_eq!(phase_of(&[cards, cards + 5]), DecisionPhase::Cards);
-        assert_eq!(phase_of(&[cards + 5, kontra]), DecisionPhase::KontraRe);
-        assert_eq!(phase_of(&[cards + 5, kontra + 2]), DecisionPhase::KontraRe);
+        assert_eq!(phase_of(&[cards + 5, kontra]), DecisionPhase::Kontra);
+        assert_eq!(phase_of(&[kontra + 1]), DecisionPhase::Kontra);
+        assert_eq!(phase_of(&[cards + 5, kontra + 2]), DecisionPhase::Re);
+        assert_eq!(phase_of(&[kontra + 3]), DecisionPhase::Re);
     }
 }
