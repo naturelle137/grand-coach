@@ -337,6 +337,20 @@ impl GrandCoachApp {
         Ok(())
     }
 
+    /// Packaged smoke: start an isolated attempt from the reopened recording.
+    pub fn smoke_start_practice(&mut self) -> Result<(), String> {
+        let recording = self
+            .recording
+            .smoke_recording()
+            .ok_or("no open recording")?;
+        self.start_practice(recording)
+            .map_err(|e| format!("{e:?}"))?;
+        if !self.session.view().practice {
+            return Err("practice did not start".into());
+        }
+        Ok(())
+    }
+
     /// Packaged smoke: requests the review of the open recording once and
     /// reports `Ok(true)` when it has ended with its summary. An unavailable
     /// review is an error.
@@ -3059,6 +3073,20 @@ mod tests {
             opponents: Opponents::Levels([Level::Easy; 2]),
             ..SessionConfig::default()
         }
+    }
+
+    #[test]
+    fn packaged_practice_requires_open_recording_and_preserves_series() {
+        let mut app = GrandCoachApp::new(&egui::Context::default(), easy_series());
+        let before = app.session.view();
+        assert!(app.smoke_start_practice().is_err());
+        let recording = app.session.export_current_recording_privileged().unwrap();
+        app.recording.start_replay(recording);
+        app.smoke_start_practice().unwrap();
+        assert!(app.session.view().practice);
+        assert!(!app.recording.active());
+        app.return_to_series();
+        assert_eq!(app.session.view(), before);
     }
 
     #[test]

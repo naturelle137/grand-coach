@@ -22,7 +22,8 @@
 //! `open` plays an open-table game for a few moves; `replay` plays that
 //! series, saves its first game to the data directory and shows it in the
 //! recording viewer; `review` does the same and waits until the requested
-//! recording review has ended with its summary; `cards` shows all 32 faces
+//! recording review has ended with its summary; `practice` starts an isolated
+//! attempt from the reopened recording; `cards` shows all 32 faces
 //! of every deck in a window.
 //! `GRAND_COACH_LANGUAGE=de|en` selects the language for that smoke.
 
@@ -51,6 +52,7 @@ struct Screenshot {
     /// Smoke scenario `review`: the opened recording is reviewed before the shot.
     review_wanted: bool,
     reviewing: bool,
+    practice_wanted: bool,
     /// Smoke scenario `cards`: show every deck's faces over the app.
     faces: bool,
     done: Arc<AtomicBool>,
@@ -72,6 +74,12 @@ impl eframe::App for Screenshot {
                         && let Err(reason) = self.app.smoke_open_replay(dir)
                     {
                         eprintln!("smoke: replay: {reason}");
+                        std::process::exit(2);
+                    }
+                    if self.practice_wanted
+                        && let Err(reason) = self.app.smoke_start_practice()
+                    {
+                        eprintln!("smoke: practice: {reason}");
                         std::process::exit(2);
                     }
                     self.reviewing = self.review_wanted;
@@ -161,7 +169,7 @@ fn main() -> eframe::Result {
                     seed,
                     series: match scenario_name.as_deref() {
                         Some("series") => SeriesLength::Fixed(36),
-                        Some("replay" | "review") => SeriesLength::Fixed(2),
+                        Some("replay" | "review" | "practice") => SeriesLength::Fixed(2),
                         _ => SessionConfig::default().series,
                     },
                     display: if scenario_name.as_deref() == Some("open") {
@@ -222,18 +230,20 @@ fn main() -> eframe::Result {
                         match scenario.as_deref() {
                             Some("coach") => Some(SmokeGoal::Question),
                             Some("series") => Some(SmokeGoal::Series),
-                            Some("replay" | "review") => Some(SmokeGoal::Game),
+                            Some("replay" | "review" | "practice") => Some(SmokeGoal::Game),
                             Some("open") => Some(SmokeGoal::Moves(12)),
                             _ => None,
                         }
                     } else {
                         None
                     },
-                    replay_dir: (smoke && matches!(scenario.as_deref(), Some("replay" | "review")))
-                        .then(gui_egui::learning::data_dir)
-                        .flatten(),
+                    replay_dir: (smoke
+                        && matches!(scenario.as_deref(), Some("replay" | "review" | "practice")))
+                    .then(gui_egui::learning::data_dir)
+                    .flatten(),
                     review_wanted: smoke && scenario.as_deref() == Some("review"),
                     reviewing: false,
+                    practice_wanted: smoke && scenario.as_deref() == Some("practice"),
                     faces: smoke && scenario.as_deref() == Some("cards"),
                     done: Arc::default(),
                 }),
