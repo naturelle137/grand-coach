@@ -1362,3 +1362,34 @@ fn coach_off_spends_no_review_work_and_resumes_the_backlog() {
         Some(Debriefing::Ready(_))
     ));
 }
+
+#[test]
+fn review_lane_is_independent_of_foreground_and_disabled_with_coach() {
+    let mut s = session(5, false);
+    s.set_coach_budget(TINY);
+    set(&mut s, CoachLevel::EveryMove, false);
+    assert!(to_human(&mut s));
+    let first = s.coach_job().unwrap();
+    assert!(!first.sees_all_cards());
+    let action = simple_action(&s.view());
+    s.execute(Command::Act(action)).unwrap();
+    assert!(to_human(&mut s));
+    let current = s.coach_job().unwrap();
+    let review = s.coach_review_job().unwrap();
+    assert!(!current.is_review());
+    assert!(review.is_review());
+    assert!(review.same_decision(&first));
+    assert!(!review.same_decision(&current));
+    assert!(!review.sees_all_cards());
+    assert_eq!(first.run(None), review.run(None));
+    set(&mut s, CoachLevel::Off, false);
+    assert!(s.coach_review_job().is_none());
+    set(&mut s, CoachLevel::EveryMove, false);
+    assert_eq!(
+        s.coach_review_job().unwrap().input_identity(),
+        review.input_identity()
+    );
+    s.finish_coach(review.run(None)).unwrap();
+    assert!(s.coach_review_job().is_none());
+    assert!(s.coach_job().unwrap().same_decision(&current));
+}

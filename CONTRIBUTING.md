@@ -254,3 +254,13 @@ cargo run --locked --release -p skat-app --example coach_latency -- --fast-play 
 This verified bounded diagnostic uses 24 samples and 20,000 nodes per task.
 Omit the final argument for the interactive node budget. The trace, timing
 boundaries and measured limits are documented in [the coach guide](docs/coach.md#fast-play-measurement).
+
+For the verified bounded fair-worker control at the interactive budget:
+
+```sh
+cargo run --locked --release -p skat-app --example coach_latency -- --review-play fair 5 6 100000000
+```
+
+Use `cancel` for the historical baseline and `COACH_TRACE_ROUNDS=2` for the
+same seeds repeated in-process. See the [paired scheduling protocol](docs/coach.md#bounded-fair-review-control-72)
+for the real-driver headless comparison, contention and timing limits.

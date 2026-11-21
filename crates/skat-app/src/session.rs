@@ -770,6 +770,15 @@ impl Session {
         self.coach.review_job()
     }
 
+    /// Oldest pending review independently of the current foreground request.
+    /// Uses the same permitted snapshot and optional review ordering as `coach_job`.
+    pub fn coach_review_job(&self) -> Option<CoachJob> {
+        if self.guided.as_ref().is_some_and(|g| g.permitted_dialogue()) {
+            return None;
+        }
+        self.coach.review_job()
+    }
+
     /// The finished coach analysis of the human's current decision, with
     /// the full ranking. For tools and tests only: frontends show the
     /// [`crate::CoachView`], which never names the best option before the

@@ -121,6 +121,11 @@ For the verified paired maximal-backlog debriefing diagnostic, run
 See [coach measurements](docs/coach.md#fast-play-measurement) for its bounded
 budget and timing limits.
 
+For the verified fair-worker control, run
+`cargo run --locked --release -p skat-app --example coach_latency -- --review-play fair 5 6 100000000`.
+See [the paired scheduling protocol](docs/coach.md#bounded-fair-review-control-72)
+for baseline, repetition and contention controls.
+
 For local setup, running the app, generated assets and licence notices, see
 [CONTRIBUTING.md](CONTRIBUTING.md#development-setup). For training and
 assessment commands, see the [model guide](docs/learned-models.md).
