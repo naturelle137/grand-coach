@@ -356,7 +356,9 @@ seed 1020, game 2, the human call 20 followed by a jump to 35. The shared
 `qa146` widget regression checks that the lesson labels the historical
 pre-decision floor 22 in both languages while the actual bid/action is 35.
 
-- CI job `screenshots` (Linux and Windows) runs all scenarios when
+- CI job `screenshots` (Linux and Windows) runs all scenarios in a release
+  build (identical PNGs, about seven times faster than debug; 60-minute
+  timeout) when
   `crates/gui-egui/` or `assets/` changed and keeps the PNGs as run
   artifacts `screenshots-Linux` and `screenshots-Windows`. It is
   informational, not part of `ci-ok`.
