@@ -699,6 +699,7 @@ guided-retry = Noch einmal versuchen
 guided-none = Niemand mehr
 guided-rule-card = Der Regelspieler spielt { $card }.
 guided-rule-under = Partner führt, ein Spieler folgt, kein Meister der Bedienklasse. Easy bleibt darunter: erst Nichttrumpf, weniger Augen, niedrigerer Rang; erste exakte Bindung. Das garantiert nicht, dass der Partner den Stich behält: Der Alleinspieler danach kann überstechen oder abstechen.
+guided-under-ouvert = Die Hand des Alleinspielers liegt offen. Easys Regel prüft sie für diese Wahl nicht gesondert; prüfe selbst, welche Karten noch folgen können.
 guided-rule-win = Du spielst zuletzt. Easy wählt unter den gewinnenden Karten zuerst Nichttrumpf, dann den niedrigeren Rang. Das garantiert keinen Spielgewinn.
 guided-candidates = Kandidaten dieses Regelzweigs: { $cards }. Alle legalen Karten bleiben spielbar.
 guided-early-attempt = Welche legale Karte liegt jetzt vor der ausgespielten Karte? Ein Spieler folgt noch.
