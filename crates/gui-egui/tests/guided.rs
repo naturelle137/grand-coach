@@ -599,7 +599,7 @@ fn guided_kontra_widgets_hide_answers_until_attempt_and_observe_actual_step_in_d
 #[test]
 #[ignore = "slow: CI only (docs/testing.md)"]
 fn guided_re_widgets_reveal_free_reply_resumed_play_and_ouvert_fallback_in_de_en() {
-    use skat_app::{Action, GuidedKontraObservation, KontraLevel};
+    use skat_app::{GuidedKontraObservation, KontraLevel};
     for language in Language::ALL {
         let mut h = kontra_app(1);
         let i = I18n::new(language);
@@ -661,17 +661,28 @@ fn guided_re_widgets_reveal_free_reply_resumed_play_and_ouvert_fallback_in_de_en
         let mut h = kontra_app(848);
         enter_kontra_in(&mut h, language, false, KontraAt::Ouvert);
         assert!(
-            h.query_by_label(&i.t("guided-unsupported-kontra-ouvert-round"))
+            h.query_by_label(&i.t("guided-kontra-ouvert-before"))
                 .is_some()
         );
-        assert!(h.query_by_label(&i.t("guided-kontra-yes")).is_none());
-        assert!(
-            h.state()
-                .session()
-                .view()
-                .legal_actions
-                .contains(&Action::Kontra)
+        click(
+            &mut h,
+            &i.tf("guided-kontra-factor-button", &[("factor", 2.into())]),
         );
+        assert!(
+            h.query_by_label(&i.t("guided-kontra-ouvert-question"))
+                .is_some()
+        );
+        click(&mut h, &i.t("guided-kontra-ouvert-no"));
+        assert!(
+            h.query_by_label(&i.t("guided-kontra-ouvert-rule"))
+                .is_some()
+        );
+        if let Ok(dir) = std::env::var("NULL_OUVERT_KONTRA_SCREENSHOTS") {
+            h.render()
+                .unwrap()
+                .save(format!("{dir}/null-ouvert-kontra-{language:?}.png"))
+                .unwrap();
+        }
         click(&mut h, &i.t("guided-return"));
         assert!(h.state().session().guided().is_none());
     }

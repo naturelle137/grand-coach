@@ -235,7 +235,7 @@ pub enum KontraAt {
     Grand,
     /// Non-Ouvert Null (guided).
     Null,
-    /// Any Ouvert contract, including the round before the reveal (fallback).
+    /// Any Ouvert contract, including the round before the reveal.
     Ouvert,
     /// The human declares an Ouvert Hand Farbspiel itself (#271) and answers
     /// the defenders' Kontra (guided Re).
@@ -245,7 +245,7 @@ pub enum KontraAt {
 }
 
 /// As [`enter_kontra`], stopping at the first offer in the contract `at`;
-/// Ouvert offers get the honest fallback, the others the dialogue.
+/// The selected offer enters the dialogue.
 #[allow(dead_code)]
 pub fn enter_kontra_in(
     h: &mut Harness<'_, GrandCoachApp>,
@@ -277,13 +277,8 @@ pub fn enter_kontra_in(
         if here && v.legal_actions.contains(&wanted) {
             click(h, &i.t("guided-start"));
             let g = h.state().session().guided().expect("explicit dialogue");
-            if at != KontraAt::Ouvert {
-                assert_eq!(g.step, GuidedStep::Orient);
-                assert!(g.kontra.is_some(), "Kontra/Re dialogue");
-            } else {
-                assert_eq!(g.step, GuidedStep::Unsupported);
-                assert!(g.kontra_exclusion.is_some(), "honest exclusion");
-            }
+            assert_eq!(g.step, GuidedStep::Orient);
+            assert!(g.kontra.is_some(), "Kontra/Re dialogue");
             return;
         }
         assert!(!v.series_finished, "guided walkthrough needs free play");

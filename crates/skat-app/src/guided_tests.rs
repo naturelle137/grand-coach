@@ -1190,35 +1190,12 @@ fn kontra_boundaries(mut s: Session) {
 }
 
 #[test]
-fn ouvert_kontra_offers_get_honest_fallbacks() {
-    use crate::GuidedKontraExclusion as X;
+fn null_ouvert_re_keeps_both_choices() {
     let deal = kontra_deal(KONTRA_VH, KONTRA_HH, "D8 D9");
     let ouvert = skat_core::Announcement {
         ouvert: true,
         ..skat_core::Announcement::plain(skat_core::GameType::Null)
     };
-    for (game, exclusion) in [(ouvert, X::OuvertRound)] {
-        let mut s = kontra_session(Seat::Vorhand, deal, game);
-        let before = s.view();
-        s.execute(Command::StartGuided).unwrap();
-        let g = s.guided().unwrap();
-        assert_eq!(
-            (g.step, g.kontra_exclusion),
-            (S::Unsupported, Some(exclusion))
-        );
-        assert!(g.kontra.is_none() && g.kontra_rule.is_none());
-        assert_eq!(respond(&mut s, G::Reveal), Err(AppError::NoQuestion));
-        // All legal calls and cards stay usable.
-        for &a in &before.legal_actions {
-            s.clone().execute(Command::Act(a)).unwrap();
-        }
-        if exclusion == X::OuvertRound {
-            // Before the reveal, no declarer card reaches the view.
-            assert!(before.open_cards.is_none());
-            s.execute(Command::Act(Action::Kontra)).unwrap();
-            assert!(s.guided().is_none());
-        }
-    }
     // Null Ouvert Re uses the same no-assessment dialogue as plain Null.
     let mut s = kontra_session(Seat::Hinterhand, deal, ouvert);
     s.apply(Action::Kontra).unwrap();
@@ -3812,10 +3789,10 @@ fn null_last_defender_observes_the_card_actually_played() {
 
 #[test]
 fn ouvert_kontra_round_guides_both_free_calls() {
-    for game in [HERZ, GRAND] {
+    for game in [HERZ, GRAND, NULL] {
         let ann = skat_core::Announcement {
-            schneider: true,
-            schwarz: true,
+            schneider: game != NULL,
+            schwarz: game != NULL,
             ouvert: true,
             ..skat_core::Announcement::plain(game)
         };
@@ -3849,7 +3826,21 @@ fn ouvert_kontra_round_guides_both_free_calls() {
         for action in before.legal_actions {
             let mut chosen = s.clone();
             chosen.execute(Command::Act(action)).unwrap();
-            assert!(chosen.guided().is_some());
+            if action == Action::Kontra {
+                assert_eq!(chosen.guided().unwrap().step, S::Waiting);
+                chosen.execute(Command::AdvanceOpponent).unwrap();
+                assert!(matches!(
+                    chosen.guided().unwrap().kontra_observation,
+                    Some(crate::GuidedKontraObservation::Reply { .. })
+                ));
+            } else {
+                assert_eq!(
+                    chosen.guided().unwrap().kontra_observation,
+                    Some(crate::GuidedKontraObservation::DeclinedCall)
+                );
+            }
+            respond(&mut chosen, G::Return).unwrap();
+            assert!(chosen.guided().is_none());
         }
     }
 }
