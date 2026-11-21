@@ -2688,7 +2688,10 @@ fn null_last_ordinary_every_card_consent_retry_return_and_stale_reset() {
 
 #[test]
 fn null_last_fixtures_every_candidate_actual_winner_and_hidden_views() {
-    for c in null_fixture::cases().into_iter().filter(|c| c.supported) {
+    for c in null_fixture::cases()
+        .into_iter()
+        .filter(|c| c.supported || c.id == "real-ouvert")
+    {
         for (&n, &w) in c.legal.iter().zip(c.completed) {
             let mut s = Session::new(SessionConfig::default());
             s.dealer = PlayerId(0); // Explicit fixture: human HH, not ordinary route.
@@ -2733,6 +2736,8 @@ fn null_last_fixtures_every_candidate_actual_winner_and_hidden_views() {
         ("mixed-ten", "VH H7", "Skat DK"),
         ("mixed-ten", "VH H7", "MH S7"),
         ("pickup-mixed", "VH H7", "MH S7"),
+        ("real-ouvert", "VH H7", "Skat DK"),
+        ("real-ouvert", "VH H7", "MH S7"),
     ] {
         let c = cases.iter().find(|c| c.id == name).unwrap();
         let mut x = Session::new(SessionConfig::default());
@@ -2761,7 +2766,10 @@ fn null_last_fixtures_every_candidate_actual_winner_and_hidden_views() {
 #[test]
 fn null_last_fixture_widget_models_match_checked_session_outputs() {
     let mut frames = Vec::new();
-    for c in null_fixture::cases().into_iter().filter(|c| c.supported) {
+    for c in null_fixture::cases()
+        .into_iter()
+        .filter(|c| c.supported || c.id == "real-ouvert")
+    {
         let mut s = Session::new(SessionConfig::default());
         s.dealer = PlayerId(0);
         s.game = c.position();
@@ -2771,6 +2779,7 @@ fn null_last_fixture_widget_models_match_checked_session_outputs() {
             if !matches!(
                 (c.id, stage),
                 ("mixed-ten", "rule" | "observe" | "complete")
+                    | ("real-ouvert", "rule" | "observe" | "complete")
                     | ("void-last-tie", "rule" | "complete")
                     | ("pickup-mixed", "memory")
                     | ("void-changed-queen" | "printed-bube", "rule")
@@ -2868,7 +2877,7 @@ fn null_last_real_exclusions_keep_unsupported_and_every_card_playable() {
             // These remain outside #165, but later slices admit them.
             if matches!(
                 c.id,
-                "real-early" | "real-lead" | "real-defender-declarer-ahead"
+                "real-early" | "real-lead" | "real-defender-declarer-ahead" | "real-ouvert"
             ) {
                 S::Orient
             } else {
