@@ -221,7 +221,11 @@ training remains in force.
   over seat-games, not causation by that profile on mixed tables. Contract
   mix (Kreuz, Pik, Herz, Karo, Grand, Null) uses only that profile's declarer
   games; Hand, Schneider/Schwarz announcements and Ouvert overlap those bins.
-  Achieved Schneider/Schwarz are not counted as announcements. Zero
+  Achieved Schneider/Schwarz are not counted as announcements. A Kontra/Re
+  table counts Kontra said over played defender seat-games and Re over
+  declarer games that faced Kontra; declined or unoffered chances are not
+  distinguished, so it exposes a Kontra-always policy but is no quality
+  measure. Zero
   denominators print `–`; these descriptive rates have no independent-row
   confidence intervals.
 - **Sample size**: 200 deals (1,200 games) for each adjacent pair (Easy

@@ -10,7 +10,7 @@
 //! the other and in pairs. Duplicate play on the same cards removes most of
 //! the luck of the deal.
 
-use skat_core::{Call, Game, GameType, RuleConfig, Seat, Suit};
+use skat_core::{Call, Game, GameType, KontraLevel, RuleConfig, Seat, Suit};
 
 use crate::{Opponent, Player, Profile};
 
@@ -102,6 +102,12 @@ pub struct Tally {
     pub schwarz_announced: u32,
     /// Declarer Ouvert games.
     pub ouvert: u32,
+    /// Played games in which this seat, as defender, said Kontra.
+    pub kontra_said: u32,
+    /// Declarer games in which a defender said Kontra against this seat.
+    pub kontra_faced: u32,
+    /// Declarer games in which this seat answered Kontra with Re.
+    pub re_said: u32,
 }
 
 impl Tally {
@@ -133,7 +139,10 @@ impl Tally {
             self.declarer_games += 1;
             self.declarer_won += u32::from(result.won);
             self.declarer_points += points;
+            self.kontra_faced += u32::from(game.kontra_by().is_some());
+            self.re_said += u32::from(game.kontra() == KontraLevel::Re);
         } else {
+            self.kontra_said += u32::from(game.kontra_by() == Some(seat));
             self.defender_games += 1;
             self.defender_won += u32::from(!result.won);
             self.defender_points += points;
@@ -160,6 +169,9 @@ impl Tally {
         self.schneider_announced += other.schneider_announced;
         self.schwarz_announced += other.schwarz_announced;
         self.ouvert += other.ouvert;
+        self.kontra_said += other.kontra_said;
+        self.kontra_faced += other.kontra_faced;
+        self.re_said += other.re_said;
     }
 
     /// Reizen actions: denominator for bid, hold and pass action rates.
@@ -363,6 +375,60 @@ mod tests {
         merged.merge(&c.b);
         assert_eq!(merged.thrown_in(), 18);
         assert_eq!(merged.bidding_actions(), 18);
+    }
+
+    #[test]
+    fn kontra_and_re_are_attributed_to_the_acting_seats() {
+        use skat_core::Action;
+        for (say_re, re_count) in [(false, 0), (true, 1)] {
+            let mut game = Game::new(42, RuleConfig { kontra_re: true });
+            for action in [Action::Bid(18), Action::Hold, Action::Pass, Action::Pass] {
+                game.apply(action).unwrap();
+            }
+            game.apply(Action::TakeSkat).unwrap();
+            let mut saying = true;
+            while let Some(seat) = game.current_seat() {
+                let actions = game.view(seat).legal_actions;
+                let wanted = if saying && actions.contains(&Action::Kontra) {
+                    saying = false;
+                    Some(Action::Kontra)
+                } else if say_re && actions.contains(&Action::Re) {
+                    Some(Action::Re)
+                } else {
+                    actions
+                        .iter()
+                        .copied()
+                        .find(|a| matches!(a, Action::Discard(_) | Action::Play(_)))
+                        .or_else(|| actions.contains(&Action::KeinRe).then_some(Action::KeinRe))
+                        .or_else(|| {
+                            actions
+                                .contains(&Action::Announce(skat_core::Announcement::plain(
+                                    GameType::Grand,
+                                )))
+                                .then_some(Action::Announce(skat_core::Announcement::plain(
+                                    GameType::Grand,
+                                )))
+                        })
+                };
+                game.apply(wanted.unwrap_or(actions[0])).unwrap();
+            }
+            let by = game.kontra_by().expect("a defender said Kontra");
+            let declarer = game.result().unwrap().outcome.declarer;
+            assert_ne!(by, declarer);
+            for seat in Seat::ALL {
+                let mut t = Tally::default();
+                t.add(seat, &game);
+                let (said, faced, re) = if seat == declarer {
+                    (0, 1, re_count)
+                } else {
+                    (u32::from(seat == by), 0, 0)
+                };
+                assert_eq!(
+                    (t.kontra_said, t.kontra_faced, t.re_said),
+                    (said, faced, re)
+                );
+            }
+        }
     }
 
     #[test]

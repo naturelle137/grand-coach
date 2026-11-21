@@ -321,6 +321,18 @@ fn behaviour(name: &str, t: &Tally) -> String {
     )
 }
 
+fn kontra_re(name: &str, t: &Tally) -> String {
+    format!(
+        "| {name} | {} / {} ({}) | {} / {} ({}) |",
+        t.kontra_said,
+        t.defender_games,
+        rate(t.kontra_said, t.defender_games),
+        t.re_said,
+        t.kontra_faced,
+        rate(t.re_said, t.kontra_faced),
+    )
+}
+
 fn contracts(name: &str, t: &Tally) -> String {
     let counts = t.contracts.into_iter().chain([
         t.hand,
@@ -458,6 +470,15 @@ fn main() {
     println!("|---|---|---|---|---|---|---|---|---|---|---|---|");
     println!("{}", contracts(&format!("A `{name_a}`"), &ta));
     println!("{}", contracts(&format!("B `{name_b}`"), &tb));
+    println!();
+    println!(
+        "Kontra/Re counts: Kontra over played defender seat-games (declined and unoffered chances are not distinguished); Re over declarer games that faced Kontra. Behaviour only, no strength claim."
+    );
+    println!();
+    println!("| Profile | Kontra said | Re after Kontra |");
+    println!("|---|---|---|");
+    println!("{}", kontra_re(&format!("A `{name_a}`"), &ta));
+    println!("{}", kontra_re(&format!("B `{name_b}`"), &tb));
 }
 
 #[cfg(test)]
@@ -500,6 +521,25 @@ mod tests {
             "| active | 2 | 1 (50.0 %) | 0 (0.0 %) | 0 (0.0 %) | 0 (0.0 %) | 0 (0.0 %) | 1 (50.0 %) | 1 (50.0 %) | 0 (0.0 %) | 0 (0.0 %) | 1 (50.0 %) |"
         );
         assert_eq!(rate(0, 0), "–");
+    }
+
+    #[test]
+    fn kontra_re_row_shows_denominators() {
+        let t = Tally {
+            defender_games: 8,
+            kontra_said: 2,
+            kontra_faced: 4,
+            re_said: 1,
+            ..Tally::default()
+        };
+        assert_eq!(
+            kontra_re("t", &t),
+            "| t | 2 / 8 (25.0 %) | 1 / 4 (25.0 %) |"
+        );
+        assert_eq!(
+            kontra_re("none", &Tally::default()),
+            "| none | 0 / 0 (–) | 0 / 0 (–) |"
+        );
     }
 
     #[test]
