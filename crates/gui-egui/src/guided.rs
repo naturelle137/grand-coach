@@ -563,7 +563,9 @@ fn kontra(
             &[game],
         ));
     }
-    if table.contract.is_some_and(|c| c.ouvert) {
+    if k.ouvert_round {
+        ui.label(i.t("guided-kontra-ouvert-before"));
+    } else if table.contract.is_some_and(|c| c.ouvert) {
         ui.label(i.t("guided-kontra-ouvert-view"));
     }
     let pick = |kontra: &'static str, re_key: &'static str| if re { re_key } else { kontra };
@@ -591,6 +593,7 @@ fn kontra(
             "guided-kontra-orient-kontra",
             "guided-kontra-orient-re",
         )),
+        GuidedStep::Threshold if k.ouvert_round => i.t("guided-kontra-ouvert-question"),
         GuidedStep::Threshold => i.tf(
             by_game(
                 (
@@ -608,6 +611,7 @@ fn kontra(
             ),
             &figures,
         ),
+        GuidedStep::Act if k.ouvert_round => i.t("guided-kontra-ouvert-act"),
         GuidedStep::Act => i.t(pick("guided-kontra-act-kontra", "guided-kontra-act-re")),
         GuidedStep::Waiting => i.t("guided-kontra-waiting"),
         GuidedStep::Complete => i.t("guided-kontra-complete"),
@@ -629,6 +633,10 @@ fn kontra(
                 )
             })
             .to_vec(),
+        GuidedStep::Threshold if k.ouvert_round => vec![
+            (i.t("guided-kontra-ouvert-yes"), GuidedAnswer::Applies(true)),
+            (i.t("guided-kontra-ouvert-no"), GuidedAnswer::Applies(false)),
+        ],
         GuidedStep::Threshold if null => vec![
             (
                 i.t("guided-kontra-applies-yes"),
@@ -678,13 +686,17 @@ fn kontra(
             (true, true) => "guided-kontra-count-re-yes",
             (true, false) => "guided-kontra-count-re-no",
         };
-        ui.label(i.tf(
-            key,
-            &[
-                ("count", rule.count.into()),
-                ("threshold", rule.threshold.into()),
-            ],
-        ));
+        if k.ouvert_round {
+            ui.label(i.t("guided-kontra-ouvert-rule"));
+        } else {
+            ui.label(i.tf(
+                key,
+                &[
+                    ("count", rule.count.into()),
+                    ("threshold", rule.threshold.into()),
+                ],
+            ));
+        }
         if let Some(card) = &rule.card {
             ui.label(i.tf(
                 "guided-kontra-card",
@@ -696,14 +708,16 @@ fn kontra(
             ("guided-kontra-fact-factor", "guided-pre-strength-count"),
             ("guided-kontra-fact-factor", "guided-kontra-fact-factor"),
         )));
-        ui.label(i.t(by_game(
-            ("guided-kontra-caveat-kontra", "guided-kontra-caveat-re"),
-            (
-                "guided-kontra-caveat-kontra-grand",
-                "guided-kontra-caveat-re",
-            ),
-            ("guided-kontra-caveat-null", "guided-kontra-caveat-null"),
-        )));
+        if !k.ouvert_round {
+            ui.label(i.t(by_game(
+                ("guided-kontra-caveat-kontra", "guided-kontra-caveat-re"),
+                (
+                    "guided-kontra-caveat-kontra-grand",
+                    "guided-kontra-caveat-re",
+                ),
+                ("guided-kontra-caveat-null", "guided-kontra-caveat-null"),
+            )));
+        }
     }
     if let Some(o) = g.kontra_observation {
         ui.label(observation_line(i, o));
@@ -771,6 +785,7 @@ fn figures_panel(ui: &mut egui::Ui, i: &I18n, table: &TableView, g: &GuidedView)
 
 fn observation_line(i: &I18n, o: GuidedKontraObservation) -> String {
     match o {
+        GuidedKontraObservation::DeclinedCall => i.t("guided-kontra-ouvert-declined"),
         GuidedKontraObservation::Reply { seat, re, level } => i.tf(
             if re {
                 "guided-kontra-reply-re"

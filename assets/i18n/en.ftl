@@ -1168,3 +1168,11 @@ compare-original = Original game
 compare-attempt = Practice attempt
 compare-chose = Chosen: { $action }
 compare-none = No decision at this point in this line.
+
+guided-kontra-ouvert-before = At this decision the declarer’s hand is hidden. After the Ouvert Kontra round it is open to the defenders.
+guided-kontra-ouvert-question = Does Easy assess your hand before deciding in this Ouvert round?
+guided-kontra-ouvert-act = Choose freely: Kontra or No Kontra.
+guided-kontra-ouvert-rule = Easy always chooses No Kontra in this round without assessing the hand. This is a limitation of Easy, not a rule of Skat; the outcome is unknown.
+guided-kontra-ouvert-declined = You chose No Kontra before the reveal.
+guided-kontra-ouvert-yes = Yes
+guided-kontra-ouvert-no = No

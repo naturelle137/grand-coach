@@ -1168,3 +1168,11 @@ compare-original = Originalspiel
 compare-attempt = Übungsversuch
 compare-chose = Gewählt: { $action }
 compare-none = An dieser Stelle gab es in dieser Linie keine Entscheidung.
+
+guided-kontra-ouvert-before = Bei dieser Entscheidung ist die Hand des Alleinspielers verdeckt. Nach der Ouvert-Kontrarunde liegt sie für die Verteidiger offen.
+guided-kontra-ouvert-question = Bewertet Easy deine Hand vor seiner Entscheidung in dieser Ouvert-Runde?
+guided-kontra-ouvert-act = Wähle frei: Kontra oder Kein Kontra.
+guided-kontra-ouvert-rule = Easy wählt in dieser Runde immer Kein Kontra, ohne die Hand zu bewerten. Das ist eine Grenze von Easy, keine Skatregel; der Ausgang ist offen.
+guided-kontra-ouvert-declined = Du hast vor dem Aufdecken Kein Kontra gewählt.
+guided-kontra-ouvert-yes = Ja
+guided-kontra-ouvert-no = Nein

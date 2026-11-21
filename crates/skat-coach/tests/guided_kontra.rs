@@ -357,10 +357,7 @@ fn ouvert_re(game: GameType, deal: Deal) -> (Game, PlayerView) {
         ..Announcement::plain(game)
     };
     let mut g = play_phase(deal, ON, &[Action::Hand], ann);
-    assert_eq!(
-        kontra_exclusion(&current(&g)),
-        Some(KontraExclusion::OuvertRound)
-    );
+    assert!(kontra_lesson(&current(&g)).is_some());
     g.apply(Action::Kontra).unwrap();
     let view = current(&g);
     (g, view)
@@ -722,4 +719,31 @@ fn observations_follow_the_actual_next_public_transition() {
         })
     );
     assert_eq!(l.awaits(Action::Re), None);
+}
+
+#[test]
+fn ouvert_round_uses_easys_actual_unconditional_choice_without_hidden_cards() {
+    for game in [HERZ, GameType::Grand] {
+        for fifth in ["H9", "S8"] {
+            let deal = deal_vh(&vh(fifth), HH, "D8 D9");
+            let ann = Announcement {
+                schneider: true,
+                schwarz: true,
+                ouvert: true,
+                ..Announcement::plain(game)
+            };
+            let g = play_phase(deal, ON, &[Action::Hand], ann);
+            let view = current(&g);
+            assert_eq!(view.declarer_cards, None);
+            all_free(&g, &view);
+            let lesson = kontra_lesson(&view).unwrap();
+            assert_eq!(lesson.rule.action, Action::KeinKontra);
+            assert_eq!(lesson.rule.action, skat_analysis::baseline::play(&view));
+            assert!(!lesson.applies());
+            assert!(lesson.check(Step::Threshold, Answer::Applies(false)));
+            let mh = deal.hand(Seat::Mittelhand).iter().next().unwrap();
+            let other = play_phase(swap(deal, card("CA"), mh), ON, &[Action::Hand], ann);
+            assert_eq!(kontra_lesson(&current(&other)), Some(lesson));
+        }
+    }
 }

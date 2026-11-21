@@ -2,7 +2,7 @@
 
 //! Bounded guided Farbspiel, non-Ouvert Grand and opening/second/last-seat Null
 //! declarer and bounded defender card play, Reizen,
-//! Skataufnahme, Drücken, Ansage and non-Ouvert Kontra/Re lessons. Exact
+//! Skataufnahme, Drücken, Ansage and Kontra/Re lessons. Exact
 //! rule provenance, never search ranking.
 
 use crate::Source;
@@ -541,7 +541,7 @@ pub enum KontraExclusion {
     Restricted,
 }
 
-/// Only a core-offered Kontra at a non-Ouvert card turn or the declarer's immediate Re reply. Uses the own cards, the own known Skat and
+/// A core-offered Kontra or the declarer's immediate Re reply. Uses the own cards, the own known Skat and
 /// public facts only; restricted or inconsistent views get no lesson.
 pub fn kontra_lesson(view: &PlayerView) -> Option<KontraLesson> {
     kontra_support(view).ok()
@@ -558,10 +558,15 @@ pub fn kontra_exclusion(view: &PlayerView) -> Option<KontraExclusion> {
 }
 
 fn kontra_support(view: &PlayerView) -> Result<KontraLesson, KontraExclusion> {
+    let contract = view.contract.ok_or(KontraExclusion::Restricted)?;
     if view.legal_actions.contains(&Action::KeinKontra) {
-        return Err(KontraExclusion::OuvertRound);
+        if contract.ouvert && contract.game == GameType::Null {
+            return Err(KontraExclusion::OuvertRound);
+        }
+        if !contract.ouvert || view.legal_actions != [Action::Kontra, Action::KeinKontra] {
+            return Err(KontraExclusion::Restricted);
+        }
     }
-    view.contract.ok_or(KontraExclusion::Restricted)?;
     let rule = baseline::kontra_rule(view).ok_or(KontraExclusion::Restricted)?;
     let declarer = view.declarer.ok_or(KontraExclusion::Restricted)?;
     let consistent = match rule.call {
@@ -587,9 +592,9 @@ impl KontraLesson {
     }
 
     /// Whether Easy's generic Trumpf/strength rule assesses this contract:
-    /// not in Null, which has no Trumpf and no strength score.
+    /// not in Null or in the Ouvert round before the reveal.
     pub fn applies(&self) -> bool {
-        !self.rule.null
+        !self.rule.null && !self.rule.legal.contains(&Action::KeinKontra)
     }
 
     /// Orientation asks for the factor after the call (public rule fact). The
@@ -610,6 +615,7 @@ impl KontraLesson {
         match (self.rule.call, action) {
             (KontraCall::Kontra, Action::Kontra) => Some(KontraAwait::Reply),
             (KontraCall::Kontra, Action::Play(_)) => Some(KontraAwait::Declined),
+            (KontraCall::Kontra, Action::KeinKontra) => Some(KontraAwait::DeclinedCall),
             (KontraCall::Re, Action::Re | Action::KeinRe) => Some(KontraAwait::Resumed),
             _ => None,
         }
@@ -624,6 +630,8 @@ pub enum KontraAwait {
     Reply,
     /// The learner declined Kontra by playing a card: that card itself.
     Declined,
+    /// The learner declined in the Ouvert round.
+    DeclinedCall,
     /// The learner answered with Re or KeinRe: the next card played.
     Resumed,
 }
@@ -641,6 +649,8 @@ pub enum KontraObservation {
         /// Resulting public level.
         level: KontraLevel,
     },
+    /// The learner declined before the Ouvert reveal.
+    DeclinedCall,
     /// Card play resumed after the learner's Re or KeinRe.
     Resumed {
         /// Seat that played next.
@@ -691,6 +701,9 @@ pub fn observe_kontra(
             re: false,
             level,
         }),
+        (KontraAwait::DeclinedCall, Event::KeinKontra { seat: s }) if s == seat => {
+            Some(KontraObservation::DeclinedCall)
+        }
         (KontraAwait::Resumed, Event::CardPlayed { seat, card }) => {
             Some(KontraObservation::Resumed { seat, card, level })
         }

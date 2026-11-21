@@ -182,7 +182,7 @@ pub enum KontraCall {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct KontraRule {
-    /// Actual selected action: Kontra, a card, Re or KeinRe.
+    /// Actual selected action: Kontra, KeinKontra, a card, Re or KeinRe.
     pub action: Action,
     /// The call this decision is about; also the role (defender or declarer).
     pub call: KontraCall,
@@ -197,9 +197,10 @@ pub struct KontraRule {
     /// Own known Skat counted for Re (the discard); empty for a defender or
     /// in a Hand game, where the Skat stays unknown.
     pub skat: CardSet,
-    /// Kontra: Trumpf in the own hand. Re: strength of the own hand plus `skat`.
+    /// Kontra: Trumpf in the own hand; Ouvert round: zero (no assessment).
+    /// Re: strength of the own hand plus `skat`.
     pub count: i32,
-    /// Kontra: Trumpf needed. Re: strength needed.
+    /// Kontra: Trumpf needed; Ouvert round: zero. Re: strength needed.
     pub threshold: i32,
     /// Null: Easy never says Kontra, whatever the count.
     pub null: bool,
@@ -215,8 +216,8 @@ pub struct KontraRule {
 
 /// Easy's Kontra/Re rule from the permitted view: the defender's own hand,
 /// the declarer's own hand plus its known Skat, and public facts. None
-/// outside card play, without a Kontra/Re offer or in the Ouvert round,
-/// where `KeinKontra` is offered instead.
+/// outside card play or without a Kontra/Re offer. In the Ouvert round Easy
+/// always selects `KeinKontra` without assessing the hand.
 pub fn kontra_rule(view: &PlayerView) -> Option<KontraRule> {
     if view.phase != Phase::Spiel {
         return None;
@@ -226,12 +227,10 @@ pub fn kontra_rule(view: &PlayerView) -> Option<KontraRule> {
 
 fn kontra_choice(view: &PlayerView) -> Option<KontraRule> {
     let legal = &view.legal_actions;
-    if legal.contains(&Action::KeinKontra) {
-        return None;
-    }
+    let ouvert_round = legal.contains(&Action::KeinKontra);
     let game = view.contract.map_or(GameType::Grand, |c| c.game);
     let re = legal.contains(&Action::Re);
-    if !re && !legal.contains(&Action::Kontra) {
+    if !re && !ouvert_round && !legal.contains(&Action::Kontra) {
         return None;
     }
     let hand_game = view.hand_game == Some(true);
@@ -240,7 +239,9 @@ fn kontra_choice(view: &PlayerView) -> Option<KontraRule> {
     } else {
         CardSet::EMPTY
     };
-    let (call, count, threshold, wants) = if re {
+    let (call, count, threshold, wants) = if ouvert_round {
+        (KontraCall::Kontra, 0, 0, false)
+    } else if re {
         let cards = view.hand | skat;
         (
             KontraCall::Re,
@@ -268,6 +269,7 @@ fn kontra_choice(view: &PlayerView) -> Option<KontraRule> {
         (KontraCall::Re, true, _) => Some(Action::Re),
         (KontraCall::Re, false, _) => Some(Action::KeinRe),
         (KontraCall::Kontra, true, _) => Some(Action::Kontra),
+        (KontraCall::Kontra, false, _) if ouvert_round => Some(Action::KeinKontra),
         (KontraCall::Kontra, false, rule) => rule.as_ref().map(|r| Action::Play(r.card)),
     };
     let action = wanted.filter(|a| legal.contains(a)).unwrap_or(legal[0]);
@@ -292,9 +294,6 @@ fn kontra_choice(view: &PlayerView) -> Option<KontraRule> {
 /// Legacy Easy play choice, including Kontra/Re priority.
 pub fn play(view: &PlayerView) -> Action {
     let legal = &view.legal_actions;
-    if legal.contains(&Action::KeinKontra) {
-        return Action::KeinKontra;
-    }
     if let Some(rule) = kontra_choice(view) {
         return rule.action;
     }
