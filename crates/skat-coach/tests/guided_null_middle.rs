@@ -43,8 +43,13 @@ fn middle_scope_whole_lesson_and_every_candidate() {
             continue;
         }
         // #165's supported last-seat lesson remains available, outside #169.
-        assert_eq!(l.is_some(), c.admitted || c.id == "last", "{}", c.id);
-        if !c.admitted {
+        assert_eq!(
+            l.is_some(),
+            c.admitted || c.id == "last" || c.id == "ouvert",
+            "{}",
+            c.id
+        );
+        if !c.admitted && c.id != "ouvert" {
             continue;
         }
         let l = l.unwrap();
@@ -108,5 +113,37 @@ fn middle_restricted_and_noncontiguous_views_reject_instead_of_teaching() {
         let mut x = v.clone();
         edit(&mut x);
         assert!(lesson(&x).is_none());
+    }
+}
+
+#[test]
+fn ouvert_middle_requires_the_revealed_own_hand_and_exact_actions() {
+    let mut c = cases().into_iter().find(|c| c.id == "mixed-hand").unwrap();
+    for action in &mut c.history {
+        if let Action::Announce(announcement) = action {
+            announcement.ouvert = true;
+        }
+    }
+    let v = c.game().view(c.seat);
+    assert_eq!(v.declarer_cards, Some(v.hand));
+    let l = lesson(&v).unwrap();
+    assert_eq!(Some(l.rule.clone()), c.expected);
+    for card in c.legal {
+        assert_eq!(
+            l.check(Step::Narrow, Answer::Card(card)),
+            l.rule.losers.contains(&card)
+        );
+    }
+    for edit in 0..4 {
+        let mut bad = v.clone();
+        match edit {
+            0 => bad.declarer_cards = None,
+            1 => bad.declarer_cards = Some(fixture::set(&[0])),
+            2 => {
+                bad.legal_actions.pop();
+            }
+            _ => bad.current_trick.cards[0] = None,
+        }
+        assert!(lesson(&bad).is_none());
     }
 }

@@ -25,6 +25,9 @@ pub fn inventory() -> Vec<serde_json::Value> {
     let mut result = Vec::new();
     for language in ["de", "en"] {
         for (suffix, width, height) in [("", 1440, 1000), ("-narrow", 960, 640)] {
+            for stage in ["ouvert-rule", "ouvert-observe"] {
+                result.push(serde_json::json!({"name":format!("guided-null-middle-{stage}-{language}{suffix}"),"stage":stage,"language":language,"width":width,"height":height,"kind":"ouvert"}));
+            }
             for stage in STAGES {
                 result.push(serde_json::json!({"name":format!("guided-null-middle-{stage}-{language}{suffix}"),"stage":stage,"language":language,"width":width,"height":height,"kind":"ordinary"}));
             }
@@ -56,7 +59,7 @@ pub fn render(name: &str, out: Option<&str>) {
         entry["width"].as_f64().unwrap() as f32,
         entry["height"].as_f64().unwrap() as f32,
     ];
-    if entry["kind"] == "ordinary" {
+    if entry["kind"] == "ordinary" || entry["kind"] == "ouvert" {
         let builder = Harness::builder().with_size(size);
         let builder = if out.is_some() {
             builder.wgpu()
@@ -76,8 +79,31 @@ pub fn render(name: &str, out: Option<&str>) {
                 },
             )
         });
-        let stage = STAGES.iter().position(|s| entry["stage"] == *s).unwrap() as u8;
-        support::null_middle_flow(&mut h, language, stage, 9);
+        if entry["kind"] == "ouvert" {
+            support::enter_null_middle_with_ouvert(&mut h, language, true);
+            let i = I18n::new(language);
+            support::null_click(&mut h, &i.t("guided-unknown"));
+            if entry["stage"] == "ouvert-observe" {
+                support::null_click(
+                    &mut h,
+                    &support::card_name(&i, skat_app::Card::from_index(9).unwrap()),
+                );
+                for _ in 0..5000 {
+                    h.run_steps(1);
+                    if h.state().session().guided().unwrap().step == GuidedStep::Observe {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                assert_eq!(
+                    h.state().session().guided().unwrap().step,
+                    GuidedStep::Observe
+                );
+            }
+        } else {
+            let stage = STAGES.iter().position(|s| entry["stage"] == *s).unwrap() as u8;
+            support::null_middle_flow(&mut h, language, stage, 9);
+        }
         h.run_steps(4);
         if let Some(out) = out {
             h.render()

@@ -49,10 +49,11 @@ separate factual oracles.
 - **LeadMaster:** non-Ouvert Grand (#171) and [Farbspiel](#farbspiel-lead-with-a-follow-class-master-182) (#182), own empty-trick
   lead, both roles where the actual shared branch permits it, at least two
   pure core-legal cards; no guarantee against trumping.
-- **Null declarer:** non-Ouvert Null acting [last](#null-declarer-last-to-the-current-trick-165)
+- **Null declarer:** Null acting [last](#null-declarer-last-to-the-current-trick-165)
   or [second](#null-declarer-acting-second-169), with a current loser; the
-  [opening lead](#null-opening-lead-176) also supports Ouvert. Both require
-  at least two pure legal cards; the linked sections define the full guards.
+  [opening lead](#null-opening-lead-176) also supports Ouvert. Ouvert turns
+  require the matching revealed hand. All require at least two pure legal cards;
+  the linked sections define the full guards.
 - **Null defender:** opening lead in Vorhand, including Ouvert after reveal; non-Ouvert second after the declarer leads, or last
   with the declarer ahead, with at least two exact legal actions and a current loser.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
@@ -1289,8 +1290,7 @@ After the reveal, a Null Ouvert declarer acting last may use the existing
 last-seat dialogue when the revealed hand matches the acting hand and Easy
 has a losing candidate. Easy selects the highest Null rank among losing cards,
 with the last exact tie in legal order; every legal card remains playable.
-The completed trick records the actual winner. Second-seat Ouvert turns and
-inconsistent or restricted views retain the fallback. The core-replayed
+The completed trick records the actual winner. Inconsistent or restricted views retain the fallback. The core-replayed
 `real-ouvert` fixture checks all four legal choices and hidden substitutions.
 These checks do not establish learning efficacy.
 
@@ -1319,3 +1319,14 @@ does not. Replacing the lead with Kreuz-Neun makes both cards winners.
 Swapping an unseen defender card with the unknown Skat preserves the permitted
 view and lesson. Enter the dialogue, reveal the rule, play either card and
 inspect the actual winner; no learner outcome is inferred from this check.
+
+## Null Ouvert declarer acting second (#131)
+
+After the reveal, the declarer acting second may use the existing Null
+losing-card dialogue when the revealed hand matches the acting hand and the
+exact legal list contains a losing card. Easy chooses the highest losing Null
+rank, with its existing last-in-order tie-break. All legal cards remain
+playable; the actual third card and winner are observed. The core-replayed
+mixed Hand fixture checks candidates, reveal and legal-action boundaries,
+and the session test checks each legal choice and its actual continuation.
+These checks do not establish learner outcomes.
