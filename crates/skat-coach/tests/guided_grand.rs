@@ -271,10 +271,10 @@ fn grand_exclusions_partner_ahead_not_last_lead_no_winner_and_single_card() {
 }
 
 #[test]
-fn null_and_ouvert_grand_stay_unsupported_while_farbspiel_ouvert_is_unchanged() {
+fn null_stays_unsupported_while_ouvert_declarer_win_last_is_guided() {
     for (game, ouvert, supported) in [
         (GameType::Null, false, false),
-        (GRAND, true, false),
+        (GRAND, true, true),
         (GameType::Farbe(Suit::Herz), true, true),
         (GameType::Farbe(Suit::Herz), false, true),
     ] {
@@ -589,4 +589,46 @@ fn kontra_offer_keeps_precedence_over_the_grand_under_partner_lesson() {
     assert!(v.legal_actions.contains(&Action::Kontra));
     assert!(rule(&v).is_none() && lesson(&v).is_none());
     assert!(kontra_lesson(&v).is_some());
+}
+
+#[test]
+fn ouvert_declarer_last_uses_shared_win_last_and_checks_the_view() {
+    let make = |deal, lead| {
+        contract_position(
+            deal,
+            Seat::Hinterhand,
+            hand_game(GRAND, true),
+            &[lead, "C8"],
+        )
+    };
+    let g = make(deal(), "CK");
+    let v = g.view(Seat::Hinterhand);
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule.branch, Branch::WinLast);
+    assert_eq!(l.rule.card, card("CA"));
+    assert_eq!(l.rule.candidates, vec![card("CA")]);
+    assert_eq!(l.rule.losers, vec![card("CQ")]);
+    assert_eq!(observe_last(&g, "CK", "CQ").winner, Some(Seat::Vorhand));
+    assert_eq!(observe_last(&g, "CK", "CA").winner, Some(Seat::Hinterhand));
+    let other = make(swap(deal(), card("H7"), card("DK")), "CK");
+    assert_eq!(v, other.view(Seat::Hinterhand));
+    assert_eq!(Some(l), lesson(&other.view(Seat::Hinterhand)));
+    let changed = make(deal(), "C9");
+    assert_eq!(
+        lesson(&changed.view(Seat::Hinterhand))
+            .unwrap()
+            .rule
+            .candidates,
+        vec![card("CQ"), card("CA")]
+    );
+    for edit in [
+        (|v: &mut skat_core::PlayerView| v.declarer_cards = None) as fn(&mut skat_core::PlayerView),
+        |v| v.contract.as_mut().unwrap().schwarz = false,
+        |v| v.legal_actions.truncate(1),
+        |v| v.current_seat = Some(Seat::Vorhand),
+    ] {
+        let mut invalid = v.clone();
+        edit(&mut invalid);
+        assert!(lesson(&invalid).is_none());
+    }
 }
