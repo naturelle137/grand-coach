@@ -358,6 +358,39 @@ impl GrandCoachApp {
         }
     }
 
+    /// Packaged smoke `cards`: a window with all 32 faces of every deck
+    /// (the embedded images of this build, in the table theme), titled in
+    /// the current language.
+    pub fn smoke_faces(&self, ctx: &egui::Context) {
+        let theme = self.theme();
+        egui::Window::new(self.t("setting-deck"))
+            .pivot(egui::Align2::CENTER_CENTER)
+            .default_pos(ctx.content_rect().center())
+            .collapsible(false)
+            .show(ctx, |ui| {
+                // 16 faces per row: two rows per deck.
+                ui.set_width(16.0 * 42.0);
+                for deck in Deck::ALL {
+                    ui.label(self.t(deck.message()));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing = Vec2::splat(2.0);
+                        for suit in Suit::ALL {
+                            for rank in skat_app::Rank::ALL {
+                                let card = Card::new(suit, rank);
+                                ui.add(
+                                    egui::Image::new(cards::image(&cards::face_path(
+                                        deck, card, theme,
+                                    )))
+                                    .fit_to_exact_size(Vec2::new(40.0, 60.0)),
+                                )
+                                .on_hover_text(text::card(&self.i18n, card));
+                            }
+                        }
+                    });
+                }
+            });
+    }
+
     /// Leaves the training and returns to the waiting live table.
     pub fn exit_training(&mut self) {
         self.training.exit();

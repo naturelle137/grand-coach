@@ -22,7 +22,8 @@
 //! `open` plays an open-table game for a few moves; `replay` plays that
 //! series, saves its first game to the data directory and shows it in the
 //! recording viewer; `review` does the same and waits until the requested
-//! recording review has ended with its summary.
+//! recording review has ended with its summary; `cards` shows all 32 faces
+//! of every deck in a window.
 //! `GRAND_COACH_LANGUAGE=de|en` selects the language for that smoke.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -50,6 +51,8 @@ struct Screenshot {
     /// Smoke scenario `review`: the opened recording is reviewed before the shot.
     review_wanted: bool,
     reviewing: bool,
+    /// Smoke scenario `cards`: show every deck's faces over the app.
+    faces: bool,
     done: Arc<AtomicBool>,
 }
 
@@ -57,6 +60,9 @@ impl eframe::App for Screenshot {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.app.ui(ui, frame);
         let ctx = ui.ctx().clone();
+        if self.faces {
+            self.app.smoke_faces(&ctx);
+        }
         let now = ctx.input(|i| i.time);
         if let Some(goal) = self.advancing {
             match self.app.smoke_advance(now, goal) {
@@ -228,6 +234,7 @@ fn main() -> eframe::Result {
                         .flatten(),
                     review_wanted: smoke && scenario.as_deref() == Some("review"),
                     reviewing: false,
+                    faces: smoke && scenario.as_deref() == Some("cards"),
                     done: Arc::default(),
                 }),
                 None => Box::new(app),

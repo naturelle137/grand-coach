@@ -95,8 +95,18 @@ screenshots were inspected: the open table shows both opponents' hands and the
 Skat, the viewer shows the saved first game read-only, and the series ends
 with the series result. Limits: the series has two games, not a full
 36-game series; replay review and practice buttons were not clicked; CI-server
-rendering, not Windows 11 hardware. Strategic classification/trends,
-release notes and the closing evidence of #13 remain open.
+rendering, not Windows 11 hardware.
+
+Packaged card-face check (`cards` scenario, `GRAND_COACH_SMOKE_SCENARIO=cards`,
+German and English): the extracted executable shows a window with all 32 faces
+of the French four-colour, French two-colour and German decks, titled in the
+current language. Faces come from the images embedded in that binary; a missing
+file would abort the launch. The two screenshots were inspected locally on
+Linux/Xvfb with the debug build (96 faces visible, suits distinct in all three
+decks); the first packaged CI run of this scenario is the platform evidence and
+is recorded here once it exists. Mephisto/God faces and card backs are not part
+of this check. Strategic classification/trends, release notes and the closing
+evidence of #13 remain open.
 
 ## Reproduce and inspect
 
