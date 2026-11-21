@@ -685,6 +685,14 @@ pub fn feed_flow(h: &mut Harness<'_, GrandCoachApp>, language: Language, stage: 
 /// No injected deal, table view or session. Used by tests and screenshot scenarios.
 #[allow(dead_code)]
 pub fn enter_null(h: &mut Harness<'_, GrandCoachApp>, language: Language) {
+    enter_null_with_ouvert(h, language, false);
+}
+
+pub fn enter_null_with_ouvert(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    ouvert: bool,
+) {
     use skat_app::*;
     h.state_mut().set_language(language);
     h.state_mut().opponent_delay = 0.0;
@@ -726,7 +734,10 @@ pub fn enter_null(h: &mut Harness<'_, GrandCoachApp>, language: Language) {
     for a in [
         Action::Bid(18),
         Action::Hand,
-        Action::Announce(Announcement::plain(GameType::Null)),
+        Action::Announce(Announcement {
+            ouvert,
+            ..Announcement::plain(GameType::Null)
+        }),
         Action::Play(Card::from_index(1).unwrap()),
     ] {
         settle(h);
@@ -737,6 +748,11 @@ pub fn enter_null(h: &mut Harness<'_, GrandCoachApp>, language: Language) {
             Action::Announce(_) => {
                 h.get_by_role_and_label(Role::RadioButton, "Null").click();
                 h.run_steps(4);
+                if ouvert {
+                    h.get_by_role_and_label(Role::CheckBox, &i.t("contract-ouvert"))
+                        .click();
+                    h.run_steps(4);
+                }
                 i.t("button-announce")
             }
             Action::Play(c) => card_name(&i, c),
@@ -762,7 +778,10 @@ pub fn enter_null(h: &mut Harness<'_, GrandCoachApp>, language: Language) {
         v.legal_actions,
         [16, 18, 20].map(|n| Action::Play(Card::from_index(n).unwrap()))
     );
-    assert!(v.own_skat.is_none() && v.open_cards.is_none());
+    assert!(v.own_skat.is_none());
+    if !ouvert {
+        assert!(v.open_cards.is_none());
+    }
     click(h, &i.t("guided-start"));
     assert_eq!(
         h.state().session().guided().unwrap().step,

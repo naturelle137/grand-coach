@@ -108,7 +108,7 @@ pub struct Lesson {
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. A defender may
 /// lead the first trick in Vorhand, act second after the declarer leads, or last with the declarer ahead.
-/// Opening leads also admit Null Ouvert after the reveal.
+/// Null Ouvert admits opening leads and the declarer's last-seat turn after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Non-Ouvert Farbspiel/Grand
 /// LeadMaster (including Ouvert Farbspiel and Grand declarer) and Grand declarer DrawTrumpf (including Ouvert) also admit the own empty-trick lead
@@ -125,8 +125,12 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         && contract.schwarz
         && view.declarer_cards == Some(view.hand)
         && view.current_trick.cards == [None; 3];
-    let null =
-        game == GameType::Null && (!contract.ouvert || view.current_trick.cards == [None; 3]);
+    let null = game == GameType::Null
+        && (!contract.ouvert
+            || view.current_trick.cards == [None; 3]
+            || (view.declarer == Some(view.seat)
+                && view.declarer_cards == Some(view.hand)
+                && matches!(view.current_trick.cards, [Some(_), Some(_), None])));
     if view.phase != Phase::Spiel
         || !(matches!(game, GameType::Farbe(_)) || grand || ouvert_grand_lead || null)
     {

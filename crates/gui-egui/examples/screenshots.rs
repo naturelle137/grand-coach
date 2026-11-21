@@ -354,6 +354,8 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("guided-null-last-attempt-en", guided_null_attempt_en),
     ("guided-null-last-attempt-en-narrow", guided_null_attempt_en),
     ("guided-null-last-reveal-de", guided_null_reveal_de),
+    ("guided-null-last-ouvert-de", guided_null_ouvert_de),
+    ("guided-null-last-ouvert-en", guided_null_ouvert_en),
     ("guided-null-last-reveal-de-narrow", guided_null_reveal_de),
     ("guided-null-last-reveal-en", guided_null_reveal_en),
     ("guided-null-last-reveal-en-narrow", guided_null_reveal_en),
@@ -3711,6 +3713,17 @@ fn guided_null_attempt_en(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn guided_null_reveal_de(h: &mut Harness<'_, GrandCoachApp>) {
     guided_support::null_flow(h, Language::De, 5, 16);
+}
+fn guided_null_ouvert_de(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_null_ouvert(h, Language::De);
+}
+fn guided_null_ouvert_en(h: &mut Harness<'_, GrandCoachApp>) {
+    guided_null_ouvert(h, Language::En);
+}
+fn guided_null_ouvert(h: &mut Harness<'_, GrandCoachApp>, language: Language) {
+    guided_support::enter_null_with_ouvert(h, language, true);
+    let i = I18n::new(language);
+    guided_support::null_click(h, &i.t("guided-reveal"));
 }
 fn guided_null_reveal_en(h: &mut Harness<'_, GrandCoachApp>) {
     guided_support::null_flow(h, Language::En, 5, 16);

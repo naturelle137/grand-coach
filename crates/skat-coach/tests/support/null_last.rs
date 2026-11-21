@@ -342,10 +342,10 @@ pub fn cases() -> Vec<Case> {
                 &["VH CT", "MH C9"],
                 CLUBS,
                 "VH",
-                &[],
+                &["VH", "VH", "HH", "HH"],
                 &["C7", "C8"],
                 &[0, 1, 4, 5],
-                None,
+                Some("C8"),
             )
         },
     ]

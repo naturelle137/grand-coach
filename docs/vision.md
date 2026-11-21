@@ -53,7 +53,7 @@ partner’s current lead, comparing all legal cards by nontrump preference and
 printed Augen, then observing the actual completing card and individual winner,
 including overtaking the partner. Second-seat Farbspiel and Grand defenders can also compare feeding cards after a partner
 follow-class master, explicitly recognise the remaining declarer’s trumping
-risk and observe the actual reply. A Null defender acting second after the declarer leads can compare cards that leave the declarer ahead and observe the partner’s actual reply. Free choice of
+risk and observe the actual reply. A Null defender acting second after the declarer leads can compare cards that leave the declarer ahead and observe the partner’s actual reply. A Null Ouvert declarer acting last can use the same losing-card dialogue after the reveal. Free choice of
 every legal card and an immediate return to play remain available. Early,
 automatic and unaided help conceal the move; figures require a separate
 request and enabled figures. This first bounded slice does not establish

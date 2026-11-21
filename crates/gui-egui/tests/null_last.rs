@@ -16,6 +16,33 @@ use support::*;
 
 #[test]
 #[ignore = "slow: CI only (docs/testing.md)"]
+fn null_ouvert_last_ordinary_widgets() {
+    for language in Language::ALL {
+        let config = SessionConfig {
+            seed: 6,
+            series: SeriesLength::Fixed(3),
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
+        };
+        let mut h = Harness::builder()
+            .with_size([1440.0, 1000.0])
+            .build_eframe(move |cc| GrandCoachApp::new(&cc.egui_ctx, config));
+        enter_null_with_ouvert(&mut h, language, true);
+        let i = I18n::new(language);
+        assert!(h.state().session().view().contract.unwrap().ouvert);
+        click(&mut h, &i.t("guided-reveal"));
+        h.get_by_label(&i.t("guided-rule-null"));
+        h.state_mut().opponent_delay = 1000.0;
+        click(&mut h, &card_name(&i, Card::from_index(16).unwrap()));
+        assert_eq!(
+            h.state().session().guided().unwrap().step,
+            GuidedStep::Observe
+        );
+    }
+}
+
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
 fn null_last_ordinary_widgets_bilingual_sizes_all_cards_retry_reveal_return() {
     for language in Language::ALL {
         for narrow in [false, true] {
