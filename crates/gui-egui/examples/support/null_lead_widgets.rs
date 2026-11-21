@@ -32,6 +32,7 @@ pub fn inventory() -> Vec<serde_json::Value> {
     let mut result = Vec::new();
     for language in ["de", "en"] {
         for (suffix, width, height) in [("", 1440, 1000), ("-narrow", 960, 640)] {
+            result.push(serde_json::json!({"name":format!("guided-null-lead-ouvert-reveal-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"ouvert"}));
             for stage in STAGES {
                 result.push(serde_json::json!({"name":format!("guided-null-lead-{stage}-{language}{suffix}"),"stage":stage,"language":language,"width":width,"height":height,"kind":"ordinary"}));
             }
@@ -62,7 +63,7 @@ pub fn render(name: &str, out: Option<&str>) {
         entry["width"].as_f64().unwrap() as f32,
         entry["height"].as_f64().unwrap() as f32,
     ];
-    if entry["kind"] == "ordinary" {
+    if entry["kind"] == "ordinary" || entry["kind"] == "ouvert" {
         let builder = Harness::builder().with_size(size);
         let builder = if out.is_some() {
             builder.wgpu()
@@ -83,11 +84,12 @@ pub fn render(name: &str, out: Option<&str>) {
             )
         });
         let stage = entry["stage"].as_str().unwrap();
-        support::null_lead_flow(
+        support::null_lead_flow_with_ouvert(
             &mut h,
             language,
             stage,
             if stage == "null-end" { 14 } else { 8 },
+            entry["kind"] == "ouvert",
         );
         h.run_steps(4);
         if let Some(out) = out {

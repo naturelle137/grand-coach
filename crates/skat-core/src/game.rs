@@ -402,6 +402,11 @@ impl Game {
         self.kontra
     }
 
+    /// The defender who said Kontra, if any.
+    pub fn kontra_by(&self) -> Option<Seat> {
+        self.kontra_by
+    }
+
     /// `true` once an Ouvert declarer's cards are face up.
     pub fn is_revealed(&self) -> bool {
         self.revealed
