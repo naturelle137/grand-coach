@@ -553,6 +553,13 @@ fn review_play() {
         if std::env::var_os("COACH_TRACE_EVIDENCE").is_some() {
             println!("evidence={}", serde_json::to_string(&moments).unwrap());
         }
+        if std::env::var_os("COACH_TRACE_RECORDING").is_some() {
+            println!(
+                "recording={}",
+                serde_json::to_string(&session.export_current_recording_privileged().unwrap())
+                    .unwrap()
+            );
+        }
         println!(
             "seed={seed} mode={} delay_ms={delay} cancelled={cancelled} wasted={wasted:?} executed={executed:?} drained={drained} foreground_wait_total={waits:?} foreground_wait_max={max_wait:?} first={first:?} full={:?} moments={}",
             args[2],
