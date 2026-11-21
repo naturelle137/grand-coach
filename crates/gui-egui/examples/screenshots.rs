@@ -60,6 +60,7 @@ const SEED: u64 = 21;
 /// human never plays second to the declarer's lead in the two games.
 const SEEDS: &[(&str, u64)] = &[
     ("guided-null-defender-opening", 1282),
+    ("guided-null-ouvert-defender-opening", 2345),
     ("coach-lesson-overtake", 1),
     // The human plays Hand at bid 36: Herz falls short, Kreuz is announced.
     ("guided-ann-orient", 7),
@@ -203,6 +204,7 @@ const OPEN_DISPLAY: &[&str] = &[
 
 const SCENARIOS: &[(&str, Scenario)] = &[
     ("guided-null-defender-opening", null_defender_opening),
+    ("guided-null-ouvert-defender-opening", null_defender_opening),
     ("guided-grand-early-feed-orient-de", early_feed_orient_de),
     (
         "guided-grand-early-feed-orient-de-narrow",
