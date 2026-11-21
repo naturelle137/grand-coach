@@ -9,7 +9,7 @@ remain unmeasured.
 ## Rule and evidence definition
 
 The card-play scope includes `UnderPartner`, `WinLast`, non-Ouvert Grand `WinEarly` and
-[non-Ouvert Farbspiel `WinEarly`](#farbspiel-winearly-178) on the human's own current second turn,
+[Farbspiel `WinEarly`](#farbspiel-winearly-178) on the human's own current second turn,
 [early Grand `FeedPartner`](#grand-second-seat-feedpartner-131), last-seat Grand and [Farbspiel `FeedPartner`](#farbspiel-last-seat-feedpartner-185), [Grand `LeadMaster`](#grand-lead-with-a-follow-class-master-171),
 and Null declarer play [last](#null-declarer-last-to-the-current-trick-165)
 or [second](#null-declarer-acting-second-169), the [opening lead](#null-opening-lead-176), and a [defender following the declarer](#null-defender-following-the-declarer-131). These are bounded heuristic
@@ -34,7 +34,7 @@ separate factual oracles.
   first exact tie. Other winning cards still win this trick. No claim about
   their future strategic value or the final game result follows.
 - **WinEarly:** non-Ouvert Grand (#161, below) or
-  [non-Ouvert Farbspiel](#farbspiel-winearly-178), opposing party ahead,
+  [Farbspiel](#farbspiel-winearly-178), opposing party ahead,
   one remaining player, at least two legal cards and current winners. The
   selected cheapest winner itself is Trumpf or a conservative follow-class master;
   another own master does not qualify it. Farbspiel requires the human's own
@@ -144,12 +144,12 @@ branch, now supported in last-seat Grand (#163 below; `UnderPartner` before
 the last seat: see #159 below). Grand `LeadMaster` is supported within its
 [own scope](#grand-lead-with-a-follow-class-master-171), as is Null declarer
 play [last](#null-declarer-last-to-the-current-trick-165) or
-[second](#null-declarer-acting-second-169). Non-Ouvert Farbspiel `WinEarly`
+[second](#null-declarer-acting-second-169). Farbspiel `WinEarly`
 follows the [#178 guards](#farbspiel-winearly-178). Grand declarer
 [`DrawTrumpf`](#grand-declarer-drawtrumpf-lead-175) is supported. Unsupported remain early Farbspiel `FeedPartner`, Farbspiel `FeedPartner` outside the
 [#185 guards](#farbspiel-last-seat-feedpartner-185), fallback, single legal moves
 and Ouvert Grand. Older Farbspiel families, including Ouvert, keep their
-shipped scope; #178 does not add Ouvert WinEarly. A core-offered Kontra
+shipped scope; the Ouvert declarer acting second is supported as described [below](#ouvert-farbspiel-declarer-acting-second-317). A core-offered Kontra
 keeps its own dialogue first. In last seat the learner's own card completes
 the trick: the observation uses that card and the actual core `TrickWon`,
 also for a losing alternative, without waiting for another seat.
@@ -1329,3 +1329,7 @@ playable; the actual third card and winner are observed. The core-replayed
 mixed Hand fixture checks candidates, reveal and legal-action boundaries,
 and the session test checks each legal choice and its actual continuation.
 These checks do not establish learner outcomes.
+
+## Ouvert Farbspiel declarer acting second (#317)
+
+The shared Farbspiel `WinEarly` dialogue also admits the Ouvert declarer acting second after a matching hand reveal in a valid Hand/Schneider/Schwarz contract. The exact legal action list and existing rule guards remain required. Every legal card remains playable; the actual remaining card and trick winner are observed. The revealed hand is already the declarer’s own hand, and unknown defender cards remain unknown. This technical scope does not establish learning efficacy.
