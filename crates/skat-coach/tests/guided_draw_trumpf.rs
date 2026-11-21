@@ -150,7 +150,12 @@ fn draw_trumpf_independent_cases_admit_exactly_the_declarer_own_trumpf_leads() {
         // `lesson` here means a DrawTrumpf lesson; an existing LeadMaster
         // lesson (#171) for the same viewer is a different family.
         let draw = l.clone().filter(|l| l.rule.branch == Branch::DrawTrumpf);
-        assert_eq!(draw.is_some(), c.lesson, "{}", c.id);
+        assert_eq!(
+            draw.is_some(),
+            c.lesson || c.id == "13-ouvert-excluded",
+            "{}",
+            c.id
+        );
         if let Some(l) = draw {
             admitted += 1;
             assert_eq!(
@@ -178,7 +183,7 @@ fn draw_trumpf_independent_cases_admit_exactly_the_declarer_own_trumpf_leads() {
             }
         }
     }
-    assert_eq!(admitted, 8);
+    assert_eq!(admitted, 9);
 }
 
 #[test]
@@ -232,5 +237,26 @@ fn draw_trumpf_independent_malformed_and_single_card_views_are_excluded() {
         let mut x = v.clone();
         e(&mut x);
         assert!(lesson(&x).is_none(), "edit{i}");
+    }
+}
+
+#[test]
+fn ouvert_draw_trumpf_requires_revealed_matching_hand() {
+    let c = witnesses::cases()
+        .into_iter()
+        .find(|c| c.id == "13-ouvert-excluded")
+        .unwrap();
+    let v = c.game().view(c.viewer);
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule.branch, Branch::DrawTrumpf);
+    assert_eq!(l.rule.card, card(4));
+    for edit in [
+        (|v: &mut PlayerView| v.declarer_cards = None) as fn(&mut PlayerView),
+        |v| v.contract.as_mut().unwrap().schwarz = false,
+        |v| v.legal_actions.truncate(1),
+    ] {
+        let mut invalid = v.clone();
+        edit(&mut invalid);
+        assert!(lesson(&invalid).is_none());
     }
 }
