@@ -107,7 +107,7 @@ pub struct Lesson {
 /// and at least one losing card; early FeedPartner (Farbspiel or Grand) requires a follow-class master; Fallback stays excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. A defender may
-/// act second after the declarer leads, or last with the declarer ahead.
+/// lead the first trick in Vorhand, act second after the declarer leads, or last with the declarer ahead.
 /// Null Ouvert also admits the declarer's opening lead and last-seat turn after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Non-Ouvert Farbspiel/Grand
@@ -139,9 +139,10 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     // Checked before the shared rule, which assumes a declarer during play.
     let null_defender = null
         && view.declarer.is_some_and(|d| d != view.seat)
-        && (matches!(view.current_trick.cards, [Some(_), None, None])
-            && view.current_trick.leader == view.declarer
-            && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+        && (matches!(view.current_trick.cards, [None, None, None])
+            || matches!(view.current_trick.cards, [Some(_), None, None])
+                && view.current_trick.leader == view.declarer
+                && view.current_trick.leader.map(Seat::next) == Some(view.seat)
             || matches!(view.current_trick.cards, [Some(_), Some(_), None])
                 && TrickState::of(game, &view.current_trick).best_seat == view.declarer)
         && view.own_skat.is_none();
@@ -172,8 +173,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     {
         return None;
     }
-    // A Null declarer who takes any trick loses immediately. Only physical
-    // Vorhand can therefore have a reachable own opening lead.
+    // This bounded Null lead family admits only the first trick in Vorhand.
     if null && view.current_trick.cards[0].is_none() {
         if view.current_trick.cards != [None; 3]
             || view.current_trick.leader.is_some()
@@ -206,7 +206,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             game,
             remaining: None,
             seat: view.seat,
-            lead_declarer: Some(true),
+            lead_declarer: Some(!null_defender),
         });
     }
     // Lead rules assume a valid own turn, declarer and an exact pure legal

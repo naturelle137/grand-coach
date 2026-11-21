@@ -99,13 +99,15 @@ fn lead_master_rejects_malformed_restricted_and_other_contract_boundaries() {
         |v| v.own_skat = Some(fixture::set(&[17, 29])),
         |v| v.contract = None,
         |v| v.contract.as_mut().unwrap().ouvert = true,
-        |v| v.contract.as_mut().unwrap().game = skat_core::GameType::Null,
     ];
     for (i, edit) in edits.iter().enumerate() {
         let mut x = v.clone();
         edit(&mut x);
         assert!(lesson(&x).is_none(), "edit{i}");
     }
+    let mut null = v.clone();
+    null.contract.as_mut().unwrap().game = skat_core::GameType::Null;
+    assert!(lesson(&null).is_none_or(|l| l.rule.branch != skat_coach::guided::Branch::LeadMaster));
     let mut g = c.game();
     g.apply(Action::Play(card(3))).unwrap();
     assert!(lesson(&g.view(g.current_seat().unwrap())).is_none());
