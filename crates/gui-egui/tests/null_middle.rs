@@ -149,3 +149,44 @@ fn null_middle_all_screenshot_stages_and_labelled_boundaries() {
         views::render(&name, None);
     }
 }
+
+#[test]
+fn null_ouvert_middle_ordinary_widgets() {
+    for language in Language::ALL {
+        let mut h = Harness::builder()
+            .with_size([1440.0, 1000.0])
+            .build_eframe(|cc| {
+                GrandCoachApp::new(
+                    &cc.egui_ctx,
+                    SessionConfig {
+                        seed: 1,
+                        series: SeriesLength::Fixed(3),
+                        opponents: Opponents::Levels([Level::Easy; 2]),
+                        kontra_re: false,
+                        display: TableDisplay::Closed,
+                        ..SessionConfig::default()
+                    },
+                )
+            });
+        support::enter_null_middle_with_ouvert(&mut h, language, true);
+        let i = I18n::new(language);
+        h.get_by_label(&i.t("guided-null-middle-role"));
+        support::null_click(&mut h, &i.t("guided-unknown"));
+        h.get_by_label(&i.t("guided-rule-null-middle"));
+        support::null_click(
+            &mut h,
+            &support::card_name(&i, Card::from_index(9).unwrap()),
+        );
+        for _ in 0..5000 {
+            h.run_steps(1);
+            if h.state().session().guided().unwrap().step == GuidedStep::Observe {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert_eq!(
+            h.state().session().guided().unwrap().step,
+            GuidedStep::Observe
+        );
+    }
+}
