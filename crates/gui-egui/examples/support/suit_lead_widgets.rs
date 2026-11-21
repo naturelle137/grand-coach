@@ -24,6 +24,7 @@ pub fn inventory() -> Vec<serde_json::Value> {
         for (suffix, width, height) in [("", 1440, 1000), ("-narrow", 960, 640)] {
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-god-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"god-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-ouvert-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"ouvert-fixture"}));
+            result.push(serde_json::json!({"name":format!("guided-suit-lead-master-grand-ouvert-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"grand-ouvert-fixture"}));
             for stage in STAGES {
                 result.push(serde_json::json!({"name":format!("guided-suit-lead-master-{stage}-{language}{suffix}"),"stage":stage,"language":language,"width":width,"height":height,"kind":"ordinary"}));
             }
@@ -49,7 +50,10 @@ pub fn render(name: &str, out: Option<&str>) {
         entry["width"].as_f64().unwrap() as f32,
         entry["height"].as_f64().unwrap() as f32,
     ];
-    if entry["kind"] == "god-fixture" || entry["kind"] == "ouvert-fixture" {
+    if entry["kind"] == "god-fixture"
+        || entry["kind"] == "ouvert-fixture"
+        || entry["kind"] == "grand-ouvert-fixture"
+    {
         let builder = Harness::builder().with_size(size);
         let builder = if out.is_some() {
             builder.wgpu()
@@ -57,8 +61,11 @@ pub fn render(name: &str, out: Option<&str>) {
             builder
         };
 
-        let ouvert = entry["kind"] == "ouvert-fixture";
-        let fixture: serde_json::Value = serde_json::from_str(if ouvert {
+        let grand_ouvert = entry["kind"] == "grand-ouvert-fixture";
+        let ouvert = entry["kind"] == "ouvert-fixture" || grand_ouvert;
+        let fixture: serde_json::Value = serde_json::from_str(if grand_ouvert {
+            include_str!("../../tests/fixtures/grand-lead-master-ouvert.json")
+        } else if ouvert {
             include_str!("../../tests/fixtures/suit-lead-master-ouvert.json")
         } else {
             include_str!("../../tests/fixtures/suit-lead-master-god.json")
