@@ -431,8 +431,8 @@ calls: call and role, contract, public level, Trumpf count (Kontra) or strength
 of the own hand plus the known own Skat (Re; none in a Hand game), threshold
 (5 Trumpf, never in Null; strength 90), the exact card rule Easy plays when it
 declines, the legal actions and the fallback flag. Order, thresholds and
-`policy::wants_kontra`/`wants_re` are unchanged; the Ouvert round still
-returns `KeinKontra` first and has no rule. Before the extraction a hash over
+`policy::wants_kontra`/`wants_re` are unchanged; in the Ouvert round Easy
+always selects `KeinKontra` without assessing the hand. Before the extraction a hash over
 3605 Kontra, Re and Ouvert `KeinKontra` decisions reached with random legal
 actions was frozen on `4d55973` (`13667852288273955558`); it and the 200-game
 hash are unchanged, and a test checks every such view against Easy.
@@ -453,14 +453,14 @@ after a declining card that card and trick (Kontra is no longer offered after
 the own first card). Automated turns are followed; the learner's next own
 action, a new game, coach off or replay ends the dialogue.
 
-Ouvert Farbspiel, Grand (#271) and Null use the same rule on the learner's permitted
-view: the declarer's reply after the Ouvert Kontra round is guided like any
-Re. Ouvert reveals the declarer hand to the defenders after the Re reply; the dialogue
-describes the reveal without saying it has already occurred. Easy's rule uses only the learner's own cards,
-known Skat and public facts, so nothing beyond that view is inferred and
-swapping hidden cards leaves it unchanged (fixtures: Herz and Grand Hand
-Ouvert at strength 90 and 89, and Null Ouvert without an assessment). The
-Ouvert round before the reveal (no declarer card is shown) and restricted or inconsistent views (absent contract,
+Ouvert Farbspiel and Grand (#271) guide the defender's decision before the
+reveal: Easy always chooses `KeinKontra` without assessing the hand. The hand
+is hidden at that decision and becomes visible to defenders after the round.
+The declarer's Re reply in Farbspiel, Grand and Null Ouvert is guided like any
+Re; Null keeps its no-assessment explanation. Easy uses only the learner's own
+cards, known Skat and public facts; swapping hidden cards leaves the dialogue
+unchanged. Null Ouvert's separate pre-reveal round remains unsupported, as do
+restricted or inconsistent views (absent contract,
 seat or level not matching the call, Easy's choice not legal) report their own
 unsupported text; all calls and cards stay free.
 
@@ -1240,7 +1240,7 @@ answers and retries, deliberate reveal, memory, stale ids and return. The
 orientation, rule, observation question and feedback. These are technical
 checks, not learner or transfer observations; the wider #131 later-phase
 criterion remains open (Grand/Null remaining branches, Ouvert and
-Ouvert Kontra/Re).
+the Null Ouvert Kontra round).
 
 ## Ouvert Farbspiel declarer lead (#273)
 

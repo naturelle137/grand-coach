@@ -3800,3 +3800,47 @@ fn null_last_defender_observes_the_card_actually_played() {
         );
     }
 }
+
+#[test]
+fn ouvert_kontra_round_guides_both_free_calls() {
+    for game in [HERZ, GRAND] {
+        let ann = skat_core::Announcement {
+            schneider: true,
+            schwarz: true,
+            ouvert: true,
+            ..skat_core::Announcement::plain(game)
+        };
+        let mut s = kontra_session(
+            Seat::Vorhand,
+            kontra_deal(KONTRA_VH, KONTRA_HH, "D8 D9"),
+            ann,
+        );
+        let before = s.view();
+        assert!(before.open_cards.is_none());
+        s.execute(Command::StartGuided).unwrap();
+        let mut skipped = s.clone();
+        respond(&mut skipped, G::Return).unwrap();
+        assert_eq!(skipped.view().legal_actions, before.legal_actions);
+        respond(&mut s, G::Answer(A::Factor(1))).unwrap();
+        assert_eq!(s.guided().unwrap().correct, Some(false));
+        respond(&mut s, G::Retry).unwrap();
+        respond(&mut s, G::Answer(A::Factor(2))).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(kontra_rule(&s.guided().unwrap()).action, Action::KeinKontra);
+        if game == HERZ {
+            let mut fixture: serde_json::Value = serde_json::from_str(include_str!(
+                "../../gui-egui/tests/fixtures/ouvert-kontra-round.json"
+            ))
+            .unwrap();
+            let mut actual = serde_json::json!({"table": s.view(), "guided": s.guided().unwrap()});
+            fixture["guided"]["id"] = serde_json::Value::Null;
+            actual["guided"]["id"] = serde_json::Value::Null;
+            assert_eq!(fixture, actual);
+        }
+        for action in before.legal_actions {
+            let mut chosen = s.clone();
+            chosen.execute(Command::Act(action)).unwrap();
+            assert!(chosen.guided().is_some());
+        }
+    }
+}

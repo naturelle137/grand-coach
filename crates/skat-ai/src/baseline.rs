@@ -356,6 +356,12 @@ mod tests {
                 *seen.entry("ouvert round").or_insert(0) += 1;
                 continue;
             };
+            if view.legal_actions.contains(&Action::KeinKontra) {
+                assert_eq!(rule.action, Action::KeinKontra);
+                assert_eq!(rule.action, action);
+                *seen.entry("ouvert round").or_insert(0) += 1;
+                continue;
+            }
             assert_eq!(rule.action, action, "{rule:?}");
             assert!(!rule.fallback && rule.legal == view.legal_actions);
             assert!(!(rule.null && rule.call == KontraCall::Kontra && rule.wants));

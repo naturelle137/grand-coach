@@ -39,6 +39,8 @@ mod null_lead_widgets;
 mod null_middle_widgets;
 #[path = "support/null_widgets.rs"]
 mod null_widgets;
+#[path = "support/ouvert_kontra_widgets.rs"]
+mod ouvert_kontra_widgets;
 #[path = "support/suit_early_widgets.rs"]
 mod suit_early_widgets;
 #[path = "support/suit_feed_widgets.rs"]
@@ -1909,6 +1911,7 @@ fn main() {
     fixture_names.extend(suit_early_widgets::names());
     fixture_names.extend(suit_feed_widgets::names());
     fixture_names.extend(suit_lead_widgets::names());
+    fixture_names.extend(ouvert_kontra_widgets::names());
     if let Some(unknown) = wanted
         .iter()
         .find(|w| !SCENARIOS.iter().any(|(name, _)| name == w) && !fixture_names.contains(w))
@@ -1971,7 +1974,9 @@ fn main() {
     .unwrap();
     for name in fixture_names {
         if wanted.is_empty() || wanted.contains(&name) {
-            if name.starts_with("guided-suit-lead-master-") {
+            if name.starts_with("guided-ouvert-kontra-") {
+                ouvert_kontra_widgets::render(&name, &out);
+            } else if name.starts_with("guided-suit-lead-master-") {
                 suit_lead_widgets::render(&name, Some(&out));
             } else if name.starts_with("guided-suit-feed-partner-") {
                 suit_feed_widgets::render(&name, Some(&out));
