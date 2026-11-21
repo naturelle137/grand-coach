@@ -893,8 +893,12 @@ fn evaluate(args: &[String]) {
                     100.0 * agree as f64 / rows.max(1) as f64
                 );
             }
-            for (category, (teacher, predicted)) in PREPLAY_CATEGORIES.iter().zip(categories) {
-                println!("  {name} {category}: teacher {teacher}, model {predicted}");
+            for (category, (teacher, predicted, both, available)) in
+                PREPLAY_CATEGORIES.iter().zip(categories)
+            {
+                println!(
+                    "  {name} {category}: teacher {teacher}, model {predicted}, both {both}, available {available}"
+                );
             }
         }
     }

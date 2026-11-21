@@ -1171,12 +1171,41 @@ fn preplay_categories(action: Action) -> [bool; 4] {
     ]
 }
 
+fn count_categories(
+    counts: &mut [(usize, usize, usize, usize); 4],
+    legal: &[u32],
+    teacher: Action,
+    predicted: Action,
+) {
+    let mut available = [false; 4];
+    for &index in legal {
+        for (available, category) in available.iter_mut().zip(preplay_categories(
+            action_at(index as usize).expect("legal action"),
+        )) {
+            *available |= category;
+        }
+    }
+    for ((counts, available), (t, p)) in counts.iter_mut().zip(available).zip(
+        preplay_categories(teacher)
+            .into_iter()
+            .zip(preplay_categories(predicted)),
+    ) {
+        counts.0 += usize::from(t);
+        counts.1 += usize::from(p);
+        counts.2 += usize::from(t && p);
+        counts.3 += usize::from(available);
+    }
+}
+
 /// Counts for each phase and each pre-play category.
-pub type PhaseAgreement = ([(usize, usize); 7], [(usize, usize); 4]);
+pub type PhaseAgreement = ([(usize, usize); 7], [(usize, usize, usize, usize); 4]);
 
 /// Per-phase `(rows, rows where the most probable legal action is the
 /// teacher's)` of `net` on `examples`, in [`DecisionPhase::ALL`] order,
-/// and `(teacher, model)` counts in [`PREPLAY_CATEGORIES`] order.
+/// and `(teacher, model, both, available)` category counts in [`PREPLAY_CATEGORIES`] order.
+/// `both` counts positions where both choices belong to the category, not
+/// necessarily identical actions. `available` counts positions where any legal action
+/// belongs to that category.
 pub fn phase_agreement(net: &PolicyValueNet, examples: &Examples) -> PhaseAgreement {
     let device = net
         .devices()
@@ -1185,7 +1214,7 @@ pub fn phase_agreement(net: &PolicyValueNet, examples: &Examples) -> PhaseAgreem
         .unwrap_or_else(Device::flex);
     let inputs = net.inputs();
     let mut out = [(0, 0); 7];
-    let mut categories = [(0, 0); 4];
+    let mut categories = [(0, 0, 0, 0); 4];
     let all: Vec<usize> = (0..examples.rows()).collect();
     for chunk in all.chunks(EVAL_BATCH) {
         let l = losses(net, None, examples.batch(chunk, inputs, &device));
@@ -1201,17 +1230,12 @@ pub fn phase_agreement(net: &PolicyValueNet, examples: &Examples) -> PhaseAgreem
             let predicted = best(&logits[b * ACTIONS..][..ACTIONS], legal);
             let teacher = examples.chosen[r] as usize;
             out[slot].1 += usize::from(predicted == teacher);
-            let teacher =
-                preplay_categories(action_at(legal[teacher] as usize).expect("legal action"));
-            let predicted =
-                preplay_categories(action_at(legal[predicted] as usize).expect("legal action"));
-            for (counts, (t, p)) in categories
-                .iter_mut()
-                .zip(teacher.into_iter().zip(predicted))
-            {
-                counts.0 += usize::from(t);
-                counts.1 += usize::from(p);
-            }
+            count_categories(
+                &mut categories,
+                legal,
+                action_at(legal[teacher] as usize).expect("legal action"),
+                action_at(legal[predicted] as usize).expect("legal action"),
+            );
         }
     }
     (out, categories)
@@ -1841,6 +1865,28 @@ mod phase_tests {
             })),
             [false, false, true, true]
         );
+    }
+
+    #[test]
+    fn category_overlap_is_counted_per_position() {
+        let mut counts = [(0, 0, 0, 0); 4];
+        let pass = skat_nn::action_index(Action::Pass).unwrap() as u32;
+        let hold = skat_nn::action_index(Action::Hold).unwrap() as u32;
+        count_categories(&mut counts, &[pass, hold], Action::Pass, Action::Hold);
+        count_categories(&mut counts, &[pass, hold], Action::Hold, Action::Pass);
+        count_categories(&mut counts, &[hold], Action::Hold, Action::Hold);
+        assert_eq!(counts[0], (1, 1, 0, 2));
+        count_categories(&mut counts, &[pass, hold], Action::Pass, Action::Pass);
+        assert_eq!(counts[0], (2, 2, 1, 3));
+        let null = Action::Announce(skat_core::Announcement::plain(GameType::Null));
+        let ouvert = Action::Announce(skat_core::Announcement {
+            ouvert: true,
+            ..skat_core::Announcement::plain(GameType::Null)
+        });
+        let legal = [null, ouvert].map(|a| skat_nn::action_index(a).unwrap() as u32);
+        count_categories(&mut counts, &legal, null, ouvert);
+        assert_eq!(counts[2], (1, 1, 1, 1));
+        assert_eq!(counts[3], (0, 1, 0, 1));
     }
 
     #[test]
