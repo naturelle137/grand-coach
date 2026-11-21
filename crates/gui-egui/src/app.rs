@@ -1901,7 +1901,11 @@ impl GrandCoachApp {
                     ui.horizontal_wrapped(|ui| {
                         ui.spacing_mut().item_spacing.x = 2.0;
                         for &card in cards {
-                            self.card_image(ui, card, SMALL_CARD);
+                            self.card_image(
+                                ui,
+                                card,
+                                if compact { COMPACT_CARD } else { SMALL_CARD },
+                            );
                         }
                     });
                 }
