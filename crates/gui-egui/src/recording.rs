@@ -240,6 +240,11 @@ impl RecordingUi {
         self.replay.as_ref().is_some_and(|r| r.thinking.is_some())
     }
 
+    /// Recording currently shown in the viewer, for the packaged smoke.
+    pub fn smoke_recording(&self) -> Option<GameRecording> {
+        self.replay.as_ref().map(|replay| replay.recording.clone())
+    }
+
     /// Packaged smoke: requests the recording review of the open recording.
     pub fn smoke_request_review(&mut self, ctx: &egui::Context) {
         if let Some(replay) = &mut self.replay {
