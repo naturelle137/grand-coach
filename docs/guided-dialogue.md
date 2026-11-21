@@ -839,8 +839,9 @@ is established by these technical checks.
 
 The Null opening-lead dialogue also admits a Null Ouvert declarer after the
 own hand is revealed. It uses the same permitted-view Easy rule and preserves
-free choice; defender and other later Ouvert turns remain unsupported except
-the last-seat declarer dialogue below.
+free choice. The seeded application test checks every legal opening, both actual
+replies, the winner and return to play. Bilingual ordinary-route renders cover
+the explanation and observation; other Ouvert turns have their own scopes.
 
 `guided::lesson` version 1 extends the explicit heuristic dialogue (not the
 six-lesson mechanism catalogue) to Spiel, a Null declarer in physical

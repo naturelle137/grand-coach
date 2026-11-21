@@ -82,17 +82,27 @@ fn null_ouvert_opening_dialogue_remains_manual_and_observes_replies() {
         ouvert: true,
     })))
     .unwrap();
-    let legal = s.view().legal_actions.clone();
-    s.execute(Command::StartGuided).unwrap();
-    respond(&mut s, G::Reveal).unwrap();
-    assert_eq!(s.guided().unwrap().step, S::Act);
-    assert_eq!(s.view().legal_actions, legal);
-    s.execute(Command::Act(Action::Play(card(8)))).unwrap();
-    for _ in 0..2 {
-        s.execute(Command::AdvanceOpponent).unwrap();
+    for action in s.view().legal_actions {
+        let mut s = s.clone();
+        let legal = s.view().legal_actions.clone();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(s.guided().unwrap().step, S::Act);
+        assert_eq!(s.view().legal_actions, legal);
+        s.execute(Command::Act(action)).unwrap();
+        for _ in 0..2 {
+            s.execute(Command::AdvanceOpponent).unwrap();
+        }
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        assert_eq!(s.guided().unwrap().lead_replies.len(), 2);
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(s.game.tricks()[0].winner)
+        );
+        respond(&mut s, G::Return).unwrap();
+        assert!(s.guided().is_none());
     }
-    assert_eq!(s.guided().unwrap().step, S::Observe);
-    assert_eq!(s.guided().unwrap().lead_replies.len(), 2);
 }
 #[test]
 fn null_lead_all_286_completed_observations_and_94_immediate_losses() {
