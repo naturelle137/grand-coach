@@ -283,6 +283,9 @@ fn content(
         } else {
             ui.label(i.t(key));
         }
+        if rule.branch == GuidedBranch::UnderPartner && table.contract.is_some_and(|c| c.ouvert) {
+            ui.label(i.t("guided-under-ouvert"));
+        }
         if let Some(condition) = g.early_condition {
             ui.label(i.t(match condition {
                 GuidedEarlyCondition::Trumpf

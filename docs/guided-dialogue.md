@@ -23,7 +23,8 @@ Debug action bytes, seed order 0..200, Kontra/Re enabled). This freezes behavior
 it is not a strategic oracle. Explicit candidate expectations below provide
 separate factual oracles.
 
-- **UnderPartner:** Farbspiel or non-Ouvert Grand (#159, below), defender,
+- **UnderPartner:** Farbspiel, Grand (#159) or the bounded Grand Ouvert
+  defender view ([#315](#grand-ouvert-defender-under-partner-315)), defender,
   partner currently leads, one player
   follows, and the leading card is not a master of its follow class. With at
   least two legal cards and one losing candidate, Easy takes a loser by
@@ -58,8 +59,8 @@ separate factual oracles.
   with the declarer ahead, with at least two exact legal actions and a current loser.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
   early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
-  single legal action, other Grand branches, Ouvert Grand, other Null card play or
-  card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
+  single legal action, other Grand branches, other Grand Ouvert branches, other Null
+  card play or card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
   Ansage and Kontra/Re: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
   explicitly marked `Fallback` and excluded, rather than explained as staying
@@ -1342,3 +1343,16 @@ choices, hidden-card substitution and malformed views; app tests exercise
 attempt, reveal, observation and return. The seeded egui test also walks the
 real bilingual widgets from bidding through return to play. These checks do not establish
 learning efficacy.
+
+## Grand Ouvert defender under partner (#315)
+
+A defender acting second after the partner may enter the existing
+`UnderPartner` dialogue in Grand Ouvert when the revealed declarer hand and
+the exact core-legal actions form a consistent view. The shared Easy rule
+selects a current loser by nontrump, fewer Augen, then lower power, with the
+first exact tie. Its follow-class master test does not separately examine
+the revealed hand; the dialog says so. Every legal card remains playable,
+and the actual declarer reply and winner are observed. Other Ouvert branches
+remain outside this increment. The core fixture covers hidden Skat swaps,
+reveal and legal-action boundaries, and all legal choices; the app exercises
+attempt, reveal and actual continuation. No learner efficacy is inferred.

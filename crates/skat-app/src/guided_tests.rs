@@ -1844,6 +1844,49 @@ fn grand_under(deal: skat_core::Deal) -> Session {
 }
 
 #[test]
+fn grand_ouvert_under_partner_all_choices_observe_the_actual_reply() {
+    use fixture::card as c;
+    let deal = fixture::deal();
+    let actions = fixture::contract_actions(
+        deal,
+        Seat::Hinterhand,
+        fixture::hand_game(GRAND, true),
+        &["CK"],
+    );
+    let s = grand_session(Seat::Mittelhand, deal, false, &actions);
+    let legal = s.view().legal_actions;
+    assert_eq!(
+        legal,
+        ["C7", "C8", "CT"].map(|x| Action::Play(c(x))).to_vec()
+    );
+    for (n, action) in legal.into_iter().enumerate() {
+        let mut s = s.clone();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Answer(A::Seat(Some(Seat::Vorhand)))).unwrap();
+        respond(&mut s, G::Answer(A::Seat(Some(Seat::Hinterhand)))).unwrap();
+        if n == 0 {
+            respond(&mut s, G::Answer(A::Card(c("C8")))).unwrap();
+        } else {
+            respond(&mut s, G::Reveal).unwrap();
+        }
+        assert_eq!(
+            s.guided().unwrap().rule.unwrap().branch,
+            crate::GuidedBranch::UnderPartner
+        );
+        s.execute(Command::Act(action)).unwrap();
+        let mv = s.opponent_job().unwrap().run(None);
+        s.finish_opponent(mv).unwrap();
+        respond(&mut s, G::Answer(A::Void(false))).unwrap();
+        let actual = s.game.view(Seat::Mittelhand).tricks[0];
+        let observed = s.guided().unwrap().observation.unwrap();
+        assert_eq!(observed.winner, Some(actual.winner));
+        assert_eq!(actual.cards[2], c("CA"));
+        respond(&mut s, G::Return).unwrap();
+        assert!(s.guided().is_none());
+    }
+}
+
+#[test]
 fn grand_under_partner_attempt_reveal_every_legal_card_and_actual_declarer_reply() {
     use fixture::card as c;
     let s = grand_under(fixture::deal());
