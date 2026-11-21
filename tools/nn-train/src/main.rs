@@ -882,18 +882,19 @@ fn evaluate(args: &[String]) {
         report(name, examples);
     }
     if hyper.all_phases {
-        use nn_train::train::{DecisionPhase, phase_agreement, read_model};
+        use nn_train::train::{DecisionPhase, PREPLAY_CATEGORIES, phase_agreement, read_model};
         let (net, _) = read_model(&model, None).expect("model");
         for (name, examples) in [("validation", &data.validation), ("test", &data.test)] {
-            for (phase, (rows, agree)) in DecisionPhase::ALL
-                .iter()
-                .zip(phase_agreement(&net, examples))
-            {
+            let (phases, categories) = phase_agreement(&net, examples);
+            for (phase, (rows, agree)) in DecisionPhase::ALL.iter().zip(phases) {
                 println!(
                     "  {name} {}: {agree}/{rows} agree ({:.2} %)",
                     phase.name(),
                     100.0 * agree as f64 / rows.max(1) as f64
                 );
+            }
+            for (category, (teacher, predicted)) in PREPLAY_CATEGORIES.iter().zip(categories) {
+                println!("  {name} {category}: teacher {teacher}, model {predicted}");
             }
         }
     }
