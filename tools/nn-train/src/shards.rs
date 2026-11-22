@@ -383,6 +383,9 @@ pub struct LabelReport {
     pub leaks: u64,
     /// Discards whose label is not a legal pair of the twelve cards.
     pub bad_pairs: u64,
+    /// Kontra opportunities: (total, teacher says Kontra, rule says Kontra,
+    /// both say Kontra). Each opportunity is counted once.
+    pub kontra: (u64, u64, u64, u64),
 }
 
 /// Independent pre-play label validation (#74): every complete shard passes
@@ -390,8 +393,9 @@ pub struct LabelReport {
 /// is compared with the decision the shared Classic rule of `skat-analysis`
 /// recomputes from the stored permitted view alone. Differing labels are
 /// counted, not hidden: a legitimate teacher may deviate (for example when
-/// Strong analyses), so the caller judges the agreement. Kontra/Re and card
-/// play are outside this check.
+/// Strong analyses), so the caller judges the agreement. Kontra opportunities
+/// are counted separately against the Classic rule; Re and card play are
+/// otherwise outside this check.
 pub fn validate_labels(dir: &Path) -> Result<LabelReport, ShardError> {
     verify(dir)?;
     let manifest = read_manifest(dir)?;
@@ -410,6 +414,17 @@ pub fn check_labels(records: &[DecisionRecord], out: &mut LabelReport) {
         let kind = DecisionKind::of(&r.view);
         if r.view.result.is_some() {
             out.leaks += 1;
+        }
+        if r.view.legal_actions.contains(&Action::Kontra) {
+            let teacher = r.action == Action::Kontra;
+            let rules = matches!(
+                skat_ai::kontra_rule(&r.view),
+                skat_ai::KontraRule::Rules(Action::Kontra)
+            );
+            out.kontra.0 += 1;
+            out.kontra.1 += u64::from(teacher);
+            out.kontra.2 += u64::from(rules);
+            out.kontra.3 += u64::from(teacher && rules);
         }
         let rule = match r.view.phase {
             Phase::Reizen => policy::bid_rule(&r.view).map(|b| b.action),
@@ -726,5 +741,38 @@ mod replay_tests {
         check_labels(&rows[i..=i], &mut bad);
         assert_eq!(bad.bad_pairs, 1);
         assert_eq!(bad.kinds[&DecisionKind::Druecken].2, 1);
+    }
+
+    #[test]
+    fn label_validation_counts_kontra_opportunities_and_overlap() {
+        use skat_ai::KontraRule;
+        use skat_core::Action;
+
+        let bytes = include_bytes!("../fixtures/selfplay/shard-00000.jsonl");
+        let rows = parse_records(bytes).unwrap();
+        let mut row = rows
+            .into_iter()
+            .find(|r| {
+                r.view.legal_actions.contains(&Action::Kontra)
+                    && r.view.legal_actions.iter().any(|a| *a != Action::Kontra)
+            })
+            .expect("fixture has a Kontra opportunity");
+        let rule = matches!(
+            skat_ai::kontra_rule(&row.view),
+            KontraRule::Rules(Action::Kontra)
+        );
+        row.action = Action::Kontra;
+        let mut said = LabelReport::default();
+        check_labels(&[row.clone()], &mut said);
+        assert_eq!(said.kontra, (1, 1, u64::from(rule), u64::from(rule)));
+        row.action = *row
+            .view
+            .legal_actions
+            .iter()
+            .find(|a| **a != Action::Kontra)
+            .unwrap();
+        let mut declined = LabelReport::default();
+        check_labels(&[row], &mut declined);
+        assert_eq!(declined.kontra, (1, 0, u64::from(rule), 0));
     }
 }
