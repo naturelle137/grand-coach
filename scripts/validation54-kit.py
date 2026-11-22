@@ -4,6 +4,7 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -29,7 +30,7 @@ def prepare(archive, out):
         raise ValueError("package/source commit mismatch")
     if out.exists() or out.is_symlink():
         raise ValueError("destination already exists; never replace personal records")
-    if any(c in str(out) for c in '\n\r"`$%'):
+    if any(c in str(out) for c in '\n\r"`$%') or (os.name != "nt" and "\\" in str(out)):
         raise ValueError("unsupported launcher path")
     raw = subprocess.check_output([
         "cargo", "run", "--locked", "--offline", "--quiet", "-p", "skat-app",
