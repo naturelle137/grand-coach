@@ -165,3 +165,44 @@ fn last_defender_leaves_declarer_ahead() {
     partner_ahead.apply(Action::Play(card(6))).unwrap();
     assert!(lesson(&partner_ahead.view(Seat::Hinterhand)).is_none());
 }
+
+#[test]
+fn ouvert_last_defender_requires_consistent_revealed_hand() {
+    let mut game = Game::from_deal(cases().remove(0).deal, RuleConfig { kontra_re: false });
+    for action in [
+        Action::Bid(18),
+        Action::Hold,
+        Action::Pass,
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(Announcement {
+            ouvert: true,
+            ..Announcement::plain(GameType::Null)
+        }),
+        Action::Play(card(5)),
+        Action::Play(card(4)),
+    ] {
+        game.apply(action).unwrap();
+    }
+    let view = game.view(Seat::Hinterhand);
+    let l = lesson(&view).expect("revealed last defender lesson");
+    assert_eq!(l.rule.candidates, [card(2)]);
+    assert_eq!(l.rule.card, card(2));
+    assert!(l.rule.last);
+    for change in 0..5 {
+        let mut bad = view.clone();
+        match change {
+            0 => bad.declarer_cards = None,
+            1 => bad.declarer_cards = Some(bad.hand),
+            2 => bad.legal_actions.reverse(),
+            3 => bad.current_seat = Some(Seat::Mittelhand),
+            _ => bad.declarer = Some(Seat::Mittelhand),
+        }
+        assert!(lesson(&bad).is_none(), "{change}");
+    }
+    for action in view.legal_actions {
+        let mut alternative = game.clone();
+        alternative.apply(action).unwrap();
+        assert_eq!(alternative.view(Seat::Hinterhand).tricks.len(), 1);
+    }
+}

@@ -1199,12 +1199,13 @@ wins the trick. The widget test reproduces this route in both languages.
 
 ## Null defender playing last (#131)
 
-A non-Ouvert Null defender playing last can enter the dialogue when the
+A Null or Null Ouvert defender playing last can enter the dialogue when the
 declarer currently wins and a legal card leaves the declarer ahead. Easy
 chooses the highest Null rank among those cards, last in legal order on a tie.
 All legal cards remain playable; the observation reports the actual card and
 winner, including if the learner overtakes. The lesson uses only the permitted
-view and excludes a partner currently ahead, no losing card and Ouvert. This
+view and excludes a partner currently ahead or no losing card. Null Ouvert
+requires a consistent revealed declarer hand. This
 heuristic does not guarantee the game outcome.
 
 ## Farbspiel second-seat FeedPartner (#131)
