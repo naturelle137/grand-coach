@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
+import shutil
 import sys
 import tempfile
 import unittest
@@ -107,6 +109,29 @@ class KitTests(unittest.TestCase):
             self.assertIn(b'"%~dp0app\\grand-coach.exe"\r\n', launcher)
             self.assertNotIn(os.fsencode(out), launcher)
 
+    @unittest.skipIf(os.name == "nt", "Linux shell launcher requires a POSIX host")
+    def test_linux_launcher_uses_moved_kit_and_private_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "app.tar.gz"
+            archive.write_bytes(b"archive")
+            out = root / "original kit"
+            tasks = [{"id": c["id"], "version": c["version"], "set": c["set"],
+                      "position_sha256": package.digest(json.dumps(c["position"], sort_keys=True,
+                                                                  separators=(",", ":"), ensure_ascii=False).encode())}
+                     for c in self.positions]
+            binary = b'#!/bin/sh\nprintf "%s\\n%s\\n" "$GRAND_COACH_VALIDATION" "$GRAND_COACH_DATA"\n'
+            with patch.object(package, "run", side_effect=self.run_identity), \
+                 patch.object(package, "verify", return_value=(self.manifest, {"grand-coach": binary})), \
+                 patch.object(kit.subprocess, "check_output", return_value=json.dumps(self.positions).encode()), \
+                 patch.object(kit, "registered_tasks", return_value=tasks):
+                kit.prepare(archive, out)
+            moved = root / "moved kit"
+            shutil.move(out, moved)
+            result = subprocess.check_output([str(moved / "Grand-Coach-Lernvalidierung.sh")],
+                                             cwd=root, text=True).splitlines()
+            self.assertEqual(result, ["1", str(moved / "private-history")])
+
     def test_cli_refuses_dangling_destination_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -121,6 +146,16 @@ class KitTests(unittest.TestCase):
                     kit.main()
             self.assertTrue(out.is_symlink())
             self.assertFalse(target.exists())
+
+    @unittest.skipIf(os.name == "nt", "backslashes are Windows path separators")
+    def test_refuses_backslash_in_launcher_path_before_installation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / "kit\\name"
+            with patch.object(package, "run", side_effect=self.run_identity), \
+                 patch.object(package, "verify", return_value=(self.manifest, {})):
+                with self.assertRaisesRegex(ValueError, "unsupported launcher path"):
+                    kit.prepare(Path("unused"), out)
+            self.assertFalse(out.exists())
 
     def test_wrong_source_and_dirty_source_fail_before_installation(self):
         with tempfile.TemporaryDirectory() as directory:

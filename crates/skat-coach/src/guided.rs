@@ -114,8 +114,7 @@ pub struct Lesson {
 /// and the declarer's opening and second/last-seat turns after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Grand Ouvert declarer
-/// Grand declarer WinEarly and Grand and Farbspiel declarer WinLast admit validated second- and
-/// last-seat views respectively. LeadMaster (including Ouvert
+/// declarer WinEarly, Grand and Farbspiel declarer WinLast, and Grand defender FeedPartner admit validated second- and last-seat views. LeadMaster (including Ouvert
 /// Farbspiel and Grand declarer) and Grand declarer DrawTrumpf (including
 /// Ouvert) admit tested own leads with an exact core-legal action list.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
@@ -142,6 +141,37 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         && view.current_seat == Some(view.seat)
         && matches!(view.current_trick.cards, [Some(_), Some(_), None])
         && view.current_trick.leader.map(|s| s.next().next()) == Some(view.seat)
+        && view.legal_actions
+            == skat_core::legal_cards(game, view.hand, view.current_trick.led())
+                .iter()
+                .map(Action::Play)
+                .collect::<Vec<_>>();
+    let ouvert_grand_feed = game == GameType::Grand
+        && contract.ouvert
+        && contract.hand
+        && contract.schneider
+        && contract.schwarz
+        && view.declarer.is_some_and(|d| d != view.seat)
+        && view.hand_game == Some(true)
+        && view.own_skat.is_none()
+        && view.current_seat == Some(view.seat)
+        && matches!(view.current_trick.cards, [Some(_), Some(_), None])
+        && view.current_trick.leader.map(|s| s.next().next()) == Some(view.seat)
+        && view.declarer_cards.is_some_and(|cards| {
+            cards.len() == usize::from(view.hand_sizes[view.declarer.unwrap().index()])
+                && (cards & view.hand).is_empty()
+                && view
+                    .current_trick
+                    .cards
+                    .iter()
+                    .flatten()
+                    .all(|c| !cards.contains(*c))
+                && view
+                    .tricks
+                    .iter()
+                    .flat_map(|t| t.cards)
+                    .all(|c| !cards.contains(c))
+        })
         && view.legal_actions
             == skat_core::legal_cards(game, view.hand, view.current_trick.led())
                 .iter()
@@ -219,6 +249,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || grand
             || ouvert_grand_lead
             || ouvert_last
+            || ouvert_grand_feed
             || ouvert_grand_early
             || ouvert_grand_under
             || null)
@@ -416,7 +447,8 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     view.declarer?;
     let rule = baseline::rule(view)?;
-    if (ouvert_grand_early && rule.branch != Branch::WinEarly)
+    if (ouvert_grand_feed && rule.branch != Branch::FeedPartner)
+        || (ouvert_grand_early && rule.branch != Branch::WinEarly)
         || (ouvert_last && rule.branch != Branch::WinLast)
         || (contract.ouvert
             && matches!(game, GameType::Farbe(_))
@@ -430,7 +462,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         || !(matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
             || ((grand || suit_early || ouvert_grand_early) && rule.branch == Branch::WinEarly)
             || (rule.branch == Branch::FeedPartner
-                && (((grand || suit_feed) && rule.last)
+                && (((grand || suit_feed || ouvert_grand_feed) && rule.last)
                     || (feed_early && rule.partner_ahead && rule.table_master)))
             || (null && rule.branch == Branch::Null && !rule.losers.is_empty()))
     {

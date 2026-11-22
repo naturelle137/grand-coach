@@ -43,3 +43,5 @@ checks.
 For coach changes, read the [live behaviour](coach.md) and
 [evidence checklist](coach-validation.md). Use the [opponent guide](ai.md)
 for strength calibration and [model guide](learned-models.md) for training.
+
+Grand Ouvert last-seat defenders can deliberately compare all legal cards when their partner leads, using the shared Easy feeding rule and the actual completed trick. Other guided branches remain bounded as described in [guided dialogue](guided-dialogue.md).
