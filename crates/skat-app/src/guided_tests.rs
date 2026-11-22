@@ -1577,18 +1577,52 @@ fn grand_last(declarer: Seat, deal: skat_core::Deal, plays: &[&str]) -> Session 
 fn grand_win_last_both_roles_attempt_reveal_every_legal_card_and_actual_trick() {
     use fixture::card as c;
     // (declarer, lead, partner/opponent card, Easy's card, winning cards)
-    for (declarer, led, second, easy, winning, ouvert) in [
-        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"], true),
-        (Seat::Hinterhand, "C9", "C8", "CQ", vec!["CQ", "CA"], false),
-        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"], false),
-        (Seat::Vorhand, "C9", "C7", "CQ", vec!["CQ", "CA"], false),
-        (Seat::Vorhand, "CK", "C7", "CA", vec!["CA"], false),
+    for (declarer, led, second, easy, winning, ouvert, game) in [
+        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"], true, GRAND),
+        (
+            Seat::Hinterhand,
+            "CK",
+            "C8",
+            "CA",
+            vec!["CA"],
+            true,
+            skat_core::GameType::Farbe(skat_core::Suit::Herz),
+        ),
+        (
+            Seat::Hinterhand,
+            "C9",
+            "C8",
+            "CQ",
+            vec!["CQ", "CA"],
+            true,
+            skat_core::GameType::Farbe(skat_core::Suit::Herz),
+        ),
+        (
+            Seat::Hinterhand,
+            "C9",
+            "C8",
+            "CQ",
+            vec!["CQ", "CA"],
+            false,
+            GRAND,
+        ),
+        (Seat::Hinterhand, "CK", "C8", "CA", vec!["CA"], false, GRAND),
+        (
+            Seat::Vorhand,
+            "C9",
+            "C7",
+            "CQ",
+            vec!["CQ", "CA"],
+            false,
+            GRAND,
+        ),
+        (Seat::Vorhand, "CK", "C7", "CA", vec!["CA"], false, GRAND),
     ] {
         let deal = fixture::deal();
         let actions = fixture::contract_actions(
             deal,
             declarer,
-            fixture::hand_game(GRAND, ouvert),
+            fixture::hand_game(game, ouvert),
             &[led, second],
         );
         let s = grand_session(Seat::Hinterhand, deal, false, &actions);
@@ -1807,6 +1841,49 @@ fn grand_under(deal: skat_core::Deal) -> Session {
     let game = fixture::hand_game(GRAND, false);
     let actions = fixture::contract_actions(deal, Seat::Hinterhand, game, &["CK"]);
     grand_session(Seat::Mittelhand, deal, false, &actions)
+}
+
+#[test]
+fn grand_ouvert_under_partner_all_choices_observe_the_actual_reply() {
+    use fixture::card as c;
+    let deal = fixture::deal();
+    let actions = fixture::contract_actions(
+        deal,
+        Seat::Hinterhand,
+        fixture::hand_game(GRAND, true),
+        &["CK"],
+    );
+    let s = grand_session(Seat::Mittelhand, deal, false, &actions);
+    let legal = s.view().legal_actions;
+    assert_eq!(
+        legal,
+        ["C7", "C8", "CT"].map(|x| Action::Play(c(x))).to_vec()
+    );
+    for (n, action) in legal.into_iter().enumerate() {
+        let mut s = s.clone();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Answer(A::Seat(Some(Seat::Vorhand)))).unwrap();
+        respond(&mut s, G::Answer(A::Seat(Some(Seat::Hinterhand)))).unwrap();
+        if n == 0 {
+            respond(&mut s, G::Answer(A::Card(c("C8")))).unwrap();
+        } else {
+            respond(&mut s, G::Reveal).unwrap();
+        }
+        assert_eq!(
+            s.guided().unwrap().rule.unwrap().branch,
+            crate::GuidedBranch::UnderPartner
+        );
+        s.execute(Command::Act(action)).unwrap();
+        let mv = s.opponent_job().unwrap().run(None);
+        s.finish_opponent(mv).unwrap();
+        respond(&mut s, G::Answer(A::Void(false))).unwrap();
+        let actual = s.game.view(Seat::Mittelhand).tricks[0];
+        let observed = s.guided().unwrap().observation.unwrap();
+        assert_eq!(observed.winner, Some(actual.winner));
+        assert_eq!(actual.cards[2], c("CA"));
+        respond(&mut s, G::Return).unwrap();
+        assert!(s.guided().is_none());
+    }
 }
 
 #[test]
@@ -3952,4 +4029,30 @@ fn grand_ouvert_feed_attempt_and_return_preserve_the_game() {
     assert_eq!(s.view().hand, before.hand);
     assert_eq!(s.view().legal_actions, before.legal_actions);
     assert_eq!(s.view().current_trick, before.current_trick);
+}
+
+#[test]
+fn suit_ouvert_last_snapshot() {
+    let deal = fixture::deal();
+    let game = skat_core::GameType::Farbe(skat_core::Suit::Herz);
+    let actions = fixture::contract_actions(
+        deal,
+        Seat::Hinterhand,
+        fixture::hand_game(game, true),
+        &["CK", "C8"],
+    );
+    let mut s = grand_session(Seat::Hinterhand, deal, false, &actions);
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    let mut guided = serde_json::to_value(s.guided().unwrap()).unwrap();
+    guided["id"]["lineage"] = 0.into();
+    guided["id"]["generation"] = 0.into();
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../gui-egui/tests/fixtures/suit-ouvert-last.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        serde_json::json!({"table": s.view(), "guided": guided}),
+        expected
+    );
 }

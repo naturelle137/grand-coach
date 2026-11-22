@@ -23,13 +23,14 @@ Debug action bytes, seed order 0..200, Kontra/Re enabled). This freezes behavior
 it is not a strategic oracle. Explicit candidate expectations below provide
 separate factual oracles.
 
-- **UnderPartner:** Farbspiel or non-Ouvert Grand (#159, below), defender,
+- **UnderPartner:** Farbspiel, Grand (#159) or the bounded Grand Ouvert
+  defender view ([#315](#grand-ouvert-defender-under-partner-315)), defender,
   partner currently leads, one player
   follows, and the leading card is not a master of its follow class. With at
   least two legal cards and one losing candidate, Easy takes a loser by
   `(is_trump, Augen, power)`, first exact tie. A nonchosen losing candidate may
   serve the same immediate purpose. This does not secure the partner's trick.
-- **WinLast:** Farbspiel or non-Ouvert Grand (#157, below), last seat,
+- **WinLast:** Farbspiel or Grand (#157, below), including [Ouvert declarer last](#farbspiel-ouvert-declarer-playing-last-318), last seat,
   opposing party leads, at least two legal cards and a winning candidate. Easy takes a winner by `(is_trump, power)`,
   first exact tie. Other winning cards still win this trick. No claim about
   their future strategic value or the final game result follows.
@@ -58,8 +59,8 @@ separate factual oracles.
   with the declarer ahead, with at least two exact legal actions and a current loser.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
   early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
-  single legal action, unsupported Grand Ouvert branches, other Null card play or
-  card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
+  single legal action, other Grand branches, other Grand Ouvert branches, other Null
+  card play or card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
   Ansage and Kontra/Re: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
   explicitly marked `Fallback` and excluded, rather than explained as staying
@@ -1349,3 +1350,27 @@ acting last: Kreuz 8, 9 and Ass are legal, Easy selects Ass, and the actual
 winners are MH, MH and HH respectively. Invalid reveal, turn, contract and
 restricted action views are excluded. Technical tests do not establish learner
 efficacy or complete #131.
+
+## Farbspiel Ouvert declarer playing last (#318)
+
+The declarer acting last with a matching revealed hand and a complete legal
+card list can enter the shared `WinLast` dialogue. Every legal card remains
+playable; the completed trick reports its actual winner. The Hand Skat and
+defender cards remain unknown. The core fixture tests winning and losing
+choices, hidden-card substitution and malformed views; app tests exercise
+attempt, reveal, observation and return. The seeded egui test also walks the
+real bilingual widgets from bidding through return to play. These checks do not establish
+learning efficacy.
+
+## Grand Ouvert defender under partner (#315)
+
+A defender acting second after the partner may enter the existing
+`UnderPartner` dialogue in Grand Ouvert when the revealed declarer hand and
+the exact core-legal actions form a consistent view. The shared Easy rule
+selects a current loser by nontrump, fewer Augen, then lower power, with the
+first exact tie. Its follow-class master test does not separately examine
+the revealed hand; the dialog says so. Every legal card remains playable,
+and the actual declarer reply and winner are observed. Other Ouvert branches
+remain outside this increment. The core fixture covers hidden Skat swaps,
+reveal and legal-action boundaries, and all legal choices; the app exercises
+attempt, reveal and actual continuation. No learner efficacy is inferred.
