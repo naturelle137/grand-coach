@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -84,6 +85,21 @@ class KitTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "identity/hash changed"):
                     kit.prepare(Path("unused"), out)
             self.assertFalse(out.exists())
+
+    def test_cli_refuses_dangling_destination_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            out = root / "kit"
+            target = root / "missing"
+            out.symlink_to(target, target_is_directory=True)
+            with patch.object(package, "run", side_effect=self.run_identity), \
+                 patch.object(package, "verify", return_value=(self.manifest, {})), \
+                 patch.object(sys, "argv", ["validation54-kit.py", "--archive", str(root / "archive"),
+                                            "--out", str(out)]):
+                with self.assertRaisesRegex(ValueError, "destination already exists"):
+                    kit.main()
+            self.assertTrue(out.is_symlink())
+            self.assertFalse(target.exists())
 
     def test_wrong_source_and_dirty_source_fail_before_installation(self):
         with tempfile.TemporaryDirectory() as directory:

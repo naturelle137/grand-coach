@@ -28,7 +28,7 @@ def prepare(archive, out):
     manifest, files = package.verify(archive)
     if manifest["commit"] != commit:
         raise ValueError("package/source commit mismatch")
-    if out.exists():
+    if out.exists() or out.is_symlink():
         raise ValueError("destination already exists; never replace personal records")
     if any(c in str(out) for c in '\n\r"`$%'):
         raise ValueError("unsupported launcher path")
@@ -90,8 +90,9 @@ def main():
     parser.add_argument("--archive", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
-    result = prepare(args.archive.resolve(), args.out.resolve())
-    print(json.dumps({"status": "prepared", "path": str(args.out.resolve()),
+    out = args.out.parent.resolve() / args.out.name
+    result = prepare(args.archive.resolve(), out)
+    print(json.dumps({"status": "prepared", "path": str(out),
                       "commit": result["build_commit"], "tasks": len(result["tasks"])}))
 
 
