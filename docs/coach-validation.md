@@ -367,3 +367,10 @@ wrong/retry, stale re-entry, free return and actual Karo-Bube/Hinterhand evidenc
 1440×1000 and 960×640; the sixteen corresponding screenshots retain separate
 question and revealed observation states. No optional learner results or
 the #131 completion follow from these technical checks.
+
+## Grand Ouvert declarer WinEarly (#311)
+
+The core-replayed `guided_win_early` fixture checks the shared rule, every
+legal completion, hidden-hand substitution and invalid reveal/action views.
+The session test checks retry, reveal, free choice and the actual reply and
+winner. These are technical checks, not evidence of learner comprehension.
