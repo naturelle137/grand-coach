@@ -99,6 +99,38 @@ fn defender_hidden_deals_do_not_change_lesson() {
 }
 
 #[test]
+fn ouvert_defender_follows_revealed_declarer() {
+    let mut game = Game::from_deal(cases().remove(0).deal, RuleConfig { kontra_re: false });
+    for action in [
+        Action::Bid(18),
+        Action::Hold,
+        Action::Pass,
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(Announcement {
+            ouvert: true,
+            ..Announcement::plain(GameType::Null)
+        }),
+        Action::Play(card(5)),
+    ] {
+        game.apply(action).unwrap();
+    }
+    let view = game.view(Seat::Mittelhand);
+    let l = lesson(&view).expect("revealed defender lesson");
+    assert_eq!(l.rule.candidates, [card(0), card(3), card(4)]);
+    assert_eq!(l.rule.card, card(4));
+    for change in 0..3 {
+        let mut bad = view.clone();
+        match change {
+            0 => bad.declarer_cards = None,
+            1 => bad.declarer_cards = Some(bad.hand),
+            _ => bad.legal_actions.reverse(),
+        }
+        assert!(lesson(&bad).is_none());
+    }
+}
+
+#[test]
 fn last_defender_leaves_declarer_ahead() {
     let setup = || {
         let mut game = Game::from_deal(cases().remove(0).deal, RuleConfig { kontra_re: false });
