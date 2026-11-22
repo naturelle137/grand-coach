@@ -189,7 +189,7 @@ fn early_exclusions_retain_existing_branches_and_suit_extension() {
             vec!["CK"],
             Seat::Mittelhand,
             Branch::WinEarly,
-            false,
+            true,
         ),
         (
             d[0],
@@ -204,5 +204,40 @@ fn early_exclusions_retain_existing_branches_and_suit_extension() {
         let v = contract_position(deal, decl, game, &plays).view(seat);
         assert_eq!(baseline::rule(&v).unwrap().branch, branch);
         assert_eq!(lesson(&v).is_some(), supported);
+    }
+}
+
+#[test]
+fn ouvert_early_reuses_rule_and_rejects_invalid_views() {
+    let deal = oracle::deals()[0];
+    let make = |deal| {
+        contract_position(
+            deal,
+            Seat::Mittelhand,
+            hand_game(GameType::Grand, true),
+            &["CK"],
+        )
+    };
+    let g = make(deal);
+    let v = g.view(Seat::Mittelhand);
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule, baseline::rule(&v).unwrap());
+    assert_eq!(l.rule.branch, Branch::WinEarly);
+    for mine in oracle::LEGAL[0].split_whitespace() {
+        check_completion(&g, mine, oracle::REPLY[0], oracle::winner(0, mine));
+    }
+    let other = make(swap(deal, card("H7"), card("DK")));
+    assert_eq!(v, other.view(Seat::Mittelhand));
+    assert_eq!(Some(l), lesson(&other.view(Seat::Mittelhand)));
+    for edit in [
+        (|v: &mut skat_core::PlayerView| v.declarer_cards = None) as fn(&mut skat_core::PlayerView),
+        |v| v.declarer_cards = Some(skat_core::CardSet::default()),
+        |v| v.contract.as_mut().unwrap().schwarz = false,
+        |v| v.legal_actions.truncate(1),
+        |v| v.current_seat = Some(Seat::Vorhand),
+    ] {
+        let mut invalid = v.clone();
+        edit(&mut invalid);
+        assert!(lesson(&invalid).is_none());
     }
 }

@@ -8,7 +8,7 @@ remain unmeasured.
 
 ## Rule and evidence definition
 
-The card-play scope includes `UnderPartner`, `WinLast`, non-Ouvert Grand `WinEarly` and
+The card-play scope includes `UnderPartner`, `WinLast`, Grand `WinEarly` (including the revealed Ouvert declarer) and
 [Farbspiel `WinEarly`](#farbspiel-winearly-178) on the human's own current second turn,
 [early Grand `FeedPartner`](#grand-second-seat-feedpartner-131), last-seat Grand and [Farbspiel `FeedPartner`](#farbspiel-last-seat-feedpartner-185), [Grand `LeadMaster`](#grand-lead-with-a-follow-class-master-171),
 and Null declarer play [last](#null-declarer-last-to-the-current-trick-165)
@@ -34,7 +34,7 @@ separate factual oracles.
   opposing party leads, at least two legal cards and a winning candidate. Easy takes a winner by `(is_trump, power)`,
   first exact tie. Other winning cards still win this trick. No claim about
   their future strategic value or the final game result follows.
-- **WinEarly:** non-Ouvert Grand (#161, below) or
+- **WinEarly:** Grand (#161; revealed Ouvert declarer #311) or
   [Farbspiel](#farbspiel-winearly-178), opposing party ahead,
   one remaining player, at least two legal cards and current winners. The
   selected cheapest winner itself is Trumpf or a conservative follow-class master;
@@ -59,8 +59,8 @@ separate factual oracles.
   with the declarer ahead, with at least two exact legal actions and a current loser.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
   early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
-  single legal action, other Grand branches, other Grand Ouvert branches, other Null
-  card play or card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
+  single legal action, other Grand branches, other Grand Ouvert turns, other Null card play or
+  card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
   Ansage and Kontra/Re: see below). If the
   partner branch has no losing card, its original lowest-card fallback is
   explicitly marked `Fallback` and excluded, rather than explained as staying
@@ -156,7 +156,7 @@ play [last](#null-declarer-last-to-the-current-trick-165) or
 follows the [#178 guards](#farbspiel-winearly-178). Grand declarer
 [`DrawTrumpf`](#grand-declarer-drawtrumpf-lead-175) is supported. Unsupported remain early Farbspiel `FeedPartner`, Farbspiel `FeedPartner` outside the
 [#185 guards](#farbspiel-last-seat-feedpartner-185), fallback, single legal moves
-and Ouvert Grand. Older Farbspiel families, including Ouvert, keep their
+and other Ouvert Grand turns. Older Farbspiel families, including Ouvert, keep their
 shipped scope; the Ouvert declarer acting second is supported as described [below](#ouvert-farbspiel-declarer-acting-second-317). A core-offered Kontra
 keeps its own dialogue first. In last seat the learner's own card completes
 the trick: the observation uses that card and the actual core `TrickWon`,
@@ -1328,6 +1328,16 @@ does not. Replacing the lead with Kreuz-Neun makes both cards winners.
 Swapping an unseen defender card with the unknown Skat preserves the permitted
 view and lesson. Enter the dialogue, reveal the rule, play either card and
 inspect the actual winner; no learner outcome is inferred from this check.
+
+## Grand Ouvert declarer WinEarly (#311)
+
+After the declarer's hand is revealed and matches the acting hand, the second
+seat may enter the existing Grand `WinEarly` dialogue when the shared Easy rule
+selects it. The exact core-legal actions, Hand contract and current turn are
+checked before admission. All legal cards remain playable; the actual third
+card and winner are observed. The rule describes a conditional current-trick
+choice, without revealing defender hands or guaranteeing a win. Other views
+retain their existing fallback.
 
 ## Null Ouvert declarer acting second (#131)
 

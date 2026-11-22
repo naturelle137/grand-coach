@@ -5,7 +5,6 @@
 import argparse
 import json
 from pathlib import Path
-import shlex
 import subprocess
 
 import package
@@ -28,7 +27,7 @@ def prepare(archive, out):
     manifest, files = package.verify(archive)
     if manifest["commit"] != commit:
         raise ValueError("package/source commit mismatch")
-    if out.exists():
+    if out.exists() or out.is_symlink():
         raise ValueError("destination already exists; never replace personal records")
     if any(c in str(out) for c in '\n\r"`$%'):
         raise ValueError("unsupported launcher path")
@@ -68,13 +67,16 @@ def prepare(archive, out):
     write_new(out / "Anleitung.txt", (package.ROOT / "docs/validation54-learner-de.txt").read_bytes())
     # A new/missing history remains conservatively exposure-incomplete in the
     # product. Never initialise/reset it here to manufacture novelty.
-    data_home = out / "private-history"
     if manifest["binary"].endswith(".exe"):
         launch = out / "Grand-Coach-Lernvalidierung.cmd"
-        content = f'@echo off\r\nset "GRAND_COACH_VALIDATION=1"\r\nset "GRAND_COACH_DATA={data_home}"\r\n"{binary}"\r\n'
+        content = ('@echo off\r\nset "GRAND_COACH_VALIDATION=1"\r\n'
+                   'set "GRAND_COACH_DATA=%~dp0private-history"\r\n'
+                   '"%~dp0app\\grand-coach.exe"\r\n')
     else:
         launch = out / "Grand-Coach-Lernvalidierung.sh"
-        content = f"#!/bin/sh\nexport GRAND_COACH_VALIDATION=1\nexport GRAND_COACH_DATA={shlex.quote(str(data_home))}\nexec {shlex.quote(str(binary))}\n"
+        content = ('#!/bin/sh\nkit_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1\n'
+                   'export GRAND_COACH_VALIDATION=1\nexport GRAND_COACH_DATA="$kit_dir/private-history"\n'
+                   'exec "$kit_dir/app/grand-coach"\n')
     write_new(launch, content.encode())
     launch.chmod(0o755)
     if not manifest["binary"].endswith(".exe"):
@@ -90,8 +92,9 @@ def main():
     parser.add_argument("--archive", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
-    result = prepare(args.archive.resolve(), args.out.resolve())
-    print(json.dumps({"status": "prepared", "path": str(args.out.resolve()),
+    out = args.out.parent.resolve() / args.out.name
+    result = prepare(args.archive.resolve(), out)
+    print(json.dumps({"status": "prepared", "path": str(out),
                       "commit": result["build_commit"], "tasks": len(result["tasks"])}))
 
 

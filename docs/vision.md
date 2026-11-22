@@ -42,7 +42,7 @@ The deliberately entered [guided Farbspiel dialogue](coach.md#guided-farbspiel-d
 now lets the learner answer one question at a time, reveal Easy's actual
 conditional rule move and inspect the resulting public play. Non-Ouvert Grand
 now includes early overtaking in Mittelhand: distinguish a side master from
-a winning Bube, then observe whether the remaining player overtakes. A last-seat Grand defender can also compare all legal feeding cards and
+a winning Bube, then observe whether the remaining player overtakes. The revealed Grand Ouvert declarer can use the same bounded second-seat dialogue. A last-seat Grand defender can also compare all legal feeding cards and
 observe the actual individual winner, including an overtake of the partner. A non-Ouvert Null declarer acting second or last can compare current losing cards by
 Null rank and observe any chosen card, including an overtake. In second seat,
 a current loser cannot win this trick for the declarer, although the last
