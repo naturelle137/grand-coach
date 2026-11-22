@@ -38,6 +38,9 @@ class PackageTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 path = self.write(directory, files, windows)
                 self.assertEqual(package.verify(path)[1], self.files)
+                snapshot = path.read_bytes()
+                path.write_bytes(b"replaced")
+                self.assertEqual(package.verify(path, snapshot)[1], self.files)
 
     def test_missing_notices_translation_and_card_fail_even_with_rehashed_manifest(self):
         for missing in ("THIRD-PARTY-NOTICES", "assets/i18n/en.ftl", "assets/cards/french2/kreuz-ass.svg"):
