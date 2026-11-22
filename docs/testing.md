@@ -560,6 +560,12 @@ pairs/God Mode, free play, actual replies and lifecycle boundaries.
 run it explicitly with `cargo test --locked -p gui-egui --test win_early --
 --include-ignored --nocapture` in the development container.
 
+`gui-egui/tests/grand_ouvert_walkthrough.rs` exercises a real seed-0
+Grand Ouvert Hand game in German and English through the actual widgets,
+including reveal, an alternative legal card and the observed winner. Run
+`cargo test --locked -p gui-egui --test grand_ouvert_walkthrough -- --ignored`;
+set `OUVERT_WALKTHROUGH` to an existing directory to render screenshots.
+
 Screenshot scenarios `guided-grand-early-{orient,act,observed}` each have an
 `-en` variant. Action and observation also have `-narrow` and `-en-narrow`
 variants at 960x640; desktop is 1440x1000. All replay the frozen seed0 ordinary
