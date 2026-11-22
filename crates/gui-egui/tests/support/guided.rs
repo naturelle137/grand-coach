@@ -371,6 +371,17 @@ pub fn enter_grand(
     declare: bool,
     target: Option<skat_app::GuidedBranch>,
 ) {
+    enter_grand_contract(h, language, declare, target, false);
+}
+
+#[allow(dead_code)]
+pub fn enter_grand_contract(
+    h: &mut Harness<'_, GrandCoachApp>,
+    language: Language,
+    declare: bool,
+    target: Option<skat_app::GuidedBranch>,
+    ouvert: bool,
+) {
     use skat_app::{GameType, GuidedBranch};
     let i = I18n::new(language);
     h.state_mut().set_language(language);
@@ -387,7 +398,7 @@ pub fn enter_grand(
             let g = h.state().session().guided().expect("explicit dialogue");
             let grand = v
                 .contract
-                .is_some_and(|c| c.game == GameType::Grand && !c.ouvert);
+                .is_some_and(|c| c.game == GameType::Grand && c.ouvert == ouvert);
             let branch = match v.current_trick.len() {
                 1 if g.feed_partner.is_some() => Some(GuidedBranch::FeedPartner),
                 1 if v.declarer != Some(skat_app::PlayerId::HUMAN)
@@ -420,6 +431,11 @@ pub fn enter_grand(
             h.get_by_role_and_label(Role::RadioButton, &game_name(&i, GameType::Grand))
                 .click();
             h.run_steps(4);
+            if ouvert {
+                h.get_by_role_and_label(Role::CheckBox, &i.t("contract-ouvert"))
+                    .click();
+                h.run_steps(4);
+            }
             click(h, &i.t("button-announce"));
             continue;
         }
@@ -434,7 +450,11 @@ pub fn enter_grand(
         } else if let Some(value) = bid {
             i.tf("button-bid", &[("value", value.into())])
         } else if declare && v.legal_actions.contains(&Action::TakeSkat) {
-            i.t("button-take-skat")
+            i.t(if ouvert {
+                "button-hand"
+            } else {
+                "button-take-skat"
+            })
         } else if v.legal_actions.contains(&Action::Pass) {
             i.t("button-pass")
         } else {
