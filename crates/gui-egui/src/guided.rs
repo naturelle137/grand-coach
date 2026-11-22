@@ -162,7 +162,30 @@ fn content(
             None => "guided-unsupported",
         },
     };
-    ui.label(i.t(prompt));
+    if g.step == GuidedStep::Unsupported
+        && g.kontra_exclusion.is_none()
+        && table.phase == Phase::Spiel
+        && !g.legal_cards.is_empty()
+        && let Some(contract) = table.contract
+    {
+        let position = match table.current_trick.len() {
+            0 => "guided-unsupported-lead",
+            1 => "guided-unsupported-second",
+            _ => "guided-unsupported-last",
+        };
+        ui.label(i.tf(
+            "guided-unsupported-card",
+            &[
+                ("game", text::contract(i, contract).into()),
+                ("position", i.t(position).into()),
+            ],
+        ));
+        if contract.ouvert && table.declarer_cards.is_some() {
+            ui.label(i.t("guided-unsupported-revealed"));
+        }
+    } else {
+        ui.label(i.t(prompt));
+    }
     if g.correct == Some(false) {
         ui.label(i.t("guided-wrong"));
         if ui.button(i.t("guided-retry")).clicked() {
