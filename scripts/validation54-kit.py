@@ -56,6 +56,8 @@ def prepare(archive, out):
     template = json.loads((package.ROOT / "docs/validation54-blank.json").read_text())
     template.update(build_commit=commit, executable_sha256=task_manifest["executable_sha256"],
                     task_manifest_sha256=package.digest(encoded))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.mkdir(mode=0o700)
     for name, data in files.items():
         write_new(out / "app" / name, data)
     write_new(out / "app/manifest.json", (json.dumps(manifest, indent=2) + "\n").encode())
@@ -80,7 +82,6 @@ def prepare(archive, out):
             "[Desktop Entry]\nType=Application\nName=Grand-Coach Lernvalidierung\n"
             f'Exec="{launch}"\nTerminal=false\nCategories=Game;Education;\n').encode())
     (out / "private-history").mkdir(mode=0o700)
-    out.chmod(0o700)
     return task_manifest
 
 
