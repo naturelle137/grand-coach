@@ -538,6 +538,32 @@ own Classic fallback and the report identifies both models. This enables
 separate assessment of existing models; it is not a strength result or a
 change to the shipped opponent. No training is authorised by this option.
 
+#### Kontra/Re behavioural evidence for W = 4 (#74)
+
+On 2026-11-22, the current `evaluate` and `calibrate` tools at commit
+`ba00742` re-evaluated the retained W = 4 model (`c7927678…8e1a`) on the
+same three Strong datasets and validation deals 10000–10199. On held-out
+teacher views, Kontra agreement was 1,980/1,987 (99.65 %) and Re agreement
+1,790/1,980 (90.40 %). The teacher chose Kontra on 1,980 views and the model
+on 1,984; both chose it on 1,979 of the 1,987 views where it was legal. The
+teacher chose Re on 754 views, the model on 756, and both on 660 of 1,980
+available views. These are conditional on teacher-generated positions and
+reflect the known extreme Kontra labels, not playing quality.
+
+In `calibrate validation nn:W4/model.gcnn@easy+ak strong 200 4 10000`
+(1,200 games, three thrown in), the learned player said Kontra in 525/1,196
+played defender seat-games (43.9 %) versus Strong's 35/1,198 (2.9 %). It said
+Re in 92/217 declarer games facing Kontra (42.4 %) versus Strong's 135/343
+(39.4 %). Declined and unoffered Kontra opportunities are not distinguished.
+A − B was -19.87 points per seat-game, 95 % interval [-24.37, -15.37],
+reproducing the earlier result on the same deals rather than an independent
+strength test. A passed 1,201/5,099 Reizen actions (23.6 %); its 599
+declarations comprised 192 Kreuz, 147 Pik, 69 Herz, 79 Karo, 109 Grand and
+3 Null, with no Hand or announcements. It won 69.9 % of declarer games and
+18.3 % of 1,196 defender games; Strong won 85.6 % of 598 declarer and 26.1 %
+of 1,198 defender games. The model remains unshipped and the existing
+Kontra rule remains in use. Raw outputs are retained with the study.
+
 All-phase `evaluate` reports teacher agreement for Kontra and Re separately,
 including each row count. This distinguishes the two decisions; agreement
 alone still does not establish their playing strength. Existing combined
