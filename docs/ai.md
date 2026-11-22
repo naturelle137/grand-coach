@@ -538,6 +538,49 @@ own Classic fallback and the report identifies both models. This enables
 separate assessment of existing models; it is not a strength result or a
 change to the shipped opponent. No training is authorised by this option.
 
+#### Lower rare-class weight experiment (#74)
+
+On 2026-11-22, the retained PR #225 trainer used the same three datasets,
+4×384 shape, seed 0 and six-epoch recipe as above with `--preplay-weight 4
+--rare-weight 2`. Epoch 6 had the lowest validation loss. The resulting
+unshipped model has SHA-256
+`acaf10a4c3e117ea09be03282339c5319aa1ffb9cefdea8a5c93e18dc8bf1d88`.
+The current tools at `ba00742` evaluated the model on the existing held-out
+splits. Agreement with the teacher was Reizen 22,193/23,034 (96.35 %),
+Hand/pickup 2,817/2,827 (99.65 %), Drücken 2,281/2,815 (81.03 %), Ansage
+2,618/2,827 (92.61 %), Kontra 1,980/1,987 (99.65 %), Re 1,801/1,980
+(90.96 %) and card play 62,881/84,803 (74.15 %). W = 4 without the rare
+weight had 79.29 % Drücken agreement on the same test positions. These are
+teacher-generated views, not a strength test. Of 2,827 Hand opportunities,
+the teacher chose Hand 12 times, the model 10 and both six. Of 2,805 Null
+opportunities, the respective counts were two, four and one. There were no
+teacher Schneider/Schwarz/Ouvert announcements in 2,805 opportunities; the
+model chose three. On 1,987 Kontra views, the teacher chose Kontra 1,980
+times, the model 1,984 and both 1,979; on 1,980 Re views the respective
+counts were 754, 735 and 655. Rare-class and biased Kontra data limit the
+interpretation.
+
+Complete-game calibration used validation deals 10000–10199, six seatings,
+Strong and Kontra/Re on (`calibrate validation nn:MODEL@easy strong 200 4
+10000`; three of 1,200 games thrown in). With the existing Kontra rule,
+A − B was -16.99 points per seat-game, 95 % interval [-20.83, -13.15]. A bid,
+held and passed 42.6 %, 33.8 % and 23.6 % of 5,100 Reizen actions; Einpassen
+was 5/1,800 seat-games. Of 595 declarer games it chose 184 Kreuz, 154 Pik,
+93 Herz, 74 Karo, 87 Grand and three Null, with no Hand or announcements.
+It won 70.3 % of declarer and 15.6 % of 1,200 defender games; Strong won
+89.2 % of 602 declarer and 24.9 % of 1,194 defender games.
+
+With `@easy+ak`, the learned model also chose Kontra/Re: A − B was -22.09
+[-26.72, -17.46], with Kontra 521/1,200 played defender seat-games (43.4 %)
+and Re 83/212 declarer games facing Kontra (39.2 %). Strong said Kontra
+33/1,194 and Re 128/342. Unoffered and declined Kontra chances are not
+separated. These intervals are not a paired difference test between the two
+configurations. Both runs use the same deals as the earlier W = 4 study and
+are not independent confirmation; no ordering among models is claimed. The
+model remains unshipped, the existing rule and Classic fallback stay in place,
+and the outcome-label pilot remains postponed. Commands, model and logs are
+retained locally in `grand-coach-data/studies/2026-11-22-preplay-74/`.
+
 #### Kontra/Re behavioural evidence for W = 4 (#74)
 
 On 2026-11-22, the current `evaluate` and `calibrate` tools at commit
