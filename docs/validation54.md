@@ -69,6 +69,9 @@ The prepared launcher opens the validation confirmation screen directly and
 exposes no reserved position until the learner deliberately chooses a session.
 After moving a Linux kit, launch its `.sh` file from the new location; the
 generated `.desktop` shortcut still points to the original location.
+The kit destination must not contain quotes, backticks, dollar or percent
+signs, or line breaks. On Linux it also must not contain backslashes; choose
+another path if the builder rejects it.
 The [immutable manifest](validation54-tasks.json) contains hashes/identities,
 not answers or views. Its mechanical hashes pin positions; handwritten facts
 and independent legal witnesses supply the correctness oracle. The builder
