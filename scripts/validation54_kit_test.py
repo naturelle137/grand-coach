@@ -86,6 +86,27 @@ class KitTests(unittest.TestCase):
                     kit.prepare(Path("unused"), out)
             self.assertFalse(out.exists())
 
+    def test_windows_launcher_uses_its_own_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "app.zip"
+            archive.write_bytes(b"archive")
+            out = Path(directory) / "private kit"
+            manifest = dict(self.manifest, binary="grand-coach.exe",
+                            files={"grand-coach.exe": package.digest(b"binary")})
+            tasks = [{"id": c["id"], "version": c["version"], "set": c["set"],
+                      "position_sha256": package.digest(json.dumps(c["position"], sort_keys=True,
+                                                                  separators=(",", ":"), ensure_ascii=False).encode())}
+                     for c in self.positions]
+            with patch.object(package, "run", side_effect=self.run_identity), \
+                 patch.object(package, "verify", return_value=(manifest, {"grand-coach.exe": b"binary"})), \
+                 patch.object(kit.subprocess, "check_output", return_value=json.dumps(self.positions).encode()), \
+                 patch.object(kit, "registered_tasks", return_value=tasks):
+                kit.prepare(archive, out)
+            launcher = (out / "Grand-Coach-Lernvalidierung.cmd").read_bytes()
+            self.assertIn(b'set "GRAND_COACH_DATA=%~dp0private-history"\r\n', launcher)
+            self.assertIn(b'"%~dp0app\\grand-coach.exe"\r\n', launcher)
+            self.assertNotIn(os.fsencode(out), launcher)
+
     def test_cli_refuses_dangling_destination_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
