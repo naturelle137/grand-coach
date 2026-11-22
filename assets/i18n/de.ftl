@@ -1186,5 +1186,6 @@ guided-kontra-ouvert-no = Nein
 guided-null-defender-lead-role = Du bist Gegenspieler im Null und spielst aus. Der Alleinspieler verliert, sobald er einen Stich macht; beide Antworten sind unbekannt.
 guided-null-defender-lead-limit = Beide Antworten sind unbekannt. Diese Faustregel garantiert weder den Stich noch den Spielgewinn.
 
+guided-feed-ouvert-view = Die Hand des Alleinspielers liegt offen. Easy wählt nach deinen legalen Karten und dem aktuellen Stich; die offene Hand ändert diese Regel nicht.
 guided-null-ouvert-defender-lead-role = Du bist Gegenspieler im Null Ouvert und spielst aus. Das Blatt des Alleinspielers ist sichtbar; das deines Partners bleibt verdeckt.
 guided-null-ouvert-defender-lead-limit = Das sichtbare Blatt bestimmt keine der beiden Antworten. Diese Faustregel garantiert weder den Stich noch den Spielgewinn.
