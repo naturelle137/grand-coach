@@ -404,6 +404,35 @@ fn unsupported_and_single_choice_have_no_rule_and_final_series_allows_observatio
     assert!(s.guided().is_none());
 }
 
+#[test]
+fn unsupported_card_turn_preserves_each_legal_choice() {
+    let mut s = session(true);
+    loop {
+        if s.game.current_seat() == Some(Seat::Hinterhand) {
+            s.execute(Command::StartGuided).unwrap();
+            let g = s.guided().unwrap();
+            if g.step == S::Unsupported && g.legal_cards.len() > 1 {
+                let actions = s.view().legal_actions;
+                assert!(g.rule.is_none() && g.memory.is_none() && g.figures.is_none());
+                for action in actions {
+                    let mut choice = s.clone();
+                    respond(&mut choice, G::Return).unwrap();
+                    choice.execute(Command::Act(action)).unwrap();
+                }
+                break;
+            }
+            respond(&mut s, G::Return).unwrap();
+        }
+        let action = s.game.legal_actions()[0];
+        s.apply(action).unwrap();
+        assert_eq!(
+            s.game.phase(),
+            Phase::Spiel,
+            "fixture needs an unsupported turn"
+        );
+    }
+}
+
 /// Human on `seat` at a Reizen decision after core-accepted `calls`.
 fn reizen(seat: Seat, calls: &[Action]) -> Session {
     let mut s = Session::new(SessionConfig {
