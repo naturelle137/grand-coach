@@ -112,7 +112,7 @@ pub struct Lesson {
 /// Null Ouvert admits defender opening leads and the declarer's opening and second/last-seat turns after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Grand Ouvert declarer
-/// WinLast admits a validated last-seat view. LeadMaster (including Ouvert
+/// and Farbspiel declarer WinLast admit a validated last-seat view. LeadMaster (including Ouvert
 /// Farbspiel and Grand declarer) and Grand declarer DrawTrumpf (including
 /// Ouvert) admit tested own leads with an exact core-legal action list.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
@@ -127,7 +127,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         && contract.schwarz
         && view.declarer_cards == Some(view.hand)
         && view.current_trick.cards == [None; 3];
-    let ouvert_grand_last = game == GameType::Grand
+    let ouvert_last = (game == GameType::Grand || matches!(game, GameType::Farbe(_)))
         && contract.ouvert
         && view.declarer == Some(view.seat)
         && contract.hand
@@ -176,7 +176,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         || !(matches!(game, GameType::Farbe(_))
             || grand
             || ouvert_grand_lead
-            || ouvert_grand_last
+            || ouvert_last
             || ouvert_grand_under
             || null)
     {
@@ -373,7 +373,12 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     view.declarer?;
     let rule = baseline::rule(view)?;
-    if (ouvert_grand_last && rule.branch != Branch::WinLast)
+    if (ouvert_last && rule.branch != Branch::WinLast)
+        || (contract.ouvert
+            && matches!(game, GameType::Farbe(_))
+            && view.declarer == Some(view.seat)
+            && rule.branch == Branch::WinLast
+            && !ouvert_last)
         || (ouvert_grand_under && rule.branch != Branch::UnderPartner)
         || view.legal_actions.len() < 2
         || rule.candidates.is_empty()
