@@ -11,6 +11,57 @@ use support::*;
 
 #[test]
 #[ignore = "slow: CI only (docs/testing.md)"]
+fn unsupported_card_play_names_the_decision_and_returns_to_all_legal_choices() {
+    for language in Language::ALL {
+        let config = SessionConfig {
+            seed: 19,
+            series: SeriesLength::Free,
+            opponents: Opponents::Levels([Level::Easy; 2]),
+            ..SessionConfig::default()
+        };
+        let mut h = Harness::builder()
+            .with_size([1440.0, 1000.0])
+            .build_eframe(move |cc| GrandCoachApp::new(&cc.egui_ctx, config));
+        enter_grand(&mut h, language, false, None);
+        let i = I18n::new(language);
+        let before = h.state().session().view();
+        let g = h.state().session().guided().unwrap();
+        assert_eq!(g.step, GuidedStep::Unsupported);
+        assert!(g.rule.is_none());
+        let position = match before.current_trick.len() {
+            0 => "guided-unsupported-lead",
+            1 => "guided-unsupported-second",
+            _ => "guided-unsupported-last",
+        };
+        let contract = before.contract.unwrap();
+        let mut game = game_name(&i, contract.game);
+        for (enabled, key) in [
+            (contract.hand, "contract-hand"),
+            (contract.schneider, "contract-schneider"),
+            (contract.schwarz, "contract-schwarz"),
+            (contract.ouvert, "contract-ouvert"),
+        ] {
+            if enabled {
+                game.push(' ');
+                game.push_str(&i.t(key));
+            }
+        }
+        let expected = i.tf(
+            "guided-unsupported-card",
+            &[("game", game.into()), ("position", i.t(position).into())],
+        );
+        assert!(h.query_by_label(&expected).is_some());
+        click(&mut h, &i.t("guided-return"));
+        assert!(h.state().session().guided().is_none());
+        assert_eq!(
+            h.state().session().view().legal_actions,
+            before.legal_actions
+        );
+    }
+}
+
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
 fn guided_widgets_allow_wrong_retry_reveal_memory_any_card_observation_and_return_in_de_en() {
     for language in Language::ALL {
         let config = SessionConfig {
