@@ -634,6 +634,48 @@ fn ouvert_declarer_last_uses_shared_win_last_and_checks_the_view() {
 }
 
 #[test]
+fn ouvert_suit_last_requires_a_complete_permitted_view() {
+    let game = GameType::Farbe(Suit::Herz);
+    let make = |deal, lead| {
+        contract_position(deal, Seat::Hinterhand, hand_game(game, true), &[lead, "C8"])
+    };
+    let g = make(deal(), "CK");
+    let v = g.view(Seat::Hinterhand);
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule, rule(&v).unwrap());
+    assert_eq!(l.rule.branch, Branch::WinLast);
+    assert_eq!(l.rule.candidates, vec![card("CA")]);
+    assert_eq!(l.rule.losers, vec![card("CQ")]);
+    for (played, winner) in [("CQ", Seat::Vorhand), ("CA", Seat::Hinterhand)] {
+        let mut after = g.clone();
+        let trick = trick_won(&after.apply(Action::Play(card(played))).unwrap()).unwrap();
+        assert_eq!(trick.winner, winner);
+    }
+    let other = make(swap(deal(), card("H7"), card("DK")), "CK");
+    assert_eq!(v, other.view(Seat::Hinterhand));
+    assert_eq!(Some(l), lesson(&other.view(Seat::Hinterhand)));
+    assert_eq!(
+        lesson(&make(deal(), "C9").view(Seat::Hinterhand))
+            .unwrap()
+            .rule
+            .candidates,
+        vec![card("CQ"), card("CA")]
+    );
+    for edit in [
+        (|v: &mut skat_core::PlayerView| v.declarer_cards = None) as fn(&mut skat_core::PlayerView),
+        |v| v.contract.as_mut().unwrap().schwarz = false,
+        |v| v.legal_actions.truncate(1),
+        |v| v.current_seat = Some(Seat::Vorhand),
+        |v| v.hand_game = Some(false),
+        |v| v.legal_actions.reverse(),
+    ] {
+        let mut invalid = v.clone();
+        edit(&mut invalid);
+        assert!(lesson(&invalid).is_none());
+    }
+}
+
+#[test]
 fn ouvert_defender_under_partner_uses_shared_rule_and_revealed_view() {
     let make = |d| contract_position(d, Seat::Hinterhand, hand_game(GRAND, true), &["CK"]);
     let g = make(deal());
