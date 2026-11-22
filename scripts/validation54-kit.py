@@ -71,7 +71,9 @@ def prepare(archive, out):
     data_home = out / "private-history"
     if manifest["binary"].endswith(".exe"):
         launch = out / "Grand-Coach-Lernvalidierung.cmd"
-        content = f'@echo off\r\nset "GRAND_COACH_VALIDATION=1"\r\nset "GRAND_COACH_DATA={data_home}"\r\n"{binary}"\r\n'
+        content = ('@echo off\r\nset "GRAND_COACH_VALIDATION=1"\r\n'
+                   'set "GRAND_COACH_DATA=%~dp0private-history"\r\n'
+                   '"%~dp0app\\grand-coach.exe"\r\n')
     else:
         launch = out / "Grand-Coach-Lernvalidierung.sh"
         content = f"#!/bin/sh\nexport GRAND_COACH_VALIDATION=1\nexport GRAND_COACH_DATA={shlex.quote(str(data_home))}\nexec {shlex.quote(str(binary))}\n"
