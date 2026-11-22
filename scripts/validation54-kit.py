@@ -4,8 +4,8 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
-import shlex
 import subprocess
 
 import package
@@ -30,7 +30,7 @@ def prepare(archive, out):
         raise ValueError("package/source commit mismatch")
     if out.exists() or out.is_symlink():
         raise ValueError("destination already exists; never replace personal records")
-    if any(c in str(out) for c in '\n\r"`$%'):
+    if any(c in str(out) for c in '\n\r"`$%') or (os.name != "nt" and "\\" in str(out)):
         raise ValueError("unsupported launcher path")
     raw = subprocess.check_output([
         "cargo", "run", "--locked", "--offline", "--quiet", "-p", "skat-app",
@@ -68,7 +68,6 @@ def prepare(archive, out):
     write_new(out / "Anleitung.txt", (package.ROOT / "docs/validation54-learner-de.txt").read_bytes())
     # A new/missing history remains conservatively exposure-incomplete in the
     # product. Never initialise/reset it here to manufacture novelty.
-    data_home = out / "private-history"
     if manifest["binary"].endswith(".exe"):
         launch = out / "Grand-Coach-Lernvalidierung.cmd"
         content = ('@echo off\r\nset "GRAND_COACH_VALIDATION=1"\r\n'
@@ -76,7 +75,9 @@ def prepare(archive, out):
                    '"%~dp0app\\grand-coach.exe"\r\n')
     else:
         launch = out / "Grand-Coach-Lernvalidierung.sh"
-        content = f"#!/bin/sh\nexport GRAND_COACH_VALIDATION=1\nexport GRAND_COACH_DATA={shlex.quote(str(data_home))}\nexec {shlex.quote(str(binary))}\n"
+        content = ('#!/bin/sh\nkit_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1\n'
+                   'export GRAND_COACH_VALIDATION=1\nexport GRAND_COACH_DATA="$kit_dir/private-history"\n'
+                   'exec "$kit_dir/app/grand-coach"\n')
     write_new(launch, content.encode())
     launch.chmod(0o755)
     if not manifest["binary"].endswith(".exe"):
