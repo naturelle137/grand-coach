@@ -1277,6 +1277,10 @@ fn main() {
                     for (kind, (n, same, differ)) in &r.kinds {
                         println!("{kind:?}: {n} labels, {same} equal to the rule, {differ} differ");
                     }
+                    let (n, teacher, rules, both) = r.kontra;
+                    println!(
+                        "Kontra: {n} opportunities, teacher {teacher}, rule {rules}, both {both}"
+                    );
                     println!(
                         "view leaks: {}, illegal discard pairs: {}",
                         r.leaks, r.bad_pairs
