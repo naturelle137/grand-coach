@@ -147,6 +147,16 @@ class KitTests(unittest.TestCase):
             self.assertTrue(out.is_symlink())
             self.assertFalse(target.exists())
 
+    @unittest.skipIf(os.name == "nt", "backslashes are Windows path separators")
+    def test_refuses_backslash_in_launcher_path_before_installation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / "kit\\name"
+            with patch.object(package, "run", side_effect=self.run_identity), \
+                 patch.object(package, "verify", return_value=(self.manifest, {})):
+                with self.assertRaisesRegex(ValueError, "unsupported launcher path"):
+                    kit.prepare(Path("unused"), out)
+            self.assertFalse(out.exists())
+
     def test_wrong_source_and_dirty_source_fail_before_installation(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "kit"
