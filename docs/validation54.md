@@ -67,6 +67,8 @@ or public release is authorised.
 Preparation commands are in [Contributing](../CONTRIBUTING.md#private-reserved-learner-kit).
 The prepared launcher opens the validation confirmation screen directly and
 exposes no reserved position until the learner deliberately chooses a session.
+After moving a Linux kit, launch its `.sh` file from the new location; the
+generated `.desktop` shortcut still points to the original location.
 The [immutable manifest](validation54-tasks.json) contains hashes/identities,
 not answers or views. Its mechanical hashes pin positions; handwritten facts
 and independent legal witnesses supply the correctness oracle. The builder
