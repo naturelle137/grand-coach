@@ -3,7 +3,9 @@
 """Identity, privacy and non-overwrite failures of the actual learner kit builder."""
 import importlib.util
 import json
+import os
 from pathlib import Path
+import stat
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -36,15 +38,26 @@ class KitTests(unittest.TestCase):
             archive = Path(directory) / "app.tar.gz"
             archive.write_bytes(b"verified archive")
             out = Path(directory) / "private kit"
+            original_write = kit.write_new
+
+            def private_write(path, data):
+                self.assertEqual(stat.S_IMODE(out.stat().st_mode), 0o700)
+                original_write(path, data)
+
             with patch.object(package, "run", side_effect=self.run_identity), \
                  patch.object(package, "verify", return_value=(self.manifest, {"grand-coach": b"binary"})), \
                  patch.object(kit.subprocess, "check_output", return_value=json.dumps(self.positions).encode()), \
+                 patch.object(kit, "write_new", side_effect=private_write), \
                  patch.object(kit, "registered_tasks", return_value=[{
                      "id": c["id"], "version": c["version"], "set": c["set"],
                      "position_sha256": package.digest(json.dumps(c["position"], sort_keys=True,
                                                                  separators=(",", ":"), ensure_ascii=False).encode())}
                      for c in self.positions]):
-                result = kit.prepare(archive, out)
+                previous_umask = os.umask(0)
+                try:
+                    result = kit.prepare(archive, out)
+                finally:
+                    os.umask(previous_umask)
                 self.assertEqual(len(result["tasks"]), 8)
                 self.assertNotIn("position", result["tasks"][0])
                 expected = package.digest(json.dumps(self.positions[0]["position"], sort_keys=True,
