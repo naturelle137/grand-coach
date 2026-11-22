@@ -2508,7 +2508,7 @@ fn grand_win_early_exclusions_preserve_existing_app_lessons_and_all_legal_action
             hand_game(GRAND, true),
             vec!["CK"],
             Seat::Mittelhand,
-            None,
+            Some(crate::GuidedBranch::WinEarly),
         ),
         (
             d[0],
@@ -4047,6 +4047,74 @@ fn grand_ouvert_last_snapshot() {
         serde_json::json!({"table": s.view(), "guided": guided}),
         expected
     );
+}
+
+#[test]
+fn grand_ouvert_win_early_all_choices_observe_actual_reply() {
+    let deal = early_oracle::deals()[0];
+    let actions = fixture::contract_actions(
+        deal,
+        Seat::Mittelhand,
+        fixture::hand_game(GRAND, true),
+        &["CK"],
+    );
+    let original = grand_session(Seat::Mittelhand, deal, false, &actions);
+    let other_deal = fixture::swap(deal, fixture::card("H7"), fixture::card("DK"));
+    let other_actions = fixture::contract_actions(
+        other_deal,
+        Seat::Mittelhand,
+        fixture::hand_game(GRAND, true),
+        &["CK"],
+    );
+    let mut other = grand_session(Seat::Mittelhand, other_deal, false, &other_actions);
+    let mut first = original.clone();
+    first.execute(Command::StartGuided).unwrap();
+    other.execute(Command::StartGuided).unwrap();
+    assert_eq!(first.view(), other.view());
+    let first_dialogue = first.guided().unwrap();
+    let mut other_dialogue = other.guided().unwrap();
+    other_dialogue.id = first_dialogue.id;
+    other_dialogue.basis = first_dialogue.basis;
+    assert_eq!(first_dialogue, other_dialogue);
+    for mine in early_oracle::LEGAL[0].split_whitespace() {
+        let mut s = original.clone();
+        let legal = s.view().legal_actions;
+        s.execute(Command::StartGuided).unwrap();
+        assert_eq!(s.guided().unwrap().step, S::Orient);
+        respond(&mut s, G::Answer(A::Seat(Some(Seat::Mittelhand)))).unwrap();
+        assert_eq!(s.guided().unwrap().correct, Some(false));
+        respond(&mut s, G::Retry).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().rule.unwrap().branch,
+            crate::GuidedBranch::WinEarly
+        );
+        if mine == "C8" {
+            let mut guided = serde_json::to_value(s.guided().unwrap()).unwrap();
+            guided["id"]["lineage"] = 0.into();
+            guided["id"]["generation"] = 0.into();
+            let expected: serde_json::Value = serde_json::from_str(include_str!(
+                "../../gui-egui/tests/fixtures/grand-ouvert-early.json"
+            ))
+            .unwrap();
+            assert_eq!(
+                serde_json::json!({"table": s.view(), "guided": guided}),
+                expected
+            );
+        }
+        assert_eq!(s.view().legal_actions, legal);
+        s.execute(Command::Act(Action::Play(fixture::card(mine))))
+            .unwrap();
+        s.apply(Action::Play(fixture::card(early_oracle::REPLY[0])))
+            .unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(early_oracle::winner(0, mine))
+        );
+        respond(&mut s, G::Return).unwrap();
+        assert!(s.guided().is_none());
+    }
 }
 
 #[test]
