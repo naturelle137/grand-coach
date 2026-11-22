@@ -91,3 +91,14 @@ no model has been trained on those labels.
 Phase-masked check ([ai.md](ai.md#phase-masked-learned-pre-play-74)): with
 Classic deciding Hand/pickup and Ansage, the W = 4 model scores -15.10
 [-18.97, -11.23] against Strong, i.e. no improvement.
+
+## Lower rare-class weight experiment
+
+The W = 4, R = 2 model covers the same all-phase action head, including
+Kontra/Re, and remains local and unshipped (SHA-256
+`acaf10a4c3e117ea09be03282339c5319aa1ffb9cefdea8a5c93e18dc8bf1d88`).
+Its held-out Drücken agreement is 81.03 %, but complete games against Strong
+scored -16.99 points per seat-game with the existing Kontra rule and -22.09
+with learned Kontra/Re. See [the experiment](ai.md#lower-rare-class-weight-experiment-74)
+for denominators, behavioural rates and limitations. The source Kontra labels
+remain extreme, and neither model is established as suitable for integration.
