@@ -102,7 +102,8 @@ pub struct Lesson {
 }
 
 /// Select only tested branches, with real alternatives and candidates:
-/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus non-Ouvert Farbspiel/Grand WinEarly and non-Ouvert Farbspiel/Grand last-seat FeedPartner. Grand
+/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus Grand Ouvert
+/// defender UnderPartner and non-Ouvert Farbspiel/Grand WinEarly and last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
 /// and at least one losing card; early FeedPartner (Farbspiel or Grand) requires a follow-class master; Fallback stays excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
@@ -111,7 +112,7 @@ pub struct Lesson {
 /// Null Ouvert admits defender opening leads and the declarer's opening and second/last-seat turns after the reveal.
 /// `Branch::Null` is broader; other defender turns, later own leads, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Grand Ouvert declarer
-/// WinLast admits a validated last-seat view. LeadMaster (including Ouvert
+/// and Farbspiel declarer WinLast admit a validated last-seat view. LeadMaster (including Ouvert
 /// Farbspiel and Grand declarer) and Grand declarer DrawTrumpf (including
 /// Ouvert) admit tested own leads with an exact core-legal action list.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
@@ -126,7 +127,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         && contract.schwarz
         && view.declarer_cards == Some(view.hand)
         && view.current_trick.cards == [None; 3];
-    let ouvert_grand_last = game == GameType::Grand
+    let ouvert_last = (game == GameType::Grand || matches!(game, GameType::Farbe(_)))
         && contract.ouvert
         && view.declarer == Some(view.seat)
         && contract.hand
@@ -143,6 +144,27 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .iter()
                 .map(Action::Play)
                 .collect::<Vec<_>>();
+    let ouvert_grand_under = game == GameType::Grand
+        && contract.ouvert
+        && contract.hand
+        && contract.schneider
+        && contract.schwarz
+        && view.hand_game == Some(true)
+        && view.own_skat.is_none()
+        && view.declarer == Some(view.seat.next())
+        && view.current_seat == Some(view.seat)
+        && matches!(view.current_trick.cards, [Some(_), None, None])
+        && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+        && view.declarer_cards.is_some_and(|cards| {
+            cards.len() == view.hand_sizes[view.seat.next().index()] as usize
+                && (cards & view.hand).is_empty()
+                && (cards & Knowledge::from_view(view).played).is_empty()
+        })
+        && view.legal_actions
+            == skat_core::legal_cards(game, view.hand, view.current_trick.led())
+                .iter()
+                .map(Action::Play)
+                .collect::<Vec<_>>();
     let null = game == GameType::Null
         && (!contract.ouvert
             || view.current_trick.cards == [None; 3]
@@ -154,7 +176,8 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         || !(matches!(game, GameType::Farbe(_))
             || grand
             || ouvert_grand_lead
-            || ouvert_grand_last
+            || ouvert_last
+            || ouvert_grand_under
             || null)
     {
         return None;
@@ -355,7 +378,13 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     view.declarer?;
     let rule = baseline::rule(view)?;
-    if (ouvert_grand_last && rule.branch != Branch::WinLast)
+    if (ouvert_last && rule.branch != Branch::WinLast)
+        || (contract.ouvert
+            && matches!(game, GameType::Farbe(_))
+            && view.declarer == Some(view.seat)
+            && rule.branch == Branch::WinLast
+            && !ouvert_last)
+        || (ouvert_grand_under && rule.branch != Branch::UnderPartner)
         || view.legal_actions.len() < 2
         || rule.candidates.is_empty()
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
