@@ -1302,7 +1302,8 @@ has a losing candidate. Easy selects the highest Null rank among losing cards,
 with the last exact tie in legal order; every legal card remains playable.
 The completed trick records the actual winner. Inconsistent or restricted views retain the fallback. The core-replayed
 `real-ouvert` fixture checks all four legal choices and hidden substitutions.
-These checks do not establish learning efficacy.
+The ordinary bilingual egui route exercises all three available cards, the
+actual winner and return to play. These checks do not establish learning efficacy.
 
 ## Grand Ouvert declarer DrawTrumpf lead (#131)
 
