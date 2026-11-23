@@ -720,3 +720,68 @@ fn ouvert_defender_under_partner_uses_shared_rule_and_revealed_view() {
     );
     assert!(lesson(&fallback.view(Seat::Mittelhand)).is_none());
 }
+
+#[test]
+fn ouvert_suit_defender_under_partner_checks_revealed_view() {
+    let make = |d| {
+        contract_position(
+            d,
+            Seat::Hinterhand,
+            hand_game(GameType::Farbe(Suit::Herz), true),
+            &["CK"],
+        )
+    };
+    let g = make(deal());
+    let v = g.view(Seat::Mittelhand);
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule.branch, Branch::UnderPartner);
+    assert_eq!(l.rule.candidates, vec![card("C7"), card("C8")]);
+    assert_eq!(l.rule.winners, vec![card("CT")]);
+    assert_eq!(l.rule, rule(&v).unwrap());
+    assert_eq!(l.rule.card, card("C7"));
+    assert_eq!(v.declarer_cards, Some(deal().hand(Seat::Hinterhand)));
+    for mine in ["C7", "C8", "CT"] {
+        for (reply, winner) in [
+            ("CA", Seat::Hinterhand),
+            (
+                "CQ",
+                if mine == "CT" {
+                    Seat::Mittelhand
+                } else {
+                    Seat::Vorhand
+                },
+            ),
+        ] {
+            let mut after = g.clone();
+            after.apply(Action::Play(card(mine))).unwrap();
+            let events = after.apply(Action::Play(card(reply))).unwrap();
+            assert_eq!(trick_won(&events).unwrap().winner, winner);
+        }
+    }
+    let other = make(swap(deal(), card("H7"), card("DK")));
+    assert_eq!(v, other.view(Seat::Mittelhand));
+    assert_eq!(Some(l), lesson(&other.view(Seat::Mittelhand)));
+    for edit in [
+        (|v: &mut skat_core::PlayerView| v.declarer_cards = None) as fn(&mut skat_core::PlayerView),
+        |v| v.declarer_cards = Some(v.hand),
+        |v| v.contract.as_mut().unwrap().schwarz = false,
+        |v| v.legal_actions.truncate(1),
+        |v| v.current_seat = Some(Seat::Vorhand),
+    ] {
+        let mut bad = v.clone();
+        edit(&mut bad);
+        assert!(lesson(&bad).is_none());
+    }
+    let no_loser = swap(swap(deal(), card("C7"), card("CK")), card("C8"), card("H7"));
+    let fallback = contract_position(
+        no_loser,
+        Seat::Hinterhand,
+        hand_game(GameType::Farbe(Suit::Herz), true),
+        &["C9"],
+    );
+    assert_eq!(
+        rule(&fallback.view(Seat::Mittelhand)).unwrap().branch,
+        Branch::Fallback
+    );
+    assert!(lesson(&fallback.view(Seat::Mittelhand)).is_none());
+}

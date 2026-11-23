@@ -104,3 +104,56 @@ fn suit_early_feed_ordinary_every_card_actual_reply_consent_stale_and_return() {
         assert!(s.guided().is_none());
     }
 }
+
+#[test]
+fn suit_ouvert_early_feed_observes_actual_reply() {
+    let mut case = feed_fixture::cases()
+        .into_iter()
+        .find(|c| c.id == "B-early-master-can-be-trumped")
+        .unwrap();
+    case.game = skat_core::GameType::Farbe(skat_core::Suit::Herz);
+    case.ouvert = true;
+    let mut base = Session::new(SessionConfig::default());
+    base.dealer = (0..3)
+        .map(PlayerId)
+        .find(|&d| PlayerId::HUMAN.seat(d) == Seat::Mittelhand)
+        .unwrap();
+    base.game = case.position();
+    for action in base.view().legal_actions {
+        let mut s = base.clone();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().rule.unwrap().branch,
+            crate::GuidedBranch::FeedPartner
+        );
+        let mut snapshot = serde_json::to_value(s.guided().unwrap()).unwrap();
+        snapshot["id"]["lineage"] = 0.into();
+        snapshot["id"]["generation"] = 0.into();
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../gui-egui/tests/fixtures/suit-ouvert-early-feed.json"
+        ))
+        .unwrap();
+        assert_eq!(
+            serde_json::json!({"table": s.view(), "guided": snapshot}),
+            expected
+        );
+        if let Ok(path) = std::env::var("SKAT_SUIT_OUVERT_EARLY_SNAPSHOT") {
+            let mut guided = serde_json::to_value(s.guided().unwrap()).unwrap();
+            guided["id"]["lineage"] = 0.into();
+            guided["id"]["generation"] = 0.into();
+            let value = serde_json::json!({"table": s.view(), "guided": guided});
+            std::fs::write(path, serde_json::to_string_pretty(&value).unwrap() + "\n").unwrap();
+        }
+        s.execute(Command::Act(action)).unwrap();
+        s.run_opponents();
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        let actual = s.game.tricks()[0];
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(actual.winner)
+        );
+        respond(&mut s, G::Return).unwrap();
+    }
+}

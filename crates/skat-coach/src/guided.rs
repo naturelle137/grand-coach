@@ -102,7 +102,7 @@ pub struct Lesson {
 }
 
 /// Select only tested branches, with real alternatives and candidates:
-/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus Grand Ouvert
+/// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus Farbspiel and Grand Ouvert
 /// defender UnderPartner and non-Ouvert Farbspiel/Grand WinEarly and last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
 /// and at least one losing card; early FeedPartner (Farbspiel or Grand) requires a follow-class master; Fallback stays excluded.
@@ -218,7 +218,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                     .flat_map(|t| t.cards)
                     .all(|c| !cards.contains(c))
         });
-    let ouvert_grand_under = game == GameType::Grand
+    let ouvert_under = (game == GameType::Grand || matches!(game, GameType::Farbe(_)))
         && contract.ouvert
         && contract.hand
         && contract.schneider
@@ -254,7 +254,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || ouvert_last
             || ouvert_feed
             || ouvert_grand_early
-            || ouvert_grand_under
+            || ouvert_under
             || null)
     {
         return None;
@@ -455,7 +455,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     // Early feeding is not last-seat feeding: the remaining declarer can
     // still trump a side master. Admit only a complete acting-defender view.
-    let feed_early = (grand || suit)
+    let feed_early = (grand || suit || (ouvert_under && matches!(game, GameType::Farbe(_))))
         && view.declarer.is_some_and(|d| d != view.seat)
         && view.current_seat == Some(view.seat)
         && matches!(view.current_trick.cards, [Some(_), None, None])
@@ -478,7 +478,14 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             && view.declarer == Some(view.seat)
             && rule.branch == Branch::WinLast
             && !ouvert_last)
-        || (ouvert_grand_under && rule.branch != Branch::UnderPartner)
+        || (ouvert_under
+            && rule.branch != Branch::UnderPartner
+            && !(rule.branch == Branch::FeedPartner && feed_early && rule.table_master))
+        || (contract.ouvert
+            && matches!(game, GameType::Farbe(_))
+            && view.declarer != Some(view.seat)
+            && rule.branch == Branch::UnderPartner
+            && !ouvert_under)
         || view.legal_actions.len() < 2
         || rule.candidates.is_empty()
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
