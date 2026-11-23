@@ -631,7 +631,10 @@ illegal pairs. Of 112 Kontra opportunities, the teacher and the current
 Classic rule each chose Kontra six times, always on the same views. This
 small sample checks the change in teacher behaviour, not its quality. The
 category audit counts one Hand choice in 99 opportunities, no Null or extended
-announcements in 98 opportunities each, and one Re in six opportunities.
+announcements in 98 opportunities each, and one Re in six opportunities. The
+sole Hand and Re choices are in the training split; validation and test have
+no such choices. The test split has no Kontra choices in 14 opportunities.
+These split counts are from replay-verified stored records, not new games.
 
 A six-epoch 4×384 all-phase model trained only on these deals (`W=4`, `R=2`,
 seed 0; SHA-256 `0a2c5844069b8900213887951c0b9f98b571d79abb87564bdfc427d22a026a32`)
