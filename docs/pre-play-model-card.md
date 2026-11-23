@@ -127,3 +127,13 @@ training, 10 validation and 13 test deals. Strong uses its declaration rule
 rather than search. This demonstrates missing positive labels for these
 candidates, not the quality of the choices or an evaluation of another teacher.
 The recorded `strong_action` is diagnostic and is not a training label.
+
+An experimental Strong profile with declaration search was assessed on the
+same 100 positions using one sampled world and 10,000,000 nodes per task:
+`cargo run --locked --release -p nn-train --example rare_positions -- 7 100 |
+cargo run --locked --release -p nn-train --example assess_declarations`.
+It completed 98 decisions, exhausted its budget and fell back twice, and
+selected an extended announcement twice. The deal splits were 77 train, 10
+validation and 13 test. One sampled world and this small, synthetic sample do
+not establish label quality or playing strength. These decisions are not
+training labels; independent evaluation remains necessary.
