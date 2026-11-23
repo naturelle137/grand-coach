@@ -3939,33 +3939,38 @@ fn null_ouvert_defender_observes_each_actual_reply() {
 #[test]
 fn null_last_defender_observes_the_card_actually_played() {
     let deal = middle_fixture::cases().remove(0).deal;
-    let actions = [
-        Action::Bid(18),
-        Action::Hold,
-        Action::Pass,
-        Action::Pass,
-        Action::Hand,
-        Action::Announce(skat_core::Announcement::plain(NULL)),
-        Action::Play(middle_fixture::card(5)),
-        Action::Play(middle_fixture::card(4)),
-    ];
-    for (card, winner) in [(2, Seat::Vorhand), (7, Seat::Hinterhand)] {
-        let mut s = grand_session(Seat::Hinterhand, deal, false, &actions);
-        s.execute(Command::StartGuided).unwrap();
-        assert!(s.guided().unwrap().rule.is_none());
-        respond(&mut s, G::Reveal).unwrap();
-        assert_eq!(
-            s.guided().unwrap().rule.unwrap().card,
-            middle_fixture::card(2)
-        );
-        s.execute(Command::Act(Action::Play(middle_fixture::card(card))))
-            .unwrap();
-        assert_eq!(s.guided().unwrap().step, S::Observe);
-        respond(&mut s, G::Reveal).unwrap();
-        assert_eq!(
-            s.guided().unwrap().observation.unwrap().winner,
-            Some(winner)
-        );
+    for ouvert in [false, true] {
+        let actions = [
+            Action::Bid(18),
+            Action::Hold,
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(skat_core::Announcement {
+                ouvert,
+                ..skat_core::Announcement::plain(NULL)
+            }),
+            Action::Play(middle_fixture::card(5)),
+            Action::Play(middle_fixture::card(4)),
+        ];
+        for (card, winner) in [(2, Seat::Vorhand), (7, Seat::Hinterhand)] {
+            let mut s = grand_session(Seat::Hinterhand, deal, false, &actions);
+            s.execute(Command::StartGuided).unwrap();
+            assert!(s.guided().unwrap().rule.is_none());
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().rule.unwrap().card,
+                middle_fixture::card(2)
+            );
+            s.execute(Command::Act(Action::Play(middle_fixture::card(card))))
+                .unwrap();
+            assert_eq!(s.guided().unwrap().step, S::Observe);
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().observation.unwrap().winner,
+                Some(winner)
+            );
+        }
     }
 }
 
