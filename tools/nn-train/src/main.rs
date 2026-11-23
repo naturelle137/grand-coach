@@ -893,11 +893,11 @@ fn evaluate(args: &[String]) {
                     100.0 * agree as f64 / rows.max(1) as f64
                 );
             }
-            for (category, (teacher, predicted, both, available)) in
+            for (category, (teacher, predicted, both, available, exact)) in
                 PREPLAY_CATEGORIES.iter().zip(categories)
             {
                 println!(
-                    "  {name} {category}: teacher {teacher}, model {predicted}, both {both}, available {available}"
+                    "  {name} {category}: teacher {teacher}, model {predicted}, both {both}, available {available}, exact {exact}"
                 );
             }
         }
@@ -1276,6 +1276,11 @@ fn main() {
                 Ok(r) => {
                     for (kind, (n, same, differ)) in &r.kinds {
                         println!("{kind:?}: {n} labels, {same} equal to the rule, {differ} differ");
+                    }
+                    for (category, (chosen, available)) in
+                        nn_train::train::PREPLAY_CATEGORIES.iter().zip(r.categories)
+                    {
+                        println!("{category}: teacher {chosen}, available {available}");
                     }
                     let (n, teacher, rules, both) = r.kontra;
                     println!(
