@@ -341,6 +341,36 @@ impl GrandCoachApp {
         Ok(())
     }
 
+    /// Answer the pending packaged-smoke quiz and verify its feedback.
+    pub fn smoke_answer_quiz(&mut self, now: f64) -> Result<(), &'static str> {
+        let question = self
+            .session
+            .view()
+            .assist
+            .quiz
+            .question
+            .ok_or("no quiz question")?;
+        let events = self.learning.history().events().len();
+        self.send(Command::AnswerQuiz(0), now);
+        let quiz = self.session.view().assist.quiz;
+        if quiz.question.is_some()
+            || !quiz.feedback.is_some_and(|f| {
+                f.kind == question && !matches!(f.outcome, skat_app::QuizOutcome::Skipped)
+            })
+            || !self.learning.history().events()[events..]
+                .iter()
+                .any(|entry| {
+                    matches!(
+                        entry.event.action,
+                        skat_app::RetrievalAction::Answer { given: 0, .. }
+                    )
+                })
+        {
+            return Err("quiz answer did not produce feedback");
+        }
+        Ok(())
+    }
+
     /// Prepared validation launch opens confirmation without presenting a task.
     pub fn prepare_validation(&mut self) {
         if !self.recording.active() && self.new_series.is_none() {
@@ -3275,6 +3305,27 @@ mod tests {
         assert_eq!(app.session.view(), before);
         assert!(app.training_active());
         assert!(app.learning.history().events().len() >= 5);
+    }
+
+    #[test]
+    fn packaged_quiz_answer_requires_question_and_records_feedback() {
+        let mut app = GrandCoachApp::new(&egui::Context::default(), easy_series());
+        assert!(app.smoke_answer_quiz(0.0).is_err());
+        app.set_assist(AssistSettings {
+            quiz: true,
+            ..AssistSettings::default()
+        });
+        for _ in 0..1000 {
+            app.session.run_opponents();
+            if app.smoke_advance(0.0, SmokeGoal::Question).unwrap() {
+                let before = app.learning.history().events().len();
+                app.smoke_answer_quiz(0.0).unwrap();
+                assert!(app.learning.history().events().len() > before);
+                assert!(app.smoke_answer_quiz(0.0).is_err());
+                return;
+            }
+        }
+        panic!("quiz question was not reached");
     }
 
     #[test]

@@ -204,20 +204,23 @@ The linked probe creates a valid history from actual training events through
 the existing app API, saves/reopens it and checks it after each packaged launch.
 The smoke requires byte-identical valid history across restart/replacement,
 then separately tests damaged-history preservation and uninstall retention.
-After these stages the same extracted executable is launched sixteen more times
-with smoke-only variables `GRAND_COACH_SMOKE_SCENARIO=coach|training|series|open|replay|review|practice|cards` and
+After these stages the same extracted executable is launched eighteen more times
+with smoke-only variables `GRAND_COACH_SMOKE_SCENARIO=coach|quiz-answer|training|series|open|replay|review|practice|cards` and
 `GRAND_COACH_LANGUAGE=de|en` (with valid history restored): `coach` enables
 EveryMove coach, counting aid and quiz and plays first legal actions until a
-counting question is open; `training` opens the focused counting training;
+counting question is open; `quiz-answer` submits zero through the app command,
+checks feedback and persists learning history; `training` exercises a counting
+answer, assisted retry, skip, next and return before opening the topic chooser;
 `series` plays a 36-game series with first legal actions to the series
 result; `open` plays an open-table game (all hands shown) for 12 actions;
 `replay` plays one game of a two-game series, saves it to the data directory,
 reopens it and shows it in the read-only recording viewer; `review` does the same, requests
 the post-game recording review and waits for its summary (analysis through the shared
 replay coach, bounded by its time limit); `practice` starts an isolated attempt from the reopened recording, retries it, checks the unchanged live view after returning, and starts a fresh attempt; `cards` shows all deck faces. Each saves a native
-screenshot; the sixteen must differ and history must stay valid (byte-identical for
-training; played scenarios may record learning observations). These show the real packaged views in both languages; the practice scenario uses the app API rather than clicking the button. They
-do not answer, skip or retry (widget tests cover that).
+screenshot; the eighteen must differ and history must stay valid. Training and
+quiz-answer must change the history. These views use app commands or controllers
+for answers and practice, rather than clicking widgets. Fresh package runs are
+needed for platform evidence of the quiz-answer extension.
 Probe creation/checks are API evidence, not GUI entry/answer evidence. They do
 not establish migration or cross-version upgrade.
 Existing application/widget tests cover those behaviours separately.
