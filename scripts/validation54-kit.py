@@ -25,7 +25,8 @@ def prepare(archive, out):
     commit = package.run("git", "rev-parse", "HEAD")
     if package.run("git", "status", "--porcelain", "--untracked-files=normal"):
         raise ValueError("kit requires clean committed source")
-    manifest, files = package.verify(archive)
+    archive_data = archive.read_bytes()
+    manifest, files = package.verify(archive, archive_data)
     if manifest["commit"] != commit:
         raise ValueError("package/source commit mismatch")
     if out.exists() or out.is_symlink():
@@ -47,7 +48,7 @@ def prepare(archive, out):
     task_manifest = {
         "protocol": "validation54@1", "build_commit": commit,
         "source_tree": package.run("git", "rev-parse", "HEAD^{tree}"),
-        "archive_sha256": package.digest(archive.read_bytes()),
+        "archive_sha256": package.digest(archive_data),
         "executable_sha256": manifest["files"][manifest["binary"]],
         "position_hash_encoding": "SHA-256 of UTF-8 JSON, sorted keys, compact separators, ensure_ascii=False",
         "tasks": identities,

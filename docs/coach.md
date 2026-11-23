@@ -297,8 +297,8 @@ A current loser in second seat cannot win this trick for the declarer; the
 remaining defender can change which defender wins. The actual third card
 and individual winner are observed, rather than predicted. Winning alternatives
 are named after disclosure and stay playable. No
-optimality, later lead or hidden holder is claimed. Other branches and Ouvert
-Grand/Null card play outside the opening below report unsupported and return to free play; Kontra/Re has its own
+optimality, later lead or hidden holder is claimed. Other unsupported Grand/Null branches return to free play; the supported
+Ouvert branches are listed in the walkthrough. Kontra/Re has its own
 dialogue below. In particular, a side master is
 not safe against trumping: second-seat Grand `FeedPartner` explicitly teaches
 this limit and observes the remaining declarer. [Second-seat Farbspiel `FeedPartner`](guided-dialogue.md#farbspiel-second-seat-feedpartner-131) uses the same admission, where the declarer may trump with any Trumpf.

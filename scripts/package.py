@@ -122,13 +122,14 @@ def archive_bytes(files, windows, epoch):
     return output.getvalue()
 
 
-def read_archive(path):
+def read_archive(path, data=None):
     files = {}
+    source = io.BytesIO(data) if data is not None else path
     if path.suffix == ".zip":
-        with zipfile.ZipFile(path) as archive:
+        with zipfile.ZipFile(source) as archive:
             entries = [(i.filename, archive.read(i)) for i in archive.infolist()]
     else:
-        with tarfile.open(path, "r:gz") as archive:
+        with tarfile.open(fileobj=source, mode="r:gz") if data is not None else tarfile.open(path, "r:gz") as archive:
             entries = []
             for entry in archive:
                 if not entry.isfile():
@@ -142,8 +143,8 @@ def read_archive(path):
     return files
 
 
-def verify(path):
-    files = read_archive(path)
+def verify(path, data=None):
+    files = read_archive(path, data)
     manifest = json.loads(files.pop("manifest.json"))
     expected = manifest["files"]
     if {name: digest(data) for name, data in files.items()} != expected:
