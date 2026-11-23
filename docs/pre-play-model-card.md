@@ -119,3 +119,11 @@ Schneider (without Schwarz) and Schwarz had 385 train, 50 validation and 65
 test candidates. These count candidate actions, not distinct deals or good
 announcements. The example test reconstructs each view and checks legality
 and split assignment; it does not validate playing strength.
+
+On these same 100 distinct positions, the output also records the current
+Strong decision from the acting view. Strong chose no Schneider or Schwarz
+announcement (0 of 1,000 candidates matched); the positions comprise 77
+training, 10 validation and 13 test deals. Strong uses its declaration rule
+rather than search. This demonstrates missing positive labels for these
+candidates, not the quality of the choices or an evaluation of another teacher.
+The recorded `strong_action` is diagnostic and is not a training label.
