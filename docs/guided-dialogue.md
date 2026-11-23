@@ -1374,6 +1374,14 @@ efficacy or complete #131.
 
 The shared Farbspiel `WinEarly` dialogue also admits the Ouvert declarer acting second after a matching hand reveal in a valid Hand/Schneider/Schwarz contract. The exact legal action list and existing rule guards remain required. Every legal card remains playable; the actual remaining card and trick winner are observed. The revealed hand is already the declarer’s own hand, and unknown defender cards remain unknown. This technical scope does not establish learning efficacy. The bilingual `suit_ouvert_walkthrough` egui test reaches a real Ouvert Hand game through ordinary widgets, reveals the rule, plays a legal card and displays the actual reply and winner. Set `SUIT_OUVERT_WALKTHROUGH` to an existing directory to save the inspected rule and observation screenshots.
 
+The same branch also admits a defender acting second after the Ouvert declarer
+leads, with a complete, consistent revealed hand and exact legal actions. The
+core-replayed Herz fixture uses Kreuz 9 as the lead; Kreuz Ass is the shared
+rule's winner and Kreuz 8 remains a legal alternative. The actual third card
+and winner are observed. This is a labelled fixture, not an ordinary opponent
+route: Easy announces Ouvert only in Null. Other unsupported turns still fall
+back, and this does not establish learning efficacy.
+
 ## Farbspiel Ouvert declarer playing last (#318)
 
 The declarer acting last with a matching revealed hand and a complete legal

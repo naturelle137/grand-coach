@@ -41,6 +41,67 @@ fn ouvert_declarer_all_choices_observe_actual_play() {
         );
     }
 }
+
+#[test]
+fn ouvert_defender_after_declarer_lead_keeps_all_choices_and_observes_reply() {
+    let mut c = cases::cases().remove(6);
+    for action in &mut c.history {
+        if let Action::Announce(a) = action {
+            a.ouvert = true;
+            a.schneider = true;
+            a.schwarz = true;
+        }
+    }
+    let original = session(&c);
+    let view = original.game.view(c.view.seat);
+    let lesson = skat_coach::guided::lesson(&view).unwrap();
+    assert_eq!(lesson.rule.branch, crate::GuidedBranch::WinEarly);
+    assert_eq!(lesson.rule.card, cases::card(7));
+    assert_eq!(lesson.rule.candidates, vec![cases::card(7)]);
+    let mut other = cases::cases().remove(6);
+    other.history = c.history.clone();
+    let mut hands = Seat::ALL.map(|seat| other.deal.hand(seat));
+    let mut skat = other.deal.skat();
+    let from_hand = hands[Seat::Hinterhand.index()].iter().next().unwrap();
+    let from_skat = skat.iter().next().unwrap();
+    hands[Seat::Hinterhand.index()].remove(from_hand);
+    hands[Seat::Hinterhand.index()].insert(from_skat);
+    skat.remove(from_skat);
+    skat.insert(from_hand);
+    other.deal = skat_core::Deal::new(hands, skat).unwrap();
+    let mut x = original.clone();
+    let mut y = session(&other);
+    y.config.opponents = Opponents::GodMode;
+    for s in [&mut x, &mut y] {
+        s.execute(Command::StartGuided).unwrap();
+    }
+    equal(&x, &y);
+    for action in [G::Reveal, G::Memory(true), G::Memory(false)] {
+        for s in [&mut x, &mut y] {
+            respond(s, action).unwrap();
+        }
+        equal(&x, &y);
+    }
+    let mut invalid = view.clone();
+    invalid.declarer_cards = None;
+    assert!(skat_coach::guided::lesson(&invalid).is_none());
+    invalid = view.clone();
+    invalid.legal_actions.pop();
+    assert!(skat_coach::guided::lesson(&invalid).is_none());
+    for action in original.view().legal_actions {
+        let mut s = original.clone();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        s.execute(Command::Act(action)).unwrap();
+        s.run_opponents();
+        let actual = *s.game.tricks().last().unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(actual.winner)
+        );
+    }
+}
 fn equal(a: &Session, b: &Session) {
     assert_eq!(
         a.game.view(PlayerId::HUMAN.seat(a.dealer)),
@@ -337,6 +398,18 @@ fn suit_win_early_fixture_widget_models_match_checked_sessions() {
     ouvert.view = ouvert.game().view(ouvert.view.seat);
     ouvert.rule = skat_analysis::baseline::rule(&ouvert.view).unwrap();
     entries.push(ouvert);
+    let mut defender = cases::cases().remove(6);
+    defender.id = "heart-ouvert-defender-second";
+    for action in &mut defender.history {
+        if let Action::Announce(a) = action {
+            a.ouvert = true;
+            a.schneider = true;
+            a.schwarz = true;
+        }
+    }
+    defender.view = defender.game().view(defender.view.seat);
+    defender.rule = skat_analysis::baseline::rule(&defender.view).unwrap();
+    entries.push(defender);
     for c in entries.into_iter().skip(6) {
         let mut s = session(&c);
         s.execute(Command::StartGuided).unwrap();
