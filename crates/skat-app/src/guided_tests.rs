@@ -4204,3 +4204,44 @@ fn suit_ouvert_last_snapshot() {
         expected
     );
 }
+
+#[test]
+fn suit_ouvert_feed_all_choices_observe_actual_winner() {
+    let mut c = feed_fixture::cases()
+        .into_iter()
+        .find(|c| c.id == "A-suit")
+        .unwrap();
+    c.ouvert = true;
+    for (&n, &winner) in c.legal.iter().zip(c.completed) {
+        let mut s = Session::new(SessionConfig::default());
+        s.dealer = PlayerId(0);
+        s.game = c.position();
+        let legal = s.view().legal_actions;
+        s.execute(Command::StartGuided).unwrap();
+        assert!(s.guided().unwrap().rule.is_none());
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().rule.unwrap().branch,
+            crate::GuidedBranch::FeedPartner
+        );
+        assert_eq!(s.view().legal_actions, legal);
+        if n == c.legal[0]
+            && let Ok(path) = std::env::var("SKAT_SUIT_OUVERT_FEED_SNAPSHOT")
+        {
+            let mut guided = serde_json::to_value(s.guided().unwrap()).unwrap();
+            guided["id"]["lineage"] = 0.into();
+            guided["id"]["generation"] = 0.into();
+            let value = serde_json::json!({"table": s.view(), "guided": guided});
+            std::fs::write(path, serde_json::to_string_pretty(&value).unwrap() + "\n").unwrap();
+        }
+        s.execute(Command::Act(Action::Play(feed_fixture::card(n))))
+            .unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(Seat::from_index(winner))
+        );
+        respond(&mut s, G::Return).unwrap();
+        assert!(s.guided().is_none());
+    }
+}

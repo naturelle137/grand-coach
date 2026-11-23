@@ -114,7 +114,7 @@ pub struct Lesson {
 /// and the declarer's opening and second/last-seat turns after the reveal.
 /// `Branch::Null` is broader; other defender turns, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Grand Ouvert declarer
-/// declarer WinEarly, Grand and Farbspiel declarer WinLast, and Grand defender FeedPartner admit validated second- and last-seat views. LeadMaster (including Ouvert
+/// WinEarly, Grand and Farbspiel declarer WinLast, and Ouvert defender last-seat FeedPartner admit validated views. LeadMaster (including Ouvert
 /// Farbspiel and Grand declarer) and Grand declarer DrawTrumpf (including
 /// Ouvert) admit tested own leads with an exact core-legal action list.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
@@ -146,12 +146,15 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .iter()
                 .map(Action::Play)
                 .collect::<Vec<_>>();
-    let ouvert_grand_feed = game == GameType::Grand
+    let ouvert_feed = (game == GameType::Grand || matches!(game, GameType::Farbe(_)))
         && contract.ouvert
         && contract.hand
         && contract.schneider
         && contract.schwarz
         && view.declarer.is_some_and(|d| d != view.seat)
+        && TrickState::of(game, &view.current_trick)
+            .best_seat
+            .is_some_and(|s| Some(s) != view.declarer)
         && view.hand_game == Some(true)
         && view.own_skat.is_none()
         && view.current_seat == Some(view.seat)
@@ -249,7 +252,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || grand
             || ouvert_grand_lead
             || ouvert_last
-            || ouvert_grand_feed
+            || ouvert_feed
             || ouvert_grand_early
             || ouvert_grand_under
             || null)
@@ -467,7 +470,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     view.declarer?;
     let rule = baseline::rule(view)?;
-    if (ouvert_grand_feed && rule.branch != Branch::FeedPartner)
+    if (ouvert_feed && rule.branch != Branch::FeedPartner)
         || (ouvert_grand_early && rule.branch != Branch::WinEarly)
         || (ouvert_last && rule.branch != Branch::WinLast)
         || (contract.ouvert
@@ -482,7 +485,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         || !(matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
             || ((grand || suit_early || ouvert_grand_early) && rule.branch == Branch::WinEarly)
             || (rule.branch == Branch::FeedPartner
-                && (((grand || suit_feed || ouvert_grand_feed) && rule.last)
+                && (((grand || suit_feed || ouvert_feed) && rule.last)
                     || (feed_early && rule.partner_ahead && rule.table_master)))
             || (null && rule.branch == Branch::Null && !rule.losers.is_empty()))
     {
