@@ -76,4 +76,6 @@ The [immutable manifest](validation54-tasks.json) contains hashes/identities,
 not answers or views. Its mechanical hashes pin positions; handwritten facts
 and independent legal witnesses supply the correctness oracle. The builder
 verifies and hashes the same archive snapshot and refuses a changed task hash,
-dirty/wrong source or an existing destination.
+dirty/wrong source, an existing destination or a destination inside the current
+source checkout, including through a symbolic link. Other destinations must
+also be chosen outside public repositories.

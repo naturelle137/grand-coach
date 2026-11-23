@@ -31,6 +31,8 @@ def prepare(archive, out):
         raise ValueError("package/source commit mismatch")
     if out.exists() or out.is_symlink():
         raise ValueError("destination already exists; never replace personal records")
+    if out.resolve().is_relative_to(package.ROOT.resolve()):
+        raise ValueError("destination must be outside the source repository")
     if any(c in str(out) for c in '\n\r"`$%') or (os.name != "nt" and "\\" in str(out)):
         raise ValueError("unsupported launcher path")
     raw = subprocess.check_output([
