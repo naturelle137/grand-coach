@@ -21,6 +21,11 @@ def registered_tasks():
     return json.loads((package.ROOT / "docs/validation54-tasks.json").read_text())["tasks"]
 
 
+def inside_git_worktree(path):
+    return any((parent / ".git").exists() or (parent / ".git").is_symlink()
+               for parent in (path, *path.parents))
+
+
 def prepare(archive, out):
     commit = package.run("git", "rev-parse", "HEAD")
     if package.run("git", "status", "--porcelain", "--untracked-files=normal"):
@@ -33,6 +38,8 @@ def prepare(archive, out):
         raise ValueError("destination already exists; never replace personal records")
     if out.resolve().is_relative_to(package.ROOT.resolve()):
         raise ValueError("destination must be outside the source repository")
+    if inside_git_worktree(out.resolve()):
+        raise ValueError("destination must be outside Git worktrees")
     if any(c in str(out) for c in '\n\r"`$%') or (os.name != "nt" and "\\" in str(out)):
         raise ValueError("unsupported launcher path")
     raw = subprocess.check_output([
