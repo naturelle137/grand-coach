@@ -228,6 +228,8 @@ class KitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repo, linked, private = (root / name for name in ("repo", "linked", "private"))
+            archive = root / "archive"
+            archive.write_bytes(b"archive")
             subprocess.run(["git", "init", "-q", str(repo)], check=True)
             subprocess.run(["git", "-C", str(repo), "-c", "user.name=Test",
                             "-c", "user.email=test@example.invalid", "commit", "-q",
@@ -242,11 +244,16 @@ class KitTests(unittest.TestCase):
                 return check(path) if path.name != ".git" or path.is_relative_to(root) else False
 
             with patch.object(Path, "exists", lambda path: local_marker(path, exists)), \
-                 patch.object(Path, "is_symlink", lambda path: local_marker(path, is_symlink)):
+                 patch.object(Path, "is_symlink", lambda path: local_marker(path, is_symlink)), \
+                 patch.object(kit, "inside_git_worktree", wraps=inside_git_worktree), \
+                 patch.object(package, "run", side_effect=self.run_identity), \
+                 patch.object(package, "verify", return_value=(self.manifest, {})):
                 self.assertFalse(inside_git_worktree(private / "kit"))
                 for out in (repo / "nested/kit", linked / "nested/kit", alias / "nested/kit"):
                     with self.subTest(out=out):
                         self.assertTrue(inside_git_worktree(out.resolve()))
+                        with self.assertRaisesRegex(ValueError, "outside Git worktrees"):
+                            kit.prepare(archive, out)
                         self.assertFalse(out.exists())
 
     def check_other_worktree_markers(self, archive, other, alias):
