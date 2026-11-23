@@ -114,7 +114,7 @@ pub struct Lesson {
 /// and the declarer's opening and second/last-seat turns after the reveal.
 /// `Branch::Null` is broader; other defender turns, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Grand Ouvert declarer
-/// WinEarly, Grand and Farbspiel declarer WinLast, and Ouvert defender last-seat FeedPartner admit validated views. LeadMaster (including Ouvert
+/// WinEarly, Farbspiel defender WinEarly after the declarer's lead, Grand and Farbspiel declarer WinLast, and Ouvert defender last-seat FeedPartner admit validated views. LeadMaster (including Ouvert
 /// Farbspiel and Grand declarer) and Grand declarer DrawTrumpf (including
 /// Ouvert) admit tested own leads with an exact core-legal action list.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
@@ -410,6 +410,19 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             lead_declarer: Some(view.declarer == Some(view.seat)),
         });
     }
+    let ouvert_suit_defender_early = matches!(game, GameType::Farbe(_))
+        && contract.ouvert
+        && contract.hand
+        && contract.schneider
+        && contract.schwarz
+        && view
+            .declarer
+            .is_some_and(|d| d != view.seat && Some(d) == view.current_trick.leader)
+        && view.declarer_cards.is_some_and(|cards| {
+            cards.len() == usize::from(view.hand_sizes[view.declarer.unwrap().index()])
+                && (cards & view.hand).is_empty()
+                && (cards & Knowledge::from_view(view).played).is_empty()
+        });
     // Only the new Farbspiel WinEarly family uses this strict admission.
     // Preserve the existing families and their shared branch precedence.
     let suit_early = matches!(game, GameType::Farbe(_))
@@ -418,7 +431,8 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 && contract.hand
                 && contract.schneider
                 && contract.schwarz
-                && view.declarer_cards == Some(view.hand)))
+                && view.declarer_cards == Some(view.hand))
+            || ouvert_suit_defender_early)
         && view.current_seat == Some(view.seat)
         && view.current_trick.cards[0].is_some()
         && view.current_trick.cards[1..] == [None, None]
