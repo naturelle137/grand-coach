@@ -172,6 +172,19 @@ class KitTests(unittest.TestCase):
                     kit.prepare(archive, out)
             self.assertFalse(out.exists())
 
+    @unittest.skipIf(os.name == "nt", "Windows does not permit control characters in paths")
+    def test_refuses_control_characters_in_launcher_path_before_installation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "archive"
+            archive.write_bytes(b"archive")
+            with patch.object(package, "run", side_effect=self.run_identity), \
+                 patch.object(package, "verify", return_value=(self.manifest, {})):
+                for char in ("\t", "\x1b", "\x7f"):
+                    out = Path(directory) / ("kit" + char + "name")
+                    with self.subTest(char=char), self.assertRaisesRegex(ValueError, "unsupported launcher path"):
+                        kit.prepare(archive, out)
+                    self.assertFalse(out.exists())
+
     def test_wrong_source_and_dirty_source_fail_before_installation(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "kit"
