@@ -87,3 +87,59 @@ fn both_positive_hidden_pairs_have_full_equal_nonabsent_lessons() {
         assert_eq!(a, b);
     }
 }
+
+#[test]
+fn ouvert_declarer_second_requires_revealed_hand_and_complete_legal_view() {
+    let mut c = fixture::cases().remove(10);
+    for action in &mut c.history {
+        if let Action::Announce(a) = action {
+            a.ouvert = true;
+            a.schneider = true;
+            a.schwarz = true;
+        }
+    }
+    let g = c.game();
+    let v = g.view(Seat::Hinterhand);
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule.branch, Branch::WinEarly);
+    assert_eq!(l.rule, skat_analysis::baseline::rule(&v).unwrap());
+    let mut pair_found = false;
+    for hidden in c.deal.hand(Seat::Vorhand).iter() {
+        for skat in c.deal.skat().iter() {
+            let mut hands = Seat::ALL.map(|seat| c.deal.hand(seat));
+            let mut buried = c.deal.skat();
+            hands[0].remove(hidden);
+            hands[0].insert(skat);
+            buried.remove(skat);
+            buried.insert(hidden);
+            let deal = Deal::new(hands, buried).unwrap();
+            let mut other = Game::from_deal(deal, RuleConfig::default());
+            if c.history.iter().all(|&a| other.apply(a).is_ok()) {
+                let other_view = other.view(Seat::Hinterhand);
+                if other_view == v {
+                    assert_eq!(lesson(&other_view), Some(l.clone()));
+                    pair_found = true;
+                    break;
+                }
+            }
+        }
+        if pair_found {
+            break;
+        }
+    }
+    assert!(pair_found);
+    for change in 0..6 {
+        let mut bad = v.clone();
+        match change {
+            0 => bad.declarer_cards = None,
+            1 => bad.declarer_cards = Some(CardSet::EMPTY),
+            2 => bad.contract.as_mut().unwrap().schwarz = false,
+            3 => bad.contract.as_mut().unwrap().schneider = false,
+            4 => {
+                bad.legal_actions.pop();
+            }
+            _ => bad.current_seat = Some(Seat::Vorhand),
+        }
+        assert!(!lesson(&bad).is_some_and(|l| l.rule.branch == Branch::WinEarly));
+    }
+}

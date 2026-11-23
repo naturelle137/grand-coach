@@ -6,6 +6,41 @@ mod cases;
 fn session(c: &cases::Case) -> Session {
     grand_session(c.view.seat, c.deal, false, &c.history)
 }
+
+#[test]
+fn ouvert_declarer_all_choices_observe_actual_play() {
+    let mut c = cases::cases().remove(10);
+    for action in &mut c.history {
+        if let Action::Announce(a) = action {
+            a.ouvert = true;
+            a.schneider = true;
+            a.schwarz = true;
+        }
+    }
+    let original = session(&c);
+    for action in original.view().legal_actions {
+        let mut s = original.clone();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Return).unwrap();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        s.execute(Command::Act(action)).unwrap();
+        s.run_opponents();
+        let actual = *s.game.tricks().last().unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        let observation = s.guided().unwrap().observation.unwrap();
+        assert_eq!(observation.winner, Some(actual.winner));
+        assert_eq!(
+            observation.source,
+            skat_coach::Source::Trick {
+                index: 1,
+                seat: c.view.seat.next(),
+                led: actual.cards[0],
+                card: actual.cards[2],
+            }
+        );
+    }
+}
 fn equal(a: &Session, b: &Session) {
     assert_eq!(
         a.game.view(PlayerId::HUMAN.seat(a.dealer)),
@@ -289,7 +324,20 @@ fn suit_win_early_return_every_stage_and_estimates_stay_original_decision() {
 #[test]
 fn suit_win_early_fixture_widget_models_match_checked_sessions() {
     let mut frames = Vec::new();
-    for c in cases::cases().into_iter().skip(6) {
+    let mut entries = cases::cases();
+    let mut ouvert = cases::cases().remove(10);
+    ouvert.id = "club-ouvert-declarer-second";
+    for action in &mut ouvert.history {
+        if let Action::Announce(a) = action {
+            a.ouvert = true;
+            a.schneider = true;
+            a.schwarz = true;
+        }
+    }
+    ouvert.view = ouvert.game().view(ouvert.view.seat);
+    ouvert.rule = skat_analysis::baseline::rule(&ouvert.view).unwrap();
+    entries.push(ouvert);
+    for c in entries.into_iter().skip(6) {
         let mut s = session(&c);
         s.execute(Command::StartGuided).unwrap();
         let save = |stage: &str, s: &Session, frames: &mut Vec<serde_json::Value>| {
