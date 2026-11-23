@@ -12,6 +12,49 @@ use skat_coach::{
 use skat_core::*;
 
 #[test]
+fn defender_later_lead_uses_completed_trick_and_exact_actions() {
+    let hands = [2214726045, 156542018, 313086496].map(CardSet::from_bits);
+    let deal = Deal::new(hands, CardSet::from_bits(1610612736)).unwrap();
+    for ouvert in [false, true] {
+        let mut game = Game::from_deal(deal, RuleConfig { kontra_re: false });
+        for action in [
+            Action::Bid(18),
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(Announcement {
+                ouvert,
+                ..Announcement::plain(GameType::Null)
+            }),
+        ] {
+            game.apply(action).unwrap();
+        }
+        for n in [7, 1, 5] {
+            game.apply(Action::Play(card(n))).unwrap();
+        }
+        let seat = game.current_seat().unwrap();
+        let view = game.view(seat);
+        let l = lesson(&view).unwrap_or_else(|| panic!("later defender lead: {view:?}"));
+        assert_eq!(l.source, Source::Lead { index: 1, seat });
+        assert_eq!(l.rule, skat_analysis::baseline::rule(&view).unwrap());
+        assert_eq!(l.rule.card, card(0)); // Kreuz-Sieben is the first zero-cost lead.
+        assert_eq!(l.lead_declarer, Some(false));
+        for action in &view.legal_actions {
+            let mut alternative = game.clone();
+            alternative.apply(*action).unwrap();
+        }
+        let mut bad = view.clone();
+        bad.hand_sizes[0] -= 1;
+        assert!(lesson(&bad).is_none());
+        if ouvert {
+            let mut bad = view.clone();
+            bad.declarer_cards = None;
+            assert!(lesson(&bad).is_none());
+        }
+    }
+}
+
+#[test]
 fn ouvert_declarer_opening_uses_the_same_null_rule() {
     for c in cases() {
         let mut game = Game::from_deal(c.deal, RuleConfig { kontra_re: false });

@@ -78,6 +78,8 @@ The learning overview separates [explicit mechanism-response patterns](mechanism
 [live Abstich questions](live-abstich.md) now record explicit conditional
 responses for selected legal candidates, with separate supported-risk counts
 and no inference about the chosen move or risk prevalence.
+A defender who wins a Null trick can also reason through the next lead,
+then compare the actual replies and winner, including in Null Ouvert.
 The [roadmap](roadmap.md)
 covers the next steps from guided play to independent practice.
 
