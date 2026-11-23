@@ -3751,5 +3751,766 @@
       ],
       "tricks_played": 0
     }
+  },
+  {
+    "case": "club-ouvert-declarer-second",
+    "guided": {
+      "basis": "OwnView",
+      "bid_rule": null,
+      "budget": null,
+      "correct": null,
+      "early_condition": "FollowClassMaster",
+      "evidence": null,
+      "figures": null,
+      "figures_requested": false,
+      "id": {
+        "actions": 9,
+        "game": 1,
+        "generation": 0,
+        "lineage": 0
+      },
+      "kontra": null,
+      "kontra_exclusion": null,
+      "kontra_observation": null,
+      "kontra_rule": null,
+      "legal_cards": [
+        17,
+        23
+      ],
+      "memory": null,
+      "observation": null,
+      "observed_source": null,
+      "pre_rule": null,
+      "preplay": null,
+      "reizen": null,
+      "rule": {
+        "branch": "WinEarly",
+        "candidates": [
+          23
+        ],
+        "card": 23,
+        "last": false,
+        "losers": [
+          17
+        ],
+        "partner_ahead": false,
+        "table_master": false,
+        "tie_break": "LowestWinnerFirst",
+        "tie_key": [
+          0,
+          6,
+          0
+        ],
+        "winner": "Mittelhand",
+        "winners": [
+          23
+        ]
+      },
+      "step": "Act",
+      "task": "WinEarly"
+    },
+    "stage": "rule",
+    "table": {
+      "acting": 0,
+      "assist": {
+        "counting": "Off",
+        "quiz": {
+          "feedback": null,
+          "help": null,
+          "id": null,
+          "question": null
+        },
+        "settings": {
+          "assistance": "AnswerBeforeReveal",
+          "counting_aid": false,
+          "quiz": false,
+          "retrieval": false
+        }
+      },
+      "bid": 18,
+      "bidding": [
+        [
+          2,
+          "Pass"
+        ],
+        [
+          0,
+          {
+            "Bid": 18
+          }
+        ],
+        [
+          1,
+          "Pass"
+        ]
+      ],
+      "can_end_series": false,
+      "can_next_game": false,
+      "cast": {
+        "english": [
+          21,
+          23
+        ],
+        "german": [
+          9,
+          1
+        ]
+      },
+      "coach": {
+        "advice": "None",
+        "analysing": false,
+        "debriefing": null,
+        "help_available": false,
+        "last_move": null,
+        "next_stage": null,
+        "pending": null,
+        "settings": {
+          "focus": null,
+          "level": "OnRequest",
+          "show_figures": false,
+          "warnings": false
+        },
+        "skippable": false
+      },
+      "coach_basis": "OwnView",
+      "config": {
+        "kontra_re": false,
+        "opponents": {
+          "Levels": [
+            "Easy",
+            "Easy"
+          ]
+        },
+        "seed": 0,
+        "series": "Free"
+      },
+      "contract": {
+        "game": {
+          "Farbe": "Kreuz"
+        },
+        "hand": true,
+        "ouvert": true,
+        "schneider": true,
+        "schwarz": true
+      },
+      "current_trick": [
+        {
+          "card": 18,
+          "player": 2
+        }
+      ],
+      "dealer": 0,
+      "declarer": 0,
+      "declarer_cards": [
+        20,
+        28,
+        7,
+        23,
+        17,
+        27,
+        29,
+        26,
+        25
+      ],
+      "game_number": 1,
+      "hand": [
+        20,
+        28,
+        7,
+        23,
+        17,
+        27,
+        29,
+        26,
+        25
+      ],
+      "hand_game": true,
+      "kontra": "None",
+      "last_trick": {
+        "augen": 11,
+        "cards": [
+          {
+            "card": 8,
+            "player": 1
+          },
+          {
+            "card": 15,
+            "player": 2
+          },
+          {
+            "card": 24,
+            "player": 0
+          }
+        ],
+        "winner": 2
+      },
+      "legal_actions": [
+        {
+          "Play": 17
+        },
+        {
+          "Play": 23
+        }
+      ],
+      "open_cards": null,
+      "opponent_to_move": false,
+      "own_skat": null,
+      "phase": "Spiel",
+      "players": [
+        {
+          "cards": 9,
+          "last_call": {
+            "Bid": 18
+          },
+          "player": 0,
+          "seat": "Hinterhand",
+          "total": 0,
+          "tricks": 0
+        },
+        {
+          "cards": 9,
+          "last_call": "Pass",
+          "player": 1,
+          "seat": "Vorhand",
+          "total": 0,
+          "tricks": 0
+        },
+        {
+          "cards": 8,
+          "last_call": "Pass",
+          "player": 2,
+          "seat": "Mittelhand",
+          "total": 0,
+          "tricks": 1
+        }
+      ],
+      "practice": false,
+      "result": null,
+      "series_finished": false,
+      "series_result": null,
+      "sheet": {
+        "records": []
+      },
+      "trick_augen": [
+        0,
+        0,
+        11
+      ],
+      "tricks_played": 1
+    }
+  },
+  {
+    "case": "club-ouvert-declarer-second",
+    "guided": {
+      "basis": "OwnView",
+      "bid_rule": null,
+      "budget": null,
+      "correct": null,
+      "early_condition": "FollowClassMaster",
+      "evidence": null,
+      "figures": null,
+      "figures_requested": false,
+      "id": {
+        "actions": 9,
+        "game": 1,
+        "generation": 0,
+        "lineage": 0
+      },
+      "kontra": null,
+      "kontra_exclusion": null,
+      "kontra_observation": null,
+      "kontra_rule": null,
+      "legal_cards": [
+        17,
+        23
+      ],
+      "memory": {
+        "own": 1049755776,
+        "played": 17072384,
+        "skat": null,
+        "trumpf": {
+          "discarded": 0,
+          "outside": 8,
+          "own": 3,
+          "played": 0,
+          "skat_unknown": true,
+          "total": 11
+        },
+        "unseen": 3228139135
+      },
+      "observation": null,
+      "observed_source": null,
+      "pre_rule": null,
+      "preplay": null,
+      "reizen": null,
+      "rule": {
+        "branch": "WinEarly",
+        "candidates": [
+          23
+        ],
+        "card": 23,
+        "last": false,
+        "losers": [
+          17
+        ],
+        "partner_ahead": false,
+        "table_master": false,
+        "tie_break": "LowestWinnerFirst",
+        "tie_key": [
+          0,
+          6,
+          0
+        ],
+        "winner": "Mittelhand",
+        "winners": [
+          23
+        ]
+      },
+      "step": "Act",
+      "task": "WinEarly"
+    },
+    "stage": "memory",
+    "table": {
+      "acting": 0,
+      "assist": {
+        "counting": "Off",
+        "quiz": {
+          "feedback": null,
+          "help": null,
+          "id": null,
+          "question": null
+        },
+        "settings": {
+          "assistance": "AnswerBeforeReveal",
+          "counting_aid": false,
+          "quiz": false,
+          "retrieval": false
+        }
+      },
+      "bid": 18,
+      "bidding": [
+        [
+          2,
+          "Pass"
+        ],
+        [
+          0,
+          {
+            "Bid": 18
+          }
+        ],
+        [
+          1,
+          "Pass"
+        ]
+      ],
+      "can_end_series": false,
+      "can_next_game": false,
+      "cast": {
+        "english": [
+          21,
+          23
+        ],
+        "german": [
+          9,
+          1
+        ]
+      },
+      "coach": {
+        "advice": "None",
+        "analysing": false,
+        "debriefing": null,
+        "help_available": false,
+        "last_move": null,
+        "next_stage": null,
+        "pending": null,
+        "settings": {
+          "focus": null,
+          "level": "OnRequest",
+          "show_figures": false,
+          "warnings": false
+        },
+        "skippable": false
+      },
+      "coach_basis": "OwnView",
+      "config": {
+        "kontra_re": false,
+        "opponents": {
+          "Levels": [
+            "Easy",
+            "Easy"
+          ]
+        },
+        "seed": 0,
+        "series": "Free"
+      },
+      "contract": {
+        "game": {
+          "Farbe": "Kreuz"
+        },
+        "hand": true,
+        "ouvert": true,
+        "schneider": true,
+        "schwarz": true
+      },
+      "current_trick": [
+        {
+          "card": 18,
+          "player": 2
+        }
+      ],
+      "dealer": 0,
+      "declarer": 0,
+      "declarer_cards": [
+        20,
+        28,
+        7,
+        23,
+        17,
+        27,
+        29,
+        26,
+        25
+      ],
+      "game_number": 1,
+      "hand": [
+        20,
+        28,
+        7,
+        23,
+        17,
+        27,
+        29,
+        26,
+        25
+      ],
+      "hand_game": true,
+      "kontra": "None",
+      "last_trick": {
+        "augen": 11,
+        "cards": [
+          {
+            "card": 8,
+            "player": 1
+          },
+          {
+            "card": 15,
+            "player": 2
+          },
+          {
+            "card": 24,
+            "player": 0
+          }
+        ],
+        "winner": 2
+      },
+      "legal_actions": [
+        {
+          "Play": 17
+        },
+        {
+          "Play": 23
+        }
+      ],
+      "open_cards": null,
+      "opponent_to_move": false,
+      "own_skat": null,
+      "phase": "Spiel",
+      "players": [
+        {
+          "cards": 9,
+          "last_call": {
+            "Bid": 18
+          },
+          "player": 0,
+          "seat": "Hinterhand",
+          "total": 0,
+          "tricks": 0
+        },
+        {
+          "cards": 9,
+          "last_call": "Pass",
+          "player": 1,
+          "seat": "Vorhand",
+          "total": 0,
+          "tricks": 0
+        },
+        {
+          "cards": 8,
+          "last_call": "Pass",
+          "player": 2,
+          "seat": "Mittelhand",
+          "total": 0,
+          "tricks": 1
+        }
+      ],
+      "practice": false,
+      "result": null,
+      "series_finished": false,
+      "series_result": null,
+      "sheet": {
+        "records": []
+      },
+      "trick_augen": [
+        0,
+        0,
+        11
+      ],
+      "tricks_played": 1
+    }
+  },
+  {
+    "case": "club-ouvert-declarer-second",
+    "guided": {
+      "basis": "OwnView",
+      "bid_rule": null,
+      "budget": null,
+      "correct": null,
+      "early_condition": "FollowClassMaster",
+      "evidence": null,
+      "figures": null,
+      "figures_requested": false,
+      "id": {
+        "actions": 9,
+        "game": 1,
+        "generation": 0,
+        "lineage": 0
+      },
+      "kontra": null,
+      "kontra_exclusion": null,
+      "kontra_observation": null,
+      "kontra_rule": null,
+      "legal_cards": [
+        17,
+        23
+      ],
+      "memory": null,
+      "observation": {
+        "follow": {
+          "Farbe": "Herz"
+        },
+        "proves_void": true,
+        "source": {
+          "Trick": {
+            "card": 0,
+            "index": 1,
+            "led": 18,
+            "seat": "Vorhand"
+          }
+        },
+        "winner": "Vorhand"
+      },
+      "observed_source": {
+        "Trick": {
+          "card": 0,
+          "index": 1,
+          "led": 18,
+          "seat": "Vorhand"
+        }
+      },
+      "pre_rule": null,
+      "preplay": null,
+      "reizen": null,
+      "rule": {
+        "branch": "WinEarly",
+        "candidates": [
+          23
+        ],
+        "card": 23,
+        "last": false,
+        "losers": [
+          17
+        ],
+        "partner_ahead": false,
+        "table_master": false,
+        "tie_break": "LowestWinnerFirst",
+        "tie_key": [
+          0,
+          6,
+          0
+        ],
+        "winner": "Mittelhand",
+        "winners": [
+          23
+        ]
+      },
+      "step": "Complete",
+      "task": null
+    },
+    "stage": "overtaken",
+    "table": {
+      "acting": 1,
+      "assist": {
+        "counting": "Off",
+        "quiz": {
+          "feedback": null,
+          "help": null,
+          "id": null,
+          "question": null
+        },
+        "settings": {
+          "assistance": "AnswerBeforeReveal",
+          "counting_aid": false,
+          "quiz": false,
+          "retrieval": false
+        }
+      },
+      "bid": 18,
+      "bidding": [
+        [
+          2,
+          "Pass"
+        ],
+        [
+          0,
+          {
+            "Bid": 18
+          }
+        ],
+        [
+          1,
+          "Pass"
+        ]
+      ],
+      "can_end_series": false,
+      "can_next_game": false,
+      "cast": {
+        "english": [
+          21,
+          23
+        ],
+        "german": [
+          9,
+          1
+        ]
+      },
+      "coach": {
+        "advice": "None",
+        "analysing": false,
+        "debriefing": null,
+        "help_available": false,
+        "last_move": null,
+        "next_stage": null,
+        "pending": null,
+        "settings": {
+          "focus": null,
+          "level": "OnRequest",
+          "show_figures": false,
+          "warnings": false
+        },
+        "skippable": false
+      },
+      "coach_basis": "OwnView",
+      "config": {
+        "kontra_re": false,
+        "opponents": {
+          "Levels": [
+            "Easy",
+            "Easy"
+          ]
+        },
+        "seed": 0,
+        "series": "Free"
+      },
+      "contract": {
+        "game": {
+          "Farbe": "Kreuz"
+        },
+        "hand": true,
+        "ouvert": true,
+        "schneider": true,
+        "schwarz": true
+      },
+      "current_trick": [],
+      "dealer": 0,
+      "declarer": 0,
+      "declarer_cards": [
+        20,
+        28,
+        7,
+        17,
+        27,
+        29,
+        26,
+        25
+      ],
+      "game_number": 1,
+      "hand": [
+        20,
+        28,
+        7,
+        17,
+        27,
+        29,
+        26,
+        25
+      ],
+      "hand_game": true,
+      "kontra": "None",
+      "last_trick": {
+        "augen": 11,
+        "cards": [
+          {
+            "card": 18,
+            "player": 2
+          },
+          {
+            "card": 23,
+            "player": 0
+          },
+          {
+            "card": 0,
+            "player": 1
+          }
+        ],
+        "winner": 1
+      },
+      "legal_actions": [],
+      "open_cards": null,
+      "opponent_to_move": true,
+      "own_skat": null,
+      "phase": "Spiel",
+      "players": [
+        {
+          "cards": 8,
+          "last_call": {
+            "Bid": 18
+          },
+          "player": 0,
+          "seat": "Hinterhand",
+          "total": 0,
+          "tricks": 0
+        },
+        {
+          "cards": 8,
+          "last_call": "Pass",
+          "player": 1,
+          "seat": "Vorhand",
+          "total": 0,
+          "tricks": 1
+        },
+        {
+          "cards": 8,
+          "last_call": "Pass",
+          "player": 2,
+          "seat": "Mittelhand",
+          "total": 0,
+          "tricks": 1
+        }
+      ],
+      "practice": false,
+      "result": null,
+      "series_finished": false,
+      "series_result": null,
+      "sheet": {
+        "records": []
+      },
+      "trick_augen": [
+        0,
+        11,
+        11
+      ],
+      "tricks_played": 2
+    }
   }
 ]
