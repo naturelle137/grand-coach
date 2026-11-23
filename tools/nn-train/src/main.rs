@@ -1282,6 +1282,16 @@ fn main() {
                     {
                         println!("{category}: teacher {chosen}, available {available}");
                     }
+                    for (split, counts) in ["train", "validation", "test"]
+                        .into_iter()
+                        .zip(r.categories_by_split)
+                    {
+                        for (category, (chosen, available)) in
+                            nn_train::train::PREPLAY_CATEGORIES.iter().zip(counts)
+                        {
+                            println!("{split} {category}: teacher {chosen}, available {available}");
+                        }
+                    }
                     let (n, teacher, rules, both) = r.kontra;
                     println!(
                         "Kontra: {n} opportunities, teacher {teacher}, rule {rules}, both {both}"

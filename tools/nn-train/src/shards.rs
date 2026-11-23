@@ -388,6 +388,8 @@ pub struct LabelReport {
     pub kontra: (u64, u64, u64, u64),
     /// Teacher choices and opportunities for each pre-play category.
     pub categories: [(u64, u64); 6],
+    /// Category counts by deal split: train, validation, test.
+    pub categories_by_split: [[(u64, u64); 6]; 3],
 }
 
 /// Independent pre-play label validation (#74): every complete shard passes
@@ -424,9 +426,19 @@ pub fn check_labels(records: &[DecisionRecord], out: &mut LabelReport) {
                 *a |= category;
             }
         }
-        for ((counts, chosen), available) in out.categories.iter_mut().zip(chosen).zip(available) {
-            counts.0 += u64::from(chosen);
-            counts.1 += u64::from(available);
+        let split = match r.split {
+            crate::selfplay::Split::Train => 0,
+            crate::selfplay::Split::Validation => 1,
+            crate::selfplay::Split::Test => 2,
+        };
+        for (i, (chosen, available)) in chosen.into_iter().zip(available).enumerate() {
+            for counts in [
+                &mut out.categories[i],
+                &mut out.categories_by_split[split][i],
+            ] {
+                counts.0 += u64::from(chosen);
+                counts.1 += u64::from(available);
+            }
         }
         if r.view.result.is_some() {
             out.leaks += 1;
@@ -738,6 +750,28 @@ mod replay_tests {
     }
 
     #[test]
+    fn label_categories_follow_the_recorded_deal_split() {
+        use crate::selfplay::Split;
+        use skat_core::Action;
+
+        let mut rows =
+            parse_records(include_bytes!("../fixtures/selfplay/shard-00000.jsonl")).unwrap();
+        let mut row = rows.remove(0);
+        row.action = Action::Pass;
+        row.view.legal_actions.push(Action::Pass);
+        let mut report = LabelReport::default();
+        for split in [Split::Train, Split::Validation, Split::Test] {
+            row.split = split;
+            check_labels(std::slice::from_ref(&row), &mut report);
+        }
+        assert_eq!(report.categories[0], (3, 3));
+        assert_eq!(
+            report.categories_by_split.map(|counts| counts[0]),
+            [(1, 1); 3]
+        );
+    }
+
+    #[test]
     fn label_validation_counts_agreement_and_flags_bad_labels() {
         let bytes = include_bytes!("../fixtures/selfplay/shard-00000.jsonl");
         let mut rows = parse_records(bytes).unwrap();
@@ -749,6 +783,15 @@ mod replay_tests {
         assert_eq!((report.leaks, report.bad_pairs), (0, 0));
         for (chosen, available) in report.categories {
             assert!(chosen <= available);
+        }
+        for (i, total) in report.categories.iter().enumerate() {
+            let split_total = report
+                .categories_by_split
+                .iter()
+                .fold((0, 0), |sum, split| {
+                    (sum.0 + split[i].0, sum.1 + split[i].1)
+                });
+            assert_eq!(*total, split_total);
         }
         let pass = rows
             .iter()
