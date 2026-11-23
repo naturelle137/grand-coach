@@ -1,0 +1,233 @@
+{
+  "guided": {
+    "basis": "OwnView",
+    "bid_rule": null,
+    "budget": null,
+    "correct": null,
+    "early_condition": null,
+    "evidence": null,
+    "feed_partner": "Vorhand",
+    "figures": null,
+    "figures_requested": false,
+    "id": {
+      "actions": 0,
+      "game": 1,
+      "generation": 0,
+      "lineage": 0
+    },
+    "kontra": null,
+    "kontra_exclusion": null,
+    "kontra_observation": null,
+    "kontra_rule": null,
+    "legal_cards": [
+      3,
+      5
+    ],
+    "memory": null,
+    "observation": null,
+    "observed_source": null,
+    "pre_rule": null,
+    "preplay": null,
+    "reizen": null,
+    "rule": {
+      "branch": "FeedPartner",
+      "candidates": [
+        3,
+        5
+      ],
+      "card": 3,
+      "last": false,
+      "losers": [
+        3,
+        5
+      ],
+      "partner_ahead": true,
+      "table_master": true,
+      "tie_break": "FeedLast",
+      "tie_key": [
+        1,
+        10,
+        0
+      ],
+      "winner": "Vorhand",
+      "winners": []
+    },
+    "step": "Act",
+    "task": "FeedPartner"
+  },
+  "table": {
+    "acting": 0,
+    "assist": {
+      "counting": "Off",
+      "quiz": {
+        "feedback": null,
+        "help": null,
+        "id": null,
+        "question": null
+      },
+      "settings": {
+        "assistance": "AnswerBeforeReveal",
+        "counting_aid": false,
+        "quiz": false,
+        "retrieval": false
+      }
+    },
+    "bid": 18,
+    "bidding": [
+      [
+        0,
+        "Pass"
+      ],
+      [
+        1,
+        {
+          "Bid": 18
+        }
+      ],
+      [
+        2,
+        "Pass"
+      ]
+    ],
+    "can_end_series": false,
+    "can_next_game": false,
+    "cast": {
+      "english": [
+        21,
+        23
+      ],
+      "german": [
+        9,
+        1
+      ]
+    },
+    "coach": {
+      "advice": "None",
+      "analysing": false,
+      "debriefing": null,
+      "help_available": false,
+      "last_move": null,
+      "next_stage": null,
+      "pending": null,
+      "settings": {
+        "focus": null,
+        "level": "OnRequest",
+        "show_figures": false,
+        "warnings": false
+      },
+      "skippable": false
+    },
+    "coach_basis": "OwnView",
+    "config": {
+      "kontra_re": false,
+      "opponents": {
+        "Levels": [
+          "Medium",
+          "Medium"
+        ]
+      },
+      "seed": 0,
+      "series": {
+        "Fixed": 36
+      }
+    },
+    "contract": {
+      "game": {
+        "Farbe": "Herz"
+      },
+      "hand": true,
+      "ouvert": true,
+      "schneider": true,
+      "schwarz": true
+    },
+    "current_trick": [
+      {
+        "card": 7,
+        "player": 2
+      }
+    ],
+    "dealer": 1,
+    "declarer": 1,
+    "declarer_cards": [
+      4,
+      12,
+      23,
+      19,
+      22,
+      21,
+      18,
+      17,
+      16,
+      31
+    ],
+    "game_number": 1,
+    "hand": [
+      28,
+      3,
+      5,
+      15,
+      14,
+      27,
+      29,
+      26,
+      25,
+      24
+    ],
+    "hand_game": true,
+    "kontra": "None",
+    "last_trick": null,
+    "legal_actions": [
+      {
+        "Play": 3
+      },
+      {
+        "Play": 5
+      }
+    ],
+    "open_cards": null,
+    "opponent_to_move": false,
+    "own_skat": null,
+    "phase": "Spiel",
+    "players": [
+      {
+        "cards": 10,
+        "last_call": "Pass",
+        "player": 0,
+        "seat": "Mittelhand",
+        "total": 0,
+        "tricks": 0
+      },
+      {
+        "cards": 10,
+        "last_call": {
+          "Bid": 18
+        },
+        "player": 1,
+        "seat": "Hinterhand",
+        "total": 0,
+        "tricks": 0
+      },
+      {
+        "cards": 9,
+        "last_call": "Pass",
+        "player": 2,
+        "seat": "Vorhand",
+        "total": 0,
+        "tricks": 0
+      }
+    ],
+    "practice": false,
+    "result": null,
+    "series_finished": false,
+    "series_result": null,
+    "sheet": {
+      "records": []
+    },
+    "trick_augen": [
+      0,
+      0,
+      0
+    ],
+    "tricks_played": 0
+  }
+}

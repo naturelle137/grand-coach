@@ -75,3 +75,34 @@ fn suit_early_feed_ignores_hidden_holders_and_requires_exact_input() {
         assert!(lesson(&x).is_none(), "mutation {n}");
     }
 }
+
+#[test]
+fn ouvert_early_feed_admits_consistent_reveal_and_observes_trumping() {
+    let mut c = case();
+    c.ouvert = true;
+    let game = c.position();
+    let view = game.view(Seat::Mittelhand);
+    let guided = lesson(&view).unwrap();
+    assert_eq!(guided.rule.branch, Branch::FeedPartner);
+    assert_eq!(guided.rule.candidates, vec![card(3), card(5)]);
+    assert_eq!(guided.rule.card, card(3));
+    for own in [3, 5] {
+        for reply in [16, 4] {
+            let mut after = game.clone();
+            after.apply(Action::Play(card(own))).unwrap();
+            after.apply(Action::Play(card(reply))).unwrap();
+            assert_eq!(after.tricks()[0].winner, Seat::Hinterhand);
+        }
+    }
+    for edit in [
+        (|v: &mut skat_core::PlayerView| v.declarer_cards = None) as fn(&mut skat_core::PlayerView),
+        |v| v.declarer_cards = Some(v.hand),
+        |v| v.contract.as_mut().unwrap().schwarz = false,
+        |v| v.legal_actions.reverse(),
+        |v| v.current_seat = Some(Seat::Vorhand),
+    ] {
+        let mut bad = view.clone();
+        edit(&mut bad);
+        assert!(lesson(&bad).is_none());
+    }
+}

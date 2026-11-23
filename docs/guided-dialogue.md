@@ -1426,3 +1426,22 @@ the open hand does not change Easy's choice.
 The core-replayed `A-suit` Ouvert fixture checks all five legal cards, including
 Buben as Trumpf, the actual winners, hidden Skat substitution and malformed
 views. These checks do not establish learner efficacy.
+
+## Farbspiel Ouvert defender under partner (#131)
+
+A defender acting second behind the partner may use `UnderPartner` in a
+Farbspiel Ouvert when the declarer's revealed hand and the exact legal cards
+form a consistent view. Easy chooses a current loser by nontrump, fewer Augen,
+and lower power, with the first exact tie. It does not separately examine the
+revealed hand for the follow-class master test. Every legal card stays playable;
+the dialogue observes the actual declarer reply and winner. The core-replayed
+fixture checks both replies, every legal card, a hidden Skat substitution and
+malformed views; the app test exercises the actual continuation. These checks do
+not establish learning efficacy. Easy does not announce Farbspiel Ouvert, so an
+ordinary defender route requires an opponent that can do so.
+
+A Farbspiel Ouvert defender acting second can also use early `FeedPartner`
+when the partner's card is a follow-class master. The same reveal and legal
+view checks apply. A side master may still be trumped by the declarer; the
+core fixture exercises both Herz and Kreuz-Bube replies. The open hand does
+not change the shared Easy rule.
