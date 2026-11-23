@@ -242,9 +242,11 @@ Tiny checked-in fixtures exercise training, model reload and legal inference
 across the recorded phases. Scripted schema tests additionally exercise Hand,
 pickup, discard, immediate Re and Ouvert reveal; they are not strategic
 labels. No production all-phase model or strength measurement is delivered.
-`nn-train validate-labels DIR` now provides independent pre-play label
-validation (rule recomputation from stored views, leak and pair checks) and
-the [pre-play model card](pre-play-model-card.md) records its first small
+`nn-train validate-labels DIR` provides independent pre-play label validation
+(rule recomputation from stored views, leak and pair checks). It also counts
+Kontra opportunities, teacher and Classic rule choices and their overlap;
+agreement alone does not establish playing strength. The
+[pre-play model card](pre-play-model-card.md) records its first small
 result. A first bounded imitation run and behavioural calibration are recorded in
 [ai.md](ai.md#first-all-phase-imitation-run-74): the model is weaker than
 Classic and is not shipped. An improved recipe is measured in
