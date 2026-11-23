@@ -1006,9 +1006,16 @@ fn guided_grand_win_last_widgets_both_roles_any_card_actual_trick_and_fallback_i
 
         // Same game, a later Grand decision outside WinLast: honest fallback.
         enter_grand(&mut h, language, false, None);
-        assert!(h.query_by_label(&i.t("guided-unsupported")).is_some());
-        assert!(h.state().session().guided().unwrap().rule.is_none());
+        let fallback_view = h.state().session().view();
+        let fallback = h.state().session().guided().unwrap();
+        assert_eq!(fallback.step, GuidedStep::Unsupported);
+        assert!(fallback.rule.is_none());
         click(&mut h, &i.t("guided-return"));
+        assert!(h.state().session().guided().is_none());
+        assert_eq!(
+            h.state().session().view().legal_actions,
+            fallback_view.legal_actions
+        );
 
         // Declarer: "I don't know" reveals Easy's HA; the learner plays HA.
         let mut h = grand_app(2);
