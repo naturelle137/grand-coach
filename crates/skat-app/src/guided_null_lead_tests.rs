@@ -6,6 +6,51 @@ use super::*;
 mod null_lead_fixture;
 use null_lead_fixture::{Case, card, cases};
 
+#[test]
+fn later_null_defender_lead_observes_the_actual_second_trick() {
+    for ouvert in [false, true] {
+        let hands = [2214726045, 156542018, 313086496].map(skat_core::CardSet::from_bits);
+        let deal = skat_core::Deal::new(hands, skat_core::CardSet::from_bits(1610612736)).unwrap();
+        let mut s = fixture_session(&cases().remove(0));
+        s.game = skat_core::Game::from_deal(deal, skat_core::RuleConfig { kontra_re: false });
+        s.recording.deal = deal;
+        for action in [
+            Action::Bid(18),
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(skat_core::Announcement {
+                ouvert,
+                ..skat_core::Announcement::plain(NULL)
+            }),
+            Action::Play(card(7)),
+            Action::Play(card(1)),
+            Action::Play(card(5)),
+        ] {
+            s.game.apply(action).unwrap();
+        }
+        for action in s.view().legal_actions {
+            let mut s = s.clone();
+            s.execute(Command::StartGuided).unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+            s.execute(Command::Act(action)).unwrap();
+            for _ in 0..2 {
+                let seat = s.game.current_seat().unwrap();
+                let reply = s.game.view(seat).legal_actions[0];
+                s.apply(reply).unwrap();
+            }
+            let guided = s.guided().unwrap();
+            assert_eq!(guided.step, S::Observe);
+            assert_eq!(guided.lead_replies.len(), 2);
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().observation.unwrap().winner,
+                Some(s.game.tricks()[1].winner)
+            );
+        }
+    }
+}
+
 fn fixture_session(c: &Case) -> Session {
     let mut s = Session::new(SessionConfig {
         opponents: Opponents::Levels([Level::Easy; 2]),
