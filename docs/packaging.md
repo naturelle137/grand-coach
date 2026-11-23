@@ -214,7 +214,7 @@ result; `open` plays an open-table game (all hands shown) for 12 actions;
 `replay` plays one game of a two-game series, saves it to the data directory,
 reopens it and shows it in the read-only recording viewer; `review` does the same, requests
 the post-game recording review and waits for its summary (analysis through the shared
-replay coach, bounded by its time limit); `practice` starts an isolated attempt from the reopened recording; `cards` shows all deck faces. Each saves a native
+replay coach, bounded by its time limit); `practice` starts an isolated attempt from the reopened recording, retries it, checks the unchanged live view after returning, and starts a fresh attempt; `cards` shows all deck faces. Each saves a native
 screenshot; the sixteen must differ and history must stay valid (byte-identical for
 training; played scenarios may record learning observations). These show the real packaged views in both languages; the practice scenario uses the app API rather than clicking the button. They
 do not answer, skip or retry (widget tests cover that).

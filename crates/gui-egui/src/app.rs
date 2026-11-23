@@ -393,17 +393,28 @@ impl GrandCoachApp {
         Ok(())
     }
 
-    /// Packaged smoke: start an isolated attempt from the reopened recording.
+    /// Packaged smoke: exercise retry and return before showing a fresh attempt.
     pub fn smoke_start_practice(&mut self) -> Result<(), String> {
         let recording = self
             .recording
             .smoke_recording()
             .ok_or("no open recording")?;
-        self.start_practice(recording)
+        let live = self.session.view();
+        self.start_practice(recording.clone())
             .map_err(|e| format!("{e:?}"))?;
         if !self.session.view().practice {
             return Err("practice did not start".into());
         }
+        self.restart_practice();
+        if self.practice_attempt() != Some(2) || !self.session.view().practice {
+            return Err("practice retry did not start".into());
+        }
+        self.return_to_series();
+        if self.session.view() != live || self.practice.is_some() {
+            return Err("practice return changed the live series".into());
+        }
+        self.start_practice(recording)
+            .map_err(|e| format!("{e:?}"))?;
         Ok(())
     }
 
@@ -3235,6 +3246,7 @@ mod tests {
         app.recording.start_replay(recording);
         app.smoke_start_practice().unwrap();
         assert!(app.session.view().practice);
+        assert_eq!(app.practice_attempt(), Some(1));
         assert!(!app.recording.active());
         app.return_to_series();
         assert_eq!(app.session.view(), before);
