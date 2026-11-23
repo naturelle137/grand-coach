@@ -18,26 +18,61 @@ use support::*;
 #[ignore = "slow: CI only (docs/testing.md)"]
 fn null_ouvert_last_ordinary_widgets() {
     for language in Language::ALL {
-        let config = SessionConfig {
-            seed: 6,
-            series: SeriesLength::Fixed(3),
-            opponents: Opponents::Levels([Level::Easy; 2]),
-            ..SessionConfig::default()
-        };
-        let mut h = Harness::builder()
-            .with_size([1440.0, 1000.0])
-            .build_eframe(move |cc| GrandCoachApp::new(&cc.egui_ctx, config));
-        enter_null_with_ouvert(&mut h, language, true);
-        let i = I18n::new(language);
-        assert!(h.state().session().view().contract.unwrap().ouvert);
-        click(&mut h, &i.t("guided-reveal"));
-        h.get_by_label(&i.t("guided-rule-null"));
-        h.state_mut().opponent_delay = 1000.0;
-        click(&mut h, &card_name(&i, Card::from_index(16).unwrap()));
-        assert_eq!(
-            h.state().session().guided().unwrap().step,
-            GuidedStep::Observe
-        );
+        for n in [16, 18, 20] {
+            let config = SessionConfig {
+                seed: 6,
+                series: SeriesLength::Fixed(3),
+                opponents: Opponents::Levels([Level::Easy; 2]),
+                ..SessionConfig::default()
+            };
+            let mut h = Harness::builder()
+                .with_size([1440.0, 1000.0])
+                .build_eframe(move |cc| GrandCoachApp::new(&cc.egui_ctx, config));
+            enter_null_with_ouvert(&mut h, language, true);
+            let i = I18n::new(language);
+            assert!(h.state().session().view().contract.unwrap().ouvert);
+            click(&mut h, &i.t("guided-reveal"));
+            h.get_by_label(&i.t("guided-rule-null"));
+            for action in &h.state().session().view().legal_actions {
+                let Action::Play(card) = action else {
+                    panic!("card")
+                };
+                assert!(
+                    !h.get_by_role_and_label(Role::Button, &card_name(&i, *card))
+                        .accesskit_node()
+                        .is_disabled()
+                );
+            }
+            h.state_mut().opponent_delay = 1000.0;
+            click(&mut h, &card_name(&i, Card::from_index(n).unwrap()));
+            assert_eq!(
+                h.state().session().guided().unwrap().step,
+                GuidedStep::Observe
+            );
+            click(&mut h, &i.t("guided-void-no"));
+            h.get_by_label(&i.tf(
+                "guided-winner",
+                &[("seat", seat_name(&i, Seat::Vorhand).into())],
+            ));
+            if n == 16
+                && let Ok(dir) = std::env::var("NULL_OUVERT_LAST_SCREENSHOTS")
+            {
+                h.render()
+                    .unwrap()
+                    .save(format!("{dir}/null-ouvert-last-observe-{language:?}.png"))
+                    .unwrap();
+            }
+            let observation = h.state().session().guided().unwrap().observation.unwrap();
+            assert_eq!(observation.winner, Some(Seat::Vorhand));
+            assert_eq!(
+                h.state().session().view().last_trick.unwrap().cards[2]
+                    .card
+                    .index(),
+                n
+            );
+            click(&mut h, &i.t("guided-return"));
+            assert!(h.state().session().guided().is_none());
+        }
     }
 }
 
