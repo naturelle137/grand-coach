@@ -81,7 +81,7 @@ level choices in the matching language. The four screenshot hashes per
 platform differ and the history stayed valid. No defect was observed. This is
 CI-server rendering at 1280 × 820 (Linux) and 1024 × 768 (Windows), not
 interactive play, native Windows 11 or hardware-accelerated evidence;
-answering, skipping and retrying remain widget-test coverage.
+that historical run did not exercise answers, skips or retries. The current smoke driver also exercises a counting-training answer, assisted retry, skip, next and return through the training controller, checks the live view and persisted history, then opens the topic choice; it does not click the widgets. Fresh package runs are needed to establish platform evidence for this extension.
 
 Packaged series, open-table and recording-viewer smoke (2026-11-19, workflow
 [RC packages run 44584249665](https://github.com/naturelle137/grand-coach/actions/runs/44584249665),

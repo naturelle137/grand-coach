@@ -121,6 +121,36 @@ impl TrainingUi {
         self.run(None, learning);
     }
 
+    pub(crate) fn smoke_exercise(&mut self, learning: &mut LearningUi) -> Result<(), &'static str> {
+        self.enter();
+        self.start(TrainingTopic::TrumpfOutside, learning);
+        self.run(Some(TrainingCommand::Answer(2)), learning);
+        if self.view().and_then(|v| v.feedback).map(|f| f.outcome)
+            != Some(skat_app::QuizOutcome::Correct)
+        {
+            return Err("training answer failed");
+        }
+        self.run(Some(TrainingCommand::Retry), learning);
+        self.run(Some(TrainingCommand::Help), learning);
+        self.run(Some(TrainingCommand::Skip), learning);
+        if !self.view().is_some_and(|v| {
+            v.assisted
+                && v.feedback
+                    .is_some_and(|f| f.outcome == skat_app::QuizOutcome::Skipped)
+        }) {
+            return Err("training retry or assisted skip failed");
+        }
+        self.run(Some(TrainingCommand::Next), learning);
+        if !self
+            .view()
+            .is_some_and(|v| v.position.0 == 2 && v.feedback.is_none())
+        {
+            return Err("training next failed");
+        }
+        self.exit();
+        Ok(())
+    }
+
     /// Draws the screen in place of the table.
     pub(crate) fn screen(
         &mut self,

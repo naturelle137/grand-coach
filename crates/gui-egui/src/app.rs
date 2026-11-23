@@ -326,6 +326,21 @@ impl GrandCoachApp {
         }
     }
 
+    /// Exercise a counting-training lifecycle in the packaged executable.
+    pub fn smoke_training(&mut self) -> Result<(), &'static str> {
+        let live = self.session.view();
+        let events = self.learning.history().events().len();
+        self.training.smoke_exercise(&mut self.learning)?;
+        if self.session.view() != live
+            || self.training.active()
+            || self.learning.history().events().len() <= events
+        {
+            return Err("training did not preserve the live game or record its events");
+        }
+        self.open_training();
+        Ok(())
+    }
+
     /// Prepared validation launch opens confirmation without presenting a task.
     pub fn prepare_validation(&mut self) {
         if !self.recording.active() && self.new_series.is_none() {
@@ -3250,6 +3265,16 @@ mod tests {
         assert!(!app.recording.active());
         app.return_to_series();
         assert_eq!(app.session.view(), before);
+    }
+
+    #[test]
+    fn packaged_training_records_events_and_preserves_series() {
+        let mut app = GrandCoachApp::new(&egui::Context::default(), easy_series());
+        let before = app.session.view();
+        app.smoke_training().unwrap();
+        assert_eq!(app.session.view(), before);
+        assert!(app.training_active());
+        assert!(app.learning.history().events().len() >= 5);
     }
 
     #[test]
