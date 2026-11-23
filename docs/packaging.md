@@ -81,7 +81,7 @@ level choices in the matching language. The four screenshot hashes per
 platform differ and the history stayed valid. No defect was observed. This is
 CI-server rendering at 1280 × 820 (Linux) and 1024 × 768 (Windows), not
 interactive play, native Windows 11 or hardware-accelerated evidence;
-answering, skipping and retrying remain widget-test coverage.
+that historical run did not exercise answers, skips or retries. The current smoke driver also exercises a counting-training answer, assisted retry, skip, next and return through the training controller, checks the live view and persisted history, then opens the topic choice; it does not click the widgets. Fresh package runs are needed to establish platform evidence for this extension.
 
 Packaged series, open-table and recording-viewer smoke (2026-11-19, workflow
 [RC packages run 44584249665](https://github.com/naturelle137/grand-coach/actions/runs/44584249665),
@@ -214,7 +214,7 @@ result; `open` plays an open-table game (all hands shown) for 12 actions;
 `replay` plays one game of a two-game series, saves it to the data directory,
 reopens it and shows it in the read-only recording viewer; `review` does the same, requests
 the post-game recording review and waits for its summary (analysis through the shared
-replay coach, bounded by its time limit); `practice` starts an isolated attempt from the reopened recording; `cards` shows all deck faces. Each saves a native
+replay coach, bounded by its time limit); `practice` starts an isolated attempt from the reopened recording, retries it, checks the unchanged live view after returning, and starts a fresh attempt; `cards` shows all deck faces. Each saves a native
 screenshot; the sixteen must differ and history must stay valid (byte-identical for
 training; played scenarios may record learning observations). These show the real packaged views in both languages; the practice scenario uses the app API rather than clicking the button. They
 do not answer, skip or retry (widget tests cover that).

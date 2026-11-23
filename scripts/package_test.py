@@ -160,6 +160,8 @@ class PackageTests(unittest.TestCase):
                     else:
                         screenshot = Path(kwargs["env"]["GRAND_COACH_SCREENSHOT"])
                         screenshot.write_bytes(b"P6\n" + screenshot.name.encode() + b"x" * 100000)
+                        if kwargs["env"].get("GRAND_COACH_SMOKE_SCENARIO") == "training":
+                            (Path(kwargs["env"]["GRAND_COACH_DATA"]) / "learning-history.json").write_bytes(b"training history")
                 with patch.object(package.platform, "platform", return_value="test"), \
                      patch.object(package, "verify", return_value=(manifest, files)), \
                      patch.object(package, "block_windows_network", side_effect=block), \

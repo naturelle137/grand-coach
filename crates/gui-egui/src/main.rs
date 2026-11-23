@@ -213,7 +213,7 @@ fn main() -> eframe::Result {
             if std::env::var("GRAND_COACH_VALIDATION").as_deref() == Ok("1") {
                 app.prepare_validation();
             } else if smoke && scenario.as_deref() == Some("training") {
-                app.open_training();
+                app.smoke_training().map_err(|e| e.to_string())?;
             } else if !package_neural && !smoke {
                 app.show_new_series();
             }
