@@ -386,6 +386,8 @@ pub struct LabelReport {
     /// Kontra opportunities: (total, teacher says Kontra, rule says Kontra,
     /// both say Kontra). Each opportunity is counted once.
     pub kontra: (u64, u64, u64, u64),
+    /// Teacher choices and opportunities for each pre-play category.
+    pub categories: [(u64, u64); 6],
 }
 
 /// Independent pre-play label validation (#74): every complete shard passes
@@ -412,6 +414,20 @@ pub fn check_labels(records: &[DecisionRecord], out: &mut LabelReport) {
     use skat_core::{Action, Phase};
     for r in records {
         let kind = DecisionKind::of(&r.view);
+        let chosen = crate::train::preplay_categories(r.action);
+        let mut available = [false; 6];
+        for &action in &r.view.legal_actions {
+            for (a, category) in available
+                .iter_mut()
+                .zip(crate::train::preplay_categories(action))
+            {
+                *a |= category;
+            }
+        }
+        for ((counts, chosen), available) in out.categories.iter_mut().zip(chosen).zip(available) {
+            counts.0 += u64::from(chosen);
+            counts.1 += u64::from(available);
+        }
         if r.view.result.is_some() {
             out.leaks += 1;
         }
@@ -731,6 +747,14 @@ mod replay_tests {
         assert!(labels > 0);
         assert!(report.kinds.values().all(|k| k.0 == k.1 + k.2));
         assert_eq!((report.leaks, report.bad_pairs), (0, 0));
+        for (chosen, available) in report.categories {
+            assert!(chosen <= available);
+        }
+        let pass = rows
+            .iter()
+            .filter(|r| r.action == skat_core::Action::Pass)
+            .count() as u64;
+        assert_eq!(report.categories[0].0, pass);
         // A discard that is not a pair of the twelve cards is flagged.
         let i = rows
             .iter()

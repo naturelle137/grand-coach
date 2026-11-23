@@ -223,7 +223,7 @@ policy loss of all rows other than plain card play; `--rare-weight R`
 additionally scales rows with a rare teacher choice (Hand, Null, Schneider/
 Schwarz/Ouvert; [measured](ai.md#rare-pre-play-classes-and-the-learned-kontrare-head-74));
 `evaluate` prints the
-teacher agreement per phase. Results: [ai.md](ai.md#improved-imitation-recipe-74).
+teacher agreement per phase and exact-action agreement within each teacher category. Results: [ai.md](ai.md#improved-imitation-recipe-74).
 
 The recipe records the opt-in and all five phase bits; cache keys separate
 both modes, resumed runs reject a changed recipe, and exported models carry
@@ -244,7 +244,8 @@ pickup, discard, immediate Re and Ouvert reveal; they are not strategic
 labels. No production all-phase model or strength measurement is delivered.
 `nn-train validate-labels DIR` provides independent pre-play label validation
 (rule recomputation from stored views, leak and pair checks). It also counts
-Kontra opportunities, teacher and Classic rule choices and their overlap;
+Kontra opportunities, teacher and Classic rule choices and their overlap. It also
+counts teacher choices and legal opportunities for each pre-play category;
 agreement alone does not establish playing strength. The
 [pre-play model card](pre-play-model-card.md) records its first small
 result. A first bounded imitation run and behavioural calibration are recorded in

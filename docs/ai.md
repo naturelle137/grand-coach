@@ -616,7 +616,8 @@ All-phase `evaluate` also reports teacher and greedy-model counts for Pass,
 Hand, Null, Schneider/Schwarz/Ouvert announcements, Kontra and Re on the same held-out
 views. The report also counts positions where both choices fall in each category;
 this need not mean the exact actions match. The available count gives positions
-where at least one legal action belongs to the category; it is a per-position
+where at least one legal action belongs to the category; exact counts additionally
+require the same action on teacher-category positions. It is a per-position
 denominator, even when several legal actions match. Categories may overlap.
 These counts are conditional on teacher-generated views, not complete-game rates, and do not
 establish playing strength.
@@ -628,7 +629,9 @@ self-play deals (seed 393100, two CPUs): 4,161 records in 602 s, with one
 incomplete analysis. Replay and label validation passed without view leaks or
 illegal pairs. Of 112 Kontra opportunities, the teacher and the current
 Classic rule each chose Kontra six times, always on the same views. This
-small sample checks the change in teacher behaviour, not its quality.
+small sample checks the change in teacher behaviour, not its quality. The
+category audit counts one Hand choice in 99 opportunities, no Null or extended
+announcements in 98 opportunities each, and one Re in six opportunities.
 
 A six-epoch 4×384 all-phase model trained only on these deals (`W=4`, `R=2`,
 seed 0; SHA-256 `0a2c5844069b8900213887951c0b9f98b571d79abb87564bdfc427d22a026a32`)
