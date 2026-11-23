@@ -182,3 +182,51 @@ fn ouvert_feed_requires_consistent_reveal_and_acting_view() {
     bad.contract.as_mut().unwrap().schwarz = false;
     assert!(lesson(&bad).is_none());
 }
+
+#[test]
+fn suit_ouvert_last_defender_feed_checks_reveal_and_every_legal_card() {
+    let mut c = cases().into_iter().find(|c| c.id == "A-suit").unwrap();
+    c.ouvert = true;
+    let g = c.position();
+    let v = g.view(Seat::Hinterhand);
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule.branch, Branch::FeedPartner);
+    assert_eq!(l.rule.card, card(7));
+    assert_eq!(
+        l.rule.candidates,
+        vec![card(1), card(2), card(7), card(12), card(20)]
+    );
+    for (&n, &winner) in c.legal.iter().zip(c.completed) {
+        assert!(l.check(Step::Narrow, Answer::Card(card(n))));
+        let mut next = g.clone();
+        next.apply(Action::Play(card(n))).unwrap();
+        assert_eq!(next.tricks().last().unwrap().winner.index(), winner);
+    }
+    std::mem::swap(&mut c.hands[1][1], &mut c.skat[0]);
+    let same = c.position().view(Seat::Hinterhand);
+    assert_eq!(v, same);
+    assert_eq!(lesson(&v), lesson(&same));
+    let mut declarer_ahead = cases().into_iter().find(|c| c.id == "A-suit").unwrap();
+    declarer_ahead.ouvert = true;
+    declarer_ahead.hands[0][0] = 7;
+    declarer_ahead.hands[2][2] = 0;
+    declarer_ahead.plays = &[7, 3];
+    assert_eq!(
+        lesson(&declarer_ahead.position().view(Seat::Hinterhand))
+            .unwrap()
+            .rule
+            .branch,
+        Branch::WinLast
+    );
+    for edit in [
+        (|v: &mut skat_core::PlayerView| v.declarer_cards = None) as fn(&mut skat_core::PlayerView),
+        |v| v.declarer_cards = Some(v.hand),
+        |v| v.legal_actions.pop().map(|_| ()).unwrap(),
+        |v| v.current_seat = Some(Seat::Mittelhand),
+        |v| v.contract.as_mut().unwrap().schwarz = false,
+    ] {
+        let mut bad = v.clone();
+        edit(&mut bad);
+        assert!(lesson(&bad).is_none());
+    }
+}

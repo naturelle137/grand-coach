@@ -76,7 +76,7 @@ fn content(
         GuidedStep::Orient | GuidedStep::Check | GuidedStep::Narrow | GuidedStep::Act
     ) && table.contract.is_some_and(|c| {
         c.game == GameType::Grand
-            || (!c.ouvert && matches!(c.game, GameType::Farbe(_)) && g.feed_partner.is_some())
+            || (matches!(c.game, GameType::Farbe(_)) && g.feed_partner.is_some())
     }) && table.current_trick.len() == 2
         && table.declarer != Some(skat_app::PlayerId::HUMAN)
         && let Some(partner) = table
@@ -89,12 +89,12 @@ fn content(
             &[("seat", text::seat(i, partner.seat).into())],
         ));
     }
-    if table
-        .contract
-        .is_some_and(|c| c.ouvert && c.game == GameType::Grand)
-        && g.rule
-            .as_ref()
-            .is_some_and(|rule| rule.branch == GuidedBranch::FeedPartner)
+    if table.contract.is_some_and(|c| {
+        c.ouvert && (c.game == GameType::Grand || matches!(c.game, GameType::Farbe(_)))
+    }) && g
+        .rule
+        .as_ref()
+        .is_some_and(|rule| rule.branch == GuidedBranch::FeedPartner)
         && g.step == GuidedStep::Act
     {
         ui.label(i.t("guided-feed-ouvert-view"));
