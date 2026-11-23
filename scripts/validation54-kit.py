@@ -40,7 +40,7 @@ def prepare(archive, out):
         raise ValueError("destination must be outside the source repository")
     if inside_git_worktree(out.resolve()):
         raise ValueError("destination must be outside Git worktrees")
-    if any(c in str(out) for c in '\n\r"`$%') or (os.name != "nt" and "\\" in str(out)):
+    if any(ord(c) < 32 or ord(c) == 127 or c in '"`$%' for c in str(out)) or (os.name != "nt" and "\\" in str(out)):
         raise ValueError("unsupported launcher path")
     raw = subprocess.check_output([
         "cargo", "run", "--locked", "--offline", "--quiet", "-p", "skat-app",

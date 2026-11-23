@@ -172,6 +172,19 @@ class KitTests(unittest.TestCase):
                     kit.prepare(archive, out)
             self.assertFalse(out.exists())
 
+    @unittest.skipIf(os.name == "nt", "Windows does not permit control characters in paths")
+    def test_refuses_control_characters_in_launcher_path_before_installation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "archive"
+            archive.write_bytes(b"archive")
+            with patch.object(package, "run", side_effect=self.run_identity), \
+                 patch.object(package, "verify", return_value=(self.manifest, {})):
+                for char in ("\t", "\x1b", "\x7f"):
+                    out = Path(directory) / ("kit" + char + "name")
+                    with self.subTest(char=char), self.assertRaisesRegex(ValueError, "unsupported launcher path"):
+                        kit.prepare(archive, out)
+                    self.assertFalse(out.exists())
+
     def test_wrong_source_and_dirty_source_fail_before_installation(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "kit"
@@ -223,6 +236,38 @@ class KitTests(unittest.TestCase):
                  patch.object(Path, "is_symlink", lambda path: local_marker(path, is_symlink)):
                 self.assertFalse(inside_git_worktree(other / "nested/kit"))
                 self.check_other_worktree_markers(archive, other, alias)
+
+    def test_refuses_real_git_worktrees_and_allows_untracked_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repo, linked, private = (root / name for name in ("repo", "linked", "private"))
+            archive = root / "archive"
+            archive.write_bytes(b"archive")
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            subprocess.run(["git", "-C", str(repo), "-c", "user.name=Test",
+                            "-c", "user.email=test@example.invalid", "commit", "-q",
+                            "--allow-empty", "-m", "fixture"], check=True)
+            subprocess.run(["git", "-C", str(repo), "worktree", "add", "-q",
+                            "-b", "fixture", str(linked)], check=True)
+            alias = root / "alias"
+            alias.symlink_to(linked, target_is_directory=True)
+            exists, is_symlink = Path.exists, Path.is_symlink
+
+            def local_marker(path, check):
+                return check(path) if path.name != ".git" or path.is_relative_to(root) else False
+
+            with patch.object(Path, "exists", lambda path: local_marker(path, exists)), \
+                 patch.object(Path, "is_symlink", lambda path: local_marker(path, is_symlink)), \
+                 patch.object(kit, "inside_git_worktree", wraps=inside_git_worktree), \
+                 patch.object(package, "run", side_effect=self.run_identity), \
+                 patch.object(package, "verify", return_value=(self.manifest, {})):
+                self.assertFalse(inside_git_worktree(private / "kit"))
+                for out in (repo / "nested/kit", linked / "nested/kit", alias / "nested/kit"):
+                    with self.subTest(out=out):
+                        self.assertTrue(inside_git_worktree(out.resolve()))
+                        with self.assertRaisesRegex(ValueError, "outside Git worktrees"):
+                            kit.prepare(archive, out)
+                        self.assertFalse(out.exists())
 
     def check_other_worktree_markers(self, archive, other, alias):
             for marker_is_file in (False, True):

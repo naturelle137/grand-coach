@@ -44,8 +44,8 @@ separate factual oracles.
   pickup information. In Farbspiel, all four Buben and the announced suit are
   Trumpf. A side master can be trumped; a lower Trumpf can be overtrumped.
   Unknown holders stay unknown.
-- **FeedPartner:** Grand, including a validated last-seat Grand Ouvert defender (#316), or
-  [Farbspiel](#farbspiel-last-seat-feedpartner-185) (#185), defender last to
+- **FeedPartner:** Grand or [Farbspiel](#farbspiel-last-seat-feedpartner-185), including validated
+  [Ouvert Farbspiel defenders](#farbspiel-ouvert-last-seat-feedpartner-131), defender last to
   the current trick, partner ahead, at least two pure legal card actions.
 - **LeadMaster:** non-Ouvert Grand (#171) and [Farbspiel](#farbspiel-lead-with-a-follow-class-master-182) (#182), own empty-trick
   lead, both roles where the actual shared branch permits it, at least two
@@ -1397,3 +1397,32 @@ and the actual declarer reply and winner are observed. Other Ouvert branches
 remain outside this increment. The core fixture covers hidden Skat swaps,
 reveal and legal-action boundaries, and all legal choices; the app exercises
 attempt, reveal and actual continuation. No learner efficacy is inferred.
+
+## Later Null defender leads (#131)
+
+After a defender wins a completed trick in Null or Null Ouvert, the same
+empty-table dialogue can explain the next lead. It uses the shared Easy cost
+ordering and actual legal cards; the completed trick identifies the leader.
+In Ouvert, the declarer's remaining revealed cards must match the public hand
+size and exclude the defender's hand and played cards. Both replies and the
+actual winner are observed; no unseen hand, winning strategy or learning
+outcome is inferred. Other unsupported turns retain the existing fallback.
+
+`defender_later_lead_uses_completed_trick_and_exact_actions` covers legal
+closed and Ouvert positions and malformed views. The app test
+`later_null_defender_lead_observes_the_actual_second_trick` exercises every
+legal lead and the actual subsequent winner.
+
+## Farbspiel Ouvert last-seat FeedPartner (#131)
+
+A defender acting last with partner ahead can use the existing `FeedPartner`
+dialogue when the revealed declarer hand has the public size and excludes the
+own hand and played cards. The Hand, Schneider and Schwarz contract and exact
+legal action list are required. Easy considers all legal cards, preferring
+nontrump and then more Augen; the last exact tie wins. Every legal card remains
+playable, including cards that overtake partner. The actual winner is reported;
+the open hand does not change Easy's choice.
+
+The core-replayed `A-suit` Ouvert fixture checks all five legal cards, including
+Buben as Trumpf, the actual winners, hidden Skat substitution and malformed
+views. These checks do not establish learner efficacy.

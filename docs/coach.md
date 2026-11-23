@@ -274,7 +274,8 @@ It takes maximum Augen, last exact legal-order tie, with no trick guarantee.
 replies and the completed individual winner. The declarer's own empty-trick
 `DrawTrumpf` lead (#175) is also admitted, see
 [its scope](guided-dialogue.md#grand-declarer-drawtrumpf-lead-175).
-Non-Ouvert Farbspiel also admits last-seat defender `FeedPartner` (#185),
+Farbspiel also admits last-seat defender `FeedPartner` (#185), including a
+validated [Ouvert view](guided-dialogue.md#farbspiel-ouvert-last-seat-feedpartner-131),
 with the partner currently ahead, exact ordered pure core-legal actions and
 consistent turn/leader and Hand/pickup information. This family uses the
 permitted view, including original-decision estimates, even in God Mode.
