@@ -395,7 +395,12 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     // Only the new Farbspiel WinEarly family uses this strict admission.
     // Preserve the existing families and their shared branch precedence.
     let suit_early = matches!(game, GameType::Farbe(_))
-        && !contract.ouvert
+        && (!contract.ouvert
+            || (view.declarer == Some(view.seat)
+                && contract.hand
+                && contract.schneider
+                && contract.schwarz
+                && view.declarer_cards == Some(view.hand)))
         && view.current_seat == Some(view.seat)
         && view.current_trick.cards[0].is_some()
         && view.current_trick.cards[1..] == [None, None]
