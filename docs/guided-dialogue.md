@@ -1372,7 +1372,7 @@ efficacy or complete #131.
 
 ## Ouvert Farbspiel declarer acting second (#317)
 
-The shared Farbspiel `WinEarly` dialogue also admits the Ouvert declarer acting second after a matching hand reveal in a valid Hand/Schneider/Schwarz contract. The exact legal action list and existing rule guards remain required. Every legal card remains playable; the actual remaining card and trick winner are observed. The revealed hand is already the declarer’s own hand, and unknown defender cards remain unknown. This technical scope does not establish learning efficacy.
+The shared Farbspiel `WinEarly` dialogue also admits the Ouvert declarer acting second after a matching hand reveal in a valid Hand/Schneider/Schwarz contract. The exact legal action list and existing rule guards remain required. Every legal card remains playable; the actual remaining card and trick winner are observed. The revealed hand is already the declarer’s own hand, and unknown defender cards remain unknown. This technical scope does not establish learning efficacy. The bilingual `suit_ouvert_walkthrough` egui test reaches a real Ouvert Hand game through ordinary widgets, reveals the rule, plays a legal card and displays the actual reply and winner. Set `SUIT_OUVERT_WALKTHROUGH` to an existing directory to save the inspected rule and observation screenshots.
 
 ## Farbspiel Ouvert declarer playing last (#318)
 
