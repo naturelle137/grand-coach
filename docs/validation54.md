@@ -75,4 +75,5 @@ another path if the builder rejects it.
 The [immutable manifest](validation54-tasks.json) contains hashes/identities,
 not answers or views. Its mechanical hashes pin positions; handwritten facts
 and independent legal witnesses supply the correctness oracle. The builder
-refuses a changed hash, dirty/wrong source or an existing destination.
+verifies and hashes the same archive snapshot and refuses a changed task hash,
+dirty/wrong source or an existing destination.

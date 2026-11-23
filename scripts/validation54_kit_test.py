@@ -43,12 +43,16 @@ class KitTests(unittest.TestCase):
             out = Path(directory) / "private kit"
             original_write = kit.write_new
 
+            def verify_snapshot(path, data):
+                path.write_bytes(b"replacement archive")
+                return self.manifest, {"grand-coach": b"binary"}
+
             def private_write(path, data):
                 self.assertEqual(stat.S_IMODE(out.stat().st_mode), 0o700)
                 original_write(path, data)
 
             with patch.object(package, "run", side_effect=self.run_identity), \
-                 patch.object(package, "verify", return_value=(self.manifest, {"grand-coach": b"binary"})), \
+                 patch.object(package, "verify", side_effect=verify_snapshot), \
                  patch.object(kit.subprocess, "check_output", return_value=json.dumps(self.positions).encode()), \
                  patch.object(kit, "write_new", side_effect=private_write), \
                  patch.object(kit, "registered_tasks", return_value=[{
@@ -62,6 +66,7 @@ class KitTests(unittest.TestCase):
                 finally:
                     os.umask(previous_umask)
                 self.assertEqual(len(result["tasks"]), 8)
+                self.assertEqual(result["archive_sha256"], package.digest(b"verified archive"))
                 self.assertNotIn("position", result["tasks"][0])
                 expected = package.digest(json.dumps(self.positions[0]["position"], sort_keys=True,
                                                       separators=(",", ":"), ensure_ascii=False).encode())
@@ -81,11 +86,13 @@ class KitTests(unittest.TestCase):
     def test_changed_reserved_position_fails_before_installation(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "kit"
+            archive = Path(directory) / "archive"
+            archive.write_bytes(b"archive")
             with patch.object(package, "run", side_effect=self.run_identity), \
                  patch.object(package, "verify", return_value=(self.manifest, {})), \
                  patch.object(kit.subprocess, "check_output", return_value=json.dumps(self.positions).encode()):
                 with self.assertRaisesRegex(ValueError, "identity/hash changed"):
-                    kit.prepare(Path("unused"), out)
+                    kit.prepare(archive, out)
             self.assertFalse(out.exists())
 
     def test_windows_launcher_uses_its_own_directory(self):
@@ -136,11 +143,13 @@ class KitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             out = root / "kit"
+            archive = root / "archive"
+            archive.write_bytes(b"archive")
             target = root / "missing"
             out.symlink_to(target, target_is_directory=True)
             with patch.object(package, "run", side_effect=self.run_identity), \
                  patch.object(package, "verify", return_value=(self.manifest, {})), \
-                 patch.object(sys, "argv", ["validation54-kit.py", "--archive", str(root / "archive"),
+                 patch.object(sys, "argv", ["validation54-kit.py", "--archive", str(archive),
                                             "--out", str(out)]):
                 with self.assertRaisesRegex(ValueError, "destination already exists"):
                     kit.main()
@@ -151,20 +160,24 @@ class KitTests(unittest.TestCase):
     def test_refuses_backslash_in_launcher_path_before_installation(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "kit\\name"
+            archive = Path(directory) / "archive"
+            archive.write_bytes(b"archive")
             with patch.object(package, "run", side_effect=self.run_identity), \
                  patch.object(package, "verify", return_value=(self.manifest, {})):
                 with self.assertRaisesRegex(ValueError, "unsupported launcher path"):
-                    kit.prepare(Path("unused"), out)
+                    kit.prepare(archive, out)
             self.assertFalse(out.exists())
 
     def test_wrong_source_and_dirty_source_fail_before_installation(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "kit"
+            archive = Path(directory) / "archive"
+            archive.write_bytes(b"archive")
             wrong = dict(self.manifest, commit="other")
             with patch.object(package, "run", side_effect=self.run_identity), \
                  patch.object(package, "verify", return_value=(wrong, {})):
                 with self.assertRaisesRegex(ValueError, "commit mismatch"):
-                    kit.prepare(Path("unused"), out)
+                    kit.prepare(archive, out)
             self.assertFalse(out.exists())
             with patch.object(package, "run", side_effect=["c" * 40, "dirty"]):
                 with self.assertRaisesRegex(ValueError, "clean committed"):
