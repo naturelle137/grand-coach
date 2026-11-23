@@ -102,3 +102,20 @@ scored -16.99 points per seat-game with the existing Kontra rule and -22.09
 with learned Kontra/Re. See [the experiment](ai.md#lower-rare-class-weight-experiment-74)
 for denominators, behavioural rates and limitations. The source Kontra labels
 remain extreme, and neither model is established as suitable for integration.
+
+### Synthetic announcement positions
+
+`cargo run --locked -p nn-train --example rare_positions -- 7 100` emits
+JSONL diagnostic positions, not training shards or teacher labels. Easy plays
+bidding, Hand is forced, and every legal non-Ouvert Schneider or Schwarz
+announcement is emitted as a synthetic candidate. The prefix and run seed
+allow replay; only the `view` is a permitted model input. Candidates are not
+quality judgements and must not be used as imitation targets without an
+independently evaluated teacher. The deal-derived split groups all candidates
+for one deal.
+
+For seed 7 and 100 attempted deals, all 100 reached announcement. Each of
+Schneider (without Schwarz) and Schwarz had 385 train, 50 validation and 65
+test candidates. These count candidate actions, not distinct deals or good
+announcements. The example test reconstructs each view and checks legality
+and split assignment; it does not validate playing strength.
