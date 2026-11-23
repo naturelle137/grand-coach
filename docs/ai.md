@@ -620,3 +620,23 @@ where at least one legal action belongs to the category; it is a per-position
 denominator, even when several legal actions match. Categories may overlap.
 These counts are conditional on teacher-generated views, not complete-game rates, and do not
 establish playing strength.
+
+#### Current Strong teacher pilot (#74)
+
+On 2026-11-22, the generator at `814cee30e1e9` produced 100 Strong
+self-play deals (seed 393100, two CPUs): 4,161 records in 602 s, with one
+incomplete analysis. Replay and label validation passed without view leaks or
+illegal pairs. Of 112 Kontra opportunities, the teacher and the current
+Classic rule each chose Kontra six times, always on the same views. This
+small sample checks the change in teacher behaviour, not its quality.
+
+A six-epoch 4×384 all-phase model trained only on these deals (`W=4`, `R=2`,
+seed 0; SHA-256 `0a2c5844069b8900213887951c0b9f98b571d79abb87564bdfc427d22a026a32`)
+had 3,335 training and 447 test decisions. On the deal-separated test set,
+Drücken agreement was 0/11, Ansage 0/11 and Kontra 4/14; no Re opportunity
+was present. There were no teacher Hand, Null or announced Schneider/Schwarz/
+Ouvert examples in the 11 available test positions. These tiny denominators
+do not establish class performance; the candidate is unsuitable for
+integration and no full-game strength is claimed. Classic fallback and the
+outcome-label postponement remain. Job 3931 retains the data and model in its
+scratch directory.
