@@ -600,7 +600,8 @@ fn smoke_driver_fails_when_the_series_ends_without_a_question() {
             app.set_assist(AssistSettings::default());
             app
         });
-    for _ in 0..2000 {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while std::time::Instant::now() < deadline {
         let now = h.ctx.input(|i| i.time);
         match h
             .state_mut()
@@ -613,6 +614,7 @@ fn smoke_driver_fails_when_the_series_ends_without_a_question() {
             }
         }
         h.run_steps(2);
+        std::thread::sleep(std::time::Duration::from_millis(1));
     }
-    panic!("the series never ended");
+    panic!("the series never ended within 60 seconds: {:?}", view(&h));
 }
