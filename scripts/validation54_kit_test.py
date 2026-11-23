@@ -18,10 +18,14 @@ import package
 SPEC = importlib.util.spec_from_file_location("kit", Path(__file__).with_name("validation54-kit.py"))
 kit = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(kit)
+inside_git_worktree = kit.inside_git_worktree
 
 
 class KitTests(unittest.TestCase):
     def setUp(self):
+        worktree_check = patch.object(kit, "inside_git_worktree", return_value=False)
+        self.addCleanup(worktree_check.stop)
+        worktree_check.start()
         self.manifest = {"commit": "c" * 40, "binary": "grand-coach", "files": {"grand-coach": package.digest(b"binary")}}
         self.positions = [{"id": f"validation54.{s}.{f}", "version": 1, "set": s,
                            "position": {"view": {"test": f}, "question": "test"}}
@@ -200,6 +204,45 @@ class KitTests(unittest.TestCase):
                     with self.subTest(out=out), self.assertRaisesRegex(ValueError, "outside the source repository"):
                         kit.prepare(archive, out)
                     self.assertFalse(out.exists())
+
+    def test_refuses_other_git_worktrees_before_installation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "archive"
+            archive.write_bytes(b"archive")
+            other = root / "other"
+            other.mkdir()
+            alias = root / "alias"
+            alias.symlink_to(other, target_is_directory=True)
+            exists, is_symlink = Path.exists, Path.is_symlink
+
+            def local_marker(path, check):
+                return check(path) if path.name != ".git" or path.is_relative_to(other) else False
+
+            with patch.object(Path, "exists", lambda path: local_marker(path, exists)), \
+                 patch.object(Path, "is_symlink", lambda path: local_marker(path, is_symlink)):
+                self.assertFalse(inside_git_worktree(other / "nested/kit"))
+                self.check_other_worktree_markers(archive, other, alias)
+
+    def check_other_worktree_markers(self, archive, other, alias):
+            for marker_is_file in (False, True):
+                marker = other / ".git"
+                if marker_is_file:
+                    marker.write_text("gitdir: elsewhere\n")
+                else:
+                    marker.mkdir()
+                with patch.object(kit, "inside_git_worktree", wraps=inside_git_worktree), \
+                     patch.object(package, "run", side_effect=self.run_identity), \
+                     patch.object(package, "verify", return_value=(self.manifest, {})):
+                    for out in (other / "nested/kit", alias / "kit"):
+                        with self.subTest(out=out, marker_is_file=marker_is_file), \
+                             self.assertRaisesRegex(ValueError, "outside Git worktrees"):
+                            kit.prepare(archive, out)
+                        self.assertFalse(out.exists())
+                if marker_is_file:
+                    marker.unlink()
+                else:
+                    marker.rmdir()
 
 
 if __name__ == "__main__":
