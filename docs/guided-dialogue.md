@@ -1397,3 +1397,18 @@ and the actual declarer reply and winner are observed. Other Ouvert branches
 remain outside this increment. The core fixture covers hidden Skat swaps,
 reveal and legal-action boundaries, and all legal choices; the app exercises
 attempt, reveal and actual continuation. No learner efficacy is inferred.
+
+## Later Null defender leads (#131)
+
+After a defender wins a completed trick in Null or Null Ouvert, the same
+empty-table dialogue can explain the next lead. It uses the shared Easy cost
+ordering and actual legal cards; the completed trick identifies the leader.
+In Ouvert, the declarer's remaining revealed cards must match the public hand
+size and exclude the defender's hand and played cards. Both replies and the
+actual winner are observed; no unseen hand, winning strategy or learning
+outcome is inferred. Other unsupported turns retain the existing fallback.
+
+`defender_later_lead_uses_completed_trick_and_exact_actions` covers legal
+closed and Ouvert positions and malformed views. The app test
+`later_null_defender_lead_observes_the_actual_second_trick` exercises every
+legal lead and the actual subsequent winner.

@@ -11,6 +11,113 @@ use skat_app::*;
 
 #[test]
 #[ignore = "slow: CI only (docs/testing.md)"]
+fn later_null_defender_lead_widgets() {
+    for language in Language::ALL {
+        for size in [[1440.0, 1000.0], [960.0, 640.0]] {
+            let output = std::env::var("NULL_LATER_LEAD_SCREENSHOTS").ok();
+            let builder = Harness::builder().with_size(size);
+            let builder = if output.is_some() {
+                builder.wgpu()
+            } else {
+                builder
+            };
+            let mut h = builder.build_eframe(|cc| {
+                GrandCoachApp::new(
+                    &cc.egui_ctx,
+                    SessionConfig {
+                        seed: 1282,
+                        series: SeriesLength::Fixed(1),
+                        opponents: Opponents::Levels([Level::Easy; 2]),
+                        kontra_re: false,
+                        ..SessionConfig::default()
+                    },
+                )
+            });
+            h.state_mut().set_language(language);
+            h.state_mut().opponent_delay = 0.0;
+            h.state_mut().set_coach_budget(Budget {
+                samples: 1,
+                nodes_per_task: 1,
+            });
+            let i = I18n::new(language);
+            support::settle(&mut h);
+            support::click(&mut h, &i.t("button-pass"));
+            support::settle(&mut h);
+            let original = h.state().session().clone();
+            let action = original
+                .view()
+                .legal_actions
+                .into_iter()
+                .find(|action| {
+                    let mut s = original.clone();
+                    if s.execute(Command::Act(*action)).is_err() {
+                        return false;
+                    }
+                    for _ in 0..2 {
+                        if s.execute(Command::AdvanceOpponent).is_err() {
+                            return false;
+                        }
+                    }
+                    s.view().tricks_played == 1
+                        && s.view().current_trick.is_empty()
+                        && !s.view().legal_actions.is_empty()
+                })
+                .expect("human defender wins the first trick");
+            let Action::Play(card) = action else {
+                panic!("expected card")
+            };
+            support::click(&mut h, &support::card_name(&i, card));
+            support::settle(&mut h);
+            support::click(&mut h, &i.t("guided-start"));
+            h.get_by_label(&i.t("guided-null-defender-lead-role"));
+            support::null_click(&mut h, &i.t("guided-lead-defender"));
+            support::null_click(&mut h, &i.t("guided-unknown"));
+            h.get_by_label(&i.t("guided-rule-null-lead"));
+            if let Some(dir) = &output {
+                h.render()
+                    .unwrap()
+                    .save(format!(
+                        "{dir}/later-null-rule-{language:?}-{}.png",
+                        size[0]
+                    ))
+                    .unwrap();
+            }
+            let card = h.state().session().guided().unwrap().rule.unwrap().card;
+            support::null_click(&mut h, &support::card_name(&i, card));
+            for _ in 0..5000 {
+                h.run_steps(1);
+                if h.state().session().guided().unwrap().step == GuidedStep::Observe {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            assert_eq!(h.state().session().guided().unwrap().lead_replies.len(), 2);
+            support::null_click(&mut h, &i.t("guided-unknown"));
+            assert!(
+                h.state()
+                    .session()
+                    .guided()
+                    .unwrap()
+                    .observation
+                    .unwrap()
+                    .winner
+                    .is_some()
+            );
+            if let Some(dir) = &output {
+                h.render()
+                    .unwrap()
+                    .save(format!(
+                        "{dir}/later-null-observe-{language:?}-{}.png",
+                        size[0]
+                    ))
+                    .unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
 fn ordinary_null_defender_widgets() {
     for language in Language::ALL {
         for size in [[1440.0, 1000.0], [960.0, 640.0]] {
