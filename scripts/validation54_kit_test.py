@@ -184,6 +184,23 @@ class KitTests(unittest.TestCase):
                     kit.prepare(Path("unused"), out)
             self.assertFalse(out.exists())
 
+    def test_refuses_destination_in_source_even_through_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            source.mkdir()
+            alias = root / "alias"
+            alias.symlink_to(source, target_is_directory=True)
+            archive = root / "archive"
+            archive.write_bytes(b"archive")
+            with patch.object(package, "ROOT", source), \
+                 patch.object(package, "run", side_effect=self.run_identity), \
+                 patch.object(package, "verify", return_value=(self.manifest, {})):
+                for out in (source / "kit", alias / "kit"):
+                    with self.subTest(out=out), self.assertRaisesRegex(ValueError, "outside the source repository"):
+                        kit.prepare(archive, out)
+                    self.assertFalse(out.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
