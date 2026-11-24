@@ -421,7 +421,11 @@ impl GrandCoachApp {
 
     /// Packaged smoke: opens the first completed game of this series as a
     /// recording through a file in `dir` (save, validate, reopen).
-    pub fn smoke_open_replay(&mut self, dir: &std::path::Path) -> Result<(), String> {
+    pub fn smoke_open_replay(
+        &mut self,
+        dir: &std::path::Path,
+        ctx: &egui::Context,
+    ) -> Result<(), String> {
         let recording = self
             .session
             .completed_recordings_privileged()
@@ -437,6 +441,9 @@ impl GrandCoachApp {
         let live = self.session.view();
         self.recording.start_replay(reopened);
         self.recording.smoke_navigate().map_err(str::to_owned)?;
+        self.recording
+            .smoke_select_decision(ctx)
+            .map_err(str::to_owned)?;
         if self.session.view() != live {
             return Err("replay navigation changed the live series".into());
         }
@@ -3313,6 +3320,9 @@ mod tests {
         let live = app.session.view();
         app.recording.start_replay(recording.clone());
         app.recording.smoke_navigate().unwrap();
+        app.recording
+            .smoke_select_decision(&egui::Context::default())
+            .unwrap();
         assert_eq!(app.recording.smoke_recording(), Some(recording));
         assert_eq!(app.session.view(), live);
     }
