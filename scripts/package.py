@@ -230,8 +230,8 @@ def build(args):
 
 
 # Packaged feature views, each launched in German and English.
-SCENARIOS = ("coach", "training", "series", "open", "replay", "review", "practice", "cards")
-PLAYED = ("coach", "training", "series", "open", "replay", "review", "practice")
+SCENARIOS = ("coach", "quiz-answer", "training", "series", "open", "replay", "review", "practice", "cards")
+PLAYED = ("coach", "quiz-answer", "training", "series", "open", "replay", "review", "practice")
 
 
 CANARY_URL = "https://github.com/"
@@ -381,8 +381,15 @@ def smoke_run(args, rules):
             # probe below still requires the history to stay valid.
             if scenario in PLAYED:
                 preserved = history.read_bytes()
-                if scenario == "training" and preserved == history_valid:
-                    raise ValueError("packaged training did not persist its learning events")
+                if scenario in ("training", "quiz-answer") and preserved == history_valid:
+                    raise ValueError(f"packaged {scenario} did not persist its learning events")
+                if scenario == "quiz-answer":
+                    previous = json.loads(history_valid)["events"]
+                    current = json.loads(preserved)["events"]
+                    if not any(entry not in previous and
+                               entry["event"]["action"].get("Answer", {}).get("given") == 0
+                               for entry in current if isinstance(entry["event"]["action"], dict)):
+                        raise ValueError("packaged quiz did not persist its answer")
             elif history.read_bytes() != preserved:
                 raise ValueError("packaged launch changed user history")
             if stage != "damaged-history":
@@ -397,9 +404,9 @@ def smoke_run(args, rules):
         "os": platform.platform(), "result": "passed", "network_isolation": ("program-scoped outbound Windows Firewall block on the installed application and probe, verified by a curl canary that reached the network before and failed after" if args.block_network else "not verified by this smoke"),
         "valid_history_sha256": valid_history_hash, "probe_sha256": digest(probe.read_bytes()),
         "test_runtime_dlls": runtime_dlls,
-        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API exercises Neural and Hybrid card play, and missing, corrupt and incompatible format/encoder model fallback with valid history", "packaged coach+counting aid+quiz view (first counting question open) and focused counting training view, each in German and English, launched from the same extracted executable (the coach question and a training answer, assisted retry, skip and next position record valid history)", "packaged complete 36-game series (first legal actions to the series result), open-table game (all hands shown, mid-game) and recording viewer (first game saved to the data directory, reopened and shown read-only) its post-game review (requested and finished with a summary), an isolated practice attempt, retry and return to the unchanged live view from the reopened recording, and a window with all 32 faces of all three card decks from the embedded images, each in German and English, from the same extracted executable", "uninstall retains data"],
+        "checks": ["archive resources/hashes/notices", "native launch without loose application resources", "actual app API training history creation/reopen", "valid-history restart", "same-build replacement upgrade", "damaged-history preservation", "same-build app API exercises Neural and Hybrid card play, and missing, corrupt and incompatible format/encoder model fallback with valid history", "packaged coach+counting aid+quiz question and quiz-answer feedback, and focused counting training, in German and English; the quiz command and training controller record valid history", "packaged complete 36-game series (first legal actions to the series result), open-table game (all hands shown, mid-game) and recording viewer (first game saved to the data directory, reopened and shown read-only) its post-game review (requested and finished with a summary), an isolated practice attempt, retry and return to the unchanged live view from the reopened recording, and a window with all 32 faces of all three card decks from the embedded images, each in German and English, from the same extracted executable", "uninstall retains data"],
         "screenshot_sha256": shots,
-        "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. Coach/quiz/training scenarios open the real packaged views via smoke-only environment variables and a first-legal-action driver; training answer, assisted retry, skip and next use the training controller, not button clicks; coach/quiz answers remain widget-test coverage. The series, open-table and recording scenarios use the same driver: the series uses first legal actions and is not an interactive session; the review is requested by the driver; the card-face window shows the embedded images, inspected only by screenshot; practice starts, retries and returns through the app API, not button clicks; decision selection is not clicked. No cross-version migration; no clean OS or Windows 11 claim.",
+        "limitations": "History and Neural decisions use a linked app API probe, not GUI interaction. Coach/quiz/training scenarios open the real packaged views via smoke-only environment variables and a first-legal-action driver; training answer, assisted retry, skip and next use the training controller, not button clicks; quiz-answer submits through the app command; widget clicks remain widget-test coverage. The series, open-table and recording scenarios use the same driver: the series uses first legal actions and is not an interactive session; the review is requested by the driver; the card-face window shows the embedded images, inspected only by screenshot; practice starts, retries and returns through the app API, not button clicks; decision selection is not clicked. No cross-version migration; no clean OS or Windows 11 claim.",
     }, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
