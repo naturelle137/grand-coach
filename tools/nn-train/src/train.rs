@@ -135,6 +135,12 @@ pub struct Hyper {
     /// announcement); only with `all_phases`. Omitted from the recipe when 1.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub rare_weight: f32,
+    /// Additional factor for teacher Hand choices in all-phase training.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub hand_weight: f32,
+    /// Additional factor for teacher Schneider/Schwarz/Ouvert announcements.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub announcement_weight: f32,
     /// Width of every hidden layer.
     pub hidden: usize,
     /// Number of hidden layers; omitted from the recipe when it is
@@ -199,6 +205,8 @@ impl Default for Hyper {
             all_phases: false,
             preplay_weight: 1.0,
             rare_weight: 1.0,
+            hand_weight: 1.0,
+            announcement_weight: 1.0,
             hidden: 256,
             layers: MIN_LAYERS,
             batch: 256,
@@ -623,6 +631,14 @@ impl Examples {
             if is_rare_choice(r.action) {
                 target.iter_mut().for_each(|x| *x *= hyper.rare_weight);
             }
+            let class_weight = match r.action {
+                Action::Hand => hyper.hand_weight,
+                Action::Announce(a) if a.schneider || a.schwarz || a.ouvert => {
+                    hyper.announcement_weight
+                }
+                _ => 1.0,
+            };
+            target.iter_mut().for_each(|x| *x *= class_weight);
         }
         let final_points = r.final_points as f32;
         let value = if complete {
@@ -1721,6 +1737,10 @@ mod tests {
 
         let hyper = Hyper {
             all_phases: true,
+            preplay_weight: 2.0,
+            rare_weight: 3.0,
+            hand_weight: 5.0,
+            announcement_weight: 7.0,
             ..Hyper::default()
         };
         for hand in [false, true] {
@@ -1772,6 +1792,13 @@ mod tests {
                 crate::selfplay::check_record(&record).unwrap();
                 let mut examples = Examples::new();
                 assert!(examples.push(&record, &hyper, None));
+                let expected_weight = match action {
+                    Action::Hand => 30.0,
+                    Action::Announce(a) if a.ouvert => 42.0,
+                    _ if phase_of(&examples.legal) != DecisionPhase::Cards => 2.0,
+                    _ => 1.0,
+                };
+                assert_eq!(examples.target.iter().sum::<f32>(), expected_weight);
                 let features = examples.features.row(0);
                 assert_eq!(features, encode(&view));
                 let cards = |block: std::ops::Range<usize>| -> usize {

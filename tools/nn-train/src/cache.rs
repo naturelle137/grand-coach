@@ -58,6 +58,8 @@ struct KeyInput<'a> {
     all_phases: bool,
     preplay_weight: u32,
     rare_weight: u32,
+    hand_weight: u32,
+    announcement_weight: u32,
 }
 
 /// The sources of `dirs` from their manifests and `.done` files, without
@@ -101,6 +103,8 @@ pub fn key(sources: &[DataSource], hyper: &Hyper, beliefs: bool) -> String {
         all_phases: hyper.all_phases,
         preplay_weight: hyper.preplay_weight.to_bits(),
         rare_weight: hyper.rare_weight.to_bits(),
+        hand_weight: hyper.hand_weight.to_bits(),
+        announcement_weight: hyper.announcement_weight.to_bits(),
     };
     let json = serde_json::to_vec(&input).expect("key serialises");
     sha256(&json).iter().map(|b| format!("{b:02x}")).collect()
@@ -369,4 +373,20 @@ pub fn read(path: &Path, key: &str) -> io::Result<Data> {
         coverage: header.coverage,
         sources: header.sources,
     })
+}
+
+#[cfg(test)]
+mod class_weight_tests {
+    use super::*;
+
+    #[test]
+    fn class_weights_change_the_cache_key() {
+        let base = Hyper::default();
+        let mut changed = base.clone();
+        changed.hand_weight = 2.0;
+        assert_ne!(key(&[], &base, false), key(&[], &changed, false));
+        changed = base.clone();
+        changed.announcement_weight = 2.0;
+        assert_ne!(key(&[], &base, false), key(&[], &changed, false));
+    }
 }
