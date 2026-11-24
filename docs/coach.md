@@ -275,7 +275,7 @@ higher cards do not block it, known discarded higher cards still do.
 It takes maximum Augen, last exact legal-order tie, with no trick guarantee.
 `Source::Lead` has no current winning card; observation retains both actual
 replies and the completed individual winner. The declarer's own empty-trick
-`DrawTrumpf` lead (#175) is also admitted, see
+`DrawTrumpf` lead in Grand or Farbspiel is also admitted, see
 [its scope](guided-dialogue.md#grand-declarer-drawtrumpf-lead-175).
 Farbspiel also admits last-seat defender `FeedPartner` (#185), including a
 validated [Ouvert view](guided-dialogue.md#farbspiel-ouvert-last-seat-feedpartner-131),

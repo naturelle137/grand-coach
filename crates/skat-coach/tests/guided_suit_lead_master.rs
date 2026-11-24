@@ -90,7 +90,10 @@ fn suit_lead_master_declarer_with_trumpf_keeps_draw_trumpf_priority() {
         &[],
     );
     assert_eq!(g.current_seat(), Some(Seat::Vorhand));
-    assert!(lesson(&g.view(Seat::Vorhand)).is_none());
+    assert_eq!(
+        lesson(&g.view(Seat::Vorhand)).unwrap().rule.branch,
+        skat_coach::guided::Branch::DrawTrumpf
+    );
 }
 
 #[test]

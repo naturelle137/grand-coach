@@ -101,6 +101,9 @@ fn content(
     }
     let null = table.contract.is_some_and(|c| c.game == GameType::Null);
     let null_defender = null && table.declarer != Some(skat_app::PlayerId::HUMAN);
+    let null_partner_lead = null_defender
+        && table.current_trick.len() == 1
+        && table.current_trick.first().map(|c| c.player) != table.declarer;
     if null_defender
         && matches!(
             g.step,
@@ -115,6 +118,8 @@ fn content(
             }
         } else if table.current_trick.len() == 2 {
             "guided-null-defender-last-role"
+        } else if null_partner_lead {
+            "guided-null-partner-role"
         } else {
             "guided-null-defender-role"
         }));
@@ -149,6 +154,9 @@ fn content(
         GuidedStep::Narrow if g.task == Some(GuidedBranch::UnderPartner) => "guided-under",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::FeedPartner) => "guided-feed-attempt",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::WinEarly) => "guided-early-attempt",
+        GuidedStep::Narrow if g.task == Some(GuidedBranch::Null) && null_partner_lead => {
+            "guided-null-partner-attempt"
+        }
         GuidedStep::Narrow if g.task == Some(GuidedBranch::Null) => "guided-null-attempt",
         GuidedStep::Narrow | GuidedStep::Threshold => "guided-win",
         GuidedStep::Act => "guided-act",
@@ -286,6 +294,8 @@ fn content(
                 "guided-rule-null-lead"
             } else if null_defender && rule.last {
                 "guided-rule-null-defender-last"
+            } else if null_partner_lead {
+                "guided-rule-null-partner"
             } else if null_defender {
                 "guided-rule-null-defender"
             } else if rule.last {
@@ -379,7 +389,7 @@ fn content(
                 ui.label(i.t("guided-feed-early-order"));
                 details(ui);
             });
-        } else if rule.branch == GuidedBranch::Null && !rule.last {
+        } else if rule.branch == GuidedBranch::Null && !rule.last && !null_partner_lead {
             ui.collapsing(i.t("guided-null-middle-details"), |ui| {
                 ui.label(i.t("guided-null-middle-order"));
                 details(ui);
