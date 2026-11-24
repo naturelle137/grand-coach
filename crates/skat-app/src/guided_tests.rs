@@ -3891,6 +3891,59 @@ fn null_defender_observes_each_actual_reply() {
 }
 
 #[test]
+fn null_partner_lead_keeps_all_choices_and_observes_declarer() {
+    let deal = middle_fixture::cases().remove(0).deal;
+    let c = middle_fixture::card;
+    let actions = [
+        Action::Pass,
+        Action::Bid(18),
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(skat_core::Announcement::plain(NULL)),
+        Action::Play(c(5)),
+    ];
+    for (own, reply, winner) in [
+        (0, 2, Seat::Vorhand),
+        (0, 7, Seat::Hinterhand),
+        (3, 2, Seat::Vorhand),
+        (3, 7, Seat::Hinterhand),
+        (4, 2, Seat::Vorhand),
+        (4, 7, Seat::Hinterhand),
+        (6, 2, Seat::Mittelhand),
+        (6, 7, Seat::Hinterhand),
+    ] {
+        let mut s = grand_session(Seat::Mittelhand, deal, false, &actions);
+        let legal = s.view().legal_actions;
+        s.execute(Command::StartGuided).unwrap();
+        assert!(s.guided().unwrap().rule.is_none());
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(s.guided().unwrap().rule.unwrap().card, c(0));
+        if own == 0 && reply == 2 {
+            let mut guided = serde_json::to_value(s.guided().unwrap()).unwrap();
+            guided["id"]["lineage"] = 0.into();
+            guided["id"]["generation"] = 0.into();
+            let expected: serde_json::Value = serde_json::from_str(include_str!(
+                "../../gui-egui/tests/fixtures/null-partner-lead.json"
+            ))
+            .unwrap();
+            assert_eq!(
+                serde_json::json!({"table": s.view(), "guided": guided}),
+                expected
+            );
+        }
+        assert_eq!(s.view().legal_actions, legal);
+        s.execute(Command::Act(Action::Play(c(own)))).unwrap();
+        s.apply(Action::Play(c(reply))).unwrap();
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(winner)
+        );
+    }
+}
+
+#[test]
 fn null_ouvert_defender_observes_each_actual_reply() {
     let deal = middle_fixture::cases().remove(0).deal;
     let actions = [

@@ -716,3 +716,49 @@ fn ouvert_defender_lead_uses_revealed_hand_and_keeps_all_choices() {
         assert!(s.guided().unwrap().observation.is_some());
     }
 }
+
+#[test]
+fn mephisto_can_announce_suit_ouvert() {
+    use skat_core::{Announcement, CardSet, Deal, Game, GameType, RuleConfig, Suit};
+    let declarer: CardSet = [4, 12, 16, 17, 18, 19, 21, 22, 23, 7]
+        .map(fx::card)
+        .into_iter()
+        .collect();
+    let mut rest: Vec<_> = (CardSet::ALL - declarer).iter().collect();
+    rest.rotate_left(9);
+    let deal = Deal::new(
+        [
+            rest[..10].iter().copied().collect(),
+            declarer,
+            rest[10..20].iter().copied().collect(),
+        ],
+        rest[20..].iter().copied().collect(),
+    )
+    .unwrap();
+    let mut game = Game::from_deal(deal, RuleConfig { kontra_re: false });
+    for action in [Action::Bid(18), Action::Pass, Action::Pass, Action::Hand] {
+        game.apply(action).unwrap();
+    }
+    let decision = skat_ai::Mephisto.decide(&game, None).unwrap();
+    assert_eq!(
+        decision.action,
+        Action::Announce(Announcement {
+            game: GameType::Farbe(Suit::Herz),
+            schneider: true,
+            schwarz: true,
+            ouvert: true,
+        })
+    );
+    game.apply(decision.action).unwrap();
+    let lesson = skat_coach::guided::lesson(&game.view(Seat::Vorhand)).unwrap();
+    assert_eq!(
+        lesson.rule.branch,
+        skat_analysis::baseline::Branch::LeadMaster
+    );
+    assert_eq!(lesson.rule.card, fx::card(15));
+    assert_eq!(lesson.rule.candidates, [11, 13, 14, 15].map(fx::card));
+    let mut session = session(deal, game);
+    session.execute(Command::StartGuided).unwrap();
+    respond(&mut session, G::Reveal).unwrap();
+    assert_eq!(session.guided().unwrap().rule.unwrap().card, fx::card(15));
+}

@@ -250,3 +250,65 @@ fn full_non_absent_dialogue_privacy_including_god_mode() {
         }
     }
 }
+
+#[test]
+fn suit_draw_trumpf_is_manual_and_uses_only_the_permitted_view() {
+    let mut case = witnesses::cases().remove(0);
+    case.game = skat_core::GameType::Farbe(skat_core::Suit::Herz);
+    let mut hidden = witnesses::cases().remove(0);
+    hidden.game = case.game;
+    for hand in &mut hidden.deal[1..] {
+        for card in hand {
+            *card = match *card {
+                1 => 15,
+                15 => 1,
+                n => n,
+            };
+        }
+    }
+    let mut first = fixture_session(&case);
+    let mut second = fixture_session(&hidden);
+    first.config.opponents = Opponents::GodMode;
+    second.config.opponents = Opponents::GodMode;
+    assert_eq!(
+        first.game.view(Seat::Vorhand),
+        second.game.view(Seat::Vorhand)
+    );
+    let rule = skat_analysis::baseline::rule(&first.game.view(Seat::Vorhand)).unwrap();
+    assert_eq!(rule.branch, skat_analysis::baseline::Branch::DrawTrumpf);
+    assert_eq!(rule.card, card(4));
+    assert_eq!(rule.candidates, [4, 12, 17].map(card));
+    first.execute(Command::StartGuided).unwrap();
+    second.execute(Command::StartGuided).unwrap();
+    same(&first, &second, "initial");
+    respond(&mut first, G::Reveal).unwrap();
+    respond(&mut second, G::Reveal).unwrap();
+    same(&first, &second, "reveal");
+    let mut guided = serde_json::to_value(first.guided().unwrap()).unwrap();
+    guided["id"]["lineage"] = 0.into();
+    guided["id"]["generation"] = 0.into();
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../gui-egui/tests/fixtures/suit-draw-trumpf.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        serde_json::json!({"table": first.view(), "guided": guided}),
+        expected
+    );
+    for action in first.view().legal_actions {
+        let mut s = fixture_session(&case);
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        s.execute(Command::Act(action)).unwrap();
+        s.run_opponents();
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(s.game.tricks().last().unwrap().winner)
+        );
+    }
+    let mut restricted = first.game.view(Seat::Vorhand);
+    restricted.legal_actions.pop();
+    assert!(skat_coach::guided::lesson(&restricted).is_none());
+}

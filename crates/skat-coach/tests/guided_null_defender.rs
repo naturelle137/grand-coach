@@ -39,7 +39,7 @@ fn defender_follows_declarer_and_observes_reply() {
 }
 
 #[test]
-fn defender_scope_rejects_missing_role_and_partner_lead() {
+fn defender_scope_rejects_missing_role_and_invalid_views() {
     let deal = cases().remove(0).deal;
     let mut game = Game::from_deal(deal, RuleConfig { kontra_re: false });
     for action in [
@@ -54,13 +54,12 @@ fn defender_scope_rejects_missing_role_and_partner_lead() {
         game.apply(action).unwrap();
     }
     let view = game.view(Seat::Mittelhand);
-    for change in 0..5 {
+    for change in 0..4 {
         let mut v = view.clone();
         match change {
             0 => v.declarer = None,
-            1 => v.declarer = Some(Seat::Hinterhand),
-            2 => v.legal_actions.reverse(),
-            3 => v.contract.as_mut().unwrap().ouvert = true,
+            1 => v.legal_actions.reverse(),
+            2 => v.contract.as_mut().unwrap().ouvert = true,
             _ => v.own_skat = Some(fixture::set(&[30, 31])),
         }
         assert!(lesson(&v).is_none(), "{change}");
@@ -96,6 +95,85 @@ fn defender_hidden_deals_do_not_change_lesson() {
         assert_eq!(original, other);
         assert_eq!(Some(l.clone()), lesson(&other));
     }
+}
+
+#[test]
+fn defender_after_partner_lead_uses_public_trick() {
+    let mut game = Game::from_deal(cases().remove(0).deal, RuleConfig { kontra_re: false });
+    for action in [
+        Action::Pass,
+        Action::Bid(18),
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(Announcement::plain(GameType::Null)),
+        Action::Play(card(5)),
+    ] {
+        game.apply(action).unwrap();
+    }
+    let view = game.view(Seat::Mittelhand);
+    assert_eq!(view.declarer, Some(Seat::Hinterhand));
+    let l = lesson(&view).expect("partner lead lesson");
+    assert_eq!(l.rule.candidates, [card(0), card(3), card(4), card(6)]);
+    assert_eq!(l.rule.card, card(0));
+    assert!(l.check(Step::Orient, Answer::Seat(Some(Seat::Vorhand))));
+    assert!(l.check(Step::Check, Answer::Seat(Some(Seat::Hinterhand))));
+    assert!(l.check(Step::Narrow, Answer::Card(card(0))));
+    assert!(!l.check(Step::Narrow, Answer::Card(card(4))));
+    for id in [
+        "privacy-opponent-opponent",
+        "privacy-opponent-unknown-Hand-Skat",
+    ] {
+        let mut other = Game::from_deal(
+            cases().into_iter().find(|c| c.id == id).unwrap().deal,
+            RuleConfig { kontra_re: false },
+        );
+        for action in [
+            Action::Pass,
+            Action::Bid(18),
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(Announcement::plain(GameType::Null)),
+            Action::Play(card(5)),
+        ] {
+            other.apply(action).unwrap();
+        }
+        assert_eq!(view, other.view(Seat::Mittelhand));
+        assert_eq!(Some(l.clone()), lesson(&other.view(Seat::Mittelhand)));
+    }
+    game.apply(Action::Play(card(0))).unwrap();
+    game.apply(Action::Play(card(7))).unwrap();
+    assert_eq!(
+        game.view(Seat::Mittelhand).tricks[0].winner,
+        Seat::Hinterhand
+    );
+}
+
+#[test]
+fn partner_lead_with_no_losing_card_still_uses_fallback() {
+    let original = cases().remove(0).deal;
+    let mut vh = original.hand(Seat::Vorhand);
+    let mut mh = original.hand(Seat::Mittelhand);
+    assert!(vh.remove(card(10)) && mh.remove(card(0)));
+    vh.insert(card(0));
+    mh.insert(card(10));
+    let deal =
+        skat_core::Deal::new([vh, mh, original.hand(Seat::Hinterhand)], original.skat()).unwrap();
+    let mut game = Game::from_deal(deal, RuleConfig { kontra_re: false });
+    for action in [
+        Action::Pass,
+        Action::Bid(18),
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(Announcement::plain(GameType::Null)),
+        Action::Play(card(1)),
+    ] {
+        game.apply(action).unwrap();
+    }
+    let view = game.view(Seat::Mittelhand);
+    let l = lesson(&view).unwrap();
+    assert!(l.rule.losers.is_empty());
+    assert_eq!(l.rule, skat_analysis::baseline::rule(&view).unwrap());
+    assert_eq!(l.rule.card, card(4));
 }
 
 #[test]
