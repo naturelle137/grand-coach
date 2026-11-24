@@ -138,6 +138,9 @@ pub struct Hyper {
     /// Additional factor for teacher Hand choices in all-phase training.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub hand_weight: f32,
+    /// Additional factor for declarations after choosing Hand.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub hand_declaration_weight: f32,
     /// Additional factor for teacher Schneider/Schwarz/Ouvert announcements.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub announcement_weight: f32,
@@ -215,6 +218,7 @@ impl Default for Hyper {
             preplay_weight: 1.0,
             rare_weight: 1.0,
             hand_weight: 1.0,
+            hand_declaration_weight: 1.0,
             announcement_weight: 1.0,
             schneider_weight: 1.0,
             schwarz_weight: 1.0,
@@ -657,7 +661,15 @@ impl Examples {
                 }
                 _ => 1.0,
             };
-            target.iter_mut().for_each(|x| *x *= class_weight);
+            let hand_declaration =
+                matches!(r.action, Action::Announce(_)) && r.view.hand_game == Some(true);
+            let weight = class_weight
+                * if hand_declaration {
+                    hyper.hand_declaration_weight
+                } else {
+                    1.0
+                };
+            target.iter_mut().for_each(|x| *x *= weight);
         }
         let final_points = r.final_points as f32;
         let value = if complete {
@@ -1759,6 +1771,7 @@ mod tests {
             preplay_weight: 2.0,
             rare_weight: 3.0,
             hand_weight: 5.0,
+            hand_declaration_weight: 13.0,
             announcement_weight: 7.0,
             ouvert_weight: 11.0,
             ..Hyper::default()
@@ -1810,6 +1823,17 @@ mod tests {
                     },
                 };
                 crate::selfplay::check_record(&record).unwrap();
+                if view.phase == Phase::Ansage {
+                    let mut plain = record.clone();
+                    plain.action = Action::Announce(Announcement::plain(GameType::Grand));
+                    crate::selfplay::check_record(&plain).unwrap();
+                    let mut rows = Examples::new();
+                    assert!(rows.push(&plain, &hyper, None));
+                    assert_eq!(
+                        rows.target.iter().sum::<f32>(),
+                        if hand { 26.0 } else { 2.0 }
+                    );
+                }
                 if hand && view.phase == Phase::Ansage {
                     let weights = Hyper {
                         all_phases: true,
@@ -1838,7 +1862,7 @@ mod tests {
                 assert!(examples.push(&record, &hyper, None));
                 let expected_weight = match action {
                     Action::Hand => 30.0,
-                    Action::Announce(a) if a.ouvert => 462.0,
+                    Action::Announce(a) if a.ouvert => 6006.0,
                     _ if phase_of(&examples.legal) != DecisionPhase::Cards => 2.0,
                     _ => 1.0,
                 };
