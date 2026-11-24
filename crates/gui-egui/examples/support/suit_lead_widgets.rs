@@ -31,6 +31,7 @@ pub fn inventory() -> Vec<serde_json::Value> {
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-suit-ouvert-feed-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"suit-ouvert-feed-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-suit-ouvert-early-feed-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"suit-ouvert-early-feed-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-grand-ouvert-early-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"grand-ouvert-early-fixture"}));
+            result.push(serde_json::json!({"name":format!("guided-suit-lead-master-grand-ouvert-defender-early-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"grand-ouvert-defender-early-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-suit-ouvert-last-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"suit-ouvert-last-fixture"}));
             for stage in STAGES {
                 result.push(serde_json::json!({"name":format!("guided-suit-lead-master-{stage}-{language}{suffix}"),"stage":stage,"language":language,"width":width,"height":height,"kind":"ordinary"}));
@@ -66,6 +67,7 @@ pub fn render(name: &str, out: Option<&str>) {
         || entry["kind"] == "suit-ouvert-feed-fixture"
         || entry["kind"] == "suit-ouvert-early-feed-fixture"
         || entry["kind"] == "grand-ouvert-early-fixture"
+        || entry["kind"] == "grand-ouvert-defender-early-fixture"
         || entry["kind"] == "suit-ouvert-last-fixture"
     {
         let builder = Harness::builder().with_size(size);
@@ -75,6 +77,7 @@ pub fn render(name: &str, out: Option<&str>) {
             builder
         };
 
+        let grand_defender_early = entry["kind"] == "grand-ouvert-defender-early-fixture";
         let grand_early = entry["kind"] == "grand-ouvert-early-fixture";
         let suit_last = entry["kind"] == "suit-ouvert-last-fixture";
         let grand_feed = entry["kind"] == "grand-ouvert-feed-fixture";
@@ -86,13 +89,16 @@ pub fn render(name: &str, out: Option<&str>) {
             || grand_draw
             || grand_last
             || grand_feed
-            || grand_early;
+            || grand_early
+            || grand_defender_early;
         let ouvert = entry["kind"] == "ouvert-fixture"
             || grand_ouvert
             || suit_last
             || suit_feed
             || suit_early_feed;
-        let fixture: serde_json::Value = serde_json::from_str(if suit_early_feed {
+        let fixture: serde_json::Value = serde_json::from_str(if grand_defender_early {
+            include_str!("../../tests/fixtures/grand-ouvert-defender-early.json")
+        } else if suit_early_feed {
             include_str!("../../tests/fixtures/suit-ouvert-early-feed.json")
         } else if suit_feed {
             include_str!("../../tests/fixtures/suit-ouvert-feed.json")
