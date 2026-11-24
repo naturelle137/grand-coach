@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 //! Diagnostic synthetic positions, not teacher labels or training shards.
+//! Strong choices are diagnostic, not assessed training targets.
 //! Arguments: run seed and maximum number of deals. JSONL goes to stdout.
 
 use nn_train::selfplay::{RULES, RunSeed, Split};
@@ -17,6 +18,7 @@ struct Position {
     prefix: Vec<Action>,
     view: PlayerView,
     synthetic_action: Action,
+    strong_action: Action,
 }
 
 fn positions(seed: RunSeed, deal: u64) -> Vec<Position> {
@@ -26,6 +28,10 @@ fn positions(seed: RunSeed, deal: u64) -> Vec<Position> {
     while let Some(seat) = game.current_seat() {
         let view = game.view(seat);
         if view.phase == Phase::Ansage {
+            let strong_action = Opponent::new(Level::Strong, seed.teacher_seed(deal, seat))
+                .decide(&view, None)
+                .expect("turn")
+                .action;
             return view
                 .legal_actions
                 .iter()
@@ -39,6 +45,7 @@ fn positions(seed: RunSeed, deal: u64) -> Vec<Position> {
                     prefix: prefix.clone(),
                     view: view.clone(),
                     synthetic_action,
+                    strong_action,
                 })
                 .collect();
         }
@@ -93,6 +100,19 @@ mod tests {
                         .view
                         .legal_actions
                         .contains(&position.synthetic_action)
+                );
+                assert!(
+                    position
+                        .view
+                        .legal_actions
+                        .contains(&position.strong_action)
+                );
+                assert_eq!(
+                    position.strong_action,
+                    Opponent::new(Level::Strong, seed.teacher_seed(deal, seat))
+                        .decide(&position.view, None)
+                        .unwrap()
+                        .action
                 );
                 game.apply(position.synthetic_action).unwrap();
                 assert_eq!(position.split, Split::of(seed.deal_seed(deal)));
