@@ -105,7 +105,7 @@ pub struct Lesson {
 /// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus Farbspiel and Grand Ouvert
 /// defender UnderPartner and non-Ouvert Farbspiel/Grand WinEarly and last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
-/// and at least one losing card; early FeedPartner (Farbspiel or Grand) requires a follow-class master; Fallback stays excluded.
+/// and at least one losing card; early FeedPartner (Farbspiel or Grand, including Ouvert) requires a follow-class master; Fallback stays excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. A defender may
 /// lead a trick, act second after the declarer leads, or last with the declarer ahead.
@@ -113,7 +113,7 @@ pub struct Lesson {
 /// and last-seat play with the declarer ahead,
 /// and the declarer's opening and second/last-seat turns after the reveal.
 /// `Branch::Null` is broader; other defender turns, other Ouvert turns and
-/// restricted or inconsistent views stay excluded here. Grand Ouvert declarer
+/// restricted or inconsistent views stay excluded here. Grand Ouvert declarer and defender after the declarer's lead
 /// WinEarly, Farbspiel defender WinEarly after the declarer's lead, Grand and Farbspiel declarer WinLast, and Ouvert defender last-seat FeedPartner admit validated views. LeadMaster (including Ouvert
 /// Farbspiel and Grand declarer) and Grand declarer DrawTrumpf (including
 /// Ouvert) admit tested own leads with an exact core-legal action list.
@@ -182,13 +182,19 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     let ouvert_grand_early = game == GameType::Grand
         && contract.ouvert
-        && view.declarer == Some(view.seat)
+        && (view.declarer == Some(view.seat) && view.declarer_cards == Some(view.hand)
+            || view.declarer == view.current_trick.leader
+                && view.declarer.is_some_and(|d| d != view.seat)
+                && view.declarer_cards.is_some_and(|cards| {
+                    cards.len() == usize::from(view.hand_sizes[view.declarer.unwrap().index()])
+                        && (cards & view.hand).is_empty()
+                        && (cards & Knowledge::from_view(view).played).is_empty()
+                }))
         && contract.hand
         && contract.schneider
         && contract.schwarz
         && view.hand_game == Some(true)
         && view.own_skat.is_none()
-        && view.declarer_cards == Some(view.hand)
         && view.current_seat == Some(view.seat)
         && matches!(view.current_trick.cards, [Some(_), None, None])
         && view.current_trick.leader.map(Seat::next) == Some(view.seat)
@@ -469,7 +475,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     // Early feeding is not last-seat feeding: the remaining declarer can
     // still trump a side master. Admit only a complete acting-defender view.
-    let feed_early = (grand || suit || (ouvert_under && matches!(game, GameType::Farbe(_))))
+    let feed_early = (grand || suit || ouvert_under)
         && view.declarer.is_some_and(|d| d != view.seat)
         && view.current_seat == Some(view.seat)
         && matches!(view.current_trick.cards, [Some(_), None, None])
