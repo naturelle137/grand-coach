@@ -4288,3 +4288,76 @@ fn suit_ouvert_under_partner_all_choices_observe_the_actual_reply() {
         assert!(s.guided().is_none());
     }
 }
+
+#[test]
+fn grand_ouvert_defender_win_early_uses_revealed_declarer_and_actual_reply() {
+    let deal = early_oracle::deals()[0];
+    let actions = fixture::contract_actions(
+        deal,
+        Seat::Vorhand,
+        fixture::hand_game(GRAND, true),
+        &["CK"],
+    );
+    let original = grand_session(Seat::Mittelhand, deal, false, &actions);
+    let view = original.game.view(Seat::Mittelhand);
+    let other_deal = fixture::swap(
+        deal,
+        deal.hand(Seat::Hinterhand).iter().next().unwrap(),
+        deal.skat().iter().next().unwrap(),
+    );
+    let other_actions = fixture::contract_actions(
+        other_deal,
+        Seat::Vorhand,
+        fixture::hand_game(GRAND, true),
+        &["CK"],
+    );
+    let mut first = original.clone();
+    let mut other = grand_session(Seat::Mittelhand, other_deal, false, &other_actions);
+    other.config.opponents = Opponents::GodMode;
+    first.execute(Command::StartGuided).unwrap();
+    other.execute(Command::StartGuided).unwrap();
+    assert_eq!(
+        first.game.view(Seat::Mittelhand),
+        other.game.view(Seat::Mittelhand)
+    );
+    respond(&mut first, G::Reveal).unwrap();
+    respond(&mut other, G::Reveal).unwrap();
+    let expected = first.guided().unwrap();
+    let mut guided = serde_json::to_value(&expected).unwrap();
+    guided["id"]["lineage"] = 0.into();
+    guided["id"]["generation"] = 0.into();
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../gui-egui/tests/fixtures/grand-ouvert-defender-early.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        serde_json::json!({"table": first.view(), "guided": guided}),
+        fixture
+    );
+    let mut actual = other.guided().unwrap();
+    actual.id = expected.id;
+    actual.basis = expected.basis;
+    assert_eq!(expected, actual);
+    let lesson = skat_coach::guided::lesson(&view).unwrap();
+    assert_eq!(lesson.rule.branch, crate::GuidedBranch::WinEarly);
+    assert_eq!(lesson.rule.card, fixture::card("CT"));
+    let mut invalid = view.clone();
+    invalid.declarer_cards = None;
+    assert!(skat_coach::guided::lesson(&invalid).is_none());
+    invalid = view.clone();
+    invalid.legal_actions.pop();
+    assert!(skat_coach::guided::lesson(&invalid).is_none());
+    for action in original.view().legal_actions {
+        let mut s = original.clone();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        s.execute(Command::Act(action)).unwrap();
+        s.run_opponents();
+        let actual = *s.game.tricks().last().unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(actual.winner)
+        );
+    }
+}

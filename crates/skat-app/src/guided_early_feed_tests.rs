@@ -120,6 +120,58 @@ fn fixture_session(hidden: bool) -> Session {
     s
 }
 
+#[test]
+fn grand_ouvert_early_feed_keeps_choices_and_observes_actual_reply() {
+    let mut c = feed_fixture::cases()
+        .into_iter()
+        .find(|c| c.id == "B-early-master-can-be-trumped")
+        .unwrap();
+    c.ouvert = true;
+    let mut original = Session::new(SessionConfig::default());
+    original.dealer = PlayerId(1);
+    original.game = c.position();
+    let mut other = original.clone();
+    c.hands[0][3] = 20;
+    c.skat[0] = 13;
+    other.game = c.position();
+    other.config.opponents = Opponents::GodMode;
+    for s in [&mut original, &mut other] {
+        s.execute(Command::StartGuided).unwrap();
+    }
+    equal(&original, &other);
+    for action in [G::Reveal, G::Memory(true), G::Memory(false)] {
+        for s in [&mut original, &mut other] {
+            respond(s, action).unwrap();
+        }
+        equal(&original, &other);
+    }
+    assert_eq!(
+        original.guided().unwrap().rule.unwrap().branch,
+        crate::GuidedBranch::FeedPartner
+    );
+    let mut guided = serde_json::to_value(original.guided().unwrap()).unwrap();
+    guided["id"]["lineage"] = 0.into();
+    guided["id"]["generation"] = 0.into();
+    let value = serde_json::json!({"table": original.view(), "guided": guided});
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../gui-egui/tests/fixtures/grand-ouvert-early-feed.json"
+    ))
+    .unwrap();
+    assert_eq!(value, expected);
+    for action in original.view().legal_actions {
+        let mut s = original.clone();
+        s.execute(Command::Act(action)).unwrap();
+        s.apply(Action::Play(feed_fixture::card(4))).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        let actual = s.game.tricks()[0];
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(actual.winner)
+        );
+        assert_eq!(actual.winner, Seat::Hinterhand);
+    }
+}
+
 fn equal(x: &Session, y: &Session) {
     assert_eq!(x.game.view(Seat::Mittelhand), y.game.view(Seat::Mittelhand));
     let a = x.guided().unwrap();
