@@ -225,6 +225,9 @@ Schwarz/Ouvert; [measured](ai.md#rare-pre-play-classes-and-the-learned-kontrare-
 `--hand-weight` and `--announcement-weight` independently multiply the loss
 for teacher-selected Hand and Schneider/Schwarz/Ouvert announcements on top
 of these weights. Both default to 1 and cannot create missing teacher labels.
+`--schneider-weight`, `--schwarz-weight` and `--ouvert-weight` add separate
+factors (default 1) for the highest announced stage, respectively. They apply
+on top of the announcement factor and do not create or validate labels.
 Their effects on playing strength are unmeasured; training and arena holds
 remain. `evaluate` reports teacher agreement per phase and exact-action
 agreement within each teacher category. Results: [ai.md](ai.md#improved-imitation-recipe-74).
