@@ -718,6 +718,110 @@ fn ouvert_defender_lead_uses_revealed_hand_and_keeps_all_choices() {
 }
 
 #[test]
+fn grand_ouvert_defender_lead_uses_revealed_hand_and_keeps_all_choices() {
+    use skat_core::{Announcement, Game, GameType, RuleConfig};
+    let deal = fx::cases().remove(0).deal;
+    let mut game = Game::from_deal(deal, RuleConfig { kontra_re: false });
+    for action in [
+        Action::Bid(18),
+        Action::Pass,
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(Announcement {
+            game: GameType::Grand,
+            schneider: true,
+            schwarz: true,
+            ouvert: true,
+        }),
+    ] {
+        game.apply(action).unwrap();
+    }
+    let view = game.view(Seat::Vorhand);
+    let rule = skat_analysis::baseline::rule(&view).unwrap();
+    assert_eq!(rule.branch, skat_analysis::baseline::Branch::LeadMaster);
+    assert_eq!(rule.card, fx::card(31));
+    assert_eq!(rule.candidates, [3, 7, 23, 31].map(fx::card));
+    let mut missing = view.clone();
+    missing.declarer_cards = None;
+    assert!(skat_coach::guided::lesson(&missing).is_none());
+    let mut restricted = view.clone();
+    restricted.legal_actions.pop();
+    assert!(skat_coach::guided::lesson(&restricted).is_none());
+    let mut partner = deal.hand(Seat::Hinterhand);
+    let mut skat = deal.skat();
+    let a = partner.iter().next().unwrap();
+    let b = skat.iter().next().unwrap();
+    partner.remove(a);
+    partner.insert(b);
+    skat.remove(b);
+    skat.insert(a);
+    let alt = skat_core::Deal::new(
+        [
+            deal.hand(Seat::Vorhand),
+            deal.hand(Seat::Mittelhand),
+            partner,
+        ],
+        skat,
+    )
+    .unwrap();
+    let mut other = Game::from_deal(alt, RuleConfig { kontra_re: false });
+    for action in [
+        Action::Bid(18),
+        Action::Pass,
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(Announcement {
+            game: GameType::Grand,
+            schneider: true,
+            schwarz: true,
+            ouvert: true,
+        }),
+    ] {
+        other.apply(action).unwrap();
+    }
+    assert_eq!(view, other.view(Seat::Vorhand));
+    let initial = session(deal, game);
+    let mut other = session(alt, other);
+    other.config.opponents = Opponents::GodMode;
+    let mut first = initial.clone();
+    first.config.opponents = Opponents::GodMode;
+    first.execute(Command::StartGuided).unwrap();
+    other.execute(Command::StartGuided).unwrap();
+    same(
+        &first,
+        &other,
+        "revealed declarer and hidden partner/Skat substitution",
+    );
+    respond(&mut first, G::Reveal).unwrap();
+    respond(&mut other, G::Reveal).unwrap();
+    same(&first, &other, "revealed rule");
+    let mut guided = serde_json::to_value(first.guided().unwrap()).unwrap();
+    guided["id"]["lineage"] = 0.into();
+    guided["id"]["generation"] = 0.into();
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../gui-egui/tests/fixtures/grand-ouvert-defender-lead.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        serde_json::json!({"table": first.view(), "guided": guided}),
+        expected
+    );
+    for action in initial.view().legal_actions {
+        let mut s = initial.clone();
+        let before = s.export_current_recording_privileged();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(s.guided().unwrap().rule.unwrap().card, fx::card(31));
+        assert_eq!(s.export_current_recording_privileged(), before);
+        s.execute(Command::Act(action)).unwrap();
+        s.run_opponents();
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        respond(&mut s, G::Reveal).unwrap();
+        assert!(s.guided().unwrap().observation.is_some());
+    }
+}
+
+#[test]
 fn mephisto_can_announce_suit_ouvert() {
     use skat_core::{Announcement, CardSet, Deal, Game, GameType, RuleConfig, Suit};
     let declarer: CardSet = [4, 12, 16, 17, 18, 19, 21, 22, 23, 7]

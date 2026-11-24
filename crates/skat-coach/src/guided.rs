@@ -115,7 +115,7 @@ pub struct Lesson {
 /// `Branch::Null` is broader; other defender turns, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Grand Ouvert declarer and defender after the declarer's lead
 /// WinEarly, Farbspiel defender WinEarly after the declarer's lead, Grand and Farbspiel declarer WinLast, and Ouvert defender last-seat FeedPartner admit validated views. LeadMaster (including Ouvert
-/// Farbspiel defenders and Farbspiel and Grand declarers) and Farbspiel and Grand declarer DrawTrumpf (including
+/// Farbspiel and Grand defenders and declarers) and Farbspiel and Grand declarer DrawTrumpf (including
 /// Ouvert) admit tested own leads with an exact core-legal action list.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
@@ -123,11 +123,18 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let grand = game == GameType::Grand && !contract.ouvert;
     let ouvert_grand_lead = game == GameType::Grand
         && contract.ouvert
-        && view.declarer == Some(view.seat)
+        && (view.declarer == Some(view.seat) && view.declarer_cards == Some(view.hand)
+            || view.declarer.is_some_and(|declarer| {
+                declarer != view.seat
+                    && view.declarer_cards.is_some_and(|cards| {
+                        cards.len() == usize::from(view.hand_sizes[declarer.index()])
+                            && (cards & view.hand).is_empty()
+                            && (cards & Knowledge::from_view(view).played).is_empty()
+                    })
+            }))
         && contract.hand
         && contract.schneider
         && contract.schwarz
-        && view.declarer_cards == Some(view.hand)
         && view.current_trick.cards == [None; 3];
     let ouvert_last = (game == GameType::Grand || matches!(game, GameType::Farbe(_)))
         && contract.ouvert

@@ -1502,3 +1502,8 @@ follow-class master. The exact legal actions and a consistent revealed hand
 are required. A follow-class master can still be trumped; the dialogue
 observes both actual replies and the individual trick winner. Other lead
 branches retain the unsupported fallback.
+
+A Grand Ouvert defender can use the same lead dialogue when the revealed hand
+is consistent and the shared rule selects `LeadMaster`. The rule describes
+the follow class, not protection against a Bube. The actual replies and trick
+winner remain observable; other lead branches retain the fallback.
