@@ -143,7 +143,11 @@ fn early_feed_requires_exact_acting_defender_and_grand_master() {
             8 => x.own_skat = Some([card(20), card(30)].into_iter().collect()),
             _ => unreachable!(),
         }
-        assert!(lesson(&x).is_none(), "mutation {n}");
+        if n == 1 {
+            assert_eq!(lesson(&x).unwrap().rule.branch, Branch::Null);
+        } else {
+            assert!(lesson(&x).is_none(), "mutation {n}");
+        }
     }
     let c = cases()
         .into_iter()

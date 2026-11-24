@@ -55,8 +55,7 @@ separate factual oracles.
   [opening lead](#null-opening-lead-176) also supports Ouvert. Ouvert turns
   require the matching revealed hand. All require at least two pure legal cards;
   the linked sections define the full guards.
-- **Null defender:** opening lead in Vorhand, including Ouvert after reveal; non-Ouvert second after the declarer leads, or last
-  with the declarer ahead, with at least two exact legal actions and a current loser.
+- **Null defender:** opening lead in Vorhand, including Ouvert after reveal; second after either player leads in non-Ouvert Null, or last with the declarer ahead. At least two exact legal actions are required; a current loser is required except after a partner lead.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
   early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
   single legal action, other Grand branches, other Grand Ouvert turns, other Null card play or
@@ -1193,9 +1192,18 @@ compare legal cards that leave the declarer ahead for now. Easy chooses the
 highest Null rank among those cards, with the last exact tie in legal order;
 the partner may still overtake. All legal cards remain playable. This is a
 bounded heuristic, not a guarantee of winning or a claim about unseen cards.
-This second-seat lesson excludes partner leads, absent losing cards, restricted actions
+This second-seat lesson excludes absent losing cards, restricted actions
 and other defender turns. Null Ouvert requires a consistent revealed hand. It uses the public trick and own hand, and
 observes the actual third card and individual winner.
+
+When the partner leads instead in non-Ouvert Null, the second defender can
+compare all legal cards using Easy's fallback: lowest Augen, then lowest Null
+rank, with the first exact tie in legal order. This describes the rule, not a
+guarantee that the declarer takes the trick. The core-replayed fixture in
+`guided_null_defender.rs` checks the role, candidates, action and two hidden
+deal substitutions. The app test exercises each legal card and both legal
+declarer replies, including the actual winner. Ouvert partner leads remain
+outside this admission.
 
 For a reproducible ordinary route, use seed 2115 and a three-game series
 against Easy. Pass and play the first legal card throughout the first two
@@ -1304,6 +1312,26 @@ The completed trick records the actual winner. Inconsistent or restricted views 
 `real-ouvert` fixture checks all four legal choices and hidden substitutions.
 The ordinary bilingual egui route exercises all three available cards, the
 actual winner and return to play. These checks do not establish learning efficacy.
+
+## Farbspiel Ouvert opponent announcements (#131)
+
+Classic levels and the shipped Neural and Hybrid pre-play paths use the shared
+announcement policy: it chooses Ouvert only for a risk-free Null hand. Mephisto
+considers the core-legal announcements with its known-deal search. The app test
+`mephisto_can_announce_suit_ouvert` starts from a constructed legal Hand deal:
+Mephisto chooses Herz Ouvert and the Vorhand defender receives the existing
+`LeadMaster` dialogue. This is not an ordinary seeded session. An optional
+all-phase Neural model may score any legal announcement; its selected action is
+model-dependent and no Farbspiel Ouvert route is established by this test.
+
+## Farbspiel declarer DrawTrumpf lead (#131)
+
+The existing declarer `DrawTrumpf` dialogue also admits Farbspiel leads when
+its legal view passes the same checks as `LeadMaster`. The shared policy counts
+all Trumpf outside the hand and played cards, including known discarded Trumpf;
+it selects the highest own Trumpf. Its explanation does not infer a defender's
+holdings or predict the trick. `skat-app` tests a legal Herz Hand deal, all
+legal plays, actual replies and a concealed-hand substitution in God Mode.
 
 ## Grand Ouvert declarer DrawTrumpf lead (#131)
 
