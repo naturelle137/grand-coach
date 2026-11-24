@@ -17,7 +17,8 @@
 //! closes. `GRAND_COACH_SMOKE_SCENARIO=coach|training` (with a screenshot)
 //! additionally prepares one packaged feature view: `coach` plays first
 //! legal actions with coach, counting aid and quiz on until a counting
-//! question is open; `training` opens the focused counting training;
+//! question is open; `quiz-answer` answers it through the app command;
+//! `training` opens the focused counting training;
 //! `series` plays a complete 36-game series with first legal actions;
 //! `open` plays an open-table game for a few moves; `replay` plays that
 //! series, saves its first game to the data directory and shows it in the
@@ -53,6 +54,7 @@ struct Screenshot {
     review_wanted: bool,
     reviewing: bool,
     practice_wanted: bool,
+    quiz_answer_wanted: bool,
     /// Smoke scenario `cards`: show every deck's faces over the app.
     faces: bool,
     done: Arc<AtomicBool>,
@@ -70,6 +72,12 @@ impl eframe::App for Screenshot {
             match self.app.smoke_advance(now, goal) {
                 Ok(true) => {
                     self.advancing = None;
+                    if self.quiz_answer_wanted
+                        && let Err(reason) = self.app.smoke_answer_quiz(now)
+                    {
+                        eprintln!("smoke: quiz answer: {reason}");
+                        std::process::exit(2);
+                    }
                     if let Some(dir) = &self.replay_dir
                         && let Err(reason) = self.app.smoke_open_replay(dir)
                     {
@@ -194,7 +202,7 @@ fn main() -> eframe::Result {
                     Ok("en") => app.set_language(gui_egui::Language::En),
                     _ => {}
                 }
-                if scenario.as_deref() == Some("coach") {
+                if matches!(scenario.as_deref(), Some("coach" | "quiz-answer")) {
                     app.set_coach(CoachSettings {
                         level: CoachLevel::EveryMove,
                         ..CoachSettings::default()
@@ -228,7 +236,7 @@ fn main() -> eframe::Result {
                     requested: false,
                     advancing: if smoke {
                         match scenario.as_deref() {
-                            Some("coach") => Some(SmokeGoal::Question),
+                            Some("coach" | "quiz-answer") => Some(SmokeGoal::Question),
                             Some("series") => Some(SmokeGoal::Series),
                             Some("replay" | "review" | "practice") => Some(SmokeGoal::Game),
                             Some("open") => Some(SmokeGoal::Moves(12)),
@@ -244,6 +252,7 @@ fn main() -> eframe::Result {
                     review_wanted: smoke && scenario.as_deref() == Some("review"),
                     reviewing: false,
                     practice_wanted: smoke && scenario.as_deref() == Some("practice"),
+                    quiz_answer_wanted: smoke && scenario.as_deref() == Some("quiz-answer"),
                     faces: smoke && scenario.as_deref() == Some("cards"),
                     done: Arc::default(),
                 }),
