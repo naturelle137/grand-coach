@@ -60,6 +60,9 @@ struct KeyInput<'a> {
     rare_weight: u32,
     hand_weight: u32,
     announcement_weight: u32,
+    schneider_weight: u32,
+    schwarz_weight: u32,
+    ouvert_weight: u32,
 }
 
 /// The sources of `dirs` from their manifests and `.done` files, without
@@ -105,6 +108,9 @@ pub fn key(sources: &[DataSource], hyper: &Hyper, beliefs: bool) -> String {
         rare_weight: hyper.rare_weight.to_bits(),
         hand_weight: hyper.hand_weight.to_bits(),
         announcement_weight: hyper.announcement_weight.to_bits(),
+        schneider_weight: hyper.schneider_weight.to_bits(),
+        schwarz_weight: hyper.schwarz_weight.to_bits(),
+        ouvert_weight: hyper.ouvert_weight.to_bits(),
     };
     let json = serde_json::to_vec(&input).expect("key serialises");
     sha256(&json).iter().map(|b| format!("{b:02x}")).collect()
@@ -388,5 +394,21 @@ mod class_weight_tests {
         changed = base.clone();
         changed.announcement_weight = 2.0;
         assert_ne!(key(&[], &base, false), key(&[], &changed, false));
+        for changed in [
+            Hyper {
+                schneider_weight: 2.0,
+                ..base.clone()
+            },
+            Hyper {
+                schwarz_weight: 2.0,
+                ..base.clone()
+            },
+            Hyper {
+                ouvert_weight: 2.0,
+                ..base.clone()
+            },
+        ] {
+            assert_ne!(key(&[], &base, false), key(&[], &changed, false));
+        }
     }
 }

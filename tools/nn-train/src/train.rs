@@ -141,6 +141,15 @@ pub struct Hyper {
     /// Additional factor for teacher Schneider/Schwarz/Ouvert announcements.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub announcement_weight: f32,
+    /// Additional factor when Schneider is the highest announced stage.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub schneider_weight: f32,
+    /// Additional factor when Schwarz is the highest announced stage.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub schwarz_weight: f32,
+    /// Additional factor when Ouvert is the highest announced stage.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub ouvert_weight: f32,
     /// Width of every hidden layer.
     pub hidden: usize,
     /// Number of hidden layers; omitted from the recipe when it is
@@ -207,6 +216,9 @@ impl Default for Hyper {
             rare_weight: 1.0,
             hand_weight: 1.0,
             announcement_weight: 1.0,
+            schneider_weight: 1.0,
+            schwarz_weight: 1.0,
+            ouvert_weight: 1.0,
             hidden: 256,
             layers: MIN_LAYERS,
             batch: 256,
@@ -635,6 +647,13 @@ impl Examples {
                 Action::Hand => hyper.hand_weight,
                 Action::Announce(a) if a.schneider || a.schwarz || a.ouvert => {
                     hyper.announcement_weight
+                        * if a.ouvert {
+                            hyper.ouvert_weight
+                        } else if a.schwarz {
+                            hyper.schwarz_weight
+                        } else {
+                            hyper.schneider_weight
+                        }
                 }
                 _ => 1.0,
             };
@@ -1741,6 +1760,7 @@ mod tests {
             rare_weight: 3.0,
             hand_weight: 5.0,
             announcement_weight: 7.0,
+            ouvert_weight: 11.0,
             ..Hyper::default()
         };
         for hand in [false, true] {
@@ -1790,11 +1810,35 @@ mod tests {
                     },
                 };
                 crate::selfplay::check_record(&record).unwrap();
+                if hand && view.phase == Phase::Ansage {
+                    let weights = Hyper {
+                        all_phases: true,
+                        schneider_weight: 2.0,
+                        schwarz_weight: 3.0,
+                        ouvert_weight: 5.0,
+                        ..Hyper::default()
+                    };
+                    for (schwarz, ouvert, expected) in
+                        [(false, false, 2.0), (true, false, 3.0), (true, true, 5.0)]
+                    {
+                        let mut labelled = record.clone();
+                        labelled.action = Action::Announce(Announcement {
+                            game: GameType::Grand,
+                            schneider: true,
+                            schwarz,
+                            ouvert,
+                        });
+                        crate::selfplay::check_record(&labelled).unwrap();
+                        let mut rows = Examples::new();
+                        assert!(rows.push(&labelled, &weights, None));
+                        assert_eq!(rows.target.iter().sum::<f32>(), expected);
+                    }
+                }
                 let mut examples = Examples::new();
                 assert!(examples.push(&record, &hyper, None));
                 let expected_weight = match action {
                     Action::Hand => 30.0,
-                    Action::Announce(a) if a.ouvert => 42.0,
+                    Action::Announce(a) if a.ouvert => 462.0,
                     _ if phase_of(&examples.legal) != DecisionPhase::Cards => 2.0,
                     _ => 1.0,
                 };

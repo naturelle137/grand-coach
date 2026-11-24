@@ -24,7 +24,7 @@
 //!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
 //!     [--device cpu|vulkan[:discrete|:integrated[:N]]]
 //!     [--patience N [--lr-decay X] [--lr-decays N]]
-//!     [--cache DIR] [--data-on-device GB] [--all-phases [--preplay-weight X] [--rare-weight X] [--hand-weight X] [--announcement-weight X]]
+//!     [--cache DIR] [--data-on-device GB] [--all-phases [--preplay-weight X] [--rare-weight X] [--hand-weight X] [--announcement-weight X] [--schneider-weight X] [--schwarz-weight X] [--ouvert-weight X]]
 //!     [--queue LxH,LxH... [--workers once:cpu,last:vulkan:discrete]]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
@@ -547,6 +547,9 @@ fn train(args: &[String]) {
         rare_weight: flag(args, "--rare-weight", d.rare_weight),
         hand_weight: flag(args, "--hand-weight", d.hand_weight),
         announcement_weight: flag(args, "--announcement-weight", d.announcement_weight),
+        schneider_weight: flag(args, "--schneider-weight", d.schneider_weight),
+        schwarz_weight: flag(args, "--schwarz-weight", d.schwarz_weight),
+        ouvert_weight: flag(args, "--ouvert-weight", d.ouvert_weight),
         hidden: flag(args, "--hidden", d.hidden),
         layers: flag(args, "--layers", d.layers),
         batch: flag(args, "--batch", d.batch),
