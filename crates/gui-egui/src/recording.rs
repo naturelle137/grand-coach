@@ -267,6 +267,34 @@ impl RecordingUi {
         Ok(())
     }
 
+    /// Exercise the decision selector and perspective controls in the packaged viewer.
+    pub fn smoke_select_decision(&mut self, ctx: &egui::Context) -> Result<(), &'static str> {
+        let replay = self.replay.as_mut().ok_or("no open recording")?;
+        if replay.coach.view().decisions.is_empty() {
+            return Err("recording has no human decisions");
+        }
+        let recording = replay.recording.clone();
+        replay.apply(CoachRequest::Select(Some(0)), ctx);
+        let view = replay.coach.view();
+        if view.selected != Some(0)
+            || view.context.is_none()
+            || view.perspective != ReplayPerspective::Historical
+        {
+            return Err("replay decision selection failed");
+        }
+        replay.apply(CoachRequest::Perspective(ReplayPerspective::Hindsight), ctx);
+        if replay.coach.view().perspective != ReplayPerspective::Hindsight
+            || replay.recording != recording
+        {
+            return Err("replay perspective change failed or changed the recording");
+        }
+        replay.apply(CoachRequest::Select(Some(0)), ctx);
+        if replay.coach.view().perspective != ReplayPerspective::Historical {
+            return Err("replay selection did not restore historical perspective");
+        }
+        Ok(())
+    }
+
     /// Packaged smoke: requests the recording review of the open recording.
     pub fn smoke_request_review(&mut self, ctx: &egui::Context) {
         if let Some(replay) = &mut self.replay {

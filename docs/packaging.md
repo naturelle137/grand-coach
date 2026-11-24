@@ -214,9 +214,11 @@ answer, assisted retry, skip, next and return before opening the topic chooser;
 `series` plays a 36-game series with first legal actions to the series
 result; `open` plays an open-table game (all hands shown) for 12 actions;
 `replay` plays one game of a two-game series, saves it to the data directory,
-reopens it, navigates backward and forward across trick boundaries, and checks
-that the recording and live series remain unchanged. Navigation uses the viewer
-controller, not button clicks. `review` does the same, requests
+reopens it, navigates backward and forward across trick boundaries, selects a
+human decision, switches to hindsight and back to the historical perspective,
+and checks that the recording and live series remain unchanged. These controls
+use the viewer controller, not button clicks. Fresh package runs are needed for
+platform evidence of decision selection and perspective changes. `review` does the same, requests
 the post-game recording review and waits for its summary (analysis through the shared
 replay coach, bounded by its time limit); `practice` starts an isolated attempt from the reopened recording, retries it, checks the unchanged live view after returning, and starts a fresh attempt; `cards` shows all deck faces. Each saves a native
 screenshot; the eighteen must differ and history must stay valid. Training and
