@@ -343,17 +343,20 @@ impl GrandCoachApp {
 
     /// Answer the pending packaged-smoke quiz and verify its feedback.
     pub fn smoke_answer_quiz(&mut self, now: f64) -> Result<(), &'static str> {
-        let question = self
-            .session
-            .view()
-            .assist
-            .quiz
-            .question
-            .ok_or("no quiz question")?;
+        let view = self.session.view();
+        let question = view.assist.quiz.question.ok_or("no quiz question")?;
+        if view.coach.settings.level != CoachLevel::EveryMove
+            || !matches!(view.coach.advice, Advice::None)
+            || view.assist.counting != CountingState::Withheld
+        {
+            return Err("coach or counting aid was not withheld during the quiz");
+        }
         let events = self.learning.history().events().len();
         self.send(Command::AnswerQuiz(0), now);
-        let quiz = self.session.view().assist.quiz;
+        let view = self.session.view();
+        let quiz = view.assist.quiz;
         if quiz.question.is_some()
+            || !matches!(view.assist.counting, CountingState::Shown(_))
             || !quiz.feedback.is_some_and(|f| {
                 f.kind == question && !matches!(f.outcome, skat_app::QuizOutcome::Skipped)
             })
@@ -3341,7 +3344,12 @@ mod tests {
     fn packaged_quiz_answer_requires_question_and_records_feedback() {
         let mut app = GrandCoachApp::new(&egui::Context::default(), easy_series());
         assert!(app.smoke_answer_quiz(0.0).is_err());
+        app.set_coach(CoachSettings {
+            level: CoachLevel::EveryMove,
+            ..CoachSettings::default()
+        });
         app.set_assist(AssistSettings {
+            counting_aid: true,
             quiz: true,
             ..AssistSettings::default()
         });
