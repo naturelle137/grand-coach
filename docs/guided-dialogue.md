@@ -1457,3 +1457,11 @@ when the partner's card is a follow-class master. The same reveal and legal
 view checks apply. A side master may still be trumped by the declarer; the
 core fixture exercises both Herz and Kreuz-Bube replies. The open hand does
 not change the shared Easy rule.
+
+A Grand Ouvert defender may use the same early `FeedPartner` dialogue with
+a consistent revealed declarer hand and exact legal actions. The core-replayed
+fixture permits both legal cards and checks that the declarer can trump the
+partner's side master with either Bube; a nontrump discard leaves the partner
+ahead. The app test checks the actual continuation and compares the entire
+dialogue after exchanging unseen partner and Skat cards, including God Mode.
+The revealed hand does not change Easy's rule or guarantee the trick.
