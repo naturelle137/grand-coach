@@ -269,7 +269,7 @@ The revealed Farbspiel Ouvert declarer's lead also permits the second-seat
 defender's [guarded `WinEarly` dialogue](guided-dialogue.md#ouvert-farbspiel-declarer-acting-second-317).
 [Second-seat Grand `FeedPartner`](guided-dialogue.md#grand-second-seat-feedpartner-131)
 also admits the acting defender after a partner follow-class master, including
-a consistent revealed Grand Ouvert view. Empty-trick Grand and non-Ouvert Farbspiel `LeadMaster` (#171, #182)
+a consistent revealed Grand Ouvert view. Empty-trick Grand and Farbspiel `LeadMaster` (#171, #182; including a validated Ouvert defender)
 also support both roles where Easy selects a nontrump master: own/played
 higher cards do not block it, known discarded higher cards still do.
 It takes maximum Augen, last exact legal-order tie, with no trick guarantee.
