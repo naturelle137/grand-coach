@@ -59,6 +59,7 @@ struct KeyInput<'a> {
     preplay_weight: u32,
     rare_weight: u32,
     hand_weight: u32,
+    hand_declaration_weight: u32,
     announcement_weight: u32,
     schneider_weight: u32,
     schwarz_weight: u32,
@@ -107,6 +108,7 @@ pub fn key(sources: &[DataSource], hyper: &Hyper, beliefs: bool) -> String {
         preplay_weight: hyper.preplay_weight.to_bits(),
         rare_weight: hyper.rare_weight.to_bits(),
         hand_weight: hyper.hand_weight.to_bits(),
+        hand_declaration_weight: hyper.hand_declaration_weight.to_bits(),
         announcement_weight: hyper.announcement_weight.to_bits(),
         schneider_weight: hyper.schneider_weight.to_bits(),
         schwarz_weight: hyper.schwarz_weight.to_bits(),
@@ -390,6 +392,9 @@ mod class_weight_tests {
         let base = Hyper::default();
         let mut changed = base.clone();
         changed.hand_weight = 2.0;
+        assert_ne!(key(&[], &base, false), key(&[], &changed, false));
+        changed = base.clone();
+        changed.hand_declaration_weight = 2.0;
         assert_ne!(key(&[], &base, false), key(&[], &changed, false));
         changed = base.clone();
         changed.announcement_weight = 2.0;
