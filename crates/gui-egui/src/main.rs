@@ -79,7 +79,7 @@ impl eframe::App for Screenshot {
                         std::process::exit(2);
                     }
                     if let Some(dir) = &self.replay_dir
-                        && let Err(reason) = self.app.smoke_open_replay(dir)
+                        && let Err(reason) = self.app.smoke_open_replay(dir, &ctx)
                     {
                         eprintln!("smoke: replay: {reason}");
                         std::process::exit(2);
