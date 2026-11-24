@@ -204,7 +204,7 @@ The linked probe creates a valid history from actual training events through
 the existing app API, saves/reopens it and checks it after each packaged launch.
 The smoke requires byte-identical valid history across restart/replacement,
 then separately tests damaged-history preservation and uninstall retention.
-After these stages the same extracted executable is launched eighteen more times
+After these stages the same extracted executable is launched eighteen times
 with smoke-only variables `GRAND_COACH_SMOKE_SCENARIO=coach|quiz-answer|training|series|open|replay|review|practice|cards` and
 `GRAND_COACH_LANGUAGE=de|en` (with valid history restored): `coach` enables
 EveryMove coach, counting aid and quiz and plays first legal actions until a
@@ -225,8 +225,12 @@ screenshot; the eighteen must differ and history must stay valid. Training and
 quiz-answer must change the history. These views use app commands or controllers
 for answers and practice, rather than clicking widgets. Fresh package runs are
 needed for platform evidence of the quiz-answer extension.
-Probe creation/checks are API evidence, not GUI entry/answer evidence. They do
-not establish migration or cross-version upgrade.
+The `legacy-training` run starts the extracted executable with a synthetic format-1
+history matching the old schema, then checks that training saves a newer format,
+preserves the old attempts and events and adds new events. This is configured to exercise the
+packaged migration path, not an upgrade from an actual earlier binary; record
+a successful package run before claiming evidence.
+Probe creation/checks are API evidence, not GUI entry/answer evidence.
 Existing application/widget tests cover those behaviours separately.
 
 Before release, agents execute the required functional, package and visual
