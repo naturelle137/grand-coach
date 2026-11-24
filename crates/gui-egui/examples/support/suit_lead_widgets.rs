@@ -22,6 +22,7 @@ pub fn inventory() -> Vec<serde_json::Value> {
     let mut result = Vec::new();
     for language in ["de", "en"] {
         for (suffix, width, height) in [("", 1440, 1000), ("-narrow", 960, 640)] {
+            result.push(serde_json::json!({"name":format!("guided-suit-lead-master-null-partner-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"null-partner-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-god-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"god-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-ouvert-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"ouvert-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-ouvert-defender-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"suit-ouvert-defender-lead"}));
@@ -61,7 +62,8 @@ pub fn render(name: &str, out: Option<&str>) {
         entry["width"].as_f64().unwrap() as f32,
         entry["height"].as_f64().unwrap() as f32,
     ];
-    if entry["kind"] == "god-fixture"
+    if entry["kind"] == "null-partner-fixture"
+        || entry["kind"] == "god-fixture"
         || entry["kind"] == "ouvert-fixture"
         || entry["kind"] == "suit-ouvert-defender-lead"
         || entry["kind"] == "grand-ouvert-fixture"
@@ -107,36 +109,39 @@ pub fn render(name: &str, out: Option<&str>) {
             || suit_last
             || suit_feed
             || suit_early_feed;
-        let fixture: serde_json::Value = serde_json::from_str(if suit_draw {
-            include_str!("../../tests/fixtures/suit-draw-trumpf.json")
-        } else if suit_defender_lead {
-            include_str!("../../tests/fixtures/suit-ouvert-defender-lead.json")
-        } else if grand_early_feed {
-            include_str!("../../tests/fixtures/grand-ouvert-early-feed.json")
-        } else if grand_defender_early {
-            include_str!("../../tests/fixtures/grand-ouvert-defender-early.json")
-        } else if suit_early_feed {
-            include_str!("../../tests/fixtures/suit-ouvert-early-feed.json")
-        } else if suit_feed {
-            include_str!("../../tests/fixtures/suit-ouvert-feed.json")
-        } else if grand_feed {
-            include_str!("../../tests/fixtures/grand-ouvert-feed.json")
-        } else if grand_early {
-            include_str!("../../tests/fixtures/grand-ouvert-early.json")
-        } else if suit_last {
-            include_str!("../../tests/fixtures/suit-ouvert-last.json")
-        } else if grand_last {
-            include_str!("../../tests/fixtures/grand-ouvert-last.json")
-        } else if grand_draw {
-            include_str!("../../tests/fixtures/grand-ouvert-draw.json")
-        } else if grand_ouvert {
-            include_str!("../../tests/fixtures/grand-lead-master-ouvert.json")
-        } else if ouvert {
-            include_str!("../../tests/fixtures/suit-lead-master-ouvert.json")
-        } else {
-            include_str!("../../tests/fixtures/suit-lead-master-god.json")
-        })
-        .unwrap();
+        let fixture: serde_json::Value =
+            serde_json::from_str(if entry["kind"] == "null-partner-fixture" {
+                include_str!("../../tests/fixtures/null-partner-lead.json")
+            } else if suit_draw {
+                include_str!("../../tests/fixtures/suit-draw-trumpf.json")
+            } else if suit_defender_lead {
+                include_str!("../../tests/fixtures/suit-ouvert-defender-lead.json")
+            } else if grand_early_feed {
+                include_str!("../../tests/fixtures/grand-ouvert-early-feed.json")
+            } else if grand_defender_early {
+                include_str!("../../tests/fixtures/grand-ouvert-defender-early.json")
+            } else if suit_early_feed {
+                include_str!("../../tests/fixtures/suit-ouvert-early-feed.json")
+            } else if suit_feed {
+                include_str!("../../tests/fixtures/suit-ouvert-feed.json")
+            } else if grand_feed {
+                include_str!("../../tests/fixtures/grand-ouvert-feed.json")
+            } else if grand_early {
+                include_str!("../../tests/fixtures/grand-ouvert-early.json")
+            } else if suit_last {
+                include_str!("../../tests/fixtures/suit-ouvert-last.json")
+            } else if grand_last {
+                include_str!("../../tests/fixtures/grand-ouvert-last.json")
+            } else if grand_draw {
+                include_str!("../../tests/fixtures/grand-ouvert-draw.json")
+            } else if grand_ouvert {
+                include_str!("../../tests/fixtures/grand-lead-master-ouvert.json")
+            } else if ouvert {
+                include_str!("../../tests/fixtures/suit-lead-master-ouvert.json")
+            } else {
+                include_str!("../../tests/fixtures/suit-lead-master-god.json")
+            })
+            .unwrap();
         let table: TableView = serde_json::from_value(fixture["table"].clone()).unwrap();
         let dialog: GuidedView = serde_json::from_value(fixture["guided"].clone()).unwrap();
         let i = I18n::new(language);
@@ -148,7 +153,9 @@ pub fn render(name: &str, out: Option<&str>) {
                         &[
                             (
                                 "case",
-                                if ouvert {
+                                if entry["kind"] == "null-partner-fixture" {
+                                    "Null / partner lead"
+                                } else if ouvert {
                                     "Ouvert / open display"
                                 } else {
                                     "God Mode"

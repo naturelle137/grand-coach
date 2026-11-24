@@ -55,8 +55,7 @@ separate factual oracles.
   [opening lead](#null-opening-lead-176) also supports Ouvert. Ouvert turns
   require the matching revealed hand. All require at least two pure legal cards;
   the linked sections define the full guards.
-- **Null defender:** opening lead in Vorhand, including Ouvert after reveal; non-Ouvert second after the declarer leads, or last
-  with the declarer ahead, with at least two exact legal actions and a current loser.
+- **Null defender:** opening lead in Vorhand, including Ouvert after reveal; second after either player leads in non-Ouvert Null, or last with the declarer ahead. At least two exact legal actions are required; a current loser is required except after a partner lead.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
   early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
   single legal action, other Grand branches, other Grand Ouvert turns, other Null card play or
@@ -1193,9 +1192,18 @@ compare legal cards that leave the declarer ahead for now. Easy chooses the
 highest Null rank among those cards, with the last exact tie in legal order;
 the partner may still overtake. All legal cards remain playable. This is a
 bounded heuristic, not a guarantee of winning or a claim about unseen cards.
-This second-seat lesson excludes partner leads, absent losing cards, restricted actions
+This second-seat lesson excludes absent losing cards, restricted actions
 and other defender turns. Null Ouvert requires a consistent revealed hand. It uses the public trick and own hand, and
 observes the actual third card and individual winner.
+
+When the partner leads instead in non-Ouvert Null, the second defender can
+compare all legal cards using Easy's fallback: lowest Augen, then lowest Null
+rank, with the first exact tie in legal order. This describes the rule, not a
+guarantee that the declarer takes the trick. The core-replayed fixture in
+`guided_null_defender.rs` checks the role, candidates, action and two hidden
+deal substitutions. The app test exercises each legal card and both legal
+declarer replies, including the actual winner. Ouvert partner leads remain
+outside this admission.
 
 For a reproducible ordinary route, use seed 2115 and a three-game series
 against Easy. Pass and play the first legal card throughout the first two

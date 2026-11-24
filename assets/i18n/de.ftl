@@ -1155,6 +1155,9 @@ coach-debriefing-partial = Bereits geprüfte Momente. Die Auswahl kann sich mit 
 mode-hybrid = Hybrid (experimentell)
 mode-hybrid-description = Experimentelle Vorschläge werden mit Classic-Suche geprüft; Leicht prüft mit einem Sample. Bei fehlendem Modell übernimmt die gewählte Classic-Stufe. Qualität und Geschwindigkeit sind nicht gemessen.
 guided-null-defender-role = Du bist Gegenspieler im Null. Der Alleinspieler liegt vorn; dein Partner spielt noch. Es gibt keinen Trumpf, auch Buben bedienen ihre Farbe.
+guided-null-partner-role = Dein Partner liegt vorn; der Alleinspieler spielt noch. Im Null gibt es keinen Trumpf, auch Buben bedienen ihre Farbe.
+guided-null-partner-attempt = Welche legale Karte steht zuerst, wenn du nach Augen und dann nach Nullrang aufsteigend vergleichst? Bei Gleichstand gilt die erlaubte Reihenfolge.
+guided-rule-null-partner = Easy vergleicht alle legalen Karten nach Augen und dann nach Nullrang aufsteigend; bei Gleichstand nimmt es die erste. Das ist ein einfacher Rückfall, keine Garantie für den Stich oder das Spiel.
 guided-rule-null-defender = Easy wählt die ranghöchste Karte, die den Alleinspieler vorerst vorn lässt; bei gleichem Rang die letzte in der erlaubten Reihenfolge. Dein Partner kann den Stich noch übernehmen. Das ist eine Faustregel ohne Spielgewinn-Garantie.
 
 guided-null-defender-last-role = Du bist Gegenspieler im Null und spielst als Letzter. Der Alleinspieler liegt vorn. Es gibt keinen Trumpf, auch Buben bedienen ihre Farbe.

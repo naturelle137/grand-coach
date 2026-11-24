@@ -108,7 +108,7 @@ pub struct Lesson {
 /// and at least one losing card; early FeedPartner (Farbspiel or Grand, including Ouvert) requires a follow-class master; Fallback stays excluded.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. A defender may
-/// lead a trick, act second after the declarer leads, or last with the declarer ahead.
+/// lead a trick, act second after either player leads, or last with the declarer ahead.
 /// Null Ouvert admits defender leads, second-seat play after a declarer lead,
 /// and last-seat play with the declarer ahead,
 /// and the declarer's opening and second/last-seat turns after the reveal.
@@ -270,7 +270,6 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         && view.declarer.is_some_and(|d| d != view.seat)
         && (matches!(view.current_trick.cards, [None, None, None])
             || matches!(view.current_trick.cards, [Some(_), None, None])
-                && view.current_trick.leader == view.declarer
                 && view.current_trick.leader.map(Seat::next) == Some(view.seat)
             || matches!(view.current_trick.cards, [Some(_), Some(_), None])
                 && TrickState::of(game, &view.current_trick).best_seat == view.declarer)
@@ -523,7 +522,10 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || (rule.branch == Branch::FeedPartner
                 && (((grand || suit_feed || ouvert_feed) && rule.last)
                     || (feed_early && rule.partner_ahead && rule.table_master)))
-            || (null && rule.branch == Branch::Null && !rule.losers.is_empty()))
+            || (null
+                && rule.branch == Branch::Null
+                && (!rule.losers.is_empty()
+                    || (null_defender && rule.winner != view.declarer && !rule.last))))
     {
         return None;
     }
@@ -561,6 +563,12 @@ impl Lesson {
         match (step, answer) {
             (Step::Orient, Answer::Seat(seat)) => seat == self.rule.winner,
             (Step::Check, Answer::Seat(seat)) => seat == self.remaining,
+            (Step::Narrow, Answer::Card(c))
+                if self.game == GameType::Null
+                    && self.rule.tie_break == baseline::TieBreak::LowestCostFirst =>
+            {
+                c == self.rule.card
+            }
             (Step::Narrow, Answer::Card(c)) => self.rule.candidates.contains(&c),
             _ => false,
         }
