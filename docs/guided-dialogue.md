@@ -1305,6 +1305,17 @@ The completed trick records the actual winner. Inconsistent or restricted views 
 The ordinary bilingual egui route exercises all three available cards, the
 actual winner and return to play. These checks do not establish learning efficacy.
 
+## Farbspiel Ouvert opponent announcements (#131)
+
+Classic levels and the shipped Neural and Hybrid pre-play paths use the shared
+announcement policy: it chooses Ouvert only for a risk-free Null hand. Mephisto
+considers the core-legal announcements with its known-deal search. The app test
+`mephisto_can_announce_suit_ouvert` starts from a constructed legal Hand deal:
+Mephisto chooses Herz Ouvert and the Vorhand defender receives the existing
+`LeadMaster` dialogue. This is not an ordinary seeded session. An optional
+all-phase Neural model may score any legal announcement; its selected action is
+model-dependent and no Farbspiel Ouvert route is established by this test.
+
 ## Farbspiel declarer DrawTrumpf lead (#131)
 
 The existing declarer `DrawTrumpf` dialogue also admits Farbspiel leads when
