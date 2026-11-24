@@ -137,3 +137,25 @@ selected an extended announcement twice. The deal splits were 77 train, 10
 validation and 13 test. One sampled world and this small, synthetic sample do
 not establish label quality or playing strength. These decisions are not
 training labels; independent evaluation remains necessary.
+
+The independent `evaluate_declarations` diagnostic compares the Classic and
+searched declaration choices on the test split only. It samples fresh worlds
+from each acting view, replays the public bidding and Hand choice, and plays
+both choices and each legal synthetic Schneider/Schwarz candidate against the
+same frozen Easy players. It reports per-deal scores, paired candidate differences
+and their standard errors across worlds, the searched-versus-Classic difference
+and its standard error across deals, and declaration and continuation fallbacks. The sampled worlds satisfy hard constraints;
+they do not condition on the opponents' bidding strategy. These are diagnostic
+outcomes, not training labels or evidence of general teacher quality. Reproduce
+with a separate sampling seed, for example:
+
+```sh
+cargo run --locked -p nn-train --example rare_positions -- 7 100 | cargo run --locked -p nn-train --example evaluate_declarations -- 8 4639
+```
+
+The command above reused 13 previously inspected test views with eight fresh
+paired worlds each and assessed 130 candidate actions: searched
+minus Classic was -5.64 Seeger-Fabian points per declarer game, with a
+17.17-point standard error across deals. Search fell back once; the 208
+continuation games for those choices and 1,040 candidate games had no fallbacks. This small conditional sample cannot
+establish an ordering or select a teacher.

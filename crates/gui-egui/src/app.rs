@@ -434,7 +434,12 @@ impl GrandCoachApp {
             .save_local_new(&path)
             .map_err(|e| format!("{e:?}"))?;
         let reopened = skat_app::GameRecording::open_local(&path).map_err(|e| format!("{e:?}"))?;
+        let live = self.session.view();
         self.recording.start_replay(reopened);
+        self.recording.smoke_navigate().map_err(str::to_owned)?;
+        if self.session.view() != live {
+            return Err("replay navigation changed the live series".into());
+        }
         Ok(())
     }
 
@@ -3295,6 +3300,21 @@ mod tests {
         assert!(!app.recording.active());
         app.return_to_series();
         assert_eq!(app.session.view(), before);
+    }
+
+    #[test]
+    fn packaged_replay_navigates_complete_recording_without_changing_it() {
+        let mut app = GrandCoachApp::new(&egui::Context::default(), easy_series());
+        assert!(app.recording.smoke_navigate().is_err());
+        let recording: skat_app::GameRecording = serde_json::from_str(include_str!(
+            "../../skat-app/tests/fixtures/recordings/herz.json"
+        ))
+        .unwrap();
+        let live = app.session.view();
+        app.recording.start_replay(recording.clone());
+        app.recording.smoke_navigate().unwrap();
+        assert_eq!(app.recording.smoke_recording(), Some(recording));
+        assert_eq!(app.session.view(), live);
     }
 
     #[test]

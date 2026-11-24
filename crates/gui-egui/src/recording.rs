@@ -245,6 +245,28 @@ impl RecordingUi {
         self.replay.as_ref().map(|replay| replay.recording.clone())
     }
 
+    /// Exercise replay navigation in both directions without changing the record.
+    pub fn smoke_navigate(&mut self) -> Result<(), &'static str> {
+        let replay = self.replay.as_mut().ok_or("no open recording")?;
+        let last = replay.boundaries.len() - 1;
+        if last < 2 {
+            return Err("recording has too few trick boundaries");
+        }
+        let recording = replay.recording.clone();
+        for index in [last - 1, 0, 1, last] {
+            replay.select_boundary(index);
+            if replay.selected != index
+                || replay.position.applied_actions != replay.boundaries[index]
+                || replay.recording != recording
+            {
+                return Err(
+                    "replay navigation changed the recording or selected the wrong boundary",
+                );
+            }
+        }
+        Ok(())
+    }
+
     /// Packaged smoke: requests the recording review of the open recording.
     pub fn smoke_request_review(&mut self, ctx: &egui::Context) {
         if let Some(replay) = &mut self.replay {
@@ -348,11 +370,7 @@ impl RecordingUi {
                         }
                     }
                     if next != replay.selected {
-                        replay.position = replay
-                            .recording
-                            .reconstruct_privileged(replay.boundaries[next])
-                            .expect("immutable validated record");
-                        replay.selected = next;
+                        replay.select_boundary(next);
                     }
                     ui.label(i.tf(
                         "record-boundary",
@@ -459,6 +477,14 @@ impl RecordingUi {
 }
 
 impl Replay {
+    fn select_boundary(&mut self, index: usize) {
+        self.position = self
+            .recording
+            .reconstruct_privileged(self.boundaries[index])
+            .expect("immutable validated record");
+        self.selected = index;
+    }
+
     /// Delivers a finished comment or review decision; the coach rejects
     /// anything stale. The review then starts its next decision, or ends at
     /// [`REPLAY_REVIEW_TIME_LIMIT`].
