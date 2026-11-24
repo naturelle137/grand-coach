@@ -134,7 +134,7 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(active, set())
 
     def test_smoke_runs_all_probes_from_blocked_install_and_propagates_failure(self):
-        for failing_mode in (None, "create", "check", "quiz-answer"):
+        for failing_mode in (None, "create", "check", "quiz-answer", "legacy-training"):
             with self.subTest(failing_mode=failing_mode), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 archive = root / "package.zip"
@@ -161,7 +161,15 @@ class PackageTests(unittest.TestCase):
                         screenshot = Path(kwargs["env"]["GRAND_COACH_SCREENSHOT"])
                         screenshot.write_bytes(b"P6\n" + screenshot.name.encode() + b"x" * 100000)
                         if kwargs["env"].get("GRAND_COACH_SMOKE_SCENARIO") == "training":
-                            (Path(kwargs["env"]["GRAND_COACH_DATA"]) / "learning-history.json").write_bytes(b"training history")
+                            history = Path(kwargs["env"]["GRAND_COACH_DATA"]) / "learning-history.json"
+                            if screenshot.name == "legacy-training.ppm":
+                                migrated = {**package.LEGACY_HISTORY, "format": 6,
+                                            "events": package.LEGACY_HISTORY["events"] + [{}]}
+                                if failing_mode == "legacy-training":
+                                    migrated["events"] = [{}]
+                                history.write_text(json.dumps(migrated))
+                            else:
+                                history.write_bytes(b"training history")
                         if kwargs["env"].get("GRAND_COACH_SMOKE_SCENARIO") == "quiz-answer":
                             (Path(kwargs["env"]["GRAND_COACH_DATA"]) / "learning-history.json").write_bytes(
                                 b'{"events": [{"event": {"action": {"Answer": {"given": 1}}}}]}'
@@ -173,7 +181,7 @@ class PackageTests(unittest.TestCase):
                      patch.object(package, "unblock_windows_network") as cleanup, \
                      patch.object(package.subprocess, "run", side_effect=run):
                     if failing_mode:
-                        with self.assertRaises(ValueError if failing_mode == "quiz-answer" else subprocess.CalledProcessError):
+                        with self.assertRaises(ValueError if failing_mode in ("quiz-answer", "legacy-training") else subprocess.CalledProcessError):
                             package.smoke(args)
                     else:
                         package.smoke(args)
