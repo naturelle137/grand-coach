@@ -47,7 +47,7 @@ separate factual oracles.
 - **FeedPartner:** Grand or [Farbspiel](#farbspiel-last-seat-feedpartner-185), including validated
   [Ouvert Farbspiel defenders](#farbspiel-ouvert-last-seat-feedpartner-131), defender last to
   the current trick, partner ahead, at least two pure legal card actions.
-- **LeadMaster:** non-Ouvert Grand (#171) and [Farbspiel](#farbspiel-lead-with-a-follow-class-master-182) (#182), own empty-trick
+- **LeadMaster:** non-Ouvert Grand (#171) and [Farbspiel](#farbspiel-lead-with-a-follow-class-master-182) (#182), including [Ouvert defenders](#farbspiel-ouvert-defender-lead-131), own empty-trick
   lead, both roles where the actual shared branch permits it, at least two
   pure core-legal cards; no guarantee against trumping.
 - **Null declarer:** Null acting [last](#null-declarer-last-to-the-current-trick-165)
@@ -1465,3 +1465,12 @@ partner's side master with either Bube; a nontrump discard leaves the partner
 ahead. The app test checks the actual continuation and compares the entire
 dialogue after exchanging unseen partner and Skat cards, including God Mode.
 The revealed hand does not change Easy's rule or guarantee the trick.
+
+## Farbspiel Ouvert defender lead (#131)
+
+A defender leading against a revealed Farbspiel Ouvert hand can enter the
+existing `LeadMaster` dialogue when the shared rule selects a plain-suit
+follow-class master. The exact legal actions and a consistent revealed hand
+are required. A follow-class master can still be trumped; the dialogue
+observes both actual replies and the individual trick winner. Other lead
+branches retain the unsupported fallback.
