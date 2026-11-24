@@ -141,6 +141,9 @@ pub struct Hyper {
     /// Additional factor for declarations after choosing Hand.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub hand_declaration_weight: f32,
+    /// Additional factor for teacher Null declarations.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub null_weight: f32,
     /// Additional factor for teacher Schneider/Schwarz/Ouvert announcements.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub announcement_weight: f32,
@@ -219,6 +222,7 @@ impl Default for Hyper {
             rare_weight: 1.0,
             hand_weight: 1.0,
             hand_declaration_weight: 1.0,
+            null_weight: 1.0,
             announcement_weight: 1.0,
             schneider_weight: 1.0,
             schwarz_weight: 1.0,
@@ -663,7 +667,14 @@ impl Examples {
             };
             let hand_declaration =
                 matches!(r.action, Action::Announce(_)) && r.view.hand_game == Some(true);
+            let null_weight = if matches!(r.action, Action::Announce(a) if a.game == GameType::Null)
+            {
+                hyper.null_weight
+            } else {
+                1.0
+            };
             let weight = class_weight
+                * null_weight
                 * if hand_declaration {
                     hyper.hand_declaration_weight
                 } else {
@@ -1832,6 +1843,25 @@ mod tests {
                     assert_eq!(
                         rows.target.iter().sum::<f32>(),
                         if hand { 26.0 } else { 2.0 }
+                    );
+                }
+                if view.phase == Phase::Ansage {
+                    let weights = Hyper {
+                        all_phases: true,
+                        preplay_weight: 2.0,
+                        rare_weight: 3.0,
+                        null_weight: 5.0,
+                        hand_declaration_weight: 7.0,
+                        ..Hyper::default()
+                    };
+                    let mut labelled = record.clone();
+                    labelled.action = Action::Announce(Announcement::plain(GameType::Null));
+                    crate::selfplay::check_record(&labelled).unwrap();
+                    let mut rows = Examples::new();
+                    assert!(rows.push(&labelled, &weights, None));
+                    assert_eq!(
+                        rows.target.iter().sum::<f32>(),
+                        if hand { 210.0 } else { 30.0 }
                     );
                 }
                 if hand && view.phase == Phase::Ansage {
