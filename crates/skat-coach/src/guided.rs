@@ -115,7 +115,7 @@ pub struct Lesson {
 /// `Branch::Null` is broader; other defender turns, other Ouvert turns and
 /// restricted or inconsistent views stay excluded here. Grand Ouvert declarer and defender after the declarer's lead
 /// WinEarly, Farbspiel defender WinEarly after the declarer's lead, Grand and Farbspiel declarer WinLast, and Ouvert defender last-seat FeedPartner admit validated views. LeadMaster (including Ouvert
-/// Farbspiel defenders and Farbspiel and Grand declarers) and Grand declarer DrawTrumpf (including
+/// Farbspiel defenders and Farbspiel and Grand declarers) and Farbspiel and Grand declarer DrawTrumpf (including
 /// Ouvert) admit tested own leads with an exact core-legal action list.
 pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let contract = view.contract?;
@@ -403,7 +403,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         let admitted = match rule.branch {
             Branch::LeadMaster => !game.is_trump(rule.card),
             Branch::DrawTrumpf => {
-                (grand || ouvert_grand_lead)
+                (grand || ouvert_grand_lead || suit)
                     && view.declarer == Some(view.seat)
                     && game.is_trump(rule.card)
             }

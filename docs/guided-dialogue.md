@@ -1305,6 +1305,15 @@ The completed trick records the actual winner. Inconsistent or restricted views 
 The ordinary bilingual egui route exercises all three available cards, the
 actual winner and return to play. These checks do not establish learning efficacy.
 
+## Farbspiel declarer DrawTrumpf lead (#131)
+
+The existing declarer `DrawTrumpf` dialogue also admits Farbspiel leads when
+its legal view passes the same checks as `LeadMaster`. The shared policy counts
+all Trumpf outside the hand and played cards, including known discarded Trumpf;
+it selects the highest own Trumpf. Its explanation does not infer a defender's
+holdings or predict the trick. `skat-app` tests a legal Herz Hand deal, all
+legal plays, actual replies and a concealed-hand substitution in God Mode.
+
 ## Grand Ouvert declarer DrawTrumpf lead (#131)
 
 The existing Grand declarer `DrawTrumpf` dialogue also accepts an own
