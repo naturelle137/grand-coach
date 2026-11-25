@@ -147,6 +147,9 @@ pub struct Hyper {
     /// Additional factor for teacher Null declarations after choosing Hand.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub hand_null_weight: f32,
+    /// Additional factor for teacher Kontra and Re calls.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub kontra_weight: f32,
     /// Additional factor for teacher Schneider/Schwarz/Ouvert announcements.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub announcement_weight: f32,
@@ -227,6 +230,7 @@ impl Default for Hyper {
             hand_declaration_weight: 1.0,
             null_weight: 1.0,
             hand_null_weight: 1.0,
+            kontra_weight: 1.0,
             announcement_weight: 1.0,
             schneider_weight: 1.0,
             schwarz_weight: 1.0,
@@ -657,6 +661,7 @@ impl Examples {
             }
             let class_weight = match r.action {
                 Action::Hand => hyper.hand_weight,
+                Action::Kontra | Action::Re => hyper.kontra_weight,
                 Action::Announce(a) if a.schneider || a.schwarz || a.ouvert => {
                     hyper.announcement_weight
                         * if a.ouvert {
@@ -1795,6 +1800,7 @@ mod tests {
             hand_weight: 5.0,
             hand_declaration_weight: 13.0,
             hand_null_weight: 17.0,
+            kontra_weight: 19.0,
             announcement_weight: 7.0,
             ouvert_weight: 11.0,
             ..Hyper::default()
@@ -1918,6 +1924,7 @@ mod tests {
                 let expected_weight = match action {
                     Action::Hand => 30.0,
                     Action::Announce(a) if a.ouvert => 6006.0,
+                    Action::Kontra | Action::Re => 38.0,
                     _ if phase_of(&examples.legal) != DecisionPhase::Cards => 2.0,
                     _ => 1.0,
                 };
