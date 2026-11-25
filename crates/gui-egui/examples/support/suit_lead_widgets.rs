@@ -23,6 +23,7 @@ pub fn inventory() -> Vec<serde_json::Value> {
     for language in ["de", "en"] {
         for (suffix, width, height) in [("", 1440, 1000), ("-narrow", 960, 640)] {
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-null-partner-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"null-partner-fixture"}));
+            result.push(serde_json::json!({"name":format!("guided-suit-lead-master-null-ouvert-partner-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"null-ouvert-partner-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-god-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"god-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-ouvert-fixture-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"ouvert-fixture"}));
             result.push(serde_json::json!({"name":format!("guided-suit-lead-master-ouvert-defender-{language}{suffix}"),"stage":"reveal","language":language,"width":width,"height":height,"kind":"suit-ouvert-defender-lead"}));
@@ -64,6 +65,7 @@ pub fn render(name: &str, out: Option<&str>) {
         entry["height"].as_f64().unwrap() as f32,
     ];
     if entry["kind"] == "null-partner-fixture"
+        || entry["kind"] == "null-ouvert-partner-fixture"
         || entry["kind"] == "god-fixture"
         || entry["kind"] == "ouvert-fixture"
         || entry["kind"] == "suit-ouvert-defender-lead"
@@ -114,7 +116,9 @@ pub fn render(name: &str, out: Option<&str>) {
             || suit_feed
             || suit_early_feed;
         let fixture: serde_json::Value =
-            serde_json::from_str(if entry["kind"] == "null-partner-fixture" {
+            serde_json::from_str(if entry["kind"] == "null-ouvert-partner-fixture" {
+                include_str!("../../tests/fixtures/null-ouvert-partner-lead.json")
+            } else if entry["kind"] == "null-partner-fixture" {
                 include_str!("../../tests/fixtures/null-partner-lead.json")
             } else if suit_draw {
                 include_str!("../../tests/fixtures/suit-draw-trumpf.json")
@@ -159,7 +163,9 @@ pub fn render(name: &str, out: Option<&str>) {
                         &[
                             (
                                 "case",
-                                if entry["kind"] == "null-partner-fixture" {
+                                if entry["kind"] == "null-ouvert-partner-fixture" {
+                                    "Null Ouvert / partner lead"
+                                } else if entry["kind"] == "null-partner-fixture" {
                                     "Null / partner lead"
                                 } else if ouvert {
                                     "Ouvert / open display"

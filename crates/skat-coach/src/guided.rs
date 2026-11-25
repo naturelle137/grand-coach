@@ -109,7 +109,7 @@ pub struct Lesson {
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. A defender may
 /// lead a trick, act second after either player leads, or last with the declarer ahead.
-/// Null Ouvert admits defender leads, second-seat play after a declarer lead,
+/// Null Ouvert admits defender leads, second-seat play after either lead,
 /// and last-seat play with the declarer ahead,
 /// and the declarer's opening and second/last-seat turns after the reveal.
 /// `Branch::Null` is broader; other defender turns, other Ouvert turns and
@@ -212,8 +212,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     let ouvert_null_defender = contract.ouvert
         && view.declarer.is_some_and(|d| d != view.seat)
-        && ((matches!(view.current_trick.cards, [Some(_), None, None])
-            && view.current_trick.leader == view.declarer)
+        && (matches!(view.current_trick.cards, [Some(_), None, None])
             || (matches!(view.current_trick.cards, [Some(_), Some(_), None])
                 && TrickState::of(game, &view.current_trick).best_seat == view.declarer))
         && view.declarer_cards.is_some_and(|cards| {

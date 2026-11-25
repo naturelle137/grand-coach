@@ -1196,14 +1196,15 @@ This second-seat lesson excludes absent losing cards, restricted actions
 and other defender turns. Null Ouvert requires a consistent revealed hand. It uses the public trick and own hand, and
 observes the actual third card and individual winner.
 
-When the partner leads instead in non-Ouvert Null, the second defender can
+When the partner leads instead in Null or Null Ouvert, the second defender can
 compare all legal cards using Easy's fallback: lowest Augen, then lowest Null
 rank, with the first exact tie in legal order. This describes the rule, not a
 guarantee that the declarer takes the trick. The core-replayed fixture in
 `guided_null_defender.rs` checks the role, candidates, action and two hidden
 deal substitutions. The app test exercises each legal card and both legal
-declarer replies, including the actual winner. Ouvert partner leads remain
-outside this admission.
+declarer replies, including the actual winner. Null Ouvert additionally requires
+the consistent revealed declarer hand; hidden partner and Skat substitutions
+leave the lesson unchanged.
 
 For a reproducible ordinary route, use seed 2115 and a three-game series
 against Easy. Pass and play the first legal card throughout the first two
