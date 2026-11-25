@@ -153,15 +153,12 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .iter()
                 .map(Action::Play)
                 .collect::<Vec<_>>();
-    let ouvert_feed = (game == GameType::Grand || matches!(game, GameType::Farbe(_)))
+    let ouvert_defender_last = (game == GameType::Grand || matches!(game, GameType::Farbe(_)))
         && contract.ouvert
         && contract.hand
         && contract.schneider
         && contract.schwarz
         && view.declarer.is_some_and(|d| d != view.seat)
-        && TrickState::of(game, &view.current_trick)
-            .best_seat
-            .is_some_and(|s| Some(s) != view.declarer)
         && view.hand_game == Some(true)
         && view.own_skat.is_none()
         && view.current_seat == Some(view.seat)
@@ -187,6 +184,10 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .iter()
                 .map(Action::Play)
                 .collect::<Vec<_>>();
+    let declarer_ahead = TrickState::of(game, &view.current_trick).best_seat == view.declarer;
+    let ouvert_feed = ouvert_defender_last && !declarer_ahead;
+    // Farbspiel Ouvert reaches WinLast through the shared suit gate.
+    let ouvert_grand_last = ouvert_defender_last && declarer_ahead && game == GameType::Grand;
     let ouvert_grand_early = game == GameType::Grand
         && contract.ouvert
         && (view.declarer == Some(view.seat) && view.declarer_cards == Some(view.hand)
@@ -265,6 +266,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || ouvert_grand_lead
             || ouvert_last
             || ouvert_feed
+            || ouvert_grand_last
             || ouvert_grand_early
             || ouvert_under
             || null)
@@ -505,6 +507,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     view.declarer?;
     let rule = baseline::rule(view)?;
     if (ouvert_feed && rule.branch != Branch::FeedPartner)
+        || (ouvert_grand_last && rule.branch != Branch::WinLast)
         || (ouvert_grand_early && rule.branch != Branch::WinEarly)
         || (ouvert_last && rule.branch != Branch::WinLast)
         || (contract.ouvert

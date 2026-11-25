@@ -230,3 +230,48 @@ fn suit_ouvert_last_defender_feed_checks_reveal_and_every_legal_card() {
         assert!(lesson(&bad).is_none());
     }
 }
+
+#[test]
+fn grand_ouvert_last_defender_behind_declarer_checks_reveal_and_every_legal_card() {
+    // The declarer leads and Mittelhand follows low: the declarer is ahead.
+    let mut c = cases().into_iter().find(|c| c.id == "A-suit").unwrap();
+    c.game = skat_core::GameType::Grand;
+    c.ouvert = true;
+    // Kreuz Acht leads, Kreuz Sieben follows; Zehn, Neun and Ass can overtake.
+    c.hands[0][0] = 1;
+    c.hands[1][0] = 0;
+    c.hands[2][0] = 3;
+    c.plays = &[1, 0];
+    let g = c.position();
+    let v = g.view(Seat::Hinterhand);
+    assert_eq!(
+        TrickState::of(c.game, &v.current_trick).best_seat,
+        v.declarer
+    );
+    let l = lesson(&v).expect("Grand Ouvert defender last behind the declarer");
+    assert_eq!(l.rule.branch, Branch::WinLast);
+    let legal: Vec<_> = v.legal_actions.clone();
+    assert!(legal.len() >= 2);
+    for a in &legal {
+        let Action::Play(card) = *a else { panic!() };
+        assert!(l.check(Step::Narrow, Answer::Card(card)));
+        let mut next = g.clone();
+        next.apply(*a).unwrap();
+        assert_eq!(next.tricks().len(), 1);
+    }
+    // Unseen Skat and partner cards do not change the permitted lesson.
+    std::mem::swap(&mut c.hands[1][1], &mut c.skat[0]);
+    let same = c.position().view(Seat::Hinterhand);
+    assert_eq!(lesson(&same), Some(l.clone()));
+    for edit in [
+        (|v: &mut skat_core::PlayerView| v.declarer_cards = None) as fn(&mut skat_core::PlayerView),
+        |v| v.declarer_cards = Some(v.hand),
+        |v| v.legal_actions.pop().map(|_| ()).unwrap(),
+        |v| v.current_seat = Some(Seat::Mittelhand),
+        |v| v.contract.as_mut().unwrap().schwarz = false,
+    ] {
+        let mut bad = v.clone();
+        edit(&mut bad);
+        assert_ne!(lesson(&bad), Some(l.clone()));
+    }
+}

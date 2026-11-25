@@ -1495,6 +1495,20 @@ ahead. The app test checks the actual continuation and compares the entire
 dialogue after exchanging unseen partner and Skat cards, including God Mode.
 The revealed hand does not change Easy's rule or guarantee the trick.
 
+## Grand Ouvert defender playing last (#131)
+
+A Grand Ouvert defender acting last with the declarer currently ahead can use
+the shared `WinLast` dialogue, like the Farbspiel Ouvert defender and the
+non-Ouvert Grand defender. The consistent revealed declarer hand and the exact
+legal action list are required. The core-replayed fixture has the declarer
+leading Kreuz Acht, Kreuz Sieben following, and Kreuz Neun, Zehn and Ass as
+overtaking cards; every legal card remains playable and the actual winner is
+observed. Unseen partner and Skat cards, God Mode included, do not change the
+dialogue. A seeded scan of 400 random Hand Ouvert games found no other
+unsupported defender position with two or more legal cards in Grand or
+Farbspiel except the shared `Fallback` branch. These checks do not establish
+learning efficacy.
+
 ## Farbspiel Ouvert defender lead (#131)
 
 A defender leading against a revealed Farbspiel Ouvert hand can enter the
