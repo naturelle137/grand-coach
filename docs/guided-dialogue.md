@@ -30,6 +30,10 @@ separate factual oracles.
   least two legal cards and one losing candidate, Easy takes a loser by
   `(is_trump, Augen, power)`, first exact tie. A nonchosen losing candidate may
   serve the same immediate purpose. This does not secure the partner's trick.
+- **Fallback:** non-Ouvert Farbspiel or Grand, defender second after the partner,
+  when the shared rule finds no losing card. The lesson explicitly asks for
+  Easy's lowest-cost choice from all legal cards; it does not present that
+  arbitrary ordering as a strategic recommendation. The declarer still plays.
 - **WinLast:** Farbspiel or Grand (#157, below), including [Ouvert declarer last](#farbspiel-ouvert-declarer-playing-last-318), last seat,
   opposing party leads, at least two legal cards and a winning candidate. Easy takes a winner by `(is_trump, power)`,
   first exact tie. Other winning cards still win this trick. No claim about
@@ -61,10 +65,8 @@ separate factual oracles.
   single legal action, other Grand branches, other Grand Ouvert turns, other Null card play or
   card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
   Ansage and Kontra/Re: see below). If the
-  partner branch has no losing card, its original lowest-card fallback is
-  explicitly marked `Fallback` and excluded, rather than explained as staying
-  under the partner. In
-  particular, `is_master` excludes only a higher card in the same follow
+  partner branch has no losing card in Ouvert, its fallback remains excluded.
+  In particular, `is_master` excludes only a higher card in the same follow
   class; it does not exclude trumping. These branches report unsupported.
 
 Unsupported card-play turns identify the public contract and whether the

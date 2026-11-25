@@ -261,7 +261,11 @@ Farbspiel card play with at least two legal actions and a nonempty branch
 candidate set. The former follows a partner who is not a follow-class master
 with one seat still to play; Easy selects a losing card by nontrump, Augen,
 power, retaining the first exact tie. The latter wins in last seat by nontrump,
-power, retaining the first exact tie. Non-Ouvert Grand supports `WinLast`
+power, retaining the first exact tie. A non-Ouvert Farbspiel or Grand defender
+acting second after the partner also gets a distinct `Fallback` lesson when no
+legal card stays under the partner: Easy orders all legal cards by nontrump,
+Augen and power, first exact tie. This is an arbitrary fallback, not a claim of
+strategic quality. Non-Ouvert Grand supports `WinLast`
 (#157), for a defender in the middle seat `UnderPartner` (#159), and
 `WinEarly` in Mittelhand (#161), and last-seat `FeedPartner` (#163). The
 revealed Grand Ouvert declarer and a defender after the declarer's lead also support [second-seat `WinEarly`](guided-dialogue.md#grand-ouvert-declarer-winearly-311).

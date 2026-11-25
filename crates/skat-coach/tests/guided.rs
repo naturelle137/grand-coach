@@ -136,5 +136,8 @@ fn partner_branch_with_no_losing_card_is_explicit_fallback_not_stay_under_advice
     assert!(r.losers.is_empty());
     assert_eq!(r.branch, Branch::Fallback);
     assert_eq!(r.card, card("CT")); // Original Easy fallback, not a losing card.
-    assert!(lesson(&v).is_none());
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule, r);
+    assert!(l.check(Step::Narrow, Answer::Card(card("CT"))));
+    assert!(!l.check(Step::Narrow, Answer::Card(card("CA"))));
 }
