@@ -806,13 +806,15 @@ impl GrandCoachApp {
     /// Sends a command to the session and keeps a rejection for display.
     fn send(&mut self, command: Command, now: f64) {
         let result = self.session.execute(command);
+        if result.is_ok() {
+            self.error = None;
+        }
         self.handle(result, now);
     }
 
     fn handle(&mut self, result: Result<Vec<AppEvent>, AppError>, now: f64) {
         match result {
             Ok(events) => {
-                self.error = None;
                 self.record_learning(&events);
                 if events
                     .iter()
@@ -957,6 +959,9 @@ impl GrandCoachApp {
             && let Some(mv) = self.ready.take()
         {
             let result = self.session.finish_opponent(mv);
+            if result.is_ok() {
+                self.error = None;
+            }
             self.handle(result, now);
         }
         let wait = (self.next_move_at - now).clamp(0.0, 0.05);
@@ -3274,6 +3279,7 @@ mod tests {
         let result = job.run(None);
         let mut control = h.state().session.clone();
         control.finish_coach(result.clone()).unwrap();
+        h.state_mut().error = Some(AppError::NotYourTurn);
         sender.send(result).unwrap();
         h.run_steps(4);
         assert_eq!(h.state().session.view(), before);
@@ -3282,6 +3288,7 @@ mod tests {
             .click();
         h.run_steps(4);
         assert_eq!(h.state().session.view(), control.view());
+        assert!(matches!(h.state().error, Some(AppError::NotYourTurn)));
     }
 
     fn easy_series() -> SessionConfig {
