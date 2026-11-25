@@ -133,7 +133,10 @@ fn frozen_deals_every_completion_exact_null_key_and_scope() {
             c.supported
                 || matches!(
                     c.id,
-                    "real-early" | "real-defender-declarer-ahead" | "real-ouvert"
+                    "real-early"
+                        | "real-defender-declarer-ahead"
+                        | "real-defender-partner-ahead"
+                        | "real-ouvert"
                 ),
             "{} applicability",
             c.id
@@ -151,6 +154,18 @@ fn frozen_deals_every_completion_exact_null_key_and_scope() {
                 (remaining, actor, GameType::Null)
             );
             assert_eq!(l.rule.last, c.id != "real-early");
+            if c.id == "real-defender-partner-ahead" {
+                // Admitted later (#131): Easy's fallback over all legal cards.
+                assert!(l.rule.partner_ahead && l.rule.last);
+                assert_eq!(l.rule.candidates, cards(c.legal));
+                for &n in c.legal {
+                    assert_eq!(
+                        l.check(Step::Narrow, Answer::Card(card(n))),
+                        card(n) == l.rule.card
+                    );
+                }
+                continue;
+            }
             assert!(!l.rule.partner_ahead);
             assert_eq!(l.rule.candidates, cards(c.losers));
             assert_eq!(l.memory().trumpf, None, "no Null Trumpf category");

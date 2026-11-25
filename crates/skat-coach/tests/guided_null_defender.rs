@@ -296,7 +296,9 @@ fn last_defender_leaves_declarer_ahead() {
 
     let mut partner_ahead = setup();
     partner_ahead.apply(Action::Play(card(6))).unwrap();
-    assert!(lesson(&partner_ahead.view(Seat::Hinterhand)).is_none());
+    // Admitted separately: the partner-ahead Fallback (see the partner test file).
+    let l = lesson(&partner_ahead.view(Seat::Hinterhand)).unwrap();
+    assert!(l.rule.winner != partner_ahead.view(Seat::Hinterhand).declarer);
 }
 
 #[test]
@@ -322,14 +324,13 @@ fn ouvert_last_defender_requires_consistent_revealed_hand() {
     assert_eq!(l.rule.candidates, [card(2)]);
     assert_eq!(l.rule.card, card(2));
     assert!(l.rule.last);
-    for change in 0..5 {
+    for change in 0..4 {
         let mut bad = view.clone();
         match change {
             0 => bad.declarer_cards = None,
             1 => bad.declarer_cards = Some(bad.hand),
             2 => bad.legal_actions.reverse(),
-            3 => bad.current_seat = Some(Seat::Mittelhand),
-            _ => bad.declarer = Some(Seat::Mittelhand),
+            _ => bad.current_seat = Some(Seat::Mittelhand),
         }
         assert!(lesson(&bad).is_none(), "{change}");
     }

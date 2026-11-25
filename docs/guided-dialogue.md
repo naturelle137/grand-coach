@@ -1224,6 +1224,16 @@ view and excludes a partner currently ahead or no losing card. Null Ouvert
 requires a consistent revealed declarer hand. This
 heuristic does not guarantee the game outcome.
 
+A defender playing last while the partner currently wins the trick uses
+Easy's fallback instead: lowest Augen, then lowest Null rank, first exact tie
+in legal order, over all legal cards. The trick is decided by the learner's
+card; the lesson claims no guarantee and no unseen hand. Null Ouvert requires
+the consistent revealed declarer hand. `guided_null_defender_last_partner.rs`
+checks the role, candidates, action, malformed views and every legal card
+(seed 2 with the middle legal action played twice); the app test
+`null_defender_last_behind_partner_observes_every_legal_card` observes the
+actual winner. These checks do not establish learning efficacy.
+
 ## Farbspiel second-seat FeedPartner (#131)
 
 The Grand second-seat feeding admission also applies to a non-Ouvert Farbspiel

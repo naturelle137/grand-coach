@@ -88,6 +88,8 @@ fn frozen_complete_deals_legal_order_every_completion_and_exact_feed_key() {
         let suit_now_supported = matches!(c.id, "A-suit" | "A-suit-corrected");
         let early_now_supported = c.id == "B-early-master-can-be-trumped";
         let ouvert_now_supported = c.id == "A-ouvert";
+        // The Null fallback for a last-seat defender behind the partner (#131).
+        let null_now_supported = c.id == "A-null";
         assert_eq!(
             feed,
             c.supported || suit_now_supported || early_now_supported || ouvert_now_supported,
@@ -103,6 +105,7 @@ fn frozen_complete_deals_legal_order_every_completion_and_exact_feed_key() {
             && !suit_now_supported
             && !early_now_supported
             && !ouvert_now_supported
+            && !null_now_supported
         {
             assert!(l.is_none(), "{} exclusion", c.id);
         }
