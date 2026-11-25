@@ -24,6 +24,9 @@ prerequisite and Godot animation is outside this scope. The presentation and
 opponent checks below are required and pending until supported by recorded
 evidence. M8 functional and package checks remain required.
 
+Record the outcome in the [release notes](release-notes.md) and keep its
+known limitations consistent with the evidence.
+
 ## Test cases
 
 Use the [private RC packaging procedure](packaging.md) to build and identify
