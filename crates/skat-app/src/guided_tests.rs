@@ -4470,3 +4470,61 @@ fn grand_ouvert_defender_win_early_uses_revealed_declarer_and_actual_reply() {
         );
     }
 }
+
+#[test]
+fn grand_ouvert_defender_last_behind_declarer_observes_every_legal_card() {
+    let deal = fixture::deal();
+    let actions = fixture::contract_actions(
+        deal,
+        Seat::Vorhand,
+        fixture::hand_game(GRAND, true),
+        &["C9", "C7"],
+    );
+    let original = grand_session(Seat::Hinterhand, deal, false, &actions);
+    // Unseen partner and Skat cards, God Mode included, do not change the dialogue.
+    let swapped = fixture::swap(
+        deal,
+        deal.hand(Seat::Mittelhand).iter().nth(3).unwrap(),
+        deal.skat().iter().next().unwrap(),
+    );
+    let other_actions = fixture::contract_actions(
+        swapped,
+        Seat::Vorhand,
+        fixture::hand_game(GRAND, true),
+        &["C9", "C7"],
+    );
+    let mut other = grand_session(Seat::Hinterhand, swapped, false, &other_actions);
+    other.config.opponents = Opponents::GodMode;
+    let mut first = original.clone();
+    first.execute(Command::StartGuided).unwrap();
+    other.execute(Command::StartGuided).unwrap();
+    respond(&mut first, G::Reveal).unwrap();
+    respond(&mut other, G::Reveal).unwrap();
+    let expected = first.guided().unwrap();
+    let mut actual = other.guided().unwrap();
+    actual.id = expected.id;
+    actual.basis = expected.basis;
+    assert_eq!(expected, actual);
+    let view = original.game.view(Seat::Hinterhand);
+    let lesson = skat_coach::guided::lesson(&view).unwrap();
+    assert_eq!(lesson.rule.branch, crate::GuidedBranch::WinLast);
+    assert_eq!(lesson.rule.card, fixture::card("CQ"));
+    let mut invalid = view.clone();
+    invalid.declarer_cards = None;
+    assert!(skat_coach::guided::lesson(&invalid).is_none());
+    invalid = view.clone();
+    invalid.legal_actions.pop();
+    assert!(skat_coach::guided::lesson(&invalid).is_none());
+    for action in original.view().legal_actions {
+        let mut s = original.clone();
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        s.execute(Command::Act(action)).unwrap();
+        let actual = *s.game.tricks().last().unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        assert_eq!(
+            s.guided().unwrap().observation.unwrap().winner,
+            Some(actual.winner)
+        );
+    }
+}
