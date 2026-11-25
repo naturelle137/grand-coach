@@ -42,7 +42,7 @@ Zielsystem, mit Build und Headless-Tests in CI. Der interaktive Test auf Windows
 
 ### Installation
 
-*Noch offen. Es gibt noch keine Releases.*
+*Noch offen. Es gibt noch keine Releases.* Stand und bekannte Grenzen des 1.0-Kandidaten: [Release Notes](docs/release-notes.md).
 
 ### Aus dem Quellcode bauen
 
@@ -124,7 +124,7 @@ platform. CI covers Windows builds and headless tests. Interactive Windows 11 te
 
 ### Installation
 
-*To be defined. No releases yet.*
+*To be defined. No releases yet.* Status and known limitations of the 1.0 candidate: [release notes](docs/release-notes.md).
 
 ### Building from source
 
