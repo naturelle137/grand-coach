@@ -229,7 +229,9 @@ of these weights. Both default to 1 and cannot create missing teacher labels.
 declarations after Hand, including plain games, independently of the Hand
 pickup choice and the announced-stage factors. `--null-weight` (default 1)
 independently weights teacher-selected Null declarations, including Null Ouvert,
-on top of the applicable Hand and announcement factors.
+on top of the applicable Hand and announcement factors. `--hand-null-weight`
+(default 1) independently scales Null declarations after Hand, including
+Null Ouvert, on top of both factors.
 `--schneider-weight`, `--schwarz-weight` and `--ouvert-weight` add separate
 factors (default 1) for the highest announced stage, respectively. They apply
 on top of the announcement factor and do not create or validate labels.
