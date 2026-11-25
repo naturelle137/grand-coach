@@ -150,6 +150,9 @@ pub struct Hyper {
     /// Additional factor for teacher Kontra and Re calls.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub kontra_weight: f32,
+    /// Additional factor for teacher Re calls, on top of `kontra_weight`.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub re_weight: f32,
     /// Additional factor for teacher Schneider/Schwarz/Ouvert announcements.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub announcement_weight: f32,
@@ -231,6 +234,7 @@ impl Default for Hyper {
             null_weight: 1.0,
             hand_null_weight: 1.0,
             kontra_weight: 1.0,
+            re_weight: 1.0,
             announcement_weight: 1.0,
             schneider_weight: 1.0,
             schwarz_weight: 1.0,
@@ -661,7 +665,8 @@ impl Examples {
             }
             let class_weight = match r.action {
                 Action::Hand => hyper.hand_weight,
-                Action::Kontra | Action::Re => hyper.kontra_weight,
+                Action::Kontra => hyper.kontra_weight,
+                Action::Re => hyper.kontra_weight * hyper.re_weight,
                 Action::Announce(a) if a.schneider || a.schwarz || a.ouvert => {
                     hyper.announcement_weight
                         * if a.ouvert {
@@ -1929,6 +1934,16 @@ mod tests {
                     _ => 1.0,
                 };
                 assert_eq!(examples.target.iter().sum::<f32>(), expected_weight);
+                if matches!(action, Action::Kontra | Action::Re) {
+                    let re_hyper = Hyper {
+                        re_weight: 3.0,
+                        ..hyper.clone()
+                    };
+                    let mut rows = Examples::new();
+                    assert!(rows.push(&record, &re_hyper, None));
+                    let factor = if action == Action::Re { 3.0 } else { 1.0 };
+                    assert_eq!(rows.target.iter().sum::<f32>(), 38.0 * factor);
+                }
                 let features = examples.features.row(0);
                 assert_eq!(features, encode(&view));
                 let cards = |block: std::ops::Range<usize>| -> usize {
