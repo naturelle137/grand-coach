@@ -1335,6 +1335,14 @@ Mephisto chooses Herz Ouvert and the Vorhand defender receives the existing
 all-phase Neural model may score any legal announcement; its selected action is
 model-dependent and no Farbspiel Ouvert route is established by this test.
 
+A one-off bounded scan (not a committed test) let Mephisto play the auction and
+announcement on the seeded deals 0..300 with the Kontra/Re option off: it
+announced a game in 44 deals and Ouvert in exactly one (Null Ouvert, seed 191);
+no Farbspiel or Grand Ouvert occurred. An ordinary seeded Farbspiel Ouvert
+defender route is therefore not established; the scan is a small sample and
+does not bound the true rate. The Farbspiel Ouvert defender dialogues remain
+reachable only through constructed legal deals.
+
 ## Farbspiel declarer DrawTrumpf lead (#131)
 
 The existing declarer `DrawTrumpf` dialogue also admits Farbspiel leads when
