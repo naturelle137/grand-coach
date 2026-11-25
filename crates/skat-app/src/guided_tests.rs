@@ -2962,7 +2962,11 @@ fn null_last_real_exclusions_keep_unsupported_and_every_card_playable() {
             // These remain outside #165, but later slices admit them.
             if matches!(
                 c.id,
-                "real-early" | "real-lead" | "real-defender-declarer-ahead" | "real-ouvert"
+                "real-early"
+                    | "real-lead"
+                    | "real-defender-declarer-ahead"
+                    | "real-defender-partner-ahead"
+                    | "real-ouvert"
             ) {
                 S::Orient
             } else {
@@ -4526,5 +4530,50 @@ fn grand_ouvert_defender_last_behind_declarer_observes_every_legal_card() {
             s.guided().unwrap().observation.unwrap().winner,
             Some(actual.winner)
         );
+    }
+}
+
+#[test]
+fn null_defender_last_behind_partner_observes_every_legal_card() {
+    for ouvert in [false, true] {
+        let deal = skat_core::Deal::from_seed(2);
+        let mut core = Game::from_deal(deal, RuleConfig { kontra_re: false });
+        let mut actions = vec![
+            Action::Bid(18),
+            Action::Hold,
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(skat_core::Announcement {
+                ouvert,
+                ..skat_core::Announcement::plain(NULL)
+            }),
+        ];
+        for a in &actions {
+            core.apply(*a).unwrap();
+        }
+        for _ in 0..2 {
+            let legal = core.view(core.current_seat().unwrap()).legal_actions;
+            let a = legal[legal.len() / 2];
+            core.apply(a).unwrap();
+            actions.push(a);
+        }
+        let original = grand_session(Seat::Hinterhand, deal, false, &actions);
+        let lesson = skat_coach::guided::lesson(&original.game.view(Seat::Hinterhand)).unwrap();
+        assert_eq!(lesson.rule.branch, crate::GuidedBranch::Null);
+        assert!(lesson.rule.last);
+        for action in original.view().legal_actions {
+            let mut s = original.clone();
+            s.execute(Command::StartGuided).unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(s.guided().unwrap().rule.unwrap().card, lesson.rule.card);
+            s.execute(Command::Act(action)).unwrap();
+            let actual = *s.game.tricks().last().unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().observation.unwrap().winner,
+                Some(actual.winner)
+            );
+        }
     }
 }

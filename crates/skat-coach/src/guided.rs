@@ -214,8 +214,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let ouvert_null_defender = contract.ouvert
         && view.declarer.is_some_and(|d| d != view.seat)
         && (matches!(view.current_trick.cards, [Some(_), None, None])
-            || (matches!(view.current_trick.cards, [Some(_), Some(_), None])
-                && TrickState::of(game, &view.current_trick).best_seat == view.declarer))
+            || matches!(view.current_trick.cards, [Some(_), Some(_), None]))
         && view.declarer_cards.is_some_and(|cards| {
             cards.len() == usize::from(view.hand_sizes[view.declarer.unwrap().index()])
                 && (cards & view.hand).is_empty()
@@ -279,8 +278,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         && (matches!(view.current_trick.cards, [None, None, None])
             || matches!(view.current_trick.cards, [Some(_), None, None])
                 && view.current_trick.leader.map(Seat::next) == Some(view.seat)
-            || matches!(view.current_trick.cards, [Some(_), Some(_), None])
-                && TrickState::of(game, &view.current_trick).best_seat == view.declarer)
+            || matches!(view.current_trick.cards, [Some(_), Some(_), None]))
         && view.own_skat.is_none();
     if null
         && ((!null_defender && view.declarer != Some(view.seat))
@@ -533,8 +531,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                     || (feed_early && rule.partner_ahead && rule.table_master)))
             || (null
                 && rule.branch == Branch::Null
-                && (!rule.losers.is_empty()
-                    || (null_defender && rule.winner != view.declarer && !rule.last))))
+                && (!rule.losers.is_empty() || (null_defender && rule.winner != view.declarer))))
     {
         return None;
     }
