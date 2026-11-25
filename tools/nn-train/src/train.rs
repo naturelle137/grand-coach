@@ -153,6 +153,10 @@ pub struct Hyper {
     /// Additional factor for teacher Re calls, on top of `kontra_weight`.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub re_weight: f32,
+    /// Additional factor for teacher Kontra and Re calls in Hand games, on
+    /// top of `kontra_weight` and `re_weight`.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub hand_kontra_weight: f32,
     /// Additional factor for teacher Schneider/Schwarz/Ouvert announcements.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub announcement_weight: f32,
@@ -239,6 +243,7 @@ impl Default for Hyper {
             hand_null_weight: 1.0,
             kontra_weight: 1.0,
             re_weight: 1.0,
+            hand_kontra_weight: 1.0,
             announcement_weight: 1.0,
             hand_announcement_weight: 1.0,
             schneider_weight: 1.0,
@@ -670,8 +675,19 @@ impl Examples {
             }
             let class_weight = match r.action {
                 Action::Hand => hyper.hand_weight,
-                Action::Kontra => hyper.kontra_weight,
-                Action::Re => hyper.kontra_weight * hyper.re_weight,
+                Action::Kontra | Action::Re => {
+                    hyper.kontra_weight
+                        * if r.action == Action::Re {
+                            hyper.re_weight
+                        } else {
+                            1.0
+                        }
+                        * if r.view.hand_game == Some(true) {
+                            hyper.hand_kontra_weight
+                        } else {
+                            1.0
+                        }
+                }
                 Action::Announce(a) if a.schneider || a.schwarz || a.ouvert => {
                     hyper.announcement_weight
                         * if r.view.hand_game == Some(true) {
@@ -1960,6 +1976,14 @@ mod tests {
                     assert!(rows.push(&record, &re_hyper, None));
                     let factor = if action == Action::Re { 3.0 } else { 1.0 };
                     assert_eq!(rows.target.iter().sum::<f32>(), 38.0 * factor);
+                    let hand_hyper = Hyper {
+                        hand_kontra_weight: 4.0,
+                        ..hyper.clone()
+                    };
+                    let mut rows = Examples::new();
+                    assert!(rows.push(&record, &hand_hyper, None));
+                    let hand_factor = if hand { 4.0 } else { 1.0 };
+                    assert_eq!(rows.target.iter().sum::<f32>(), 38.0 * hand_factor);
                 }
                 let features = examples.features.row(0);
                 assert_eq!(features, encode(&view));

@@ -233,7 +233,9 @@ on top of the applicable Hand and announcement factors. `--hand-null-weight`
 (default 1) independently scales Null declarations after Hand, including
 Null Ouvert, on top of both factors. `--kontra-weight` (default 1) scales
 teacher-selected Kontra and Re calls; `--re-weight` (default 1) additionally
-scales Re calls, which are rarer, on top of it. Neither creates missing labels.
+scales Re calls, which are rarer, on top of it. `--hand-kontra-weight`
+(default 1) additionally scales either call in Hand games. None creates missing
+labels.
 `--hand-announcement-weight` (default 1) additionally scales those
 announcements when made after Hand, on top of the announcement factor.
 `--schneider-weight`, `--schwarz-weight` and `--ouvert-weight` add separate
