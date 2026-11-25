@@ -53,6 +53,7 @@ mod replay_review;
 mod series;
 mod session;
 mod sort;
+mod strategic;
 #[cfg(test)]
 mod tests;
 mod training;
@@ -112,6 +113,10 @@ pub use skat_analysis::counting::{AugenCount, Derivation, QuestionKind, TrumpfCo
 /// Structured coach explanations (D-13); frontends translate them.
 pub use skat_coach as coach_model;
 pub use sort::sort_hand;
+pub use strategic::{
+    KindCounts, STRATEGIC_WINDOW, StrategicObservation, StrategicRow, StrategicSummary,
+    StrategicTrend,
+};
 pub use training::{
     TrainingCommand, TrainingError, TrainingFixture, TrainingSession, TrainingTask, TrainingTopic,
     TrainingTrick, TrainingView,
