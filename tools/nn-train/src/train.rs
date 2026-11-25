@@ -157,6 +157,10 @@ pub struct Hyper {
     /// top of `kontra_weight` and `re_weight`.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub hand_kontra_weight: f32,
+    /// Additional factor for teacher Kontra and Re calls in Null games, on
+    /// top of the other Kontra/Re factors.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub null_kontra_weight: f32,
     /// Additional factor for teacher Schneider/Schwarz/Ouvert announcements.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub announcement_weight: f32,
@@ -244,6 +248,7 @@ impl Default for Hyper {
             kontra_weight: 1.0,
             re_weight: 1.0,
             hand_kontra_weight: 1.0,
+            null_kontra_weight: 1.0,
             announcement_weight: 1.0,
             hand_announcement_weight: 1.0,
             schneider_weight: 1.0,
@@ -684,6 +689,11 @@ impl Examples {
                         }
                         * if r.view.hand_game == Some(true) {
                             hyper.hand_kontra_weight
+                        } else {
+                            1.0
+                        }
+                        * if r.view.contract.is_some_and(|c| c.game == GameType::Null) {
+                            hyper.null_kontra_weight
                         } else {
                             1.0
                         }
@@ -1984,6 +1994,21 @@ mod tests {
                     assert!(rows.push(&record, &hand_hyper, None));
                     let hand_factor = if hand { 4.0 } else { 1.0 };
                     assert_eq!(rows.target.iter().sum::<f32>(), 38.0 * hand_factor);
+                    let null_hyper = Hyper {
+                        null_kontra_weight: 5.0,
+                        ..hyper.clone()
+                    };
+                    let mut null_record = record.clone();
+                    null_record.view.contract = null_record.view.contract.map(|mut c| {
+                        c.game = GameType::Null;
+                        c
+                    });
+                    let mut rows = Examples::new();
+                    assert!(rows.push(&null_record, &null_hyper, None));
+                    assert_eq!(rows.target.iter().sum::<f32>(), 38.0 * 5.0);
+                    let mut rows = Examples::new();
+                    assert!(rows.push(&record, &null_hyper, None));
+                    assert_eq!(rows.target.iter().sum::<f32>(), 38.0);
                 }
                 let features = examples.features.row(0);
                 assert_eq!(features, encode(&view));

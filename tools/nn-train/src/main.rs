@@ -25,7 +25,7 @@
 //!     [--device cpu|vulkan[:discrete|:integrated[:N]]]
 //!     [--patience N [--lr-decay X] [--lr-decays N]]
 //!     [--cache DIR] [--data-on-device GB] [--all-phases [--preplay-weight X] [--rare-weight X] [--hand-weight X] [--announcement-weight X] [--schneider-weight X] [--schwarz-weight X] [--ouvert-weight X]]
-//!     [--hand-declaration-weight X] [--null-weight X] [--hand-null-weight X] [--kontra-weight X] [--re-weight X] [--hand-announcement-weight X] [--hand-kontra-weight X]
+//!     [--hand-declaration-weight X] [--null-weight X] [--hand-null-weight X] [--kontra-weight X] [--re-weight X] [--hand-announcement-weight X] [--hand-kontra-weight X] [--null-kontra-weight X]
 //!     [--queue LxH,LxH... [--workers once:cpu,last:vulkan:discrete]]
 //! cargo run --locked --release -p nn-train -- evaluate MODEL DATA_DIR...
 //! cargo run --locked --release -p nn-train -- rl OUT_DIR [--start MODEL]
@@ -554,6 +554,7 @@ fn train(args: &[String]) {
         re_weight: flag(args, "--re-weight", d.re_weight),
         announcement_weight: flag(args, "--announcement-weight", d.announcement_weight),
         hand_kontra_weight: flag(args, "--hand-kontra-weight", d.hand_kontra_weight),
+        null_kontra_weight: flag(args, "--null-kontra-weight", d.null_kontra_weight),
         hand_announcement_weight: flag(
             args,
             "--hand-announcement-weight",
@@ -1402,7 +1403,7 @@ fn main() {
                  [--soft-temperature X] [--score-weight X] [--win-weight X] [--belief-weight X] \
                  [--seed N] [--minutes N] [--device cpu|vulkan[:discrete|:integrated[:N]]] \
                  [--patience N [--lr-decay X] [--lr-decays N]] [--cache DIR] \
-                 [--data-on-device GB] [--all-phases] [--hand-declaration-weight X] [--null-weight X] [--hand-null-weight X] [--kontra-weight X] [--re-weight X] [--hand-announcement-weight X] [--hand-kontra-weight X]"
+                 [--data-on-device GB] [--all-phases] [--hand-declaration-weight X] [--null-weight X] [--hand-null-weight X] [--kontra-weight X] [--re-weight X] [--hand-announcement-weight X] [--hand-kontra-weight X] [--null-kontra-weight X]"
             );
             std::process::exit(2);
         }

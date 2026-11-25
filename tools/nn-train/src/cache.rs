@@ -65,6 +65,7 @@ struct KeyInput<'a> {
     kontra_weight: u32,
     re_weight: u32,
     hand_kontra_weight: u32,
+    null_kontra_weight: u32,
     announcement_weight: u32,
     hand_announcement_weight: u32,
     schneider_weight: u32,
@@ -120,6 +121,7 @@ pub fn key(sources: &[DataSource], hyper: &Hyper, beliefs: bool) -> String {
         kontra_weight: hyper.kontra_weight.to_bits(),
         re_weight: hyper.re_weight.to_bits(),
         hand_kontra_weight: hyper.hand_kontra_weight.to_bits(),
+        null_kontra_weight: hyper.null_kontra_weight.to_bits(),
         announcement_weight: hyper.announcement_weight.to_bits(),
         hand_announcement_weight: hyper.hand_announcement_weight.to_bits(),
         schneider_weight: hyper.schneider_weight.to_bits(),
@@ -425,6 +427,9 @@ mod class_weight_tests {
         assert_ne!(key(&[], &base, false), key(&[], &changed, false));
         changed = base.clone();
         changed.hand_kontra_weight = 2.0;
+        assert_ne!(key(&[], &base, false), key(&[], &changed, false));
+        changed = base.clone();
+        changed.null_kontra_weight = 2.0;
         assert_ne!(key(&[], &base, false), key(&[], &changed, false));
         changed = base.clone();
         changed.hand_announcement_weight = 2.0;
