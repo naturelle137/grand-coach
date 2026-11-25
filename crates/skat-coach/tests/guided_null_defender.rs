@@ -209,6 +209,61 @@ fn ouvert_defender_follows_revealed_declarer() {
 }
 
 #[test]
+fn ouvert_defender_after_partner_lead_uses_only_permitted_view() {
+    let make = |deal| {
+        let mut game = Game::from_deal(deal, RuleConfig { kontra_re: false });
+        for action in [
+            Action::Pass,
+            Action::Bid(18),
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(Announcement {
+                ouvert: true,
+                ..Announcement::plain(GameType::Null)
+            }),
+            Action::Play(card(5)),
+        ] {
+            game.apply(action).unwrap();
+        }
+        game
+    };
+    let game = make(cases().remove(0).deal);
+    let view = game.view(Seat::Mittelhand);
+    let l = lesson(&view).expect("revealed partner lead lesson");
+    assert_eq!(l.rule.candidates, [card(0), card(3), card(4), card(6)]);
+    assert_eq!(l.rule.card, card(0));
+    for change in 0..3 {
+        let mut bad = view.clone();
+        match change {
+            0 => bad.declarer_cards = None,
+            1 => bad.declarer_cards = Some(bad.hand),
+            _ => bad.legal_actions.reverse(),
+        }
+        assert!(lesson(&bad).is_none());
+    }
+    let original = cases().remove(0).deal;
+    let mut partner = original.hand(Seat::Vorhand);
+    let mut skat = original.skat();
+    let partner_card = card(10);
+    let skat_card = skat.iter().next().unwrap();
+    assert!(partner.remove(partner_card) && skat.remove(skat_card));
+    partner.insert(skat_card);
+    skat.insert(partner_card);
+    let other = skat_core::Deal::new(
+        [
+            partner,
+            original.hand(Seat::Mittelhand),
+            original.hand(Seat::Hinterhand),
+        ],
+        skat,
+    )
+    .unwrap();
+    let other_view = make(other).view(Seat::Mittelhand);
+    assert_eq!(view, other_view);
+    assert_eq!(Some(l), lesson(&other_view));
+}
+
+#[test]
 fn last_defender_leaves_declarer_ahead() {
     let setup = || {
         let mut game = Game::from_deal(cases().remove(0).deal, RuleConfig { kontra_re: false });
