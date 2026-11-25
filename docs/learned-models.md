@@ -234,6 +234,8 @@ on top of the applicable Hand and announcement factors. `--hand-null-weight`
 Null Ouvert, on top of both factors. `--kontra-weight` (default 1) scales
 teacher-selected Kontra and Re calls; `--re-weight` (default 1) additionally
 scales Re calls, which are rarer, on top of it. Neither creates missing labels.
+`--hand-announcement-weight` (default 1) additionally scales those
+announcements when made after Hand, on top of the announcement factor.
 `--schneider-weight`, `--schwarz-weight` and `--ouvert-weight` add separate
 factors (default 1) for the highest announced stage, respectively. They apply
 on top of the announcement factor and do not create or validate labels.

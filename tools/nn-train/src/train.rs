@@ -156,6 +156,10 @@ pub struct Hyper {
     /// Additional factor for teacher Schneider/Schwarz/Ouvert announcements.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub announcement_weight: f32,
+    /// Additional factor for Schneider/Schwarz/Ouvert announcements made
+    /// after choosing Hand, on top of `announcement_weight`.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub hand_announcement_weight: f32,
     /// Additional factor when Schneider is the highest announced stage.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub schneider_weight: f32,
@@ -236,6 +240,7 @@ impl Default for Hyper {
             kontra_weight: 1.0,
             re_weight: 1.0,
             announcement_weight: 1.0,
+            hand_announcement_weight: 1.0,
             schneider_weight: 1.0,
             schwarz_weight: 1.0,
             ouvert_weight: 1.0,
@@ -669,6 +674,11 @@ impl Examples {
                 Action::Re => hyper.kontra_weight * hyper.re_weight,
                 Action::Announce(a) if a.schneider || a.schwarz || a.ouvert => {
                     hyper.announcement_weight
+                        * if r.view.hand_game == Some(true) {
+                            hyper.hand_announcement_weight
+                        } else {
+                            1.0
+                        }
                         * if a.ouvert {
                             hyper.ouvert_weight
                         } else if a.schwarz {
@@ -1908,6 +1918,10 @@ mod tests {
                         ouvert_weight: 5.0,
                         ..Hyper::default()
                     };
+                    let hand_weights = Hyper {
+                        hand_announcement_weight: 7.0,
+                        ..weights.clone()
+                    };
                     for (schwarz, ouvert, expected) in
                         [(false, false, 2.0), (true, false, 3.0), (true, true, 5.0)]
                     {
@@ -1922,6 +1936,9 @@ mod tests {
                         let mut rows = Examples::new();
                         assert!(rows.push(&labelled, &weights, None));
                         assert_eq!(rows.target.iter().sum::<f32>(), expected);
+                        let mut rows = Examples::new();
+                        assert!(rows.push(&labelled, &hand_weights, None));
+                        assert_eq!(rows.target.iter().sum::<f32>(), expected * 7.0);
                     }
                 }
                 let mut examples = Examples::new();
