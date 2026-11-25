@@ -146,6 +146,18 @@ play. Keep it alongside the archive when running `smoke`. Verify the archive ind
 with `sha256sum` or PowerShell `Get-FileHash -Algorithm SHA256`. Checksums
 identify bytes; these are unsigned private RCs, not authenticated releases.
 
+`build` also writes `<archive>.manifest.json` next to the archive: artifact
+name, SHA-256 and size, version, commit, rustc/Cargo, target/build OS and a
+`checks` map (`archive-verify`, `archive-reproducible`, `native-smoke`,
+`network-isolation`) where every check that did not run says `not run`.
+After a smoke, `package.py manifest ARCHIVE --smoke evidence/smoke.json`
+rewrites it with the smoke result, OS and limitations; it refuses a
+`smoke.json` of different archive bytes. `network-isolation` is `passed` only
+for the Windows program-scoped block. The file has no timestamps and is
+deterministic. Linux evidence comes from a local or CI run, Windows only from
+CI output; a platform without a recorded smoke is not claimed verified.
+This is not a version bump, tag or publication.
+
 Archive entry order, timestamps, ownership and modes are normalized. Each
 build creates the archive twice and requires identical bytes from identical
 payloads. Binary bytes are not claimed reproducible across hosts, compilers,

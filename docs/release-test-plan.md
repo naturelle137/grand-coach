@@ -59,6 +59,11 @@ learning effectiveness.
 
 ## Results and release
 
+Attach the `<archive>.manifest.json` of the exact candidate
+([packaging](packaging.md#reproduce-and-inspect)) to the evidence: it records
+artifact hashes, version, toolchain, platform and which package checks ran;
+anything marked `not run` stays unclaimed.
+
 Store completed personal learner records privately under
 `grand-coach-data/studies/`, never public git or `docs/uat/`. Public technical
 platform evidence must omit personal learner data. Each record identifies the
