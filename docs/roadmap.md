@@ -48,4 +48,4 @@ A Null defender who won the preceding trick can use the [later-lead dialogue](gu
 
 A second-seat Null defender can also inspect Easy's [fallback after a partner lead](guided-dialogue.md#null-defender-following-the-declarer-131); Null Ouvert remains excluded for this turn.
 
-Grand Ouvert last-seat defenders can deliberately compare all legal cards when their partner leads, using the shared Easy feeding rule and the actual completed trick. Other guided branches remain bounded as described in [guided dialogue](guided-dialogue.md).
+Grand Ouvert defenders can also use the existing `LeadMaster` dialogue on a validated own lead. Grand Ouvert last-seat defenders can deliberately compare all legal cards when their partner leads, using the shared Easy feeding rule and the actual completed trick. Other guided branches remain bounded as described in [guided dialogue](guided-dialogue.md).

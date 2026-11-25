@@ -209,3 +209,39 @@ fn ouvert_grand_declarer_lead_uses_shared_rule() {
         assert!(lesson(&invalid).is_none());
     }
 }
+
+#[test]
+fn ouvert_grand_defender_lead_requires_the_revealed_hand_and_exact_actions() {
+    use skat_analysis::baseline::{self, Branch};
+    use skat_core::{Announcement, Game, RuleConfig};
+    let d = cases().remove(0).deal;
+    let mut g = Game::from_deal(d, RuleConfig { kontra_re: false });
+    for a in [
+        Action::Bid(18),
+        Action::Pass,
+        Action::Pass,
+        Action::Hand,
+        Action::Announce(Announcement {
+            game: GameType::Grand,
+            schneider: true,
+            schwarz: true,
+            ouvert: true,
+        }),
+    ] {
+        g.apply(a).unwrap();
+    }
+    let v = g.view(Seat::Vorhand);
+    let l = lesson(&v).expect("Grand Ouvert defender lead");
+    assert_eq!(l.rule, baseline::rule(&v).unwrap());
+    assert_eq!(l.rule.branch, Branch::LeadMaster);
+    assert_eq!(l.lead_declarer, Some(false));
+    for edit in [
+        (|v: &mut skat_core::PlayerView| v.declarer_cards = None) as fn(&mut skat_core::PlayerView),
+        |v| v.contract.as_mut().unwrap().schwarz = false,
+        |v| v.legal_actions.truncate(1),
+    ] {
+        let mut invalid = v.clone();
+        edit(&mut invalid);
+        assert!(lesson(&invalid).is_none());
+    }
+}
