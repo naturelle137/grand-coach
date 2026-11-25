@@ -385,7 +385,13 @@ mismatch with unrecorded value, skipped), split by support (without help /
 with help) per row and in total. The category is only the observed answer
 against the stored exact count: no reason, strategic mistake, mastery or
 transfer is inferred, and strategic decision classification is not part of
-the history. Legacy wrong answers have no stored count and stay
+the history. A separate pure `StrategicSummary` (`skat-app`, #13) only
+counts review moments already classified by the shared coach (`MomentKind`
+Good/Bad/Neutral per `Concept`) and, from twice `STRATEGIC_WINDOW` (10)
+moments of a concept, the 10 before the last 10 beside the last 10 in
+chronological order. Only moments a review selected (at most three per
+recording) count: no prevalence, error rate, mastery or learning effect;
+persistence and a GUI overview are not part of it yet. Legacy wrong answers have no stored count and stay
 `MismatchUnrecorded`; their deviation is never reconstructed. `provenance`
 counts opportunities per lesson revision, with unversioned legacy ones
 listed separately. `comparisons` gives, per topic, the number of settled
