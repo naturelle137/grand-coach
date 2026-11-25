@@ -31,7 +31,7 @@ use crate::train::{
 };
 
 /// Version of the cache file layout and of the cached target computation.
-pub const CACHE_FORMAT: u32 = 2;
+pub const CACHE_FORMAT: u32 = 3;
 
 const MAGIC: &[u8; 8] = b"GCDATA\0\x01";
 
@@ -58,6 +58,8 @@ struct KeyInput<'a> {
     all_phases: bool,
     preplay_weight: u32,
     rare_weight: u32,
+    hand_opportunity_weight: u32,
+    announcement_opportunity_weight: u32,
     hand_weight: u32,
     hand_declaration_weight: u32,
     null_weight: u32,
@@ -114,6 +116,8 @@ pub fn key(sources: &[DataSource], hyper: &Hyper, beliefs: bool) -> String {
         all_phases: hyper.all_phases,
         preplay_weight: hyper.preplay_weight.to_bits(),
         rare_weight: hyper.rare_weight.to_bits(),
+        hand_opportunity_weight: hyper.hand_opportunity_weight.to_bits(),
+        announcement_opportunity_weight: hyper.announcement_opportunity_weight.to_bits(),
         hand_weight: hyper.hand_weight.to_bits(),
         hand_declaration_weight: hyper.hand_declaration_weight.to_bits(),
         null_weight: hyper.null_weight.to_bits(),
@@ -405,6 +409,12 @@ mod class_weight_tests {
     fn class_weights_change_the_cache_key() {
         let base = Hyper::default();
         let mut changed = base.clone();
+        changed.hand_opportunity_weight = 2.0;
+        assert_ne!(key(&[], &base, false), key(&[], &changed, false));
+        changed = base.clone();
+        changed.announcement_opportunity_weight = 2.0;
+        assert_ne!(key(&[], &base, false), key(&[], &changed, false));
+        changed = base.clone();
         changed.hand_weight = 2.0;
         assert_ne!(key(&[], &base, false), key(&[], &changed, false));
         changed = base.clone();
