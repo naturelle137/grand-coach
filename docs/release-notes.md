@@ -20,6 +20,12 @@ the shipped model ([learned models](learned-models.md#supported-phases-levels-an
 | x86_64 Linux | portable `.tar.gz` | Ubuntu 24.04 CI build and smoke, also in a network-less runtime container | [packaging](packaging.md#formats-and-environments) |
 | x86_64 Windows 11 | portable `.zip` | Windows Server 2025 CI build and smoke with a declared Mesa software OpenGL driver | [packaging](packaging.md#formats-and-environments) |
 
+Packaged-smoke evidence for the history-format-7 candidate (commit `4875d969714a`):
+[RC run 45737075480](https://github.com/naturelle137/grand-coach/actions/runs/45737075480),
+Linux archive SHA-256 `8fac240e…6cdec`, Windows archive SHA-256 `b454df7b…e045`;
+both smokes passed (complete series, open table, replay/review, practice,
+coach/counting/quiz, training, all card faces, German and English).
+
 Successful Windows CI is the Windows verification (D-36); native Windows 11
 hardware, hardware acceleration and a clean OS install are not claimed. No
 other platform is verified.
