@@ -7,6 +7,7 @@
 //! without help, earlier and recent windows and the recorded lesson
 //! revisions, plus separately cached explicit mechanism-response patterns.
 //! Selected review moments are descriptive, not a diagnosis or mastery assessment.
+//! No diagnosis, mastery or strategic error prevalence.
 
 use std::path::{Path, PathBuf};
 
