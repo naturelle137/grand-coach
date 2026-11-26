@@ -949,7 +949,7 @@ learning-provenance-unversioned = Gespeichert, bevor Versionen erfasst wurden: {
 learning-family-quiz = Zählfragen im Spiel
 learning-family-focused = Gezieltes Zählen im Spiel
 learning-family-training = Zähltraining
-learning-strategic-separate = Dieser Abschnitt beschreibt nur Zählantworten. Mechanismus-Antworten stehen getrennt; gespielte Karten werden nicht eingeordnet.
+learning-strategic-separate = Dieser Abschnitt beschreibt nur Zählantworten. Mechanismus-Antworten und ausgewählte überprüfte Spielzüge stehen getrennt.
 
 ## Opponent figures (D-72): names of both pools, shown in their language
 
@@ -1197,7 +1197,7 @@ strategic-title = Überprüfte Spielzüge: Einordnung der ausgewählten Momente
 strategic-limits = Gezählt werden nur die höchstens drei Momente, die eine Auswertung je Aufzeichnung ausgewählt hat. Das sind weder Häufigkeiten noch Fehlerquoten deines Spiels und kein Nachweis von Können oder Lerneffekt.
 strategic-empty = Noch keine ausgewertete Aufzeichnung in diesem Verlauf.
 strategic-reviews = Auswertungen { $reviews } (davon unvollständig { $partial }) · Momente { $moments }
-strategic-counts = Gut entschieden { $good } · schwächere Wahl { $bad } · weder noch { $neutral }
+strategic-counts = Momente { $total } · Gut entschieden { $good } · schwächere Wahl { $bad } · weder noch { $neutral }
 strategic-sparse = Weniger als 20 Momente dieses Themas: noch kein Vergleich.
 strategic-earlier = Frühere 10 Momente dieses Themas
 strategic-recent = Neueste 10 Momente: beschreibender Vergleich, kein Nachweis eines Lerneffekts

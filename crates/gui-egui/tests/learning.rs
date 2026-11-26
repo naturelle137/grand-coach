@@ -209,8 +209,8 @@ fn history_is_recorded_shown_retained_and_reset_in_both_languages() {
             "Answers by observed result",
         ));
         h.get_by_label_contains(t(
-            "Mechanismus-Antworten stehen getrennt; gespielte Karten werden nicht eingeordnet",
-            "Mechanism responses are separate; played-card decisions are not classified",
+            "Mechanismus-Antworten und ausgewählte überprüfte Spielzüge stehen getrennt",
+            "Mechanism responses and selected reviewed moves are separate",
         ));
         // One row per observed topic in the series context, in the counts
         // grid and again in the answer grid where something was settled.

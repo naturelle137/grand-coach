@@ -561,6 +561,12 @@ const SCENARIOS: &[(&str, Scenario)] = &[
     ("mechanism-trends", mechanism_trends),
     ("mechanism-trends-en", mechanism_trends_en),
     ("mechanism-trends-narrow", mechanism_trends_narrow),
+    ("strategic-empty", strategic_empty),
+    ("strategic-empty-en", strategic_empty_en),
+    ("strategic-sparse", strategic_sparse),
+    ("strategic-sparse-en", strategic_sparse_en),
+    ("strategic-full", strategic_full),
+    ("strategic-full-en", strategic_full_en),
     ("learning-empty", learning_empty),
     ("learning-empty-en", learning_empty_en),
     ("learning-history", learning_history),
@@ -3399,6 +3405,69 @@ fn focus_void(h: &mut Harness<'_, GrandCoachApp>) {
 }
 fn focus_void_en(h: &mut Harness<'_, GrandCoachApp>) {
     focus_void(h);
+    english(h);
+}
+
+fn strategic_fixture(h: &mut Harness<'_, GrandCoachApp>, reviews: u64) {
+    use skat_app::coach_model::MomentKind;
+    use skat_app::{LearningHistory, StrategicObservation, StrategicReview};
+    let mut history = LearningHistory::new();
+    for n in 0..reviews {
+        history
+            .record_strategic(&StrategicReview {
+                recording: n,
+                exhaustive: n != 0,
+                moments: vec![StrategicObservation {
+                    concept: Concept::ProvenVoid,
+                    kind: if n < 10 {
+                        MomentKind::Bad
+                    } else {
+                        MomentKind::Good
+                    },
+                }],
+            })
+            .unwrap();
+    }
+    let overview = history.strategic_overview();
+    assert_eq!(overview.reviews, reviews as u32);
+    assert_eq!(overview.summary.total.total(), reviews as u32);
+    assert_eq!(overview.partial, u32::from(reviews > 0));
+    assert_eq!(
+        overview
+            .summary
+            .rows
+            .first()
+            .and_then(|r| r.trend)
+            .is_some(),
+        reviews >= 20
+    );
+    let file = learning_file(h, "strategic", None);
+    history.save_local(&file).unwrap();
+    h.state_mut().use_learning_file(file);
+    open_learning(h);
+    h.get_by_label("Überprüfte Spielzüge: Einordnung der ausgewählten Momente")
+        .scroll_to_me();
+    h.run_steps(4);
+}
+fn strategic_empty(h: &mut Harness<'_, GrandCoachApp>) {
+    strategic_fixture(h, 0);
+}
+fn strategic_empty_en(h: &mut Harness<'_, GrandCoachApp>) {
+    strategic_empty(h);
+    english(h);
+}
+fn strategic_sparse(h: &mut Harness<'_, GrandCoachApp>) {
+    strategic_fixture(h, 2);
+}
+fn strategic_sparse_en(h: &mut Harness<'_, GrandCoachApp>) {
+    strategic_sparse(h);
+    english(h);
+}
+fn strategic_full(h: &mut Harness<'_, GrandCoachApp>) {
+    strategic_fixture(h, 20);
+}
+fn strategic_full_en(h: &mut Harness<'_, GrandCoachApp>) {
+    strategic_full(h);
     english(h);
 }
 
