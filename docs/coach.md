@@ -296,8 +296,9 @@ All Buben and the announced suit are Trumpf, regardless of printed suit.
 A different own master does not qualify a cheaper non-master winner.
 A side master can be trumped; a Bube can be overtrumped. Grand has
 only four Buben as Trumpf. Non-Ouvert Null (#165/#169) supports the human
-declarer second or last to the current trick, with two or more pure card actions and a
-present loser. The opening lead (#176, below) uses a separate admission and
+declarer second or last to the current trick, with two or more pure card actions.
+Without a current loser, Easy chooses the lowest-cost legal card; the last
+defender can still overtake a second-seat declarer. The opening lead (#176, below) uses a separate admission and
 minimum-cost task. In nonempty tricks Easy maximises Null power among current losers and retains the
 last exact tie in legal order. Buben follow their printed suit, with ranks
 7/8/9/10/Bube/Dame/König/Ass; off-suit cards cannot win the led suit.

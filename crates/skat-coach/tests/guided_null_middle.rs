@@ -45,11 +45,11 @@ fn middle_scope_whole_lesson_and_every_candidate() {
         // #165's supported last-seat lesson remains available, outside #169.
         assert_eq!(
             l.is_some(),
-            c.admitted || c.id == "last" || c.id == "ouvert",
+            c.admitted || c.id == "last" || c.id == "ouvert" || c.id == "no-loser",
             "{}",
             c.id
         );
-        if !c.admitted && c.id != "ouvert" {
+        if !c.admitted && c.id != "ouvert" && c.id != "no-loser" {
             continue;
         }
         let l = l.unwrap();
@@ -62,7 +62,11 @@ fn middle_scope_whole_lesson_and_every_candidate() {
         for a in c.legal {
             assert_eq!(
                 l.check(Step::Narrow, Answer::Card(a)),
-                l.rule.losers.contains(&a)
+                if l.rule.losers.is_empty() {
+                    a == l.rule.card
+                } else {
+                    l.rule.losers.contains(&a)
+                }
             );
         }
         assert_eq!(l.memory().skat, v.own_skat);
@@ -88,6 +92,25 @@ fn middle_non_absent_entire_lesson_privacy_including_known_pickup_skat() {
         let l = lesson(&x).expect("non-absent new middle-seat lesson");
         assert_eq!(Some(l), lesson(&y));
     }
+}
+
+#[test]
+fn no_loser_hidden_skat_swap_preserves_entire_lesson() {
+    let mut c = cases().into_iter().find(|c| c.id == "no-loser").unwrap();
+    let original = c.game().view(c.seat);
+    c.deal = skat_core::Deal::new(
+        [
+            fixture::set(&[0, 5, 10, 11, 12, 13, 18, 19, 26, 27]),
+            fixture::set(&[3, 4, 6, 7, 8, 9, 16, 17, 24, 25]),
+            fixture::set(&[2, 14, 15, 20, 21, 22, 23, 28, 29, 30]),
+        ],
+        fixture::set(&[1, 31]),
+    )
+    .unwrap();
+    let changed = c.game().view(c.seat);
+    assert_eq!(original, changed);
+    let original_lesson = lesson(&original).expect("no-loser lesson");
+    assert_eq!(Some(original_lesson), lesson(&changed));
 }
 
 #[test]
