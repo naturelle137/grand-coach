@@ -615,6 +615,28 @@ play and in how declared games are played. One seed and one 200-deal sample.
 Nothing is shipped; Classic stays the default and #74 stays open. Raw output:
 `grand-coach-data/studies/2026-11-26-discard-74/`.
 
+#### Longer training and wider network (#74)
+
+Measured 2026-11-26 on this PC (CPU, nice 10), same three datasets, seed 0
+and weights as the Drücken run (W = 4, R = 2, D = 4), checking whether the
+remaining gap is under-training or capacity. (1) 4×384 with `--epochs 12`
+stops by plateau after epoch 7 (best epoch 6) and exports the identical model
+`b1a2c636…3e54`, so the recipe's plateau rule, not the epoch budget, limits
+it. (2) 4×512, `--epochs 12 --patience 2 --lr-decays 2` (best epoch 11,
+SHA-256 `8f0dc3872f7534ccdc01c23c00b2020846bec7ebe403e5e92bb53b94f65705a5`):
+test agreement Reizen 96.49 %, Hand/pickup 99.65 %, Drücken 87.53 %, Ansage
+92.50 %, Kontra 99.60 %, Re 91.16 %, card play 74.40 % (63,093/84,803; 73.47 %
+at 4×384), all 80.65 %. Complete games (`calibrate validation nn:…@easy strong
+200 4 10000`, 1,200 games): A − B -17.09 per seat-game, 95 % interval
+[-21.28, -12.90], against -18.02 [-22.29, -13.75] at 4×384; A won 67.9 % of
+602 declarer games (Strong 86.1 % of 595) at 20.1 versus 64.5 points per
+declarer game, and 18.4 % of defender games (Strong 27.6 %). Kontra/Re rates
+match Strong (2.7 % vs 3.0 %). Card-play agreement rises by under one point
+and the intervals overlap, so more capacity and training do not close the gap;
+it lies in card play and declarer play, which imitation of Strong at this
+data size does not reproduce. One seed, one 200-deal sample. Nothing is
+shipped; #74 stays open. Raw output: `grand-coach-data/studies/2026-11-26-long-74/`.
+
 #### Kontra/Re behavioural evidence for W = 4 (#74)
 
 On 2026-11-22, the current `evaluate` and `calibrate` tools at commit
