@@ -1631,9 +1631,9 @@ Grand and Farbspiel; it is fixtured by
 `ouvert_last_seat_defender_keeps_a_loser_behind_the_declarer` (Easy's lowest
 loser, view invariant under unseen cards, rejection of missing, overlapping
 or restricted input).
-The Grand Ouvert declarer playing last, with no card that beats the opponents'
+The Grand or Farbspiel Ouvert declarer playing last, with no card that beats the opponents'
 winning card (Hand, own hand as the reveal, exact legal actions), can inspect
 the same fallback; it is fixtured by
-`grand_ouvert_declarer_last_keeps_a_loser_when_nothing_beats_the_trick`
+`ouvert_declarer_last_keeps_a_loser_when_nothing_beats_the_trick`
 (Easy's lowest card, rejection of missing or restricted input).
 These checks do not establish learning efficacy.
