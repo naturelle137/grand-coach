@@ -1501,6 +1501,16 @@ malformed views; the app test exercises the actual continuation. These checks do
 not establish learning efficacy. Easy does not announce Farbspiel Ouvert, so an
 ordinary defender route requires an opponent that can do so.
 
+If no legal card stays under the partner, the shared Easy rule falls back to
+all legal cards (nontrump, fewer Augen, lower rank; first exact tie). A Grand or
+Farbspiel Ouvert defender acting second with the partner ahead can learn this
+`Fallback` under the same revealed-hand and exact-legal-list checks. The
+core-replayed fixtures (CK partner lead, no card below it) require Easy's exact
+choice, reject a hidden declarer hand, a self-copied hand and a restricted
+legal list, and keep the view equal after exchanging unseen Vorhand and Skat
+cards. The lesson makes no claim that the declarer's open hand changes the rule
+or that the card wins the trick or game.
+
 A Farbspiel Ouvert defender acting second can also use early `FeedPartner`
 when the partner's card is a follow-class master. The same reveal and legal
 view checks apply. A side master may still be trumped by the declarer; the
