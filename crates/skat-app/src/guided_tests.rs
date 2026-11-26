@@ -4620,3 +4620,47 @@ fn null_defender_last_behind_partner_observes_every_legal_card() {
         }
     }
 }
+
+#[test]
+fn declarer_lead_fallback_skips_the_master_question_and_observes_the_reply() {
+    // VH declares Grand Hand without Bube or Ace: no master, no Trumpf to draw.
+    let deal = skat_core::Deal::new(
+        [
+            fixture::cards("C7 C8 C9 S7 S8 H7 H8 D7 D8 D9"),
+            fixture::cards("CA CT CK CQ CJ SA ST SK SQ SJ"),
+            fixture::cards("S9 HA HT HK HQ HJ H9 DA DT DK"),
+        ],
+        fixture::cards("DQ DJ"),
+    )
+    .unwrap();
+    let actions =
+        fixture::contract_actions(deal, Seat::Vorhand, fixture::hand_game(GRAND, false), &[]);
+    let mut s = grand_session(Seat::Vorhand, deal, false, &actions);
+    s.execute(Command::StartGuided).unwrap();
+    let g = s.guided().unwrap();
+    assert!(g.lead_fallback && g.rule.is_none() && !g.lead_trumpf);
+    respond(
+        &mut s,
+        G::Answer(A::Lead {
+            seat: Seat::Vorhand,
+            declarer: true,
+        }),
+    )
+    .unwrap();
+    let task = s.guided().unwrap();
+    assert_eq!(task.step, S::Narrow);
+    assert!(task.rule.is_none());
+    respond(&mut s, G::Answer(A::Card(fixture::card("C8")))).unwrap();
+    assert_eq!(s.guided().unwrap().correct, Some(false));
+    respond(&mut s, G::Answer(A::Card(fixture::card("C7")))).unwrap();
+    let rule = s.guided().unwrap().rule.unwrap();
+    assert_eq!(rule.branch, crate::GuidedBranch::Fallback);
+    assert_eq!(rule.card, fixture::card("C7"));
+    s.execute(Command::Act(Action::Play(fixture::card("C8"))))
+        .unwrap();
+    s.run_opponents();
+    assert_eq!(s.guided().unwrap().step, S::Observe);
+    assert_eq!(s.guided().unwrap().lead_replies.len(), 2);
+    respond(&mut s, G::Reveal).unwrap();
+    assert!(s.guided().unwrap().observation.is_some());
+}

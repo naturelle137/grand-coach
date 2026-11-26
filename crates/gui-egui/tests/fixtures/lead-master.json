@@ -1929,6 +1929,8 @@
       "kontra_exclusion": null,
       "kontra_observation": null,
       "kontra_rule": null,
+      "lead": "Vorhand",
+      "lead_fallback": true,
       "legal_cards": [
         0,
         1,
@@ -1948,7 +1950,7 @@
       "preplay": null,
       "reizen": null,
       "rule": null,
-      "step": "Unsupported",
+      "step": "Orient",
       "task": null
     },
     "stage": "unsupported",

@@ -1207,3 +1207,7 @@ strategic-counts = Momente { $total } · Gut entschieden { $good } · schwächer
 strategic-sparse = Weniger als 20 Momente dieses Themas: noch kein Vergleich.
 strategic-earlier = Frühere 10 Momente dieses Themas
 strategic-recent = Neueste 10 Momente: beschreibender Vergleich, kein Nachweis eines Lerneffekts
+guided-lead-fallback-attempt = Easy findet keine Beikarte ohne höhere unbekannte Karte und hat keinen eigenen Trumpf mehr zu ziehen. Welche legale Karte ist am niedrigsten: kein Trumpf, weniger Augen, niedrigerer Rang?
+guided-lead-fallback-definition = Eine Ausspielkarte liegt zuerst vorn. Eigene höhere Karten blockieren keinen Master; diese Sicht zählt nur die eigene Hand und bereits gespielte Karten.
+guided-lead-fallback-risk = Easys Wahl ist hier eine Heuristik. Sie sagt nichts über unbekannte Karten und garantiert weder den Stich noch das Spiel.
+guided-rule-lead-fallback = Du spielst aus, keine legale Beikarte ist nach den gezählten Karten ein Master, und es gibt keinen Trumpf mehr zu ziehen. Easy spielt die niedrigste legale Karte aus: erst Nicht-Trumpf, dann weniger Augen und niedrigerer Rang; die erste exakte Gleichheit. Das garantiert weder den Stich noch das Spiel; jede legale Karte bleibt spielbar.

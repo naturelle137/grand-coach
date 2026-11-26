@@ -148,6 +148,7 @@ fn content(
         GuidedStep::Check if g.lead.is_some() => "guided-lead-master",
         GuidedStep::Narrow if g.lead.is_some() && null => "guided-null-lead-attempt",
         GuidedStep::Narrow if g.lead_trumpf => "guided-draw-trumpf-attempt",
+        GuidedStep::Narrow if g.lead_fallback => "guided-lead-fallback-attempt",
         GuidedStep::Narrow if g.lead.is_some() => "guided-lead-attempt",
         GuidedStep::Observe if g.lead_trumpf => "guided-draw-trumpf-observe",
         GuidedStep::Observe if g.lead.is_some() => "guided-lead-observe",
@@ -224,6 +225,8 @@ fn content(
     if g.lead.is_some() && matches!(g.step, GuidedStep::Check | GuidedStep::Narrow) {
         ui.label(i.t(if null {
             "guided-null-lead-ranks"
+        } else if g.lead_fallback {
+            "guided-lead-fallback-definition"
         } else if g.lead_trumpf {
             "guided-draw-trumpf-definition"
         } else if matches!(table.contract.map(|c| c.game), Some(GameType::Farbe(_))) {
@@ -241,6 +244,8 @@ fn content(
             } else {
                 "guided-null-lead-limit"
             }
+        } else if g.lead_fallback {
+            "guided-lead-fallback-risk"
         } else if g.lead_trumpf {
             "guided-draw-trumpf-risk"
         } else {
@@ -290,6 +295,8 @@ fn content(
             "guided-rule-draw-trumpf"
         } else if rule.branch == GuidedBranch::LeadMaster {
             "guided-rule-lead"
+        } else if rule.branch == GuidedBranch::Fallback && g.lead.is_some() {
+            "guided-rule-lead-fallback"
         } else if rule.branch == GuidedBranch::UnderPartner {
             "guided-rule-under"
         } else if rule.branch == GuidedBranch::Fallback && g.decline_early {

@@ -10,7 +10,7 @@
 mod support;
 use skat_analysis::baseline::rule;
 use skat_coach::guided::*;
-use skat_core::{Action, GameType, Seat, Suit};
+use skat_core::{Action, Deal, GameType, Seat, Suit};
 use support::*;
 
 const HERZ: GameType = GameType::Farbe(Suit::Herz);
@@ -151,4 +151,46 @@ fn declarer_second_seat_keeps_a_loser_under_an_opponent_lead() {
         revealed.declarer_cards = Some(v.hand);
         assert!(lesson(&revealed).is_none());
     }
+}
+
+#[test]
+fn declarer_lead_without_master_or_trumpf_is_the_lowest_card() {
+    // VH declares Grand Hand with no Bube and no Ace: nothing is a master and
+    // no Trumpf can be drawn, so Easy leads the lowest card, C7 (first of the exact ties).
+    let deal = Deal::new(
+        [
+            cards("C7 C8 C9 S7 S8 H7 H8 D7 D8 D9"),
+            cards("CA CT CK CQ CJ SA ST SK SQ SJ"),
+            cards("S9 HA HT HK HQ HJ H9 DA DT DK"),
+        ],
+        cards("DQ DJ"),
+    )
+    .unwrap();
+    let g = contract_position(deal, Seat::Vorhand, hand_game(GameType::Grand, false), &[]);
+    let v = g.view(Seat::Vorhand);
+    let l = lesson(&v).expect("lead fallback lesson");
+    assert_eq!(l.rule.branch, Branch::Fallback);
+    assert_eq!(l.rule.card, card("C7"));
+    assert!(l.check(
+        Step::Orient,
+        Answer::Lead {
+            seat: Seat::Vorhand,
+            declarer: true
+        }
+    ));
+    for a in &v.legal_actions {
+        let Action::Play(c) = a else { panic!() };
+        assert_eq!(l.check(Step::Narrow, Answer::Card(*c)), *c == card("C7"));
+    }
+    // Hidden cards may be exchanged without changing the view or the lesson.
+    let other = swap(deal, card("CA"), card("HA"));
+    let w = contract_position(other, Seat::Vorhand, hand_game(GameType::Grand, false), &[])
+        .view(Seat::Vorhand);
+    assert_eq!((&w, lesson(&w)), (&v, Some(l)));
+    // Restricted actions, Ouvert and a revealed hand stay unsupported.
+    let mut restricted = v.clone();
+    restricted.legal_actions.pop();
+    assert!(lesson(&restricted).is_none());
+    let o = contract_position(deal, Seat::Vorhand, hand_game(GameType::Grand, true), &[]);
+    assert!(lesson(&o.view(Seat::Vorhand)).is_none());
 }
