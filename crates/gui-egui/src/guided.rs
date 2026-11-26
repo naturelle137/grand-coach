@@ -24,6 +24,7 @@ pub fn panel(
     if (g.feed_partner.is_some()
         || g.lead.is_some()
         || g.task == Some(GuidedBranch::WinEarly)
+        || g.task == Some(GuidedBranch::Fallback)
         || g.early_condition.is_some()
         || table.contract.is_some_and(|c| c.game == GameType::Null))
         && g.kontra.is_none()
@@ -37,6 +38,7 @@ pub fn panel(
         let scroll = if g.feed_partner.is_some()
             || g.lead.is_some()
             || g.task == Some(GuidedBranch::WinEarly)
+            || g.task == Some(GuidedBranch::Fallback)
         {
             scroll.id_salt(("lead_dialogue", g.step as u8))
         } else {
@@ -152,6 +154,7 @@ fn content(
         GuidedStep::Orient => "guided-orient",
         GuidedStep::Check => "guided-check",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::UnderPartner) => "guided-under",
+        GuidedStep::Narrow if g.task == Some(GuidedBranch::Fallback) => "guided-fallback-attempt",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::FeedPartner) => "guided-feed-attempt",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::WinEarly) => "guided-early-attempt",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::Null) && null_partner_lead => {
@@ -283,6 +286,8 @@ fn content(
             "guided-rule-lead"
         } else if rule.branch == GuidedBranch::UnderPartner {
             "guided-rule-under"
+        } else if rule.branch == GuidedBranch::Fallback {
+            "guided-rule-fallback"
         } else if rule.branch == GuidedBranch::FeedPartner && !rule.last {
             "guided-rule-feed-early"
         } else if rule.branch == GuidedBranch::FeedPartner {

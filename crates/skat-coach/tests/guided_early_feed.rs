@@ -153,7 +153,9 @@ fn early_feed_requires_exact_acting_defender_and_grand_master() {
         .into_iter()
         .find(|c| c.id == "A-early-partner-ahead")
         .unwrap();
-    assert!(lesson(&c.position().view(Seat::Mittelhand)).is_none());
+    let fallback = lesson(&c.position().view(Seat::Mittelhand)).unwrap();
+    assert_eq!(fallback.rule.branch, Branch::Fallback);
+    assert!(fallback.rule.losers.is_empty());
 }
 
 #[test]

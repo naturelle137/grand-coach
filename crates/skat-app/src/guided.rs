@@ -276,11 +276,12 @@ impl GuidedState {
     }
 
     fn requires_permitted_estimates(l: &Lesson) -> bool {
-        (matches!(l.game, skat_core::GameType::Farbe(_))
-            && matches!(
-                l.rule.branch,
-                GuidedBranch::WinEarly | GuidedBranch::FeedPartner | GuidedBranch::LeadMaster
-            ))
+        l.rule.branch == GuidedBranch::Fallback
+            || (matches!(l.game, skat_core::GameType::Farbe(_))
+                && matches!(
+                    l.rule.branch,
+                    GuidedBranch::WinEarly | GuidedBranch::FeedPartner | GuidedBranch::LeadMaster
+                ))
             || (l.game == skat_core::GameType::Grand
                 && l.rule.branch == GuidedBranch::FeedPartner
                 && !l.rule.last)

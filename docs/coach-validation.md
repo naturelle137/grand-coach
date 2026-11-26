@@ -353,6 +353,13 @@ actual-main/both-OS archive/hash/visual acceptance. No learner results follow.
 
 ## Grand second-seat feeding technical evidence (#131)
 
+The separate non-Ouvert partner-ahead no-loser fallback is checked by the
+core-replayed Grand and Farbspiel positions in `guided_grand` and `guided`.
+They specify all legal candidates and Easy's exact choice, reject a restricted
+legal list and keep the Grand lesson unchanged when hidden cards are swapped.
+The app test plays an alternative and records the actual reply. These checks
+do not establish learning or strategic quality.
+
 Use the [scope and ordinary route](guided-dialogue.md#grand-second-seat-feedpartner-131).
 `guided_early_feed` checks the original #163 complete legal Kreuz-Ass fixture,
 both CT/CQ choices and all twenty actual third-card completions, plus separately

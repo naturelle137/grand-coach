@@ -105,7 +105,7 @@ pub struct Lesson {
 /// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus Farbspiel and Grand Ouvert
 /// defender UnderPartner and non-Ouvert Farbspiel/Grand WinEarly and last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
-/// and at least one losing card; early FeedPartner (Farbspiel or Grand, including Ouvert) requires a follow-class master; Fallback stays excluded.
+/// and at least one losing card; early FeedPartner (Farbspiel or Grand, including Ouvert) requires a follow-class master. A defender may also learn the partner-ahead no-loser fallback (Ouvert needs the consistent revealed hand).
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. A defender may
 /// lead a trick, act second after either player leads, or last with the declarer ahead.
@@ -514,7 +514,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             && rule.branch == Branch::WinLast
             && !ouvert_last)
         || (ouvert_under
-            && rule.branch != Branch::UnderPartner
+            && !matches!(rule.branch, Branch::UnderPartner | Branch::Fallback)
             && !(rule.branch == Branch::FeedPartner && feed_early && rule.table_master))
         || (contract.ouvert
             && matches!(game, GameType::Farbe(_))
@@ -526,6 +526,16 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         || (rule.branch == Branch::UnderPartner && rule.losers.is_empty())
         || !(matches!(rule.branch, Branch::UnderPartner | Branch::WinLast)
             || ((grand || suit_early || ouvert_grand_early) && rule.branch == Branch::WinEarly)
+            || (feed_early
+                && if contract.ouvert {
+                    ouvert_under
+                } else {
+                    view.declarer_cards.is_none()
+                }
+                && view.current_trick.cards[0].is_some_and(|c| !view.hand.contains(c))
+                && rule.branch == Branch::Fallback
+                && rule.partner_ahead
+                && rule.losers.is_empty())
             || (rule.branch == Branch::FeedPartner
                 && (((grand || suit_feed || ouvert_feed) && rule.last)
                     || (feed_early && rule.partner_ahead && rule.table_master)))
@@ -573,6 +583,9 @@ impl Lesson {
                 if self.game == GameType::Null
                     && self.rule.tie_break == baseline::TieBreak::LowestCostFirst =>
             {
+                c == self.rule.card
+            }
+            (Step::Narrow, Answer::Card(c)) if self.rule.branch == Branch::Fallback => {
                 c == self.rule.card
             }
             (Step::Narrow, Answer::Card(c)) => self.rule.candidates.contains(&c),

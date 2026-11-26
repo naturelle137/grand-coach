@@ -30,6 +30,10 @@ separate factual oracles.
   least two legal cards and one losing candidate, Easy takes a loser by
   `(is_trump, Augen, power)`, first exact tie. A nonchosen losing candidate may
   serve the same immediate purpose. This does not secure the partner's trick.
+- **Fallback:** non-Ouvert Farbspiel or Grand, defender second after the partner,
+  when the shared rule finds no losing card. The lesson explicitly asks for
+  Easy's lowest-cost choice from all legal cards; it does not present that
+  arbitrary ordering as a strategic recommendation. The declarer still plays.
 - **WinLast:** Farbspiel or Grand (#157, below), including [Ouvert declarer last](#farbspiel-ouvert-declarer-playing-last-318), last seat,
   opposing party leads, at least two legal cards and a winning candidate. Easy takes a winner by `(is_trump, power)`,
   first exact tie. Other winning cards still win this trick. No claim about
@@ -61,10 +65,8 @@ separate factual oracles.
   single legal action, other Grand branches, other Grand Ouvert turns, other Null card play or
   card play when Kontra/Re takes precedence (Reizen, Skataufnahme, Drücken,
   Ansage and Kontra/Re: see below). If the
-  partner branch has no losing card, its original lowest-card fallback is
-  explicitly marked `Fallback` and excluded, rather than explained as staying
-  under the partner. In
-  particular, `is_master` excludes only a higher card in the same follow
+  partner branch has no losing card in Ouvert, its fallback remains excluded.
+  In particular, `is_master` excludes only a higher card in the same follow
   class; it does not exclude trumping. These branches report unsupported.
 
 Unsupported card-play turns identify the public contract and whether the
@@ -1498,6 +1500,16 @@ fixture checks both replies, every legal card, a hidden Skat substitution and
 malformed views; the app test exercises the actual continuation. These checks do
 not establish learning efficacy. Easy does not announce Farbspiel Ouvert, so an
 ordinary defender route requires an opponent that can do so.
+
+If no legal card stays under the partner, the shared Easy rule falls back to
+all legal cards (nontrump, fewer Augen, lower rank; first exact tie). A Grand or
+Farbspiel Ouvert defender acting second with the partner ahead can learn this
+`Fallback` under the same revealed-hand and exact-legal-list checks. The
+core-replayed fixtures (CK partner lead, no card below it) require Easy's exact
+choice, reject a hidden declarer hand, a self-copied hand and a restricted
+legal list, and keep the view equal after exchanging unseen Vorhand and Skat
+cards. The lesson makes no claim that the declarer's open hand changes the rule
+or that the card wins the trick or game.
 
 A Farbspiel Ouvert defender acting second can also use early `FeedPartner`
 when the partner's card is a follow-class master. The same reveal and legal
