@@ -1552,3 +1552,21 @@ A Grand Ouvert defender can use the same lead dialogue when the revealed hand
 is consistent and the shared rule selects `LeadMaster`. The rule describes
 the follow class, not protection against a Bube. The actual replies and trick
 winner remain observable; other lead branches retain the fallback.
+
+## Defender decline fallback (#131)
+
+A non-Ouvert Farbspiel or Grand defender acting second or last, with the
+declarer currently ahead, can enter the `Fallback` dialogue when Easy does not
+overtake: either no legal card overtakes, or the cheapest overtaking card is
+neither Trumpf nor a follow-class master (not last). Easy then keeps the lowest
+legal loser by nontrump, fewer Augen and lower rank, first exact tie. At least
+one loser and two exact legal actions are required; a declarer role, a revealed
+declarer hand, a Skat and a restricted legal list stay unsupported. The
+`guided_decline` fixtures replay Grand and Herz (CT overtakes C9 but is no
+master; C7 is chosen) and a last-seat Grand position with no overtaking card;
+they check that exchanging unseen cards leaves the view and lesson unchanged.
+The app test observes the actual continuation. The text states the heuristic's
+condition only; it claims neither the trick nor the game. The ordinary
+bilingual egui route is `decline_walkthrough`. The declarer's own fallbacks
+(lead without a master, declining an early winner) and Ouvert stay unsupported.
+These checks do not establish learning efficacy.

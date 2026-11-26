@@ -154,6 +154,12 @@ fn content(
         GuidedStep::Orient => "guided-orient",
         GuidedStep::Check => "guided-check",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::UnderPartner) => "guided-under",
+        GuidedStep::Narrow
+            if g.task == Some(GuidedBranch::Fallback)
+                && g.rule.as_ref().is_some_and(|r| !r.partner_ahead) =>
+        {
+            "guided-decline-attempt"
+        }
         GuidedStep::Narrow if g.task == Some(GuidedBranch::Fallback) => "guided-fallback-attempt",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::FeedPartner) => "guided-feed-attempt",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::WinEarly) => "guided-early-attempt",
@@ -286,6 +292,8 @@ fn content(
             "guided-rule-lead"
         } else if rule.branch == GuidedBranch::UnderPartner {
             "guided-rule-under"
+        } else if rule.branch == GuidedBranch::Fallback && !rule.partner_ahead {
+            "guided-rule-decline"
         } else if rule.branch == GuidedBranch::Fallback {
             "guided-rule-fallback"
         } else if rule.branch == GuidedBranch::FeedPartner && !rule.last {
