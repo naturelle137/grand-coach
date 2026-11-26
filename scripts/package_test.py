@@ -42,6 +42,25 @@ class PackageTests(unittest.TestCase):
                 path.write_bytes(b"replaced")
                 self.assertEqual(package.verify(path, snapshot)[1], self.files)
 
+    def test_release_manifest_is_deterministic_and_lists_absent_checks(self):
+        inner = {"channel": "private-rc", "version": "1.0.0", "commit": "c" * 40, "rustc": "rustc 1.95.0",
+                 "cargo": "cargo 1.95.0", "target": "x86_64-unknown-linux-gnu", "os": "Linux", "runner_image": {}}
+        archive, data = Path("pkg.tar.gz"), b"archive bytes"
+        first = package.release_manifest(archive, data, inner)
+        self.assertEqual(first, package.release_manifest(archive, data, dict(reversed(list(inner.items())))))
+        self.assertEqual(first["artifacts"], [{"name": "pkg.tar.gz", "sha256": package.digest(data), "bytes": 13}])
+        self.assertEqual(first["checks"], {"archive-verify": "passed", "archive-reproducible": "passed",
+                                           "native-smoke": "not run", "network-isolation": "not run"})
+        smoke = {"archive_sha256": package.digest(data), "result": "passed", "os": "Linux",
+                 "checks": ["launch"], "limitations": "none", "network_isolation": "not verified by this smoke"}
+        done = package.release_manifest(archive, data, inner, smoke)
+        self.assertEqual(done["checks"]["native-smoke"], "passed")
+        self.assertEqual(done["checks"]["network-isolation"], "not run")
+        smoke["network_isolation"] = "program-scoped outbound block"
+        self.assertEqual(package.release_manifest(archive, data, inner, smoke)["checks"]["network-isolation"], "passed")
+        with self.assertRaises(ValueError):
+            package.release_manifest(archive, b"other", inner, smoke)
+
     def test_missing_notices_translation_and_card_fail_even_with_rehashed_manifest(self):
         for missing in ("THIRD-PARTY-NOTICES", "assets/i18n/en.ftl", "assets/cards/french2/kreuz-ass.svg"):
             # Select an actual face filename, independent of spelling conventions.
