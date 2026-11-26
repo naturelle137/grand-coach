@@ -21,6 +21,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 LEGAL = ("LICENSE", "LICENSE-ASSETS", "THIRD-PARTY-NOTICES", "Cargo.lock")
 # Shipped beside the executable, where the app looks for `assets/models` (D-63).
+PRE_PLAY = ("assets/models/pre-play.gcnn", "assets/models/pre-play.json")
 MODELS = ("assets/models/card-play.gcnn", "assets/models/card-play.json", "assets/models/card-play.md")
 # Format 1 as written by the earlier PR #133 build; the old events must survive a save.
 LEGACY_HISTORY = {"format": 1, "next_attempt": 4,
@@ -87,7 +88,15 @@ def models(root):
     card = data[MODELS[2]].decode("utf-8")
     if "## Recipe and provenance" not in card or "## Evidence and limits" not in card or "CC BY-SA 4.0" not in card:
         raise ValueError("model card lacks provenance, limits or licence")
-    return list(MODELS)
+    pre = {name: (root / name).read_bytes() for name in PRE_PLAY}
+    if not all(pre.values()):
+        raise ValueError("missing/empty pre-play model file")
+    recorded = json.loads(pre[PRE_PLAY[1]])
+    if recorded["model_sha256"] != digest(pre[PRE_PLAY[0]]) or recorded["model_bytes"] != len(pre[PRE_PLAY[0]]):
+        raise ValueError("pre-play model differs from its manifest")
+    if recorded.get("licence") != "CC-BY-SA-4.0":
+        raise ValueError("pre-play manifest licence is not CC-BY-SA-4.0")
+    return [*MODELS, *PRE_PLAY]
 
 
 def notices(root):

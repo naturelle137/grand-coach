@@ -81,7 +81,10 @@ pub use learning_io::{LearningFileError, MAX_LEARNING_BYTES};
 pub use mechanism_responses::{
     MechanismComparison, MechanismCounts, MechanismExposure, MechanismResponse, MechanismRow,
 };
-pub use neural::{NeuralIdentity, NeuralProvenance, neural_model, neural_model_available};
+pub use neural::{
+    NeuralIdentity, NeuralProvenance, neural_model, neural_model_available, pre_play_model,
+    pre_play_model_available,
+};
 pub use practice_comparison::{ComparisonRow, PracticeComparison};
 pub use quiz::{
     AssistSettings, AssistView, AssistanceLevel, CountingState, CountingView, LessonFamily,

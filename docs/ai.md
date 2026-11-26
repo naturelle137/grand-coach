@@ -735,3 +735,34 @@ do not establish class performance; the candidate is unsuitable for
 integration and no full-game strength is claimed. Classic fallback and the
 outcome-label postponement remain. Job 3931 retains the data and model in its
 scratch directory.
+
+### Opt-in learned pre-play engine (#74)
+
+`OpponentEngine::PrePlay` ("Learned pre-play (experimental)" in the new-series
+dialog) plays ordinary Easy/Medium/Strong tables with the all-phase imitation
+model `assets/models/pre-play.gcnn` (SHA-256 `1bc4f58c…79f5`, 4×384, the
+`--discard-weight 8` model of [this section](#higher-drücken-weight-74); recipe in
+`pre-play.json`, evidence in the [model card](pre-play-model-card.md)). It reuses
+`NeuralOpponent` and the temperature levels of the Neural engine: the model
+decides Reizen, Hand/pickup, Drücken (joint pair, masked to the legal pairs),
+Ansage and card play from the acting seat's `PlayerView`; the policy is a
+softmax over the legal actions only, so no illegal action can be chosen. Any
+phase the file does not cover, a missing or corrupt file, or an unusable output
+falls back to the selected Classic level with a reported reason; without the
+file the table plays Classic.
+
+**Kontra/Re stay with the Classic rule of thumb.** The retained teacher labels
+are 99.46 % Kontra (6,854 of 6,891 offers), and this model chose Kontra in all
+1,987 test offers; with the model deciding (`@…+ak`) strength dropped further
+(-22.09 versus -16.99). The labels carry the double-dummy bias (D-40), so the
+head is not used by the engine.
+
+Behaviour is as measured in the sections above: -17.02 [-21.50, -12.54] points
+per seat-game against Strong, declarer win rate 68.7 % versus 86.7 %, no Hand
+or announcement games. No strength is claimed; Classic stays the default.
+Tests: shipped model plays 40 complete deals through all pre-play phases with
+only legal actions, its decisions are unchanged when the hidden hands of the
+other seats are exchanged, and an engine series round-trips recordings and
+practice with the pre-play provenance (`pre-play-levels-1`).
+The outcome-label pilot (step 2) remains postponed: the imitation model is not
+competitive.

@@ -318,7 +318,7 @@ checkpoints 315/306/358 with 31/30/35 snapshots for 4×384/4×512/4×896.
 This is artifact integrity evidence only, not deserialisation, resumability,
 strength or completion of #75. No training was started. Full fresh calibration, learning-curve/pool reporting
 and the remaining issue acceptance evidence still require an admitted owner;
-Issue #74 currently supplies preparation only, not a production pre-play model.
+Issue #74 supplies an experimental opt-in pre-play engine, not a strength-qualified model.
 
 ### Training learning curve (#75)
 
