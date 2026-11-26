@@ -226,3 +226,83 @@ fn learned_phase_mask_leaves_other_phases_to_classic() {
         "{seen:?}"
     );
 }
+
+/// The experimental pre-play model shipped in `assets/models` (#74).
+fn pre_play(seed: u64) -> Option<NeuralOpponent> {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/models");
+    let bytes = std::fs::read(dir.join("pre-play.gcnn")).ok()?;
+    let manifest = std::fs::read_to_string(dir.join("pre-play.json")).ok()?;
+    let expected = manifest
+        .split("\"model_sha256\"")
+        .nth(1)?
+        .split('"')
+        .nth(1)?
+        .to_owned();
+    let hash: String = sha256(&bytes).iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(hash, expected, "manifest names the model file");
+    Some(NeuralOpponent::new(
+        model(&bytes),
+        Opponent::new(Level::Strong, seed),
+    ))
+}
+
+#[test]
+fn shipped_pre_play_model_plays_complete_games_in_every_phase_with_legal_masked_actions() {
+    let players = [0, 1, 2].map(|s| pre_play(s).expect("pre-play model is shipped"));
+    let mut by_phase = std::collections::BTreeMap::<String, (usize, usize)>::new();
+    for deal in 0..40 {
+        for (view, d) in decisions(deal, &players) {
+            assert!(view.legal_actions.contains(&d.decision.action));
+            let e = by_phase.entry(format!("{:?}", view.phase)).or_default();
+            if d.fallback.is_none() {
+                e.0 += 1;
+            }
+            e.1 += 1;
+        }
+    }
+    // Kontra/Re follow the rules of thumb and are reported without a model
+    // value; every other decision of a covered phase is the model's.
+    let model_decided: usize = by_phase.values().map(|(m, _)| m).sum();
+    let all: usize = by_phase.values().map(|(_, a)| a).sum();
+    assert!(by_phase.len() >= 4, "{by_phase:?}");
+    assert!(model_decided * 10 > all * 9, "{by_phase:?}");
+    for (phase, (m, _)) in &by_phase {
+        assert!(*m > 0, "model never decided {phase}: {by_phase:?}");
+    }
+}
+
+#[test]
+fn pre_play_decisions_depend_only_on_the_permitted_view() {
+    let player = pre_play(3).expect("pre-play model is shipped");
+    let mut compared = 0;
+    for deal in 0..20 {
+        let real = skat_core::Deal::from_seed(deal);
+        for me in Seat::ALL {
+            // Hidden hands of the other two seats are exchanged; the
+            // Skat and the acting seat's own hand stay.
+            let others = Seat::ALL
+                .into_iter()
+                .filter(|s| *s != me)
+                .collect::<Vec<_>>();
+            let mut hands = Seat::ALL.map(|s| real.hand(s));
+            hands.swap(others[0].index(), others[1].index());
+            let fake = skat_core::Deal::new(hands, real.skat()).unwrap();
+            let mut a = Game::from_deal(real, RULES);
+            let mut b = Game::from_deal(fake, RULES);
+            while let Some(seat) = a.current_seat() {
+                let view = a.view(seat);
+                let d = player.decide_explained(&view, None).unwrap();
+                if seat == me {
+                    assert_eq!(view, b.view(me), "view carries hidden cards");
+                    let d2 = player.decide_explained(&b.view(me), None).unwrap();
+                    assert_eq!(d, d2);
+                    compared += 1;
+                }
+                if a.apply(d.decision.action).is_err() || b.apply(d.decision.action).is_err() {
+                    break;
+                }
+            }
+        }
+    }
+    assert!(compared > 100);
+}

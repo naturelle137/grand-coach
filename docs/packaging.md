@@ -41,7 +41,8 @@ are included as an auditable inventory, not runtime lookup dependencies.
 The archive also carries EUPL, CC BY-SA, dependency notices, Cargo.lock and
 the third-party asset inventory. The archive ships the card-play model
 (`assets/models/card-play.gcnn`, its training manifest and model card, D-63);
-keep its `assets/models` directory beside the executable; the app
+the experimental pre-play model (`pre-play.gcnn`, `pre-play.json`, #74) ships beside it and is
+checked for hash, size and licence. Keep the `assets/models` directory beside the executable; the app
 searches first after `GRAND_COACH_MODELS`. Build and `verify` fail unless the
 model matches the SHA-256 and size in its manifest. They also require the manifest's recipe, engine commit, campaign, selection, supervised start, source-provenance hashes and CC-BY-SA-4.0 licence, and a model card with provenance, limits and licence sections. These checks establish that metadata is present; the independent verification of retained training records and dataset shards is documented in the model card. Classic stays the default;
 a missing or corrupt model makes Neural and Hybrid fall back to the corresponding Classic level without

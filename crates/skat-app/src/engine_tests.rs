@@ -349,3 +349,60 @@ fn hybrid_roundtrip_and_missing_model_use_selected_classic() {
         .unwrap();
     assert_eq!(practice.config().engine, OpponentEngine::Hybrid);
 }
+
+#[test]
+fn pre_play_engine_plays_a_series_with_the_pre_play_model_and_valid_recordings() {
+    let config = SessionConfig {
+        engine: OpponentEngine::PrePlay,
+        opponents: Opponents::Levels([Level::Strong; 2]),
+        ..config()
+    };
+    let mut s = Session::new(config);
+    let frozen = s.neural.as_ref().unwrap();
+    assert_eq!(frozen.provenance.policy_revision, "pre-play-levels-1");
+    assert_eq!(
+        frozen.model.as_ref().unwrap().sha256(),
+        crate::pre_play_model().unwrap().sha256(),
+        "the pre-play model, not the card-play model"
+    );
+    assert_ne!(
+        frozen.model.as_ref().unwrap().sha256(),
+        crate::neural_model().unwrap().sha256()
+    );
+    let mut phases = std::collections::BTreeSet::new();
+    for _ in 0..512 {
+        if s.view().series_finished {
+            break;
+        }
+        if let Some(job) = s.opponent_job() {
+            let phase = s.game.phase();
+            let (mv, fallback) = job.run_explained(None);
+            if fallback.is_none() {
+                phases.insert(format!("{phase:?}"));
+            }
+            s.finish_opponent(mv).unwrap();
+        } else {
+            let command = s
+                .view()
+                .legal_actions
+                .first()
+                .copied()
+                .map_or(Command::NextGame, Command::Act);
+            s.execute(command).unwrap();
+        }
+    }
+    assert!(s.view().series_finished);
+    assert!(
+        phases.contains("Reizen") && phases.contains("Spiel"),
+        "{phases:?}"
+    );
+    for recording in s.completed_recordings_privileged() {
+        let bytes = serde_json::to_vec(&recording).unwrap();
+        let back: GameRecording = serde_json::from_slice(&bytes).unwrap();
+        back.reconstruct_privileged(back.actions.len()).unwrap();
+        let practice = Session::new(SessionConfig::default())
+            .start_practice(&back)
+            .unwrap();
+        assert_eq!(practice.neural_provenance(), s.neural_provenance());
+    }
+}

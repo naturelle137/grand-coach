@@ -98,6 +98,10 @@ pub enum OpponentEngine {
     Classic,
     /// Experimental temperature policy, with the corresponding Classic fallback.
     Neural,
+    /// Experimental learned pre-play (#74): an imitation model decides
+    /// Reizen, pickup, Drücken, Ansage and card play with the Classic
+    /// fallback; Kontra/Re stays with the rules of thumb.
+    PrePlay,
     /// Experimental learned proposals verified by search.
     Hybrid,
 }
@@ -572,7 +576,7 @@ impl Session {
         config.validate()?;
         let neural = config
             .uses_neural()
-            .then(|| crate::neural::FrozenNeural::load().configured(&config));
+            .then(|| crate::neural::FrozenNeural::load_for(&config).configured(&config));
         let mut rng = ChaCha8Rng::seed_from_u64(config.seed);
         let game_seed = rng.next_u64();
         let mut ai_rng = ChaCha8Rng::seed_from_u64(config.seed);
