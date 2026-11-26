@@ -2649,16 +2649,43 @@
         7
       ],
       "memory": null,
+      "null_forced": true,
       "observation": null,
       "observed_source": null,
       "pre_rule": null,
       "preplay": null,
       "reizen": null,
-      "rule": null,
-      "step": "Unsupported",
-      "task": null
+      "rule": {
+        "branch": "Null",
+        "candidates": [
+          3,
+          4,
+          6,
+          7
+        ],
+        "card": 4,
+        "last": false,
+        "losers": [],
+        "partner_ahead": false,
+        "table_master": false,
+        "tie_break": "LowestCostFirst",
+        "tie_key": [
+          0,
+          2,
+          4
+        ],
+        "winner": "Vorhand",
+        "winners": [
+          3,
+          4,
+          6,
+          7
+        ]
+      },
+      "step": "Act",
+      "task": "Null"
     },
-    "stage": "unsupported",
+    "stage": "rule",
     "table": {
       "acting": 0,
       "assist": {

@@ -171,7 +171,11 @@ fn content(
             "guided-null-partner-attempt"
         }
         GuidedStep::Narrow if g.task == Some(GuidedBranch::Null) && g.null_forced => {
-            "guided-null-forced-attempt"
+            if table.current_trick.len() == 1 {
+                "guided-null-middle-forced-attempt"
+            } else {
+                "guided-null-forced-attempt"
+            }
         }
         GuidedStep::Narrow if g.task == Some(GuidedBranch::Null) => "guided-null-attempt",
         GuidedStep::Narrow | GuidedStep::Threshold => "guided-win",
@@ -328,8 +332,12 @@ fn content(
                 "guided-rule-null-partner"
             } else if null_defender {
                 "guided-rule-null-defender"
-            } else if rule.last && rule.losers.is_empty() {
-                "guided-rule-null-forced"
+            } else if rule.losers.is_empty() {
+                if rule.last {
+                    "guided-rule-null-forced"
+                } else {
+                    "guided-rule-null-middle-forced"
+                }
             } else if rule.last {
                 "guided-rule-null"
             } else {
@@ -429,7 +437,11 @@ fn content(
             });
         } else if rule.branch == GuidedBranch::Null && !rule.last && !null_partner_lead {
             ui.collapsing(i.t("guided-null-middle-details"), |ui| {
-                ui.label(i.t("guided-null-middle-order"));
+                ui.label(i.t(if rule.losers.is_empty() {
+                    "guided-null-middle-forced-order"
+                } else {
+                    "guided-null-middle-order"
+                }));
                 details(ui);
             });
         } else {

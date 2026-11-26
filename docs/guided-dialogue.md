@@ -55,7 +55,7 @@ separate factual oracles.
   lead, both roles where the actual shared branch permits it, at least two
   pure core-legal cards; no guarantee against trumping.
 - **Null declarer:** Null acting [last](#null-declarer-last-to-the-current-trick-165)
-  or [second](#null-declarer-acting-second-169), with a current loser; the
+  or [second](#null-declarer-acting-second-169), including without a current loser; the
   [opening lead](#null-opening-lead-176) also supports Ouvert. Ouvert turns
   require the matching revealed hand. All require at least two pure legal cards;
   the linked sections define the full guards.
@@ -726,8 +726,7 @@ packaged lifecycle, release or completion of later #131 phases.
 The [last-seat Null declarer dialogue](#null-declarer-last-to-the-current-trick-165)
 also covers a position where every legal card takes the trick: the declarer
 must take it, whatever is played. The same eligibility guards apply (Ouvert
-needs the matching revealed hand); the second seat with no loser stays
-unsupported. The explanation names only the shared rule: with no loser Easy
+needs the matching revealed hand). The explanation names only the shared rule: with no loser Easy
 chooses the lowest-cost legal card (fewer Augen, then lower Null rank, first
 exact tie in legal order). Candidates are all legal cards; each remains
 playable and takes the trick. It claims nothing about unseen cards or the
@@ -742,11 +741,19 @@ actual Session output; it is not ordinary-route or human-learning evidence.
 
 ## Null declarer acting second (#169)
 
-The #165 guard also admits the non-Ouvert Null declarer CURRENT SECOND,
+The #165 guard also admits the Null declarer CURRENT SECOND,
 after exactly one contiguous public card, on its own turn, with at least two
-pure core-legal Play actions and one current loser. Physical Mittelhand is
-not required. Lead, defender, Ouvert, no-loser fallback, one-card decisions,
+pure core-legal Play actions. Physical Mittelhand is
+not required. One-card decisions,
 mixed calls and restricted/inconsistent legal lists remain unsupported.
+The no-loser case also admits a consistent Null Ouvert hand: every legal card
+overtakes the lead initially, but the last defender can still overtake it.
+Easy chooses fewer Augen, then lower Null rank, with the first exact tie in
+legal order. For example, with Kreuz-Sieben led and Kreuz-Zehn, Kreuz-Bube,
+Kreuz-König and Kreuz-Ass legal, choose Kreuz-Bube according to Easy; observe
+the last defender's actual reply rather than predict the winner. In German:
+Kreuz-Sieben liegt; alle legalen Karten überholen zunächst, Easy wählt
+Kreuz-Bube nach Augen und Null-Rang. Die letzte Karte entscheidet den Stich.
 Hand Skat stays unknown; own pickup discards are permitted. Even at a God
 Mode table, the rule dialogue uses the closed permitted view.
 

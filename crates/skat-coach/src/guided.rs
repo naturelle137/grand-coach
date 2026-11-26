@@ -107,7 +107,7 @@ pub struct Lesson {
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
 /// and at least one losing card; early FeedPartner (Farbspiel or Grand, including Ouvert) requires a follow-class master. A defender may also learn the partner-ahead no-loser fallback (Ouvert needs the consistent revealed hand). A Farbspiel/Grand defender behind the declarer may learn the decline fallback, including a guarded second-seat Ouvert case.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
-/// at least two pure card actions and at least one losing card. A defender may
+/// at least two pure card actions. A defender may
 /// lead a trick, act second after either player leads, or last with the declarer ahead.
 /// Null Ouvert admits defender leads, second-seat play after either lead,
 /// and last-seat play with the declarer ahead,
@@ -640,8 +640,8 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || (null
                 && rule.branch == Branch::Null
                 && (!rule.losers.is_empty()
-                    // A last-seat declarer with no losing card must take the trick.
-                    || (!null_defender && rule.last)
+                    // A declarer with no loser uses the lowest-cost fallback.
+                    || !null_defender
                     || (null_defender && rule.winner != view.declarer))))
     {
         return None;
