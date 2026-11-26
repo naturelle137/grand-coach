@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: EUPL-1.2
+[package]
+name = "gui-godot"
+description = "Godot (gdext) frontend adapter of Grand-Coach"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+skat-app.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+godot = { version = "=0.5.5", default-features = false }
+
+# gdext's entry point needs one `unsafe impl`; everything else stays safe.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"

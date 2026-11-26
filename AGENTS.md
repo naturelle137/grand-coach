@@ -55,6 +55,7 @@ crates/skat-ai        opponent AI with strength levels, AI-vs-AI calibration (do
 crates/skat-coach     structured explanations (text keys + parameters), no texts
 crates/skat-app       application interface: session, commands, events, view models
 crates/gui-egui       egui frontend
+crates/gui-godot      Godot/gdext frontend adapter (docs/godot-parity.md)
 tools/cardgen         generates card SVGs into assets/cards/
 tools/portraitgen     generates opponent caricature SVGs into assets/portraits/
 tools/notices         generates THIRD-PARTY-NOTICES from Cargo.lock (D-43)

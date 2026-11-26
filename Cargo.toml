@@ -9,6 +9,7 @@ members = [
     "crates/skat-coach",
     "crates/skat-app",
     "crates/gui-egui",
+    "crates/gui-godot",
     "tools/cardgen",
     "tools/portraitgen",
     "tools/notices",
