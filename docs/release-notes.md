@@ -1,6 +1,6 @@
 # Release notes: 1.0 candidate
 
-Status: draft for the 1.0 candidate. The workspace version stays 0.1.0; no
+Status: draft for the 1.0 candidate. The workspace version is 1.0.0-rc.1; no
 tag, release or upload exists, and
 [packaging](packaging.md) describes only private RC archives. Statements below
 repeat existing documents and add no new evidence.

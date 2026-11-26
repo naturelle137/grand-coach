@@ -1471,7 +1471,7 @@ dependencies = [
 
 [[package]]
 name = "cardgen"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 
 [[package]]
 name = "cc"
@@ -3926,7 +3926,7 @@ dependencies = [
 
 [[package]]
 name = "gui-egui"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -5070,7 +5070,7 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
 name = "nn-train"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "burn",
  "bytemuck",
@@ -5127,7 +5127,7 @@ checksum = "0676bb32a98c1a483ce53e500a81ad9c3d5b3f7c920c28c24e9cb0980d0b5bc8"
 
 [[package]]
 name = "notices"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "serde_json",
 ]
@@ -6056,7 +6056,7 @@ dependencies = [
 
 [[package]]
 name = "portraitgen"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 
 [[package]]
 name = "potential_utf"
@@ -7053,7 +7053,7 @@ checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
 
 [[package]]
 name = "skat-ai"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "burn",
  "rand_chacha 0.10.0",
@@ -7065,7 +7065,7 @@ dependencies = [
 
 [[package]]
 name = "skat-analysis"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "rand_chacha 0.10.0",
  "serde",
@@ -7076,7 +7076,7 @@ dependencies = [
 
 [[package]]
 name = "skat-app"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "rand_chacha 0.10.0",
  "serde",
@@ -7090,7 +7090,7 @@ dependencies = [
 
 [[package]]
 name = "skat-coach"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "serde",
  "skat-analysis",
@@ -7099,7 +7099,7 @@ dependencies = [
 
 [[package]]
 name = "skat-core"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "rand_chacha 0.10.0",
  "serde",
@@ -7108,7 +7108,7 @@ dependencies = [
 
 [[package]]
 name = "skat-nn"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "burn",
  "rand_chacha 0.10.0",
