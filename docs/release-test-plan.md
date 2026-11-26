@@ -45,7 +45,7 @@ Attach archive SHA-256, source commit and packaging workflow run to each record.
 | Counting aid and quiz | Toggle aid/quiz/coach combinations; answer correctly and incorrectly, skip, disable and change language/settings. | Counts and feedback are understandable; assistance does not reveal a pending answer; dismissing a question preserves the turn. Package smoke: the extracted executable opens the coach/aid/quiz question and answers it through an app command in German and English, checking that coach advice and the counting aid are withheld until the answer and the aid is then shown ([packaging](packaging.md#automated-evidence-and-remaining-release-checks)); clicks remain widget-test coverage. The same smoke plays a 36-game series to its result, an open-table game and the recording viewer in both languages; replay review/practice clicks stay with widget tests. Record actual package-run evidence for the candidate. |
 | Open mode and replay | Play openly; save/load a game; navigate both directions; retry the same deal with different actions. | Views and hindsight are clearly labelled; navigation is usable; recordings and original scores stay intact. |
 | History and training | Restart with saved progress; reset it deliberately; enter, retry and leave training; compare assisted, repeated and new tasks. | Persistence and reset match their descriptions; practice does not corrupt series scores; progress distinguishes assistance and repetition. |
-| Strategic classification | Run `cargo test -p skat-app --lib strategic`. | Review moments are counted per concept as weaker choice, avoided trap or neither; windows appear only from 20 moments of one concept, in chronological order. The counts are selected moments, not an error rate; persistence and GUI overview remain open. |
+| Strategic classification | Run `cargo test -p skat-app --lib strategic` and `cargo test -p skat-app --test strategic_history`. | Selected review moments are persisted once per recording and counted per concept as weaker choice, avoided trap or neither; partial reviews remain marked. The learning overview shows chronological windows only from 20 moments of one concept. These selected counts are not an opportunity count or error rate. |
 | Optional model packages | If included, play offline with each shipped backend; exercise missing, corrupt and version-incompatible (format/encoder) model recovery, fallback, coach and language resources. Agents run the package smoke (`scripts/package.py`: Neural and Hybrid decisions and missing, corrupt, `format` and `encoder` model fallback probes) and the skat-app loader tests; Windows CI is the Windows evidence; the RC workflow runs the Linux smoke in a network-less container and the Windows smoke with program-scoped outbound Firewall blocks on the installed app and probe (`--block-network`). A curl canary must reach the network before and fail after the rules; `smoke.json` records this. The [post-merge RC run](https://github.com/naturelle137/grand-coach/actions/runs/44699223650) verified the Windows block on commit `2521e1e92dd452df6452d108fc9a397631d8404e`; it is a program-level block, not an isolated network. | Backend choice and recovery are clear; packaged resources work offline, a rejected model reports its reason, the corresponding Classic level plays on and user data is unchanged. Learned levels stay labelled experimental; target-machine latency/RSS is reported only if measured, otherwise the missing hardware is stated. |
 
 ## Learner sessions
@@ -59,6 +59,11 @@ these observations do not establish expert certification or general
 learning effectiveness.
 
 ## Results and release
+
+Attach the `<archive>.manifest.json` of the exact candidate
+([packaging](packaging.md#reproduce-and-inspect)) to the evidence: it records
+artifact hashes, version, toolchain, platform and which package checks ran;
+anything marked `not run` stays unclaimed.
 
 Store completed personal learner records privately under
 `grand-coach-data/studies/`, never public git or `docs/uat/`. Public technical

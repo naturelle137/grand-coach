@@ -41,9 +41,9 @@ personal data.
 - **Learning is unobserved.** Human comprehension, learning efficacy and
   transfer are not established; learner research is optional and unperformed
   ([release test plan](release-test-plan.md), [validation54](validation54.md)).
-- **No strategic error classification.** Ordinary-game strategic error
-  classification and risk/error prevalence are unsupported
-  ([roadmap](roadmap.md)); live-Abstich counts cannot estimate them
+- **Selected review moments are not error rates.** The learning history
+  classifies selected review moments, but ordinary-game risk/error
+  prevalence remains unsupported ([roadmap](roadmap.md)); live-Abstich counts cannot estimate it
   ([live Abstich](live-abstich.md)).
 - **Neural engines are optional and experimental.** Classic is the default;
   a missing or incompatible model falls back to Classic. The model covers
@@ -69,6 +69,6 @@ Tags und Veröffentlichung bleiben unverändert. Getestet sind Linux
 (Ubuntu 24.04 CI) und Windows (Server 2025 CI mit Software-OpenGL); andere
 Plattformen und echte Windows-11-Hardware gelten nicht als verifiziert.
 Installation, Datenort und Upgrade stehen in [packaging](packaging.md).
-Bekannte Grenzen: kein Nachweis für Lernwirkung oder Transfer, keine
-Klassifikation strategischer Fehler, neuronale Gegner optional und
+Bekannte Grenzen: kein Nachweis für Lernwirkung oder Transfer, ausgewählte
+Review-Momente ergeben keine Fehlerhäufigkeit, neuronale Gegner optional und
 experimentell mit Classic-Rückfall, keine Messung auf der Zielhardware.

@@ -235,7 +235,52 @@ def build(args):
         raise ValueError("archive reproducibility check failed")
     verify(path)
     path.with_name(path.name + ".sha256").write_text(f"{digest(data)}  {path.name}\n", encoding="utf-8", newline="\n")
+    print(write_release_manifest(path).resolve())
     print(path.resolve())
+
+
+# Checks a package run can record, in manifest order. Absent ones are "not run".
+CHECKS = ("archive-verify", "archive-reproducible", "native-smoke", "network-isolation")
+
+
+def release_manifest(archive, data, inner, smoke=None):
+    """Plain, deterministic release manifest: no timestamps, no host paths.
+
+    `inner` is the archive's own manifest.json; `smoke` the parsed smoke.json
+    or None. Platform evidence is claimed only for a smoke of these exact bytes.
+    """
+    sha = digest(data)
+    status = {name: "not run" for name in CHECKS}
+    # verify() and the double archive build run before an archive is published.
+    status["archive-verify"] = status["archive-reproducible"] = "passed"
+    evidence = {"smoke": "not run"}
+    if smoke is not None:
+        if smoke.get("archive_sha256") != sha or smoke.get("result") != "passed":
+            raise ValueError("smoke.json does not show a passed run of this archive")
+        status["native-smoke"] = "passed"
+        evidence = {"smoke": "passed", "smoke_os": smoke["os"], "smoke_checks": smoke["checks"],
+                    "limitations": smoke["limitations"]}
+        if str(smoke.get("network_isolation", "")).startswith("program-scoped"):
+            status["network-isolation"] = "passed"
+    return {
+        "schema": 1, "channel": inner["channel"],
+        "artifacts": [{"name": archive.name, "sha256": sha, "bytes": len(data)}],
+        "version": inner["version"], "commit": inner["commit"],
+        "toolchain": {"rustc": inner["rustc"], "cargo": inner["cargo"]},
+        "platform": {"target": inner["target"], "build_os": inner["os"],
+                     "runner_image": inner["runner_image"]},
+        "checks": status, "evidence": evidence,
+    }
+
+
+def write_release_manifest(archive, smoke_path=None):
+    data = archive.read_bytes()
+    inner = verify(archive, data)[0]
+    smoke = json.loads(smoke_path.read_text(encoding="utf-8")) if smoke_path else None
+    out = archive.with_name(archive.name + ".manifest.json")
+    out.write_text(json.dumps(release_manifest(archive, data, inner, smoke), indent=2, sort_keys=True) + "\n",
+                   encoding="utf-8", newline="\n")
+    return out
 
 
 # Packaged feature views, each launched in German and English.
@@ -432,6 +477,9 @@ def main():
     b.add_argument("--rust-version", default="1.95.0")
     v = sub.add_parser("verify")
     v.add_argument("archive", type=Path)
+    m = sub.add_parser("manifest")
+    m.add_argument("archive", type=Path)
+    m.add_argument("--smoke", type=Path, help="smoke.json of this archive; without it the smoke is listed as not run")
     s = sub.add_parser("smoke")
     s.add_argument("archive", type=Path)
     s.add_argument("--out", type=Path, required=True)
@@ -442,6 +490,8 @@ def main():
         build(args)
     elif args.action == "verify":
         print(json.dumps(verify(args.archive)[0], indent=2))
+    elif args.action == "manifest":
+        print(write_release_manifest(args.archive, args.smoke).resolve())
     else:
         smoke(args)
 
