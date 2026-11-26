@@ -22,8 +22,8 @@ or unusable output triggers the configured Classic fallback.
 
 | Aspect | Supported in the package | Not supported |
 |--------|--------------------------|---------------|
-| Phases | Card play in Spiel including Re | Bidding, Skat selection, game announcement and Kontra decisions stay Classic |
-| Engines | Neural (Easy, Medium, Strong) and Hybrid, chosen per table | Rookie is Classic-only; Classic stays the default |
+| Phases | Neural and Hybrid: card play; experimental PrePlay: Reizen, Hand/pickup, Drücken, Ansage and card play | PrePlay Kontra/Re use Classic rules; learned Kontra/Re remains open in [#422](https://github.com/naturelle137/grand-coach/issues/422) |
+| Engines | Neural, Hybrid and PrePlay (Easy, Medium, Strong), chosen per table | Rookie is Classic-only; Classic stays the default |
 | Runtime | Offline CPU inference from the acting seat's `PlayerView` | GPU, network, first-run download, model server |
 | Failure | Missing, corrupt, format/encoder-incompatible or disabled model: translated notice, Classic level of the seat plays on, user data unchanged | No partial or silent use of a rejected model |
 
@@ -33,7 +33,8 @@ equivalence are not established (see [ai.md](ai.md#neural-engine-selection)),
 and Phase 2 ended as a no-go. Neural estimates are model preferences, not
 exact values or win probabilities. Target-machine (six-core, integrated
 graphics) latency, RSS and package size are unmeasured because the hardware
-is unavailable to agents; i9-10900K figures are proxies only.
+is unavailable to agents; i9-10900K figures are proxies only. Target measurements
+remain open in [#423](https://github.com/naturelle137/grand-coach/issues/423).
 
 ## Phase 2
 
