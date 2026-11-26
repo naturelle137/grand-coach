@@ -406,30 +406,28 @@ fn unsupported_and_single_choice_have_no_rule_and_final_series_allows_observatio
 
 #[test]
 fn unsupported_card_turn_preserves_each_legal_choice() {
-    let mut s = session(true);
-    loop {
-        if s.game.current_seat() == Some(Seat::Hinterhand) {
-            s.execute(Command::StartGuided).unwrap();
-            let g = s.guided().unwrap();
-            if g.step == S::Unsupported && g.legal_cards.len() > 1 {
-                let actions = s.view().legal_actions;
-                assert!(g.rule.is_none() && g.memory.is_none() && g.figures.is_none());
-                for action in actions {
-                    let mut choice = s.clone();
-                    respond(&mut choice, G::Return).unwrap();
-                    choice.execute(Command::Act(action)).unwrap();
-                }
-                break;
-            }
-            respond(&mut s, G::Return).unwrap();
-        }
-        let action = s.game.legal_actions()[0];
-        s.apply(action).unwrap();
-        assert_eq!(
-            s.game.phase(),
-            Phase::Spiel,
-            "fixture needs an unsupported turn"
-        );
+    let case = null_fixture::cases()
+        .into_iter()
+        .find(|case| case.id == "no-loser")
+        .unwrap();
+    let mut s = Session::new(SessionConfig::default());
+    let human = null_fixture::seat(case.actor);
+    s.dealer = (0..3)
+        .map(PlayerId)
+        .find(|&dealer| PlayerId::HUMAN.seat(dealer) == human)
+        .unwrap();
+    s.game = case.position();
+    assert_eq!(s.game.current_seat(), Some(human));
+    let actions = s.view().legal_actions;
+    assert!(actions.len() > 1);
+    s.execute(Command::StartGuided).unwrap();
+    let g = s.guided().unwrap();
+    assert_eq!(g.step, S::Unsupported);
+    assert!(g.rule.is_none() && g.memory.is_none() && g.figures.is_none());
+    for action in actions {
+        let mut choice = s.clone();
+        respond(&mut choice, G::Return).unwrap();
+        choice.execute(Command::Act(action)).unwrap();
     }
 }
 
@@ -4700,4 +4698,46 @@ fn ouvert_defender_lead_fallback_observes_the_actual_replies() {
     s.run_opponents();
     assert_eq!(s.guided().unwrap().step, S::Observe);
     assert_eq!(s.guided().unwrap().lead_replies.len(), 2);
+}
+
+#[test]
+fn declarer_last_decline_all_choices_observe_actual_winner() {
+    use fixture::card as c;
+    let d = fixture::swap(
+        fixture::swap(fixture::deal(), c("CA"), c("S7")),
+        c("CQ"),
+        c("S8"),
+    );
+    let d = fixture::swap(fixture::swap(d, c("DJ"), c("SK")), c("HA"), c("SQ"));
+    for game in [GRAND, skat_core::GameType::Farbe(skat_core::Suit::Herz)] {
+        let actions = fixture::contract_actions(
+            d,
+            Seat::Hinterhand,
+            fixture::hand_game(game, false),
+            &["C9", "CT"],
+        );
+        for hand in [true, false] {
+            let mut actions = actions.clone();
+            if !hand {
+                let index = actions.iter().position(|a| *a == Action::Hand).unwrap();
+                actions.splice(index..=index, [Action::TakeSkat, Action::Discard(d.skat())]);
+            }
+            let mut s = grand_session(Seat::Hinterhand, d, false, &actions);
+            s.execute(Command::StartGuided).unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+            let g = s.guided().unwrap();
+            assert!(g.decline_last);
+            assert_eq!(g.rule.unwrap().card, c("S7"));
+            for action in s.view().legal_actions {
+                let mut choice = s.clone();
+                choice.execute(Command::Act(action)).unwrap();
+                assert_eq!(choice.guided().unwrap().step, S::Observe);
+                respond(&mut choice, G::Reveal).unwrap();
+                assert_eq!(
+                    choice.guided().unwrap().observation.unwrap().winner,
+                    Some(Seat::Mittelhand)
+                );
+            }
+        }
+    }
 }

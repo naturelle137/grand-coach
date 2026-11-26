@@ -1631,6 +1631,12 @@ Grand and Farbspiel; it is fixtured by
 `ouvert_last_seat_defender_keeps_a_loser_behind_the_declarer` (Easy's lowest
 loser, view invariant under unseen cards, rejection of missing, overlapping
 or restricted input).
+The same last-seat fallback also covers a non-Ouvert Grand or Farbspiel
+declarer with a consistent Hand or known Skat view and the complete legal
+card list. `hand_declarer_last_keeps_a_loser_when_nothing_beats_the_trick`
+checks both games, a hidden-card substitution and restricted views. This is
+Easy's ordering, not a guarantee of strategic quality.
+
 The Grand or Farbspiel Ouvert declarer playing last, with no card that beats the opponents'
 winning card (Hand, own hand as the reveal, exact legal actions), can inspect
 the same fallback; it is fixtured by
