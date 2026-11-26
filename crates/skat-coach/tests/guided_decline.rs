@@ -271,3 +271,29 @@ fn farbspiel_ouvert_defender_lead_without_master_is_the_lowest_card() {
     overlap.declarer_cards = Some(v.hand);
     assert!(lesson(&overlap).is_none());
 }
+
+#[test]
+fn farbspiel_ouvert_declarer_lead_without_master_or_trumpf_is_the_lowest_card() {
+    // Herz Ouvert Hand: the declarer VH holds no Trumpf and no side-suit
+    // master (CA/SA/DA sit with the defenders), so Easy leads the lowest card.
+    let deal = Deal::new(
+        [
+            cards("C7 C8 C9 S7 S8 S9 D7 D8 D9 DT"),
+            cards("CA CT CK CQ SA ST SK SQ DA DK"),
+            cards("H7 H8 H9 HA HT HK HQ HJ CJ SJ"),
+        ],
+        cards("DQ DJ"),
+    )
+    .unwrap();
+    let g = contract_position(deal, Seat::Vorhand, hand_game(HERZ, true), &[]);
+    let v = g.view(Seat::Vorhand);
+    let l = lesson(&v).expect("Farbspiel Ouvert declarer lead fallback lesson");
+    assert_eq!(l.rule.branch, Branch::Fallback);
+    assert_eq!(l.rule.card, card("C7"));
+    let other = swap(deal, card("CJ"), card("DQ"));
+    let w = contract_position(other, Seat::Vorhand, hand_game(HERZ, true), &[]).view(Seat::Vorhand);
+    assert_eq!((&w, lesson(&w)), (&v, Some(l)));
+    let mut restricted = v.clone();
+    restricted.legal_actions.pop();
+    assert!(lesson(&restricted).is_none());
+}
