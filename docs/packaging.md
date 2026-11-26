@@ -103,10 +103,26 @@ of the French four-colour, French two-colour and German decks, titled in the
 current language. Faces come from the images embedded in that binary; a missing
 file would abort the launch. The two screenshots were inspected locally on
 Linux/Xvfb with the debug build (96 faces visible, suits distinct in all three
-decks); the first packaged CI run of this scenario is the platform evidence and
-is recorded here once it exists. Mephisto/God faces and card backs are not part
-of this check. Strategic classification/trends, release notes and the closing
-evidence of #13 remain open.
+decks); packaged platform evidence follows below. Mephisto/God faces and card backs
+are not part of this check.
+
+Packaged smoke of the history-format-7 candidate (2026-11-26, workflow
+[RC packages run 45737075480](https://github.com/naturelle137/grand-coach/actions/runs/45737075480),
+commit `4875d969714a`, after #389 and #394): both jobs passed all smoke
+checks on the exact archives Linux `8fac240e9336…` (Ubuntu 24.04; the same
+archive also passed in the clean `--network=none` runtime container) and
+Windows `b454df7b319c…` (Server 2025, declared Mesa software driver, program-scoped
+firewall block verified by a canary). The scenarios cover a complete 36-game
+series, open table, recording viewer, review, practice, coach/counting/quiz,
+training, all 32 faces of the three decks, format-1 migration, upgrade,
+damaged-history preservation, Neural/Hybrid fallback and uninstall retaining
+data, each in German and English where scenario-based. Limits are those in
+each `smoke.json`: first-legal-action driver and controller calls instead of
+widget clicks, CI-server rendering and Windows Server 2025 instead of Windows 11
+hardware, unsigned private archives. The manifests written at build time list
+`native-smoke` as `not run`; the passed smoke is in `smoke.json` of the run's
+artifacts (14 days) and recorded here. Strategic-error trends beyond the
+descriptive review classification remain unsupported.
 
 ## Reproduce and inspect
 
