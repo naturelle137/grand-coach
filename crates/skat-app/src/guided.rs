@@ -135,6 +135,9 @@ pub struct GuidedView {
     /// Declarer fallback acting second: the opponent's lead stays untaken.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub decline_early: bool,
+    /// Declarer fallback with no player following.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub decline_last: bool,
     /// Public partner seat for an admitted Farbspiel last-seat or Grand defender.
     /// Available during orientation without disclosing the rule or its card.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -391,6 +394,12 @@ impl GuidedState {
                 && self.lesson.as_ref().is_some_and(|l| {
                     l.rule.branch == GuidedBranch::Fallback
                         && !l.rule.partner_ahead
+                        && Some(l.seat) == l.knowledge.declarer
+                }),
+            decline_last: matches!(self.step, GuidedStep::Narrow | GuidedStep::Act)
+                && self.lesson.as_ref().is_some_and(|l| {
+                    l.rule.branch == GuidedBranch::Fallback
+                        && l.rule.last
                         && Some(l.seat) == l.knowledge.declarer
                 }),
             rule: self
