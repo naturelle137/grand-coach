@@ -253,7 +253,9 @@ impl GameRecording {
                     && !((p.policy_revision == skat_nn::PolicyLevel::REVISION
                         && c.session.engine == crate::OpponentEngine::Neural)
                         || (p.policy_revision == "hybrid-proposals-1"
-                            && c.session.engine == crate::OpponentEngine::Hybrid)))
+                            && c.session.engine == crate::OpponentEngine::Hybrid)
+                        || (p.policy_revision == crate::neural::PRE_PLAY_REVISION
+                            && c.session.engine == crate::OpponentEngine::PrePlay)))
                     || p.fallback != crate::Level::Strong
             })
         {

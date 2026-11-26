@@ -36,7 +36,10 @@ CC BY-SA 4.0 (`LICENSE-ASSETS`). The trained card-play model
 `assets/models/card-play.gcnn` is trained by `nn-train train` and refined by `nn-train rl` on project
 self-play only (data hashes, seeds and commits in `card-play.json`, model
 card `card-play.md`, [model guide](learned-models.md#shipped-model-and-runtime)); it is
-CC BY-SA 4.0 as well.
+CC BY-SA 4.0 as well. The experimental pre-play model `assets/models/pre-play.gcnn`
+(#74) is trained by `nn-train train --all-phases` on project self-play Strong data only
+(recipe and hash in `pre-play.json`, evidence in [the model card](pre-play-model-card.md));
+it is CC BY-SA 4.0 too.
 
 The experimental hybrid backend reuses `skat-nn` and its existing Burn CPU
 runtime below `skat-analysis`; it adds no external dependency, model file or

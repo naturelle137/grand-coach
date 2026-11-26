@@ -1690,14 +1690,7 @@ impl GrandCoachApp {
                         .neural_provenance()
                         .is_some_and(|p| p.uses_levels())
                     {
-                        format!(
-                            "{} · {levels}",
-                            i.t(if view.config.engine == OpponentEngine::Hybrid {
-                                "mode-hybrid"
-                            } else {
-                                "mode-neural"
-                            })
-                        )
+                        format!("{} · {levels}", i.t(engine_message(view.config.engine)))
                     } else {
                         i.tf("status-opponents", &[("mode", i.t("mode-neural").into())])
                     }
@@ -1981,11 +1974,7 @@ impl GrandCoachApp {
                 return i.tf("opponent-mode", &[("mode", i.t("mode-neural").into())]);
             }
             let level = view.config.level(player).unwrap_or(Level::Strong);
-            let mode = if view.config.engine == OpponentEngine::Hybrid {
-                "mode-hybrid"
-            } else {
-                "mode-neural"
-            };
+            let mode = engine_message(view.config.engine);
             return format!("{} · {}", i.t(mode), i.t(level_message(level)));
         }
         match view.config.level(player) {
@@ -2594,6 +2583,11 @@ impl GrandCoachApp {
                         );
                         ui.radio_value(
                             &mut draft.engine,
+                            OpponentEngine::PrePlay,
+                            self.t("mode-pre-play"),
+                        );
+                        ui.radio_value(
+                            &mut draft.engine,
                             OpponentEngine::Hybrid,
                             self.t("mode-hybrid"),
                         );
@@ -2639,12 +2633,16 @@ impl GrandCoachApp {
                 let mut notes = Vec::new();
                 match draft.mode {
                     Mode::Levels if !draft.engine.is_classic() => {
-                        notes.push(if draft.engine == OpponentEngine::Hybrid {
-                            "mode-hybrid-description"
-                        } else {
-                            "mode-neural-description"
+                        notes.push(match draft.engine {
+                            OpponentEngine::Hybrid => "mode-hybrid-description",
+                            OpponentEngine::PrePlay => "mode-pre-play-description",
+                            _ => "mode-neural-description",
                         });
-                        if !skat_app::neural_model_available() {
+                        if !(if draft.engine == OpponentEngine::PrePlay {
+                            skat_app::pre_play_model_available()
+                        } else {
+                            skat_app::neural_model_available()
+                        }) {
                             notes.push("mode-neural-missing");
                         }
                     }
@@ -2765,6 +2763,14 @@ fn parse_seed(text: &str) -> Option<u64> {
 }
 
 /// Message id of a strength level's name.
+fn engine_message(engine: OpponentEngine) -> &'static str {
+    match engine {
+        OpponentEngine::Hybrid => "mode-hybrid",
+        OpponentEngine::PrePlay => "mode-pre-play",
+        _ => "mode-neural",
+    }
+}
+
 fn level_message(level: Level) -> &'static str {
     match level {
         Level::Rookie => "level-rookie",

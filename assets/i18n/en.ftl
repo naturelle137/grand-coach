@@ -1216,3 +1216,5 @@ guided-lead-fallback-definition = A lead card starts the trick ahead. Your own h
 guided-lead-fallback-risk = Easy's choice here is a heuristic. It says nothing about unseen cards and guarantees neither the trick nor the game.
 guided-rule-lead-fallback = You lead and no legal side-suit card is a master by the counted cards, and no Trumpf is left to draw. Easy leads the lowest legal card: nontrump first, then fewer Augen and lower rank; the first exact tie. This guarantees neither the trick nor the game; every legal card remains playable.
 guided-lead-fallback-ouvert = The declarer's hand is open. Easy's rule does not use it for this lead; check for yourself which cards can still follow.
+mode-pre-play = Learned pre-play (experimental)
+mode-pre-play-description = Experimental imitation model of Classic Strong decides bidding, Skat, discarding, announcements and card play, with the selected Easy/Medium/Strong temperature. It is clearly weaker than Classic Strong. Kontra/Re follow the Classic rules of thumb; any decision the model cannot take uses the selected Classic level. Retrying model loading requires an app restart.

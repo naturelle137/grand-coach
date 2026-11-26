@@ -1,0 +1,9 @@
+{
+  "model_bytes": 5621708,
+  "model_sha256": "1bc4f58c9ce1bd9abb5b6a2c82b7634b966392eec47cfe38e64380016ae979f5",
+  "phases": 31,
+  "shape": "4x384",
+  "recipe": "nn-train train --all-phases --preplay-weight 4 --rare-weight 2 --discard-weight 8, seed 0, six epochs, three Strong datasets (engine 99c91300dee7)",
+  "selection": "experimental opt-in imitation of Strong; not a strength-qualified model, see docs/ai.md#higher-drücken-weight-74",
+  "licence": "CC-BY-SA-4.0"
+}

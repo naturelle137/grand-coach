@@ -2,12 +2,12 @@
 
 # Model card: learned pre-play imitation (#74)
 
-**Status: imitation models trained, not shipped.** The 2026-11-19 runs
+**Status: experimental opt-in engine; model `1bc4f58c…79f5` ships as `assets/models/pre-play.gcnn`.** The 2026-11-19 runs
 (below) play complete games; the first was clearly weaker than Classic Easy and
 Strong, the improved recipe (W = 4) is indistinguishable from Easy and still
 weaker than Strong. This card fixes what a model must cover and records label evidence
-and measured results. Classic stays the default and supplies every pre-play
-decision.
+and measured results. Classic stays the default. The new
+[opt-in engine](ai.md#opt-in-learned-pre-play-engine-74) lets this model decide every phase it covers.
 
 | Item | Value |
 |------|-------|

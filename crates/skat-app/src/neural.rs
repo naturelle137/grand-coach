@@ -18,8 +18,14 @@ use skat_nn::{ModelError, NeuralModel, sha256};
 
 const MODEL: &str = "card-play.gcnn";
 const MANIFEST: &str = "card-play.json";
+const PRE_PLAY_MODEL: &str = "pre-play.gcnn";
+const PRE_PLAY_MANIFEST: &str = "pre-play.json";
+
+/// Policy revision of [`OpponentEngine::PrePlay`](crate::OpponentEngine).
+pub(crate) const PRE_PLAY_REVISION: &str = "pre-play-levels-1";
 
 static LOADED: OnceLock<Result<Arc<NeuralModel>, ModelError>> = OnceLock::new();
+static LOADED_PRE_PLAY: OnceLock<Result<Arc<NeuralModel>, ModelError>> = OnceLock::new();
 
 /// The shipped card-play model, or why it is not available.
 pub fn neural_model() -> Result<Arc<NeuralModel>, ModelError> {
@@ -30,6 +36,20 @@ pub fn neural_model() -> Result<Arc<NeuralModel>, ModelError> {
 /// [`Opponents::Neural`](crate::Opponents) mode plays Classic Strong.
 pub fn neural_model_available() -> bool {
     neural_model().is_ok()
+}
+
+/// The experimental all-phase pre-play model (#74), or why it is not
+/// available. [`OpponentEngine::PrePlay`](crate::OpponentEngine) plays
+/// Classic Strong-level fallbacks without it.
+pub fn pre_play_model() -> Result<Arc<NeuralModel>, ModelError> {
+    LOADED_PRE_PLAY
+        .get_or_init(|| load_named(PRE_PLAY_MODEL, PRE_PLAY_MANIFEST))
+        .clone()
+}
+
+/// `true` if the pre-play model loaded.
+pub fn pre_play_model_available() -> bool {
+    pre_play_model().is_ok()
 }
 
 fn directories() -> Vec<PathBuf> {
@@ -61,16 +81,29 @@ fn is_workspace_build(exe_dir: &std::path::Path, workspace: &std::path::Path) ->
 }
 
 fn load() -> Result<Arc<NeuralModel>, ModelError> {
-    let dir = directories()
-        .into_iter()
-        .find(|d| d.join(MODEL).is_file())
-        .ok_or(ModelError::Missing)?;
-    load_from(&dir)
+    load_named(MODEL, MANIFEST)
 }
 
+fn load_named(model: &str, manifest: &str) -> Result<Arc<NeuralModel>, ModelError> {
+    let dir = directories()
+        .into_iter()
+        .find(|d| d.join(model).is_file())
+        .ok_or(ModelError::Missing)?;
+    load_file(&dir, model, manifest)
+}
+
+#[cfg(test)]
 fn load_from(dir: &std::path::Path) -> Result<Arc<NeuralModel>, ModelError> {
-    let bytes = std::fs::read(dir.join(MODEL)).map_err(|_| ModelError::Missing)?;
-    let expected = match std::fs::read_to_string(dir.join(MANIFEST)) {
+    load_file(dir, MODEL, MANIFEST)
+}
+
+fn load_file(
+    dir: &std::path::Path,
+    model: &str,
+    manifest: &str,
+) -> Result<Arc<NeuralModel>, ModelError> {
+    let bytes = std::fs::read(dir.join(model)).map_err(|_| ModelError::Missing)?;
+    let expected = match std::fs::read_to_string(dir.join(manifest)) {
         Ok(manifest) => recorded_hash(&manifest).ok_or(ModelError::HashMismatch)?,
         Err(_) => sha256(&bytes),
     };
@@ -120,6 +153,7 @@ impl NeuralProvenance {
     /// Whether the recorded policy uses the per-seat levels in SessionConfig.
     pub fn uses_levels(&self) -> bool {
         self.policy_revision == skat_nn::PolicyLevel::REVISION
+            || self.policy_revision == PRE_PLAY_REVISION
             || self.policy_revision == "hybrid-proposals-1"
     }
 }
@@ -133,6 +167,16 @@ pub(crate) struct FrozenNeural {
 impl FrozenNeural {
     pub fn load() -> Self {
         Self::new(neural_model())
+    }
+
+    /// The model an engine plays with: the pre-play model for
+    /// [`OpponentEngine::PrePlay`](crate::OpponentEngine), else card play.
+    pub fn load_for(config: &crate::SessionConfig) -> Self {
+        if config.engine == crate::OpponentEngine::PrePlay {
+            Self::new(pre_play_model())
+        } else {
+            Self::load()
+        }
     }
 
     pub fn new(model: Result<Arc<NeuralModel>, ModelError>) -> Self {
@@ -158,6 +202,8 @@ impl FrozenNeural {
             self.provenance.policy_revision = "hybrid-proposals-1".into();
         } else if config.engine == crate::OpponentEngine::Neural {
             self.provenance.policy_revision = skat_nn::PolicyLevel::REVISION.into();
+        } else if config.engine == crate::OpponentEngine::PrePlay {
+            self.provenance.policy_revision = PRE_PLAY_REVISION.into();
         }
         self
     }
@@ -165,7 +211,11 @@ impl FrozenNeural {
     pub fn for_practice(recorded: Option<&NeuralProvenance>) -> Self {
         // Legacy recordings have unknown identity: do not silently claim that
         // the currently installed model is the historical opponent.
-        let mut loaded = Self::load();
+        let mut loaded = if recorded.is_some_and(|p| p.policy_revision == PRE_PLAY_REVISION) {
+            Self::new(pre_play_model())
+        } else {
+            Self::load()
+        };
         if recorded.is_some_and(|p| p.uses_levels()) {
             loaded.provenance.policy_revision = recorded.unwrap().policy_revision.clone();
         }
