@@ -374,6 +374,24 @@ pub fn enter_grand(
     enter_grand_contract(h, language, declare, target, false);
 }
 
+/// Whether the oriented decision is UnderPartner; restarts the dialogue.
+fn under_partner_task(
+    h: &mut Harness<'_, GrandCoachApp>,
+    i: &I18n,
+    v: &skat_app::TableView,
+) -> bool {
+    let partner = v.current_trick[0].player.seat(v.dealer);
+    let declarer = v.declarer.map(|d| d.seat(v.dealer));
+    click(h, &seat_name(i, partner));
+    if let Some(d) = declarer {
+        click(h, &seat_name(i, d));
+    }
+    let task = h.state().session().guided().and_then(|g| g.task);
+    click(h, &i.t("guided-return"));
+    click(h, &i.t("guided-start"));
+    task == Some(skat_app::GuidedBranch::UnderPartner)
+}
+
 #[allow(dead_code)]
 pub fn enter_grand_contract(
     h: &mut Harness<'_, GrandCoachApp>,
@@ -415,7 +433,11 @@ pub fn enter_grand_contract(
                 None => g.step == GuidedStep::Unsupported,
             };
             if grand && reached && g.kontra.is_none() {
-                return;
+                // Fallback lessons look like UnderPartner while oriented; probe
+                // the task, then restart the dialogue at orientation.
+                if target != Some(GuidedBranch::UnderPartner) || under_partner_task(h, &i, &v) {
+                    return;
+                }
             }
             click(h, &i.t("guided-return"));
         }

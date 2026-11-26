@@ -472,7 +472,15 @@ fn grand_under_partner_exclusions_last_seat_no_loser_single_card_declarer_role()
     let r = rule(&v).unwrap();
     assert!(r.partner_ahead && !r.last && r.losers.is_empty());
     assert_eq!(r.branch, Branch::Fallback);
-    assert!(lesson(&v).is_none());
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule.card, card("CK"));
+    assert_eq!(l.rule.candidates, vec![card("CT"), card("CK")]);
+    assert!(l.check(Step::Narrow, Answer::Card(card("CK"))));
+    assert!(!l.check(Step::Narrow, Answer::Card(card("CT"))));
+    let swapped = swap(d, card("H8"), card("DK"));
+    let other = grand(swapped, Seat::Hinterhand, &["C9"]);
+    assert_eq!(v, other.view(Seat::Mittelhand));
+    assert_eq!(Some(l), lesson(&other.view(Seat::Mittelhand)));
 
     // Single legal card: C7 is MH's only Kreuz (C8/CT swap with VH's H7/H8).
     let d = swap(swap(deal(), card("C8"), card("H7")), card("CT"), card("H8"));
@@ -495,6 +503,30 @@ fn grand_under_partner_exclusions_last_seat_no_loser_single_card_declarer_role()
     assert!(!r.partner_ahead && !r.last);
     assert_eq!(r.branch, Branch::Fallback);
     assert!(lesson(&v).is_none());
+}
+
+#[test]
+fn suit_partner_no_loser_uses_same_lowest_cost_fallback() {
+    let d = swap(swap(deal(), card("C7"), card("CK")), card("C8"), card("H7"));
+    let g = contract_position(
+        d,
+        Seat::Hinterhand,
+        hand_game(GameType::Farbe(Suit::Herz), false),
+        &["C9"],
+    );
+    let v = g.view(Seat::Mittelhand);
+    let l = lesson(&v).unwrap();
+    assert_eq!(l.rule.branch, Branch::Fallback);
+    assert!(l.rule.losers.is_empty());
+    assert_eq!(l.rule.card, card("CK"));
+    assert!(l.check(Step::Narrow, Answer::Card(card("CK"))));
+    assert!(!l.check(Step::Narrow, Answer::Card(card("CT"))));
+    let mut restricted = v.clone();
+    restricted.legal_actions.pop();
+    assert!(lesson(&restricted).is_none());
+    let mut exposed = v.clone();
+    exposed.declarer_cards = Some(g.view(Seat::Hinterhand).hand);
+    assert!(lesson(&exposed).is_none());
 }
 
 #[test]

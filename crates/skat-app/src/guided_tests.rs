@@ -1810,7 +1810,7 @@ fn grand_kontra_precedence_exclusions_and_lifecycle_boundaries() {
     assert!(s.guided().unwrap().rule.is_none());
 
     // Grand partner-ahead Fallback without a losing card (MH holds only
-    // CT/CK in Kreuz, #159): honest fallback.
+    // CT/CK in Kreuz, #159): distinct fallback lesson.
     let no_loser = fixture::swap(
         fixture::swap(fixture::deal(), fixture::card("C7"), fixture::card("CK")),
         fixture::card("C8"),
@@ -1827,9 +1827,18 @@ fn grand_kontra_precedence_exclusions_and_lifecycle_boundaries() {
         assert!(s.view().legal_actions.len() >= 2);
         s.execute(Command::StartGuided).unwrap();
         let g = s.guided().unwrap();
-        assert_eq!(g.step, S::Unsupported);
+        assert_eq!(g.step, S::Orient);
         assert!(g.rule.is_none() && g.kontra_exclusion.is_none());
-        respond(&mut s, G::Return).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        let g = s.guided().unwrap();
+        assert_eq!(g.rule.unwrap().branch, crate::GuidedBranch::Fallback);
+        assert_eq!(g.legal_cards.len(), 2);
+        s.execute(Command::Act(Action::Play(fixture::card("CT"))))
+            .unwrap();
+        s.run_opponents();
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        respond(&mut s, G::Reveal).unwrap();
+        assert!(s.guided().unwrap().observation.is_some());
     }
 
     // Automatic levels never start it; off rejects it; re-entry is stale;

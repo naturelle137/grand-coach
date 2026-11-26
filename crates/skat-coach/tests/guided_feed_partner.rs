@@ -101,6 +101,9 @@ fn frozen_complete_deals_legal_order_every_completion_and_exact_feed_key() {
         }
         if c.id == "B-declarer-ahead" {
             assert_eq!(l.as_ref().unwrap().rule.branch, Branch::WinLast);
+        } else if c.id == "A-early-partner-ahead" {
+            assert_eq!(l.as_ref().unwrap().rule.branch, Branch::Fallback);
+            assert!(l.as_ref().unwrap().rule.losers.is_empty());
         } else if !c.supported
             && !suit_now_supported
             && !early_now_supported
