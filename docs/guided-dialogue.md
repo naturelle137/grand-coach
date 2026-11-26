@@ -1620,4 +1620,9 @@ A later Grand Ouvert declarer lead without a master (S7) is fixtured by
 `grand_ouvert_later_declarer_lead_without_master_is_the_lowest_card`.
 A later Grand Ouvert defender lead without a master (Hand, S9) is fixtured by
 `grand_ouvert_later_defender_lead_without_master_is_the_lowest_card`.
+The Ouvert declarer acting second under an opponent lead (Hand, revealed hand equal
+to the own hand, no overtaking Trumpf or master) can inspect the same decline
+fallback in Grand and Farbspiel; it is fixtured by
+`ouvert_declarer_second_seat_keeps_a_loser_under_an_opponent_lead`, which also
+rejects a missing or mismatching reveal and a restricted action list.
 These checks do not establish learning efficacy.

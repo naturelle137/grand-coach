@@ -424,3 +424,35 @@ fn grand_ouvert_later_defender_lead_without_master_is_the_lowest_card() {
     missing.declarer_cards = None;
     assert!(lesson(&missing).is_none());
 }
+
+#[test]
+fn ouvert_declarer_second_seat_keeps_a_loser_under_an_opponent_lead() {
+    // Ouvert Hand, MH declares and VH leads C9: CT is the only overtaking card
+    // and neither Trumpf nor a master, so Easy keeps the lowest loser C7.
+    for game in [GameType::Grand, HERZ] {
+        let g = contract_position(deal(), Seat::Mittelhand, hand_game(game, true), &["C9"]);
+        let v = g.view(Seat::Mittelhand);
+        let l = lesson(&v).expect("Ouvert declarer decline lesson");
+        assert_eq!(l.rule.branch, Branch::Fallback);
+        assert_eq!(l.rule.winner, Some(Seat::Vorhand));
+        assert_eq!(l.rule.card, card("C7"));
+        assert!(l.check(Step::Narrow, Answer::Card(card("C7"))));
+        assert!(!l.check(Step::Narrow, Answer::Card(card("C8"))));
+        let other = contract_position(
+            swap(deal(), card("H8"), card("DK")),
+            Seat::Mittelhand,
+            hand_game(game, true),
+            &["C9"],
+        );
+        assert_eq!(v, other.view(Seat::Mittelhand));
+        let mut restricted = v.clone();
+        restricted.legal_actions.pop();
+        assert!(lesson(&restricted).is_none());
+        let mut missing = v.clone();
+        missing.declarer_cards = None;
+        assert!(lesson(&missing).is_none());
+        let mut mismatch = v.clone();
+        mismatch.declarer_cards = Some(v.hand - v.hand.iter().next().into_iter().collect());
+        assert!(lesson(&mismatch).is_none());
+    }
+}
