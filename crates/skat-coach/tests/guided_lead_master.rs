@@ -110,5 +110,9 @@ fn lead_master_rejects_malformed_restricted_and_other_contract_boundaries() {
     assert!(lesson(&null).is_none_or(|l| l.rule.branch != skat_coach::guided::Branch::LeadMaster));
     let mut g = c.game();
     g.apply(Action::Play(card(3))).unwrap();
-    assert!(lesson(&g.view(g.current_seat().unwrap())).is_none());
+    // A later seat is a trick lesson (e.g. the declarer decline fallback), never a lead.
+    assert!(
+        lesson(&g.view(g.current_seat().unwrap()))
+            .is_none_or(|l| matches!(l.source, skat_coach::Source::Trick { .. }))
+    );
 }

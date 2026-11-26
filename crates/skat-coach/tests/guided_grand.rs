@@ -504,7 +504,8 @@ fn grand_under_partner_exclusions_last_seat_no_loser_single_card_declarer_role()
     let r = rule(&v).unwrap();
     assert!(!r.partner_ahead && !r.last);
     assert_eq!(r.branch, Branch::Fallback);
-    assert!(lesson(&v).is_none());
+    // Admitted as the declarer decline fallback (#131), not a partner branch.
+    assert_eq!(lesson(&v).unwrap().rule.winner, Some(Seat::Vorhand));
 }
 
 #[test]

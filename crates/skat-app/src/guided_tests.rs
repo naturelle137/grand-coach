@@ -1843,16 +1843,21 @@ fn grand_kontra_precedence_exclusions_and_lifecycle_boundaries() {
 
     // Declarer ahead, no cheap safe winner (MH's CT is no master): the distinct
     // decline fallback, exercised through observation.
-    let decline = fixture::contract_actions(
-        fixture::deal(),
-        Seat::Vorhand,
-        fixture::hand_game(GRAND, false),
-        &["C9"],
-    );
-    {
+    for ouvert in [false, true] {
+        let decline = fixture::contract_actions(
+            fixture::deal(),
+            Seat::Vorhand,
+            fixture::hand_game(GRAND, ouvert),
+            &["C9"],
+        );
         let mut s = grand_session(Seat::Mittelhand, fixture::deal(), false, &decline);
         s.execute(Command::StartGuided).unwrap();
         assert_eq!(s.guided().unwrap().step, S::Orient);
+        respond(&mut s, G::Answer(A::Seat(Some(Seat::Vorhand)))).unwrap();
+        respond(&mut s, G::Answer(A::Seat(Some(Seat::Hinterhand)))).unwrap();
+        let task = s.guided().unwrap();
+        assert_eq!(task.step, S::Narrow);
+        assert!(task.decline && task.rule.is_none());
         respond(&mut s, G::Reveal).unwrap();
         let g = s.guided().unwrap();
         let rule = g.rule.clone().unwrap();
@@ -2293,16 +2298,9 @@ fn grand_win_early_a_to_e_both_fixture_roles_attempt_memory_all_legal_actual_rep
                 assert!(g.rule.is_none() && g.early_condition.is_none() && g.memory.is_none());
                 assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
                 if n == 4 {
-                    // Defender behind the declarer: the decline fallback (no
-                    // safe winner); the declarer's own decision stays out.
-                    assert_eq!(
-                        g.step,
-                        if declarer == Seat::Vorhand {
-                            S::Orient
-                        } else {
-                            S::Unsupported
-                        }
-                    );
+                    // Both roles keep a loser under the current winner: the
+                    // defender's and the declarer's decline fallback.
+                    assert_eq!(g.step, S::Orient);
                     s.execute(Command::Act(Action::Play(c(mine)))).unwrap();
                     s.apply(Action::Play(c(early_oracle::REPLY[n]))).unwrap();
                     assert_eq!(s.game.tricks()[0].winner, early_oracle::winner(n, mine));
@@ -2521,7 +2519,7 @@ fn grand_win_early_exclusions_preserve_existing_app_lessons_and_all_legal_action
             hand_game(GRAND, false),
             vec!["CK"],
             Seat::Mittelhand,
-            None,
+            Some(crate::GuidedBranch::Fallback),
         ),
         (
             one,

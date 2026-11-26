@@ -1567,6 +1567,26 @@ master; C7 is chosen) and a last-seat Grand position with no overtaking card;
 they check that exchanging unseen cards leaves the view and lesson unchanged.
 The app test observes the actual continuation. The text states the heuristic's
 condition only; it claims neither the trick nor the game. The ordinary
-bilingual egui route is `decline_walkthrough`. The declarer's own fallbacks
-(lead without a master, declining an early winner) and Ouvert stay unsupported.
+bilingual egui route is `decline_walkthrough`. The non-Ouvert declarer acting second
+in Grand or Farbspiel has the matching [fallback](#declarer-decline-fallback-131):
+the opponent's lead stays untaken. The declarer's lead without a master stays
+unsupported. The same
+fallback also admits an Ouvert defender acting second after the declarer's lead
+in Farbspiel or Grand, with the complete, consistent revealed declarer hand and
+the exact legal actions. Core-replayed fixtures test both contracts and reject
+missing revealed cards and restricted actions. Other Ouvert decline positions
+remain unsupported.
 These checks do not establish learning efficacy.
+
+## Declarer decline fallback (#131)
+
+A non-Ouvert declarer acting second in Grand or Farbspiel, with no revealed
+hand, an exact pure legal list, and no overtaking card that is Trumpf or a
+follow-class master, gets Easy's `Fallback`: it keeps the lowest legal card by
+`(is_trump, Augen, power)`, first exact tie. The prompt and rule text name the
+opponent's lead as currently ahead, one player still following, and make no
+claim about unseen cards, the trick or the game. Core-replayed Grand and Herz
+fixtures test the expected card, rejection of restricted actions and of a
+revealed hand; an app test covers both roles. A single legal card, Ouvert and
+the declarer's lead without a master remain unsupported. These checks do not
+establish learning efficacy.

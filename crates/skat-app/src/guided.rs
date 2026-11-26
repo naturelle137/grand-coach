@@ -129,6 +129,12 @@ pub struct GuidedView {
     pub step: GuidedStep,
     /// Immediate branch task after orientation; contains no selected card.
     pub task: Option<GuidedBranch>,
+    /// Fallback task with the declarer ahead, available only at the task step.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub decline: bool,
+    /// Declarer fallback acting second: the opponent's lead stays untaken.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub decline_early: bool,
     /// Public partner seat for an admitted Farbspiel last-seat or Grand defender.
     /// Available during orientation without disclosing the rule or its card.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -364,6 +370,18 @@ impl GuidedState {
             task: matches!(self.step, GuidedStep::Narrow | GuidedStep::Act)
                 .then(|| self.lesson.as_ref().map(|l| l.rule.branch))
                 .flatten(),
+            decline: matches!(self.step, GuidedStep::Narrow | GuidedStep::Act)
+                && self.lesson.as_ref().is_some_and(|l| {
+                    l.rule.branch == GuidedBranch::Fallback
+                        && !l.rule.partner_ahead
+                        && Some(l.seat) != l.knowledge.declarer
+                }),
+            decline_early: matches!(self.step, GuidedStep::Narrow | GuidedStep::Act)
+                && self.lesson.as_ref().is_some_and(|l| {
+                    l.rule.branch == GuidedBranch::Fallback
+                        && !l.rule.partner_ahead
+                        && Some(l.seat) == l.knowledge.declarer
+                }),
             rule: self
                 .revealed
                 .then(|| self.lesson.as_ref().map(|l| l.rule.clone()))
