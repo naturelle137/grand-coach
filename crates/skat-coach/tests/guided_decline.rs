@@ -390,3 +390,37 @@ fn grand_ouvert_later_declarer_lead_without_master_is_the_lowest_card() {
     restricted.legal_actions.pop();
     assert!(lesson(&restricted).is_none());
 }
+
+#[test]
+fn grand_ouvert_later_defender_lead_without_master_is_the_lowest_card() {
+    // Grand Ouvert Hand, MH declares: after VH D7, MH DK the defender HH trumps
+    // with DJ and leads again. No suit master is left (CA, SA, HA, DA sit with
+    // the revealed MH), so Easy leads its lowest plain card S9.
+    let deal = Deal::new(
+        [
+            cards("C7 C8 C9 S7 S8 H7 H8 D7 D8 D9"),
+            cards("CA CT CK SA SK SJ HA HJ DA DK"),
+            cards("CJ DJ CQ S9 ST SQ H9 HK HQ HT"),
+        ],
+        cards("DQ DT"),
+    )
+    .unwrap();
+    let play = ["D7", "DK", "DJ"];
+    let game = hand_game(GameType::Grand, true);
+    let g = contract_position(deal, Seat::Mittelhand, game, &play);
+    let v = g.view(Seat::Hinterhand);
+    let l = lesson(&v).expect("Grand Ouvert later defender lead fallback lesson");
+    assert_eq!(l.rule.branch, Branch::Fallback);
+    assert_eq!(l.rule.card, card("S9"));
+    assert!(lesson(&g.view(Seat::Vorhand)).is_none());
+    assert!(lesson(&g.view(Seat::Mittelhand)).is_none());
+    let other = swap(deal, card("S7"), card("DQ"));
+    let w = contract_position(other, Seat::Mittelhand, game, &play).view(Seat::Hinterhand);
+    assert_eq!((&w, lesson(&w)), (&v, Some(l)));
+    let mut restricted = v.clone();
+    restricted.legal_actions.pop();
+    assert!(lesson(&restricted).is_none());
+    let mut missing = v.clone();
+    missing.declarer_cards = None;
+    assert!(lesson(&missing).is_none());
+}

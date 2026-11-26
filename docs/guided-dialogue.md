@@ -1618,4 +1618,6 @@ A later declarer lead without Trumpf after winning a trick (Herz Ouvert, S7) is 
 `farbspiel_ouvert_later_declarer_lead_without_master_or_trumpf_is_the_lowest_card`.
 A later Grand Ouvert declarer lead without a master (S7) is fixtured by
 `grand_ouvert_later_declarer_lead_without_master_is_the_lowest_card`.
+A later Grand Ouvert defender lead without a master (Hand, S9) is fixtured by
+`grand_ouvert_later_defender_lead_without_master_is_the_lowest_card`.
 These checks do not establish learning efficacy.
