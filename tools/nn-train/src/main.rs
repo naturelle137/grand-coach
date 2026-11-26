@@ -24,7 +24,7 @@
 //!     [--score-weight X] [--win-weight X] [--seed N] [--minutes N]
 //!     [--device cpu|vulkan[:discrete|:integrated[:N]]]
 //!     [--patience N [--lr-decay X] [--lr-decays N]]
-//!     [--cache DIR] [--data-on-device GB] [--all-phases [--preplay-weight X] [--rare-weight X] [--hand-weight X] [--announcement-weight X] [--schneider-weight X] [--schwarz-weight X] [--ouvert-weight X]]
+//!     [--cache DIR] [--data-on-device GB] [--all-phases [--preplay-weight X] [--rare-weight X] [--discard-weight X] [--hand-weight X] [--announcement-weight X] [--schneider-weight X] [--schwarz-weight X] [--ouvert-weight X]]
 //!     [--hand-opportunity-weight X] [--announcement-opportunity-weight X]
 //!     [--hand-declaration-weight X] [--null-weight X] [--hand-null-weight X] [--kontra-weight X] [--re-weight X] [--hand-announcement-weight X] [--hand-kontra-weight X] [--null-kontra-weight X]
 //!     [--queue LxH,LxH... [--workers once:cpu,last:vulkan:discrete]]
@@ -547,6 +547,7 @@ fn train(args: &[String]) {
         all_phases: args.iter().any(|a| a == "--all-phases"),
         preplay_weight: flag(args, "--preplay-weight", d.preplay_weight),
         rare_weight: flag(args, "--rare-weight", d.rare_weight),
+        discard_weight: flag(args, "--discard-weight", d.discard_weight),
         hand_opportunity_weight: flag(args, "--hand-opportunity-weight", d.hand_opportunity_weight),
         announcement_opportunity_weight: flag(
             args,

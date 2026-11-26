@@ -135,6 +135,10 @@ pub struct Hyper {
     /// announcement); only with `all_phases`. Omitted from the recipe when 1.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub rare_weight: f32,
+    /// Additional factor for Drücken rows (joint pair choice); only with
+    /// `all_phases`. Omitted from the recipe when 1.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub discard_weight: f32,
     /// Factor for all decisions where Hand is legal.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub hand_opportunity_weight: f32,
@@ -247,6 +251,7 @@ impl Default for Hyper {
             all_phases: false,
             preplay_weight: 1.0,
             rare_weight: 1.0,
+            discard_weight: 1.0,
             hand_opportunity_weight: 1.0,
             announcement_opportunity_weight: 1.0,
             hand_weight: 1.0,
@@ -685,6 +690,9 @@ impl Examples {
             target.iter_mut().for_each(|x| *x *= hyper.preplay_weight);
             if is_rare_choice(r.action) {
                 target.iter_mut().for_each(|x| *x *= hyper.rare_weight);
+            }
+            if phase_of(&legal) == DecisionPhase::Druecken {
+                target.iter_mut().for_each(|x| *x *= hyper.discard_weight);
             }
             if r.view.legal_actions.contains(&Action::Hand) {
                 target
@@ -1988,6 +1996,17 @@ mod tests {
                         assert!(rows.push(&labelled, &hand_weights, None));
                         assert_eq!(rows.target.iter().sum::<f32>(), expected * 7.0);
                     }
+                }
+                if view.phase == Phase::Druecken {
+                    let weights = Hyper {
+                        all_phases: true,
+                        preplay_weight: 2.0,
+                        discard_weight: 3.0,
+                        ..Hyper::default()
+                    };
+                    let mut rows = Examples::new();
+                    assert!(rows.push(&record, &weights, None));
+                    assert_eq!(rows.target.iter().sum::<f32>(), 6.0);
                 }
                 let opportunity = Hyper {
                     all_phases: true,
