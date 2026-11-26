@@ -170,6 +170,9 @@ fn content(
         GuidedStep::Narrow if g.task == Some(GuidedBranch::Null) && null_partner_lead => {
             "guided-null-partner-attempt"
         }
+        GuidedStep::Narrow if g.task == Some(GuidedBranch::Null) && g.null_forced => {
+            "guided-null-forced-attempt"
+        }
         GuidedStep::Narrow if g.task == Some(GuidedBranch::Null) => "guided-null-attempt",
         GuidedStep::Narrow | GuidedStep::Threshold => "guided-win",
         GuidedStep::Act => "guided-act",
@@ -325,6 +328,8 @@ fn content(
                 "guided-rule-null-partner"
             } else if null_defender {
                 "guided-rule-null-defender"
+            } else if rule.last && rule.losers.is_empty() {
+                "guided-rule-null-forced"
             } else if rule.last {
                 "guided-rule-null"
             } else {

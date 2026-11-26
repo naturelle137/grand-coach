@@ -18,6 +18,7 @@ pub fn names() -> Vec<String> {
                 ("mixed-ten", "rule" | "observe" | "complete")
                     | ("real-ouvert", "rule" | "observe" | "complete")
                     | ("void-last-tie", "rule" | "complete")
+                    | ("no-loser", "rule")
                     | ("pickup-mixed", "memory")
                     | ("void-changed-queen" | "printed-bube", "rule")
             )
@@ -77,7 +78,11 @@ pub fn render(name: &str, out: Option<&str>) {
             g.rule.as_ref().unwrap().branch,
             skat_app::GuidedBranch::Null
         );
-        i.t("guided-rule-null")
+        i.t(if g.rule.as_ref().unwrap().losers.is_empty() {
+            "guided-rule-null-forced"
+        } else {
+            "guided-rule-null"
+        })
     };
     let size = if name.ends_with("-narrow") {
         [960.0, 640.0]

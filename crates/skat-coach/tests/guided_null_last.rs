@@ -167,6 +167,21 @@ fn frozen_deals_every_completion_exact_null_key_and_scope() {
                 continue;
             }
             assert!(!l.rule.partner_ahead);
+            if c.id == "no-loser" {
+                // Forced take (#131): every legal card wins; Easy picks the cheapest.
+                assert!(l.rule.losers.is_empty() && l.rule.last);
+                assert_eq!(l.rule.candidates, cards(c.legal));
+                assert_eq!(l.rule.tie_break, baseline::TieBreak::LowestCostFirst);
+                assert_eq!(l.rule.card, card("C9"));
+                for &n in c.legal {
+                    assert_eq!(
+                        l.check(Step::Narrow, Answer::Card(card(n))),
+                        n == "C9",
+                        "{n}"
+                    );
+                }
+                continue;
+            }
             assert_eq!(l.rule.candidates, cards(c.losers));
             assert_eq!(l.memory().trumpf, None, "no Null Trumpf category");
             assert_eq!(l.early_condition(), None);
@@ -321,7 +336,7 @@ fn ouvert_last_requires_revealed_matching_hand_and_exact_actions() {
         }
         assert!(lesson(&bad).is_none());
     }
-    for (id, expected) in [("no-loser", None), ("void-last-tie", Some("DJ"))] {
+    for (id, expected) in [("no-loser", Some("C9")), ("void-last-tie", Some("DJ"))] {
         let mut c = cases().into_iter().find(|c| c.id == id).unwrap();
         c.ouvert = true;
         let v = c.position().view(Seat::Hinterhand);

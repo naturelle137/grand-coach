@@ -639,7 +639,10 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                     || (feed_early && rule.partner_ahead && rule.table_master)))
             || (null
                 && rule.branch == Branch::Null
-                && (!rule.losers.is_empty() || (null_defender && rule.winner != view.declarer))))
+                && (!rule.losers.is_empty()
+                    // A last-seat declarer with no losing card must take the trick.
+                    || (!null_defender && rule.last)
+                    || (null_defender && rule.winner != view.declarer))))
     {
         return None;
     }

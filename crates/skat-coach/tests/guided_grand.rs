@@ -273,9 +273,9 @@ fn grand_exclusions_partner_ahead_not_last_lead_no_winner_and_single_card() {
 }
 
 #[test]
-fn null_stays_unsupported_while_ouvert_declarer_win_last_is_guided() {
+fn null_forced_take_and_ouvert_declarer_win_last_are_guided() {
     for (game, ouvert, supported) in [
-        (GameType::Null, false, false),
+        (GameType::Null, false, true),
         (GRAND, true, true),
         (GameType::Farbe(Suit::Herz), true, true),
         (GameType::Farbe(Suit::Herz), false, true),

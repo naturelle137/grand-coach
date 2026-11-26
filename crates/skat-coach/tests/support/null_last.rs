@@ -221,22 +221,26 @@ pub fn cases() -> Vec<Case> {
                 Some("C8"),
             )
         },
-        null(
-            "no-loser",
-            Origin::Original,
-            [
-                "C7 CK CA H7 H8 H9 HT HJ HQ HK",
-                "C8 S7 S8 S9 ST SJ SQ SK SA HA",
-                "CT C9 CJ CQ D7 D8 D9 DT DJ DQ",
-            ],
-            &["VH C7", "MH C8"],
-            &["C9", "CT", "CJ", "CQ"],
-            "MH",
-            &["HH"; 4],
-            &[],
-            &[2, 3, 4, 5],
-            None,
-        ),
+        // Forced take (#131): the last-seat declarer has no loser; admitted.
+        Case {
+            supported: true,
+            ..null(
+                "no-loser",
+                Origin::Original,
+                [
+                    "C7 CK CA H7 H8 H9 HT HJ HQ HK",
+                    "C8 S7 S8 S9 ST SJ SQ SK SA HA",
+                    "CT C9 CJ CQ D7 D8 D9 DT DJ DQ",
+                ],
+                &["VH C7", "MH C8"],
+                &["C9", "CT", "CJ", "CQ"],
+                "MH",
+                &["HH"; 4],
+                &[],
+                &[2, 3, 4, 5],
+                None,
+            )
+        },
         null(
             "void-changed-queen",
             Origin::Addendum,

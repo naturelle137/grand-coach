@@ -406,17 +406,13 @@ fn unsupported_and_single_choice_have_no_rule_and_final_series_allows_observatio
 
 #[test]
 fn unsupported_card_turn_preserves_each_legal_choice() {
-    let case = null_fixture::cases()
+    // Second-seat declarer with no loser stays unsupported (only last is guided).
+    let case = middle_fixture::cases()
         .into_iter()
         .find(|case| case.id == "no-loser")
         .unwrap();
-    let mut s = Session::new(SessionConfig::default());
-    let human = null_fixture::seat(case.actor);
-    s.dealer = (0..3)
-        .map(PlayerId)
-        .find(|&dealer| PlayerId::HUMAN.seat(dealer) == human)
-        .unwrap();
-    s.game = case.position();
+    let mut s = middle_fixture_session(&case);
+    let human = case.seat;
     assert_eq!(s.game.current_seat(), Some(human));
     let actions = s.view().legal_actions;
     assert!(actions.len() > 1);
@@ -2816,7 +2812,7 @@ fn null_last_ordinary_every_card_consent_retry_return_and_stale_reset() {
 fn null_last_fixtures_every_candidate_actual_winner_and_hidden_views() {
     for c in null_fixture::cases()
         .into_iter()
-        .filter(|c| c.supported || c.id == "real-ouvert")
+        .filter(|c| (c.supported || c.id == "real-ouvert") && c.id != "no-loser")
     {
         for (&n, &w) in c.legal.iter().zip(c.completed) {
             let mut s = Session::new(SessionConfig::default());
@@ -2907,6 +2903,7 @@ fn null_last_fixture_widget_models_match_checked_session_outputs() {
                 ("mixed-ten", "rule" | "observe" | "complete")
                     | ("real-ouvert", "rule" | "observe" | "complete")
                     | ("void-last-tie", "rule" | "complete")
+                    | ("no-loser", "rule")
                     | ("pickup-mixed", "memory")
                     | ("void-changed-queen" | "printed-bube", "rule")
             ) {
@@ -2929,7 +2926,7 @@ fn null_last_fixture_widget_models_match_checked_session_outputs() {
         let n = if c.id == "mixed-ten" || c.id == "pickup-mixed" || c.id == "printed-bube" {
             c.legal[c.legal.len() - 1]
         } else {
-            c.choice.unwrap()
+            c.choice.unwrap_or("C9") // forced take: the cheapest card
         };
         s.execute(Command::Act(Action::Play(null_fixture::card(n))))
             .unwrap();
@@ -2986,6 +2983,45 @@ fn null_last_separate_incomplete_estimates_never_change_rule_or_leak_on_entry() 
     }
 }
 
+/// Forced take (#131): the last-seat Null declarer has no losing card.
+#[test]
+fn null_last_forced_take_guides_cheapest_card_with_every_card_playable() {
+    let c = null_fixture::cases()
+        .into_iter()
+        .find(|c| c.id == "no-loser")
+        .unwrap();
+    for (&n, &w) in c.legal.iter().zip(c.completed) {
+        let mut s = Session::new(SessionConfig::default());
+        s.dealer = PlayerId(0);
+        s.game = c.position();
+        let before = s.view();
+        s.execute(Command::StartGuided).unwrap();
+        assert!(!s.guided().unwrap().null_forced);
+        respond(&mut s, G::Answer(A::Seat(Some(Seat::Mittelhand)))).unwrap();
+        respond(&mut s, G::Answer(A::Seat(None))).unwrap();
+        assert!(s.guided().unwrap().null_forced);
+        respond(&mut s, G::Answer(A::Card(null_fixture::card(n)))).unwrap();
+        let cheapest = n == "C9";
+        assert_eq!(s.guided().unwrap().correct, Some(cheapest), "{n}");
+        if !cheapest {
+            assert!(s.guided().unwrap().rule.is_none());
+            respond(&mut s, G::Retry).unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+        }
+        let g = s.guided().unwrap();
+        let rule = g.rule.unwrap();
+        assert_eq!(rule.card, null_fixture::card("C9"));
+        assert!(rule.losers.is_empty() && rule.last);
+        assert_eq!(s.view().legal_actions, before.legal_actions);
+        s.execute(Command::Act(Action::Play(null_fixture::card(n))))
+            .unwrap();
+        assert_eq!(
+            s.game.tricks().last().unwrap().winner,
+            null_fixture::seat(w)
+        );
+    }
+}
+
 #[test]
 fn null_last_real_exclusions_keep_unsupported_and_every_card_playable() {
     for c in null_fixture::cases().into_iter().filter(|c| !c.supported) {
@@ -3008,6 +3044,7 @@ fn null_last_real_exclusions_keep_unsupported_and_every_card_playable() {
                     | "real-defender-declarer-ahead"
                     | "real-defender-partner-ahead"
                     | "real-ouvert"
+                    | "no-loser"
             ) {
                 S::Orient
             } else {
