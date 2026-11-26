@@ -384,8 +384,7 @@ each settled response by `ResponseCategory` (exact, too high, too low,
 mismatch with unrecorded value, skipped), split by support (without help /
 with help) per row and in total. The category is only the observed answer
 against the stored exact count: no reason, strategic mistake, mastery or
-transfer is inferred, and strategic decision classification is not part of
-the history. A separate pure `StrategicSummary` (`skat-app`, #13) only
+transfer is inferred from counting answers. A separate pure `StrategicSummary` (`skat-app`, #13) only
 counts review moments already classified by the shared coach (`MomentKind`
 Good/Bad/Neutral per `Concept`) and, from twice `STRATEGIC_WINDOW` (10)
 moments of a concept, the 10 before the last 10 beside the last 10 in
