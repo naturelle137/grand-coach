@@ -456,3 +456,37 @@ fn ouvert_declarer_second_seat_keeps_a_loser_under_an_opponent_lead() {
         assert!(lesson(&mismatch).is_none());
     }
 }
+
+#[test]
+fn ouvert_last_seat_defender_keeps_a_loser_behind_the_declarer() {
+    // Ouvert Hand, MH declares and trumps VH's H7 with SJ; HH's H8 and HA
+    // cannot overtake, so Easy keeps the lowest loser H8.
+    for game in [GameType::Grand, HERZ] {
+        let d = swap(deal(), card("D7"), card("H8"));
+        let g = contract_position(d, Seat::Mittelhand, hand_game(game, true), &["H7", "SJ"]);
+        let v = g.view(Seat::Hinterhand);
+        let l = lesson(&v).expect("Ouvert last-seat decline lesson");
+        assert_eq!(l.rule.branch, Branch::Fallback);
+        assert!(l.rule.last && l.remaining.is_none());
+        assert_eq!(l.rule.winner, Some(Seat::Mittelhand));
+        assert_eq!(l.rule.card, card("H8"));
+        assert!(l.check(Step::Narrow, Answer::Card(card("H8"))));
+        assert!(!l.check(Step::Narrow, Answer::Card(card("HA"))));
+        let other = contract_position(
+            swap(swap(deal(), card("D7"), card("H8")), card("H9"), card("DK")),
+            Seat::Mittelhand,
+            hand_game(game, true),
+            &["H7", "SJ"],
+        );
+        assert_eq!(v, other.view(Seat::Hinterhand));
+        let mut restricted = v.clone();
+        restricted.legal_actions.pop();
+        assert!(lesson(&restricted).is_none());
+        let mut missing = v.clone();
+        missing.declarer_cards = None;
+        assert!(lesson(&missing).is_none());
+        let mut overlap = v.clone();
+        overlap.declarer_cards = Some(v.hand);
+        assert!(lesson(&overlap).is_none());
+    }
+}
