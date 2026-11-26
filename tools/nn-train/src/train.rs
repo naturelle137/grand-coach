@@ -135,6 +135,12 @@ pub struct Hyper {
     /// announcement); only with `all_phases`. Omitted from the recipe when 1.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub rare_weight: f32,
+    /// Factor for all decisions where Hand is legal.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub hand_opportunity_weight: f32,
+    /// Factor for all decisions where an extended announcement is legal.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub announcement_opportunity_weight: f32,
     /// Additional factor for teacher Hand choices in all-phase training.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub hand_weight: f32,
@@ -241,6 +247,8 @@ impl Default for Hyper {
             all_phases: false,
             preplay_weight: 1.0,
             rare_weight: 1.0,
+            hand_opportunity_weight: 1.0,
+            announcement_opportunity_weight: 1.0,
             hand_weight: 1.0,
             hand_declaration_weight: 1.0,
             null_weight: 1.0,
@@ -677,6 +685,20 @@ impl Examples {
             target.iter_mut().for_each(|x| *x *= hyper.preplay_weight);
             if is_rare_choice(r.action) {
                 target.iter_mut().for_each(|x| *x *= hyper.rare_weight);
+            }
+            if r.view.legal_actions.contains(&Action::Hand) {
+                target
+                    .iter_mut()
+                    .for_each(|x| *x *= hyper.hand_opportunity_weight);
+            }
+            if r.view
+                .legal_actions
+                .iter()
+                .any(|a| matches!(a, Action::Announce(a) if a.schneider || a.schwarz || a.ouvert))
+            {
+                target
+                    .iter_mut()
+                    .for_each(|x| *x *= hyper.announcement_opportunity_weight);
             }
             let class_weight = match r.action {
                 Action::Hand => hyper.hand_weight,
@@ -1966,6 +1988,32 @@ mod tests {
                         assert!(rows.push(&labelled, &hand_weights, None));
                         assert_eq!(rows.target.iter().sum::<f32>(), expected * 7.0);
                     }
+                }
+                let opportunity = Hyper {
+                    all_phases: true,
+                    hand_opportunity_weight: 2.0,
+                    announcement_opportunity_weight: 3.0,
+                    ..Hyper::default()
+                };
+                let mut rows = Examples::new();
+                assert!(rows.push(&record, &opportunity, None));
+                let expected = if view.legal_actions.contains(&Action::Hand) {
+                    2.0
+                } else if view.legal_actions.iter().any(
+                    |a| matches!(a, Action::Announce(a) if a.schneider || a.schwarz || a.ouvert),
+                ) {
+                    3.0
+                } else {
+                    1.0
+                };
+                assert_eq!(rows.target.iter().sum::<f32>(), expected);
+                if view.phase == Phase::SkatAufnahme {
+                    let mut other = record.clone();
+                    other.action = if hand { Action::TakeSkat } else { Action::Hand };
+                    crate::selfplay::check_record(&other).unwrap();
+                    let mut rows = Examples::new();
+                    assert!(rows.push(&other, &opportunity, None));
+                    assert_eq!(rows.target.iter().sum::<f32>(), 2.0);
                 }
                 let mut examples = Examples::new();
                 assert!(examples.push(&record, &hyper, None));

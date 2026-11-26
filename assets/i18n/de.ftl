@@ -1192,3 +1192,12 @@ guided-null-defender-lead-limit = Beide Antworten sind unbekannt. Diese Faustreg
 guided-feed-ouvert-view = Die Hand des Alleinspielers liegt offen. Easy wählt nach deinen legalen Karten und dem aktuellen Stich; die offene Hand ändert diese Regel nicht.
 guided-null-ouvert-defender-lead-role = Du bist Gegenspieler im Null Ouvert und spielst aus. Das Blatt des Alleinspielers ist sichtbar; das deines Partners bleibt verdeckt.
 guided-null-ouvert-defender-lead-limit = Das sichtbare Blatt bestimmt keine der beiden Antworten. Diese Faustregel garantiert weder den Stich noch den Spielgewinn.
+
+strategic-title = Überprüfte Spielzüge: Einordnung der ausgewählten Momente
+strategic-limits = Gezählt werden nur die höchstens drei Momente, die eine Auswertung je Aufzeichnung ausgewählt hat. Das sind weder Häufigkeiten noch Fehlerquoten deines Spiels und kein Nachweis von Können oder Lerneffekt.
+strategic-empty = Noch keine ausgewertete Aufzeichnung in diesem Verlauf.
+strategic-reviews = Auswertungen { $reviews } (davon unvollständig { $partial }) · Momente { $moments }
+strategic-counts = Gut entschieden { $good } · schwächere Wahl { $bad } · weder noch { $neutral }
+strategic-sparse = Weniger als 20 Momente dieses Themas: noch kein Vergleich.
+strategic-earlier = Frühere 10 Momente dieses Themas
+strategic-recent = Neueste 10 Momente: beschreibender Vergleich, kein Nachweis eines Lerneffekts

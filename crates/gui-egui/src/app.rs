@@ -3000,6 +3000,13 @@ impl eframe::App for GrandCoachApp {
             None
         };
         self.i18n.cast = Some(view.cast);
+        if let Some(record) = self
+            .recording
+            .replay_coach_mut()
+            .and_then(|c| c.take_review_record())
+        {
+            self.learning.record_strategic(&record);
+        }
         if let Some(recording) = started {
             self.practice_request = Some(PracticeRequest::Start(Box::new(recording)));
         }

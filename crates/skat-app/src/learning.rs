@@ -25,7 +25,9 @@
 //! unknown deviation; format 4 additionally holds typed catalogue transitions
 //! and conservative persisted exposure. Format 5 adds reserved validation
 //! metadata and explicit unclear/stop outcomes. Format 6 adds separate explicit
-//! live Abstich observations; the next save writes version 6.
+//! live Abstich observations; format 7 adds the classified moments of
+//! reviewed recordings ([`crate::StrategicReview`]); the next save writes
+//! version 7.
 //!
 //! Response categories ([`ResponseCategory`]) describe only the observed
 //! counting response against the recorded exact count. They never name a
@@ -43,10 +45,10 @@ use crate::quiz::{LessonRevision, OpportunityId, RetrievalAction, RetrievalEvent
 /// Format version of the learning history written by this build. Versions
 /// 1 (series and practice only), 2 (without provenance), 3, 4 and 5 are read and
 /// migrated; see [`LEARNING_FORMATS_READ`].
-pub const LEARNING_FORMAT: u32 = 6;
+pub const LEARNING_FORMAT: u32 = 7;
 
-/// Format versions this build reads: 1 through 5 (migrated), and 6.
-pub const LEARNING_FORMATS_READ: [u32; 6] = [1, 2, 3, 4, 5, LEARNING_FORMAT];
+/// Format versions this build reads: 1 through 6 (migrated), and 7.
+pub const LEARNING_FORMATS_READ: [u32; 7] = [1, 2, 3, 4, 5, 6, LEARNING_FORMAT];
 
 /// Most events one history holds. Further events are refused, never
 /// replacing older ones; [`LearningSummary::full`] reports it.
@@ -161,6 +163,8 @@ pub struct LearningHistory {
     format: u32,
     #[serde(default)]
     pub(crate) live_abstich: Vec<crate::LiveAbstichEntry>,
+    #[serde(default)]
+    pub(crate) strategic: Vec<crate::StrategicReview>,
     #[serde(skip)]
     pub(crate) live_keys: HashMap<(AttemptId, crate::LiveAbstichId), usize>,
     #[serde(default)]
@@ -271,6 +275,7 @@ impl LearningHistory {
         LearningHistory {
             format: LEARNING_FORMAT,
             live_abstich: Vec::new(),
+            strategic: Vec::new(),
             live_keys: HashMap::new(),
             focus: Vec::new(),
             exposure_complete: true,
@@ -336,9 +341,7 @@ impl LearningHistory {
                 });
             }
         }
-        if self.events.len() + self.focus.len() + self.live_abstich.len() + new.len()
-            > MAX_LEARNING_EVENTS
-        {
+        if self.total_stored() + new.len() > MAX_LEARNING_EVENTS {
             self.refused = true;
             return Err(LearningError::Full);
         }
@@ -349,11 +352,17 @@ impl LearningHistory {
         Ok(Recorded { added, duplicates })
     }
 
+    /// Events, focus, live and strategic entries together (the shared cap).
+    pub(crate) fn total_stored(&self) -> usize {
+        self.events.len() + self.focus.len() + self.live_abstich.len() + self.strategic.len()
+    }
+
     /// Deliberately forgets every attempt and event. The attempt counter is
     /// kept, so no identity issued before is ever issued again.
     pub fn reset(&mut self) {
         self.focus.clear();
         self.live_abstich.clear();
+        self.strategic.clear();
         self.live_keys.clear();
         self.exposure_complete = false;
         self.attempts.clear();
@@ -375,7 +384,7 @@ impl LearningHistory {
 
     /// `true` without any event.
     pub fn is_empty(&self) -> bool {
-        self.events.is_empty() && self.focus.is_empty() && self.live_abstich.is_empty()
+        self.total_stored() == 0
     }
 
     /// Migrates a decoded history of an older supported format to
@@ -385,6 +394,9 @@ impl LearningHistory {
     /// [`LearningError::InvalidProvenance`]. Format 1 knows no training:
     /// training content in it is [`LearningError::InvalidContext`].
     pub(crate) fn validate(&mut self) -> Result<(), LearningError> {
+        if self.format < 7 && !self.strategic.is_empty() {
+            return Err(LearningError::InvalidProvenance);
+        }
         if self.format < 6 && !self.live_abstich.is_empty() {
             return Err(LearningError::InvalidProvenance);
         }
@@ -426,7 +438,7 @@ impl LearningHistory {
                 self.exposure_complete = false;
                 self.format = LEARNING_FORMAT;
             }
-            5 => {
+            5 | 6 => {
                 self.format = LEARNING_FORMAT;
             }
             LEARNING_FORMAT => {}
@@ -460,6 +472,7 @@ impl LearningHistory {
         }
         self.validate_focus()?;
         self.validate_live_abstich()?;
+        self.validate_strategic()?;
         self.keys = keys;
         self.lessons = lessons;
         self.refused = false;
@@ -575,8 +588,7 @@ impl LearningHistory {
             attempts: used.len() as u32,
             observations,
             full: self.refused
-                || self.events.len() + self.focus.len() + self.live_abstich.len()
-                    >= MAX_LEARNING_EVENTS
+                || self.total_stored() >= MAX_LEARNING_EVENTS
                 || self.attempts.len() >= MAX_LEARNING_ATTEMPTS,
         }
     }
