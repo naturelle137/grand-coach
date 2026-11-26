@@ -64,6 +64,18 @@ The checks use app commands and controllers rather than widget clicks; the
 upgrade uses the same build and the migration uses a format-1 fixture.
 These unsigned artifacts do not establish release readiness or publication.
 
+[CI run 45753362744](https://github.com/naturelle137/grand-coach/actions/runs/45753362744)
+on the same candidate passed `complete` on Ubuntu and Windows, native,
+portable, MSRV, lint, both screenshot jobs and `ci-ok`; regression and deep
+were skipped. Both screenshot inventories passed their SHA-256 checks. A
+sample on each platform was inspected at the three supported sizes, including
+large text, card faces, held Augen, training and debriefing. The full-suite
+logs include successful widget tests for a series, variants, Live Abstich,
+training and the hold-only Augen display. Package smoke limitations above
+still apply. The local `scripts/check.sh push --base origin/main` and
+`python3 -B scripts/package_test.py` passed; local actionlint was unavailable
+and CI ran it.
+
 Dispatched on `main` at commit `676bb65a95839fa1dbd593f34ff01ff4077891ab`
 (workflow runs of 2026-11-26; later commits are not covered):
 
