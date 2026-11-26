@@ -168,3 +168,12 @@ minus Classic was -5.64 Seeger-Fabian points per declarer game, with a
 17.17-point standard error across deals. Search fell back once; the 208
 continuation games for those choices and 1,040 candidate games had no fallbacks. This small conditional sample cannot
 establish an ordering or select a teacher.
+
+## Longer training and wider network
+
+A 4×512 model (D = 4, 12 epochs, SHA-256
+`8f0dc3872f7534ccdc01c23c00b2020846bec7ebe403e5e92bb53b94f65705a5`, local and
+unshipped) reaches 74.40 % card-play and 87.53 % Drücken test agreement and
+-17.09 points per seat-game against Strong (95 % interval [-21.28, -12.90]),
+not distinguishable from 4×384; see
+[the measurement](ai.md#longer-training-and-wider-network-74).
