@@ -6,6 +6,7 @@
 //! events per topic and context, observed answer categories with and
 //! without help, earlier and recent windows and the recorded lesson
 //! revisions, plus separately cached explicit mechanism-response patterns.
+//! Selected review moments are descriptive, not a diagnosis or mastery assessment.
 //! No diagnosis, mastery or strategic error prevalence.
 
 use std::path::{Path, PathBuf};
@@ -803,6 +804,7 @@ fn kind_counts(ui: &mut egui::Ui, i: &I18n, c: skat_app::KindCounts) {
     ui.label(i.tf(
         "strategic-counts",
         &[
+            ("total", c.total().into()),
             ("good", c.good.into()),
             ("bad", c.bad.into()),
             ("neutral", c.neutral.into()),

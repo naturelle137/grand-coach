@@ -951,7 +951,7 @@ learning-provenance-unversioned = Saved before versions were stored: { $count } 
 learning-family-quiz = In-game counting quiz
 learning-family-focused = In-game focused counting
 learning-family-training = Counting training
-learning-strategic-separate = This section describes counting answers only. Mechanism responses are separate; played-card decisions are not classified.
+learning-strategic-separate = This section describes counting answers only. Mechanism responses and selected reviewed moves are separate.
 
 ## Opponent figures (D-72): names of both pools, shown in their language
 
@@ -1199,7 +1199,7 @@ strategic-title = Reviewed moves: classification of the selected moments
 strategic-limits = Only the at most three moments a review selected per recording are counted. They are neither frequencies nor error rates of your play and no evidence of skill or learning effect.
 strategic-empty = No reviewed recording in this history yet.
 strategic-reviews = Reviews { $reviews } (of these incomplete { $partial }) · moments { $moments }
-strategic-counts = Decided well { $good } · weaker choice { $bad } · neither { $neutral }
+strategic-counts = Moments { $total } · Decided well { $good } · weaker choice { $bad } · neither { $neutral }
 strategic-sparse = Fewer than 20 moments of this topic: no comparison yet.
 strategic-earlier = Earlier 10 moments of this topic
 strategic-recent = Latest 10 moments: descriptive comparison, no evidence of a learning effect

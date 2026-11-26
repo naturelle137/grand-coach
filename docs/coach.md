@@ -702,6 +702,11 @@ comparisons require twenty settlements in the exact same context. These
 showing observed mismatches, without inferring played-card errors, thoughts,
 mastery, or ordinary-game strategic weaknesses. Counting stays separate.
 
+A separate review section shows the number and classification of selected
+moments per topic, including incomplete reviews and descriptive ten-moment
+windows when available. These selected moments are not all opportunities or
+ordinary-play error rates; counting answers remain independent.
+
 ## Null opening lead (#176)
 
 The [bounded opening-lead dialogue](guided-dialogue.md#null-opening-lead-176)
