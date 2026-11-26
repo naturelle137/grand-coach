@@ -641,8 +641,8 @@ packaged lifecycle, release or completion of #131 is claimed.
 catalogue mechanism. Eligibility requires Spiel, a non-Ouvert Null contract,
 the own valid turn as declarer, exactly two contiguous public trick cards
 with a consistent leader/acting seat, at least two pure legal card actions
-and at least one current loser. Initial deal seat is irrelevant. Defenders
-(including declarer ahead), leads/early seats, Ouvert, no-loser, single-card,
+and at least one current loser (the [no-loser case](#null-declarer-last-with-no-losing-card-131) is separate). Initial deal seat is irrelevant. Defenders
+(including declarer ahead), leads/early seats, Ouvert, single-card,
 mixed/call-only and absent/inconsistent contract/turn/declarer views keep the
 phase-specific unsupported fallback. The shared baseline is unchanged.
 
@@ -720,6 +720,25 @@ actual merged-main non-GPU regression including ignored tests and complete
 both-OS archive/hash/visual acceptance. Local technical checks establish no
 learner UAT, transfer, persistence, training, interactive Windows 11,
 packaged lifecycle, release or completion of later #131 phases.
+
+## Null declarer last with no losing card (#131)
+
+The [last-seat Null declarer dialogue](#null-declarer-last-to-the-current-trick-165)
+also covers a position where every legal card takes the trick: the declarer
+must take it, whatever is played. The same eligibility guards apply (Ouvert
+needs the matching revealed hand); the second seat with no loser stays
+unsupported. The explanation names only the shared rule: with no loser Easy
+chooses the lowest-cost legal card (fewer Augen, then lower Null rank, first
+exact tie in legal order). Candidates are all legal cards; each remains
+playable and takes the trick. It claims nothing about unseen cards or the
+game result.
+
+Evidence: `guided_null_last` (fixture `no-loser`, hidden-view invariance,
+Ouvert variant), app test
+`null_last_forced_take_guides_cheapest_card_with_every_card_playable`, and
+the `guided-null-fixture-no-loser-rule-{de,en}` component views from
+`null-last.json` (DE/EN, wide/narrow). The fixture JSON is checked against
+actual Session output; it is not ordinary-route or human-learning evidence.
 
 ## Null declarer acting second (#169)
 
