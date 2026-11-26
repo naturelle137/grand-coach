@@ -297,3 +297,34 @@ fn farbspiel_ouvert_declarer_lead_without_master_or_trumpf_is_the_lowest_card() 
     restricted.legal_actions.pop();
     assert!(lesson(&restricted).is_none());
 }
+
+#[test]
+fn farbspiel_ouvert_later_defender_lead_without_master_is_the_lowest_card() {
+    // Herz Ouvert Hand, MH declares: after VH C7, MH CQ the defender HH trumps
+    // with H7, wins and leads again. Without a side-suit master Easy leads its
+    // lowest Trumpf H8; the revealed MH hand is consistent.
+    let deal = Deal::new(
+        [
+            cards("C7 C8 C9 S7 S8 S9 D7 D8 D9 DT"),
+            cards("CA CT CK CQ SA ST SK SQ DA DK"),
+            cards("H7 H8 H9 HA HT HK HQ HJ CJ SJ"),
+        ],
+        cards("DQ DJ"),
+    )
+    .unwrap();
+    let play = ["C7", "CQ", "H7"];
+    let g = contract_position(deal, Seat::Mittelhand, hand_game(HERZ, true), &play);
+    let v = g.view(Seat::Hinterhand);
+    let l = lesson(&v).expect("Farbspiel Ouvert later lead fallback lesson");
+    assert_eq!(l.rule.branch, Branch::Fallback);
+    assert_eq!(l.rule.card, card("H8"));
+    // The seats that are not on turn get no lesson.
+    assert!(lesson(&g.view(Seat::Vorhand)).is_none());
+    assert!(lesson(&g.view(Seat::Mittelhand)).is_none());
+    let mut restricted = v.clone();
+    restricted.legal_actions.pop();
+    assert!(lesson(&restricted).is_none());
+    let mut missing = v.clone();
+    missing.declarer_cards = None;
+    assert!(lesson(&missing).is_none());
+}

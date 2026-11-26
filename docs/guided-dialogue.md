@@ -1612,4 +1612,6 @@ fixtured by `farbspiel_ouvert_defender_lead_without_master_is_the_lowest_card`
 with the same view-invariance and rejection checks. The Farbspiel Ouvert declarer lead
 (no Trumpf, no master) is fixtured by
 `farbspiel_ouvert_declarer_lead_without_master_or_trumpf_is_the_lowest_card`.
+A later defender lead after winning a trick (Herz Ouvert, lowest Trumpf) is fixtured by
+`farbspiel_ouvert_later_defender_lead_without_master_is_the_lowest_card`.
 These checks do not establish learning efficacy.
