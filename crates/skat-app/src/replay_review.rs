@@ -228,6 +228,8 @@ pub(crate) struct ReviewState {
     requested: bool,
     end: Option<ReviewEnd>,
     outstanding: Option<ReviewKey>,
+    /// The ended review's moments were already handed out for persistence.
+    taken: bool,
     /// Per decision, the outcome computed with the coach's current budget.
     results: Vec<Option<Result<Box<ReplayComment>, Unavailable>>>,
 }
@@ -353,6 +355,24 @@ impl ReplayCoach {
         if self.review.running() {
             self.review.stop(ReviewEnd::TimeLimit);
         }
+    }
+
+    /// The classified moments of an ended review, once per review run, for
+    /// the learning history (#13). `None` while running, before a request
+    /// or after it was taken.
+    pub fn take_review_record(&mut self) -> Option<crate::StrategicReview> {
+        if self.review.taken {
+            return None;
+        }
+        let ReviewStatus::Done(summary) = self.review_status() else {
+            return None;
+        };
+        self.review.taken = true;
+        Some(crate::StrategicReview {
+            recording: crate::strategic::recording_fingerprint(&self.recording),
+            exhaustive: summary.exhaustive(),
+            moments: summary.moments.iter().map(Into::into).collect(),
+        })
     }
 
     /// Sets the learning focus moments are selected with (D-58). The focus

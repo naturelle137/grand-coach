@@ -1194,3 +1194,12 @@ guided-null-defender-lead-limit = Both replies are unknown. This heuristic guara
 guided-feed-ouvert-view = The declarer's hand is open. Easy chooses from your legal cards and the current trick; the open hand does not change this rule.
 guided-null-ouvert-defender-lead-role = You defend in Null Ouvert and lead. The declarer's hand is visible; your partner's hand is concealed.
 guided-null-ouvert-defender-lead-limit = The visible hand does not determine either reply. This heuristic guarantees neither the trick nor the game.
+
+strategic-title = Reviewed moves: classification of the selected moments
+strategic-limits = Only the at most three moments a review selected per recording are counted. They are neither frequencies nor error rates of your play and no evidence of skill or learning effect.
+strategic-empty = No reviewed recording in this history yet.
+strategic-reviews = Reviews { $reviews } (of these incomplete { $partial }) · moments { $moments }
+strategic-counts = Decided well { $good } · weaker choice { $bad } · neither { $neutral }
+strategic-sparse = Fewer than 20 moments of this topic: no comparison yet.
+strategic-earlier = Earlier 10 moments of this topic
+strategic-recent = Latest 10 moments: descriptive comparison, no evidence of a learning effect
