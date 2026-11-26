@@ -581,6 +581,40 @@ model remains unshipped, the existing rule and Classic fallback stay in place,
 and the outcome-label pilot remains postponed. Commands, model and logs are
 retained locally in `grand-coach-data/studies/2026-11-22-preplay-74/`.
 
+#### Drücken-specific loss weight (#74)
+
+New opt-in `train --all-phases --discard-weight X` (default 1, omitted from
+the recipe then) multiplies the policy loss of Drücken rows only, on top of
+`--preplay-weight`. Measured 2026-11-26 on this PC (CPU, nice 10, 1,412 s):
+the W = 4, R = 2 recipe above with `--discard-weight 4`, same three datasets,
+4×384, six epochs, seed 0 (`best epoch 6`). Unshipped model SHA-256
+`b1a2c6365e37c5e5f9de5198e54d7ff970554e3d0bc8c10dae540ed33b33af54`.
+Test agreement with the teacher (correct/rows), against W = 4 / R = 2:
+
+| Phase | W = 4, R = 2 | + `--discard-weight 4` |
+|---|---:|---:|
+| Reizen (23,034) | 96.35 % | 96.10 % |
+| Hand/pickup (2,827) | 99.65 % | 99.61 % |
+| Drücken (2,815) | 81.03 % | **86.68 %** (2,440) |
+| Ansage (2,827) | 92.61 % | 91.48 % |
+| Card play (84,803) | 74.15 % | 73.47 % |
+| All (120,273) | – | 79.88 % |
+
+Validation Drücken agreement is 87.01 % (2,445/2,810). The joint-pair
+agreement thus rises by 5.7 points (+7.1 points over plain W = 4) at the cost
+of about 0.3–0.7 points on other phases. Complete games
+(`calibrate validation nn:D4/model.gcnn@easy strong 200 4 10000`, 1,200 games,
+existing Kontra rule): A − B -18.02 per seat-game, 95 % interval
+[-22.29, -13.75], against -16.99 [-20.83, -13.15] for W = 4, R = 2 on the
+same deals. The intervals overlap, so no ordering is claimed; the model is
+still clearly weaker than Strong. A won 69.1 % of 601 declarer games (Strong
+88.6 % of 599) at 24.5 versus 70.1 points per declarer game; Reizen
+rates match Strong (Pass 23.7 % vs 23.9 %). Teacher agreement on Drücken
+does not translate into strength here, so the remaining gap lies in card
+play and in how declared games are played. One seed and one 200-deal sample.
+Nothing is shipped; Classic stays the default and #74 stays open. Raw output:
+`grand-coach-data/studies/2026-11-26-discard-74/`.
+
 #### Kontra/Re behavioural evidence for W = 4 (#74)
 
 On 2026-11-22, the current `evaluate` and `calibrate` tools at commit

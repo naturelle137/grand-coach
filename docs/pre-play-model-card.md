@@ -103,6 +103,15 @@ with learned Kontra/Re. See [the experiment](ai.md#lower-rare-class-weight-exper
 for denominators, behavioural rates and limitations. The source Kontra labels
 remain extreme, and neither model is established as suitable for integration.
 
+## Drücken-specific loss weight
+
+With `--discard-weight 4` on top of W = 4, R = 2 the held-out Drücken
+agreement is 86.68 % (2,815 test views; 81.03 % without). Complete games
+against Strong scored -18.02 points per seat-game (95 % interval
+[-22.29, -13.75]), not distinguishable from the W = 4, R = 2 model. Model
+SHA-256 `b1a2c6365e37c5e5f9de5198e54d7ff970554e3d0bc8c10dae540ed33b33af54`,
+local and unshipped; see [the measurement](ai.md#drücken-specific-loss-weight-74).
+
 ### Synthetic announcement positions
 
 `cargo run --locked -p nn-train --example rare_positions -- 7 100` emits

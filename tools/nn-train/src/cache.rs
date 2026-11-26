@@ -58,6 +58,7 @@ struct KeyInput<'a> {
     all_phases: bool,
     preplay_weight: u32,
     rare_weight: u32,
+    discard_weight: u32,
     hand_opportunity_weight: u32,
     announcement_opportunity_weight: u32,
     hand_weight: u32,
@@ -116,6 +117,7 @@ pub fn key(sources: &[DataSource], hyper: &Hyper, beliefs: bool) -> String {
         all_phases: hyper.all_phases,
         preplay_weight: hyper.preplay_weight.to_bits(),
         rare_weight: hyper.rare_weight.to_bits(),
+        discard_weight: hyper.discard_weight.to_bits(),
         hand_opportunity_weight: hyper.hand_opportunity_weight.to_bits(),
         announcement_opportunity_weight: hyper.announcement_opportunity_weight.to_bits(),
         hand_weight: hyper.hand_weight.to_bits(),
@@ -409,6 +411,9 @@ mod class_weight_tests {
     fn class_weights_change_the_cache_key() {
         let base = Hyper::default();
         let mut changed = base.clone();
+        changed.discard_weight = 2.0;
+        assert_ne!(key(&[], &base, false), key(&[], &changed, false));
+        changed = base.clone();
         changed.hand_opportunity_weight = 2.0;
         assert_ne!(key(&[], &base, false), key(&[], &changed, false));
         changed = base.clone();
