@@ -350,6 +350,12 @@ fn content(
         if rule.branch == GuidedBranch::UnderPartner && table.contract.is_some_and(|c| c.ouvert) {
             ui.label(i.t("guided-under-ouvert"));
         }
+        if rule.branch == GuidedBranch::Fallback
+            && g.lead.is_some()
+            && table.contract.is_some_and(|c| c.ouvert)
+        {
+            ui.label(i.t("guided-lead-fallback-ouvert"));
+        }
         if let Some(condition) = g.early_condition {
             ui.label(i.t(match condition {
                 GuidedEarlyCondition::Trumpf

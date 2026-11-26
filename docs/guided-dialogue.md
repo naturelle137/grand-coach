@@ -1601,5 +1601,10 @@ directly. The `guided_decline` fixture replays a Grand Hand declarer without
 Bube or Ace (C7 is led), checks that exchanging unseen cards leaves view and
 lesson unchanged, and rejects restricted actions and Ouvert; an app test
 observes both actual replies. The text claims neither the trick nor the game
-and says nothing about unseen cards. Ouvert leads without a master remain
-unsupported. These checks do not establish learning efficacy.
+and says nothing about unseen cards. The same fallback admits Grand Ouvert
+leads of the declarer and of a defender with the complete, consistent revealed
+declarer hand and the exact legal actions (`ouvert_lead_without_master_or_trumpf_is_the_lowest_card`,
+app test `ouvert_defender_lead_fallback_observes_the_actual_replies`); Easy's
+master test does not use the reveal, and the text says so. Missing or
+overlapping revealed cards and restricted actions stay unsupported.
+These checks do not establish learning efficacy.
