@@ -1,0 +1,156 @@
+// SPDX-License-Identifier: EUPL-1.2
+
+//! Thin, Godot-free adapter around one [`skat_app::Session`].
+//!
+//! Everything crossing the boundary is the serde form of the `skat-app` plain
+//! data types, so GDScript only moves text. Opponent moves are computed on a
+//! worker thread; each result carries the generation of the session it was
+//! computed for, so a restarted or dropped session never receives it.
+
+use std::sync::mpsc::{Receiver, Sender, channel};
+use std::thread;
+
+use serde::Serialize;
+use skat_app::{AppError, Cancel, Command, OpponentMove, Session, SessionConfig};
+
+/// Structured failure at the boundary, serialised as `{"error": ...}`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub enum AdapterError {
+    /// Command or configuration text was not valid for its data type.
+    Invalid(String),
+    /// The configuration is not allowed (e.g. an unavailable engine).
+    Config,
+    /// `skat-app` rejected the command; the session is unchanged.
+    App(AppError),
+}
+
+impl AdapterError {
+    /// JSON text `{"error": ...}` handed to the frontend.
+    pub fn to_json(&self) -> String {
+        #[derive(Serialize)]
+        struct Wrapper<'a> {
+            error: &'a AdapterError,
+        }
+        serde_json::to_string(&Wrapper { error: self }).expect("plain data serialises")
+    }
+}
+
+struct Computed {
+    generation: u64,
+    mv: OpponentMove,
+}
+
+/// One session plus its asynchronous opponent computation.
+pub struct Adapter {
+    session: Session,
+    generation: u64,
+    cancel: Cancel,
+    sender: Sender<Computed>,
+    receiver: Receiver<Computed>,
+    in_flight: bool,
+}
+
+impl Drop for Adapter {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+    }
+}
+
+fn parse_config(json: &str) -> Result<Session, AdapterError> {
+    let config: SessionConfig =
+        serde_json::from_str(json).map_err(|e| AdapterError::Invalid(e.to_string()))?;
+    Session::try_new(config).map_err(|_| AdapterError::Config)
+}
+
+impl Adapter {
+    /// Starts a session from a serialised [`SessionConfig`].
+    pub fn new(config_json: &str) -> Result<Adapter, AdapterError> {
+        let session = parse_config(config_json)?;
+        let (sender, receiver) = channel();
+        Ok(Adapter {
+            session,
+            generation: 0,
+            cancel: Cancel::new(),
+            sender,
+            receiver,
+            in_flight: false,
+        })
+    }
+
+    /// Replaces the session. Running work is cancelled and its result can no
+    /// longer reach the new session. On error the old session stays.
+    pub fn restart(&mut self, config_json: &str) -> Result<(), AdapterError> {
+        let session = parse_config(config_json)?;
+        self.cancel.cancel();
+        self.cancel = Cancel::new();
+        self.generation += 1;
+        let (sender, receiver) = channel();
+        self.sender = sender;
+        self.receiver = receiver;
+        self.in_flight = false;
+        self.session = session;
+        Ok(())
+    }
+
+    /// Generation of the current session; changes on every restart.
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// The human's permitted view as JSON (`TableView`).
+    pub fn view_json(&self) -> String {
+        serde_json::to_string(&self.session.view()).expect("plain data serialises")
+    }
+
+    /// Executes a serialised [`Command`]; returns the events as JSON.
+    pub fn execute_json(&mut self, command_json: &str) -> Result<String, AdapterError> {
+        let command: Command =
+            serde_json::from_str(command_json).map_err(|e| AdapterError::Invalid(e.to_string()))?;
+        let events = self.session.execute(command).map_err(AdapterError::App)?;
+        Ok(serde_json::to_string(&events).expect("plain data serialises"))
+    }
+
+    /// Starts computing the pending opponent move on a worker thread.
+    /// Returns `false` if no opponent is to move or work is already running.
+    pub fn start_opponent(&mut self) -> bool {
+        if self.in_flight {
+            return false;
+        }
+        let Some(job) = self.session.opponent_job() else {
+            return false;
+        };
+        let (generation, cancel, sender) =
+            (self.generation, self.cancel.clone(), self.sender.clone());
+        self.in_flight = true;
+        thread::spawn(move || {
+            let mv = job.run(Some(&cancel));
+            // The receiver is gone after a restart or drop: nothing to do.
+            let _ = sender.send(Computed { generation, mv });
+        });
+        true
+    }
+
+    /// Applies a finished opponent move, if any. Stale results are dropped.
+    /// Returns the events as JSON, or `None` if nothing was applied.
+    pub fn poll_opponent(&mut self) -> Result<Option<String>, AdapterError> {
+        let Ok(done) = self.receiver.try_recv() else {
+            return Ok(None);
+        };
+        self.in_flight = false;
+        if done.generation != self.generation {
+            return Ok(None);
+        }
+        match self.session.finish_opponent(done.mv) {
+            Ok(events) => Ok(Some(
+                serde_json::to_string(&events).expect("plain data serialises"),
+            )),
+            Err(AppError::StaleOpponentMove | AppError::NoOpponentToMove) => Ok(None),
+            Err(e) => Err(AdapterError::App(e)),
+        }
+    }
+
+    /// `true` while an opponent computation has not been collected.
+    pub fn busy(&self) -> bool {
+        self.in_flight
+    }
+}
