@@ -42,6 +42,31 @@ Back up before upgrading; older history formats migrate on the next save.
 Uninstalling keeps history and recordings; delete them separately to remove
 personal data.
 
+## Candidate evidence
+
+Dispatched on `main` at commit `676bb65a95839fa1dbd593f34ff01ff4077891ab`
+(workflow runs of 2026-11-26; later commits are not covered):
+
+| Evidence | Result |
+|----------|--------|
+| [CI run 45742979009](https://github.com/naturelle137/grand-coach/actions/runs/45742979009) | `complete` suites on Ubuntu and Windows, `native`, both `screenshots` jobs, `msrv`, `portable`, `lint` and `ci-ok` succeeded; `regression` and `deep` were skipped |
+| [RC packages run 45742982522](https://github.com/naturelle137/grand-coach/actions/runs/45742982522) | Ubuntu 24.04 and Windows 2025 jobs succeeded |
+| Linux archive `grand-coach-0.1.0-rc-676bb65a9583-x86_64-unknown-linux-gnu.tar.gz` | SHA-256 `59a5ce7cbb24328ee31057569fe888abdc69c397c503a58fa7d8c9521ca1a69a`; `smoke.json` result `passed`, also in the clean-runtime container; network isolation not verified |
+| Windows archive `grand-coach-0.1.0-rc-676bb65a9583-x86_64-pc-windows-msvc.zip` | SHA-256 `f297b396644620bd63b160ce8871a4a9a934510a209206569df8f3dc17b7c323`; `smoke.json` result `passed` with program-scoped outbound Firewall block verified by a curl canary |
+
+The manifests were written before the smoke and still list `native-smoke` and
+`network-isolation` as `not run`; the smoke results above come from the
+`smoke.json` files of the same runs. The CI `complete` jobs did not run the
+`regression` or `deep` tiers.
+
+Not evidenced by these runs, and therefore unclaimed: interactive play and
+widget-click flows of the packages, a clean OS or Windows 11 install,
+target-hardware latency and RSS, learner comprehension, learning efficacy and
+transfer, and the acceptance review of [modern egui #134](https://github.com/naturelle137/grand-coach/issues/134),
+which was not assessed here. The release test plan rows on presentation,
+live coach, Live Abstich, lessons/review, opponents and full game flows
+remain open beyond what the smoke and the `complete`/screenshot jobs cover.
+
 ## Known limitations
 
 - **Learning is unobserved.** Human comprehension, learning efficacy and
