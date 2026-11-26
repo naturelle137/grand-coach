@@ -405,8 +405,7 @@ fn unsupported_and_single_choice_have_no_rule_and_final_series_allows_observatio
 }
 
 #[test]
-fn unsupported_card_turn_preserves_each_legal_choice() {
-    // Second-seat declarer with no loser stays unsupported (only last is guided).
+fn supported_no_loser_turn_preserves_each_legal_choice() {
     let case = middle_fixture::cases()
         .into_iter()
         .find(|case| case.id == "no-loser")
@@ -418,7 +417,7 @@ fn unsupported_card_turn_preserves_each_legal_choice() {
     assert!(actions.len() > 1);
     s.execute(Command::StartGuided).unwrap();
     let g = s.guided().unwrap();
-    assert_eq!(g.step, S::Unsupported);
+    assert_eq!(g.step, S::Orient);
     assert!(g.rule.is_none() && g.memory.is_none() && g.figures.is_none());
     for action in actions {
         let mut choice = s.clone();
@@ -3217,6 +3216,75 @@ fn null_middle_every_candidate_and_continuation_observes_actual_third_winner() {
 }
 
 #[test]
+fn null_middle_no_loser_guides_and_observes_every_legal_continuation() {
+    for ouvert in [false, true] {
+        let mut c = middle_fixture::cases()
+            .into_iter()
+            .find(|c| c.id == "no-loser")
+            .unwrap();
+        if ouvert {
+            for action in &mut c.history {
+                if let Action::Announce(a) = action {
+                    a.ouvert = true;
+                }
+            }
+        }
+        for &(candidate, third, winner) in &c.completions {
+            let mut s = middle_fixture_session(&c);
+            let before = s.view();
+            s.execute(Command::StartGuided).unwrap();
+            respond(&mut s, G::Answer(A::Seat(Some(Seat::Vorhand)))).unwrap();
+            respond(&mut s, G::Answer(A::Seat(Some(Seat::Hinterhand)))).unwrap();
+            assert!(s.guided().unwrap().null_forced);
+            respond(&mut s, G::Answer(A::Card(middle_fixture::card(candidate)))).unwrap();
+            assert_eq!(s.guided().unwrap().correct, Some(candidate == 4));
+            if candidate != 4 {
+                respond(&mut s, G::Reveal).unwrap();
+            }
+            assert_eq!(s.guided().unwrap().rule, c.expected);
+            assert_eq!(s.view().legal_actions, before.legal_actions);
+            s.execute(Command::Act(Action::Play(middle_fixture::card(candidate))))
+                .unwrap();
+            s.apply(Action::Play(middle_fixture::card(third))).unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().observation.unwrap().winner,
+                Some(winner)
+            );
+        }
+    }
+}
+
+#[test]
+fn null_middle_no_loser_can_be_overtaken_by_last_defender() {
+    let mut c = middle_fixture::cases()
+        .into_iter()
+        .find(|c| c.id == "no-loser")
+        .unwrap();
+    c.deal = skat_core::Deal::new(
+        [
+            middle_fixture::set(&[0, 5, 10, 11, 12, 13, 18, 19, 26, 27]),
+            middle_fixture::set(&[1, 3, 4, 6, 8, 9, 16, 17, 24, 25]),
+            middle_fixture::set(&[2, 7, 14, 15, 20, 21, 22, 23, 28, 29]),
+        ],
+        middle_fixture::set(&[30, 31]),
+    )
+    .unwrap();
+    let mut s = middle_fixture_session(&c);
+    s.execute(Command::StartGuided).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    assert!(s.guided().unwrap().rule.as_ref().unwrap().losers.is_empty());
+    s.execute(Command::Act(Action::Play(middle_fixture::card(4))))
+        .unwrap();
+    s.apply(Action::Play(middle_fixture::card(7))).unwrap();
+    respond(&mut s, G::Reveal).unwrap();
+    assert_eq!(
+        s.guided().unwrap().observation.unwrap().winner,
+        Some(Seat::Hinterhand)
+    );
+}
+
+#[test]
 fn null_ouvert_middle_dialogue_observes_the_actual_reply() {
     let mut c = middle_fixture::cases()
         .into_iter()
@@ -3364,7 +3432,7 @@ fn null_middle_fixture_widget_models_match_checked_sessions() {
             g["id"]["generation"] = 0.into();
             frames.push(serde_json::json!({"case":c.id,"stage":stage,"table":s.view(),"guided":g}));
         };
-        if !c.admitted && c.id != "ouvert" {
+        if !c.admitted && c.id != "ouvert" && c.id != "no-loser" {
             save("unsupported", &s);
             continue;
         }

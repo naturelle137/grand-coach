@@ -287,6 +287,12 @@ performed. None of these automated checks supplies human learning evidence.
 ## Null last-seat declarer technical evidence (#165)
 
 Use [the frozen oracle, discrepancy and ordinary route](guided-dialogue.md#null-declarer-last-to-the-current-trick-165).
+
+The second-seat no-loser extension uses the core-legal `no-loser` fixture in
+`guided_null_middle` and `null_middle_no_loser_guides_and_observes_every_legal_continuation`.
+It distinguishes a current winner from the final winner and checks the closed
+and Ouvert contracts. A hidden Hand-Skat substitution compares the entire
+permitted view and lesson; no hidden holder is inferred.
 The lesson `guided-null-last@1` explains the conditional shared Easy heuristic;
 current winner, following, rank and actual completed winner are exact facts,
 void is a public deduction, and requested figures remain separate estimates.
