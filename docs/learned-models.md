@@ -222,6 +222,8 @@ outcome-label experiment or evidence that double-dummy bias is resolved.
 policy loss of all rows other than plain card play; `--rare-weight R`
 additionally scales rows with a rare teacher choice (Hand, Null, Schneider/
 Schwarz/Ouvert; [measured](ai.md#rare-pre-play-classes-and-the-learned-kontrare-head-74)).
+`--discard-weight D` (default 1) additionally scales Drücken rows only, on top
+of `--preplay-weight`; [measured](ai.md#drücken-specific-loss-weight-74).
 `--hand-opportunity-weight` and `--announcement-opportunity-weight` (default 1)
 scale all policy losses where Hand or an extended announcement is legal,
 respectively, including teacher choices of other legal actions. They combine
