@@ -146,6 +146,10 @@ pub struct GuidedView {
     /// names the question type only, never a card or candidate.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub lead_trumpf: bool,
+    /// Own-lead lesson is the shared `Fallback` (no master, no Trumpf to draw):
+    /// the lowest card. Skips the master question; no card or candidate named.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub lead_fallback: bool,
     /// Actual public replies to the learner's lead, in play order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub lead_replies: Vec<skat_coach::Source>,
@@ -281,6 +285,12 @@ impl GuidedState {
         }
     }
 
+    fn lead_fallback(&self) -> bool {
+        self.lesson
+            .as_ref()
+            .is_some_and(|l| l.lead_declarer.is_some() && l.rule.branch == GuidedBranch::Fallback)
+    }
+
     fn requires_permitted_estimates(l: &Lesson) -> bool {
         l.rule.branch == GuidedBranch::Fallback
             || (matches!(l.game, skat_core::GameType::Farbe(_))
@@ -365,6 +375,7 @@ impl GuidedState {
             lead_trumpf: self.lesson.as_ref().is_some_and(|l| {
                 l.lead_declarer.is_some() && l.rule.branch == GuidedBranch::DrawTrumpf
             }),
+            lead_fallback: self.lead_fallback(),
             lead_replies: self.lead_replies.clone(),
             correct: self.correct,
             task: matches!(self.step, GuidedStep::Narrow | GuidedStep::Act)
@@ -515,6 +526,7 @@ impl GuidedState {
                         {
                             GuidedStep::Threshold
                         }
+                        GuidedStep::Orient if self.lead_fallback() => GuidedStep::Narrow,
                         GuidedStep::Orient => GuidedStep::Check,
                         GuidedStep::Check => GuidedStep::Narrow,
                         GuidedStep::Narrow | GuidedStep::Threshold => {

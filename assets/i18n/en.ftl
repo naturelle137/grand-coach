@@ -1207,3 +1207,7 @@ strategic-counts = Moments { $total } · Decided well { $good } · weaker choice
 strategic-sparse = Fewer than 20 moments of this topic: no comparison yet.
 strategic-earlier = Earlier 10 moments of this topic
 strategic-recent = Latest 10 moments: descriptive comparison, no evidence of a learning effect
+guided-lead-fallback-attempt = Easy finds no side-suit card without a higher unseen card and has no own Trumpf left to draw. Which legal card is lowest by nontrump, fewer Augen and lower rank?
+guided-lead-fallback-definition = A lead card starts the trick ahead. Your own higher cards do not block a master; this view counts only your hand and the cards already played.
+guided-lead-fallback-risk = Easy's choice here is a heuristic. It says nothing about unseen cards and guarantees neither the trick nor the game.
+guided-rule-lead-fallback = You lead and no legal side-suit card is a master by the counted cards, and no Trumpf is left to draw. Easy leads the lowest legal card: nontrump first, then fewer Augen and lower rank; the first exact tie. This guarantees neither the trick nor the game; every legal card remains playable.

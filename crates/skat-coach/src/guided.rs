@@ -412,6 +412,9 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                     && view.declarer == Some(view.seat)
                     && game.is_trump(rule.card)
             }
+            // No side-suit master and no Trumpf to draw: Easy leads the lowest
+            // card. Non-Ouvert only; a defender or the declarer can reach it.
+            Branch::Fallback => !contract.ouvert,
             _ => false,
         };
         if !admitted {

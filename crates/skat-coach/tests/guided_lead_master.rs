@@ -21,6 +21,13 @@ fn lead_master_whole_lesson_role_master_attempt_and_memory() {
             assert!(l.is_some(), "{}", c.id);
             continue;
         }
+        // Non-Ouvert Fallback leads are admitted (guided_decline.rs).
+        if c.expected.branch == skat_analysis::baseline::Branch::Fallback
+            && !v.contract.is_some_and(|k| k.ouvert)
+        {
+            assert_eq!(l.is_some(), v.legal_actions.len() >= 2, "{}", c.id);
+            continue;
+        }
         assert_eq!(l.is_some(), c.admitted(), "{}", c.id);
         if !c.admitted() {
             continue;

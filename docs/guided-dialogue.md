@@ -1569,8 +1569,8 @@ The app test observes the actual continuation. The text states the heuristic's
 condition only; it claims neither the trick nor the game. The ordinary
 bilingual egui route is `decline_walkthrough`. The non-Ouvert declarer acting second
 in Grand or Farbspiel has the matching [fallback](#declarer-decline-fallback-131):
-the opponent's lead stays untaken. The declarer's lead without a master stays
-unsupported. The same
+the opponent's lead stays untaken. The own [lead without a master](#lead-fallback-131)
+has its own fallback. The same
 fallback also admits an Ouvert defender acting second after the declarer's lead
 in Farbspiel or Grand, with the complete, consistent revealed declarer hand and
 the exact legal actions. Core-replayed fixtures test both contracts and reject
@@ -1587,6 +1587,19 @@ follow-class master, gets Easy's `Fallback`: it keeps the lowest legal card by
 opponent's lead as currently ahead, one player still following, and make no
 claim about unseen cards, the trick or the game. Core-replayed Grand and Herz
 fixtures test the expected card, rejection of restricted actions and of a
-revealed hand; an app test covers both roles. A single legal card, Ouvert and
-the declarer's lead without a master remain unsupported. These checks do not
+revealed hand; an app test covers both roles. A single legal card and Ouvert remain unsupported. These checks do not
 establish learning efficacy.
+
+## Lead fallback (#131)
+
+A non-Ouvert Farbspiel or Grand player leading an empty trick, with no
+side-suit follow-class master and (for the declarer) no own Trumpf left to
+draw, gets Easy's `Fallback`: the lowest legal card by `(is_trump, Augen,
+power)`, first exact tie. Orientation asks only the role; the master question
+is skipped because no master exists, and the learner attempts the lowest card
+directly. The `guided_decline` fixture replays a Grand Hand declarer without
+Bube or Ace (C7 is led), checks that exchanging unseen cards leaves view and
+lesson unchanged, and rejects restricted actions and Ouvert; an app test
+observes both actual replies. The text claims neither the trick nor the game
+and says nothing about unseen cards. Ouvert leads without a master remain
+unsupported. These checks do not establish learning efficacy.
