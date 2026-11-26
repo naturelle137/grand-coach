@@ -11,7 +11,7 @@ and measured results. Classic stays the default. The new
 
 | Item | Value |
 |------|-------|
-| Intended phases | Reizen, Hand/pickup, Drücken (joint pair, 66 legal pairs of 496 indices), Ansage; Kontra/Re only as analysed teacher decisions |
+| Shipped decisions | Reizen, Hand/pickup, Drücken (joint pair, 66 legal pairs of 496 indices), Ansage and card play; Kontra/Re use Classic rules |
 | Encoder / head | shared v2 encoder (634 permitted-view features), 621-action policy head; `train --all-phases` ([tooling](learned-models.md#all-phase-imitation-preparation-74)) |
 | Teacher | Strong profile of #70 records; pre-play labels are the shared Classic rules of `skat-analysis` |
 | Input | the acting seat's `PlayerView` only |
@@ -57,6 +57,13 @@ fallback, with one `BudgetExhausted`. Counts describe recorded teacher output,
 not independent reproduction of each choice or proof of its strategic quality.
 The extreme Kontra rate agrees with the known D-40 concern and does not justify
 shipping a model trained on these labels without separate assessment.
+
+Learned Kontra/Re is postponed: the retained labels are degenerate, the
+shipped candidate selects Kontra on every test offer, and the current-teacher
+pilot lacks representative split coverage and produced an unsuitable candidate.
+Representative teacher assessment, suitable labels and complete-game evaluation
+remain necessary under the existing training and arena holds. The experimental
+engine therefore does not yet provide a fully learned opponent.
 
 `validate-labels` reports Kontra and Re positive and negative labels, incomplete
 analyses, fallbacks and missing option lists separately for each deal split.
