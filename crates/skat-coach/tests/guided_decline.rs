@@ -187,10 +187,53 @@ fn declarer_lead_without_master_or_trumpf_is_the_lowest_card() {
     let w = contract_position(other, Seat::Vorhand, hand_game(GameType::Grand, false), &[])
         .view(Seat::Vorhand);
     assert_eq!((&w, lesson(&w)), (&v, Some(l)));
-    // Restricted actions, Ouvert and a revealed hand stay unsupported.
+    // Restricted actions stay unsupported; Ouvert is covered separately.
     let mut restricted = v.clone();
     restricted.legal_actions.pop();
     assert!(lesson(&restricted).is_none());
-    let o = contract_position(deal, Seat::Vorhand, hand_game(GameType::Grand, true), &[]);
-    assert!(lesson(&o.view(Seat::Vorhand)).is_none());
+}
+
+#[test]
+fn ouvert_lead_without_master_or_trumpf_is_the_lowest_card() {
+    // Grand Ouvert: the declarer VH (own hand revealed) and the defender VH
+    // against a revealed MH both lead C7; Easy's master test ignores the reveal.
+    let deal = Deal::new(
+        [
+            cards("C7 C8 C9 S7 S8 H7 H8 D7 D8 D9"),
+            cards("CA CT CK CQ CJ SA ST SK SQ SJ"),
+            cards("S9 HA HT HK HQ HJ H9 DA DT DK"),
+        ],
+        cards("DQ DJ"),
+    )
+    .unwrap();
+    for declarer in [Seat::Vorhand, Seat::Mittelhand] {
+        let g = contract_position(deal, declarer, hand_game(GameType::Grand, true), &[]);
+        let v = g.view(Seat::Vorhand);
+        let l = lesson(&v).expect("Ouvert lead fallback lesson");
+        assert_eq!(l.rule.branch, Branch::Fallback);
+        assert_eq!(l.rule.card, card("C7"));
+        assert!(l.check(
+            Step::Orient,
+            Answer::Lead {
+                seat: Seat::Vorhand,
+                declarer: declarer == Seat::Vorhand
+            }
+        ));
+        // Hidden cards may be exchanged without changing the view or the lesson.
+        let other = swap(deal, card("S9"), card("DQ"));
+        let w = contract_position(other, declarer, hand_game(GameType::Grand, true), &[])
+            .view(Seat::Vorhand);
+        assert_eq!((&w, lesson(&w)), (&v, Some(l)));
+        let mut restricted = v.clone();
+        restricted.legal_actions.pop();
+        assert!(lesson(&restricted).is_none());
+        if declarer != Seat::Vorhand {
+            let mut missing = v.clone();
+            missing.declarer_cards = None;
+            assert!(lesson(&missing).is_none());
+            let mut overlap = v.clone();
+            overlap.declarer_cards = Some(v.hand);
+            assert!(lesson(&overlap).is_none());
+        }
+    }
 }

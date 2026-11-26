@@ -1211,3 +1211,4 @@ guided-lead-fallback-attempt = Easy findet keine Beikarte ohne höhere unbekannt
 guided-lead-fallback-definition = Eine Ausspielkarte liegt zuerst vorn. Eigene höhere Karten blockieren keinen Master; diese Sicht zählt nur die eigene Hand und bereits gespielte Karten.
 guided-lead-fallback-risk = Easys Wahl ist hier eine Heuristik. Sie sagt nichts über unbekannte Karten und garantiert weder den Stich noch das Spiel.
 guided-rule-lead-fallback = Du spielst aus, keine legale Beikarte ist nach den gezählten Karten ein Master, und es gibt keinen Trumpf mehr zu ziehen. Easy spielt die niedrigste legale Karte aus: erst Nicht-Trumpf, dann weniger Augen und niedrigerer Rang; die erste exakte Gleichheit. Das garantiert weder den Stich noch das Spiel; jede legale Karte bleibt spielbar.
+guided-lead-fallback-ouvert = Die Hand des Alleinspielers liegt offen. Easys Regel nutzt sie für dieses Ausspiel nicht; prüfe selbst, welche Karten noch bedienen können.
