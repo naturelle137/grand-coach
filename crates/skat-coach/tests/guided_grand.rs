@@ -750,7 +750,29 @@ fn ouvert_defender_under_partner_uses_shared_rule_and_revealed_view() {
         rule(&fallback.view(Seat::Mittelhand)).unwrap().branch,
         Branch::Fallback
     );
-    assert!(lesson(&fallback.view(Seat::Mittelhand)).is_none());
+    let fv = fallback.view(Seat::Mittelhand);
+    let l = lesson(&fv).unwrap();
+    assert_eq!(l.rule.branch, Branch::Fallback);
+    assert!(l.rule.losers.is_empty());
+    assert_eq!(l.rule.card, card("CK"));
+    assert!(l.check(Step::Narrow, Answer::Card(card("CK"))));
+    assert!(!l.check(Step::Narrow, Answer::Card(card("CT"))));
+    let swapped = contract_position(
+        swap(no_loser, card("H8"), card("DK")),
+        Seat::Hinterhand,
+        hand_game(GRAND, true),
+        &["C9"],
+    );
+    assert_eq!(fv, swapped.view(Seat::Mittelhand));
+    for edit in [
+        (|v: &mut skat_core::PlayerView| v.declarer_cards = None) as fn(&mut skat_core::PlayerView),
+        |v| v.declarer_cards = Some(v.hand),
+        |v| v.legal_actions.pop().map(drop).unwrap_or(()),
+    ] {
+        let mut bad = fv.clone();
+        edit(&mut bad);
+        assert!(lesson(&bad).is_none());
+    }
 }
 
 #[test]
@@ -815,5 +837,27 @@ fn ouvert_suit_defender_under_partner_checks_revealed_view() {
         rule(&fallback.view(Seat::Mittelhand)).unwrap().branch,
         Branch::Fallback
     );
-    assert!(lesson(&fallback.view(Seat::Mittelhand)).is_none());
+    let fv = fallback.view(Seat::Mittelhand);
+    let l = lesson(&fv).unwrap();
+    assert_eq!(l.rule.branch, Branch::Fallback);
+    assert!(l.rule.losers.is_empty());
+    assert_eq!(l.rule.card, card("CK"));
+    assert!(l.check(Step::Narrow, Answer::Card(card("CK"))));
+    assert!(!l.check(Step::Narrow, Answer::Card(card("CT"))));
+    let swapped = contract_position(
+        swap(no_loser, card("H8"), card("DK")),
+        Seat::Hinterhand,
+        hand_game(GameType::Farbe(Suit::Herz), true),
+        &["C9"],
+    );
+    assert_eq!(fv, swapped.view(Seat::Mittelhand));
+    for edit in [
+        (|v: &mut skat_core::PlayerView| v.declarer_cards = None) as fn(&mut skat_core::PlayerView),
+        |v| v.declarer_cards = Some(v.hand),
+        |v| v.legal_actions.pop().map(drop).unwrap_or(()),
+    ] {
+        let mut bad = fv.clone();
+        edit(&mut bad);
+        assert!(lesson(&bad).is_none());
+    }
 }
