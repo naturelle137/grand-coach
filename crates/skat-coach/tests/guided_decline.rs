@@ -20,6 +20,27 @@ fn plays(cards: &[&str]) -> Vec<Action> {
 }
 
 #[test]
+fn ouvert_defender_declines_with_a_consistent_revealed_hand() {
+    for game in [GameType::Grand, HERZ] {
+        let g = contract_position(deal(), Seat::Vorhand, hand_game(game, true), &["C9"]);
+        let v = g.view(Seat::Mittelhand);
+        let l = lesson(&v).expect("Ouvert decline lesson");
+        assert_eq!(l.rule.branch, Branch::Fallback);
+        assert_eq!(l.rule.card, card("C7"));
+        assert_eq!(l.rule.candidates, vec![card("C7"), card("C8")]);
+        let mut missing = v.clone();
+        missing.declarer_cards = None;
+        assert!(lesson(&missing).is_none());
+        let mut overlap = v.clone();
+        overlap.declarer_cards = Some(v.hand);
+        assert!(lesson(&overlap).is_none());
+        let mut restricted = v.clone();
+        restricted.legal_actions.pop();
+        assert!(lesson(&restricted).is_none());
+    }
+}
+
+#[test]
 fn second_seat_defender_keeps_a_loser_under_the_declarer_in_grand_and_farbspiel() {
     // VH declarer leads C9; MH's only overtaking card CT is no master (CA, CK,
     // CQ unseen) and no Trumpf, so Easy keeps the lowest loser C7 (C8 ties on

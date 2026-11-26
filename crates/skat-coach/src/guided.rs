@@ -105,7 +105,7 @@ pub struct Lesson {
 /// UnderPartner/WinLast in Farbspiel and non-Ouvert Grand, plus Farbspiel and Grand Ouvert
 /// defender UnderPartner and non-Ouvert Farbspiel/Grand WinEarly and last-seat FeedPartner. Grand
 /// UnderPartner needs a defender, the partner ahead, the declarer still to act
-/// and at least one losing card; early FeedPartner (Farbspiel or Grand, including Ouvert) requires a follow-class master. A defender may also learn the partner-ahead no-loser fallback (Ouvert needs the consistent revealed hand). A non-Ouvert Farbspiel/Grand defender behind the declarer may learn the decline fallback.
+/// and at least one losing card; early FeedPartner (Farbspiel or Grand, including Ouvert) requires a follow-class master. A defender may also learn the partner-ahead no-loser fallback (Ouvert needs the consistent revealed hand). A Farbspiel/Grand defender behind the declarer may learn the decline fallback, including a guarded second-seat Ouvert case.
 /// Null: only the declarer on its own turn, opening lead or second/last to the current trick, with
 /// at least two pure card actions and at least one losing card. A defender may
 /// lead a trick, act second after either player leads, or last with the declarer ahead.
@@ -503,14 +503,18 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .map(Action::Play)
                 .collect::<Vec<_>>();
     // Declarer ahead, no overtaking card is both safe and cheap: Easy keeps the
-    // lowest card under the declarer. Non-Ouvert Farbspiel/Grand defender only.
-    let decline = (grand || suit)
-        && !contract.ouvert
+    // lowest card under the declarer. Ouvert requires a validated revealed hand.
+    let decline = (grand || suit || ouvert_grand_early)
         && view.declarer.is_some_and(|d| d != view.seat)
         && view.current_seat == Some(view.seat)
         && view.hand_game == Some(contract.hand)
         && view.own_skat.is_none()
-        && view.declarer_cards.is_none()
+        && if contract.ouvert {
+            (ouvert_grand_early || (suit_early && ouvert_suit_defender_early))
+                && view.current_trick.leader == view.declarer
+        } else {
+            view.declarer_cards.is_none()
+        }
         && match view.current_trick.cards {
             [Some(_), None, None] => view.current_trick.leader.map(Seat::next) == Some(view.seat),
             [Some(_), Some(_), None] => {
@@ -527,7 +531,9 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
     let rule = baseline::rule(view)?;
     if (ouvert_feed && rule.branch != Branch::FeedPartner)
         || (ouvert_grand_last && rule.branch != Branch::WinLast)
-        || (ouvert_grand_early && rule.branch != Branch::WinEarly)
+        || (ouvert_grand_early
+            && rule.branch != Branch::WinEarly
+            && !(decline && rule.branch == Branch::Fallback))
         || (ouvert_last && rule.branch != Branch::WinLast)
         || (contract.ouvert
             && matches!(game, GameType::Farbe(_))

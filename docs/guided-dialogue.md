@@ -1568,5 +1568,10 @@ they check that exchanging unseen cards leaves the view and lesson unchanged.
 The app test observes the actual continuation. The text states the heuristic's
 condition only; it claims neither the trick nor the game. The ordinary
 bilingual egui route is `decline_walkthrough`. The declarer's own fallbacks
-(lead without a master, declining an early winner) and Ouvert stay unsupported.
+(lead without a master, declining an early winner) stay unsupported. The same
+fallback also admits an Ouvert defender acting second after the declarer's lead
+in Farbspiel or Grand, with the complete, consistent revealed declarer hand and
+the exact legal actions. Core-replayed fixtures test both contracts and reject
+missing revealed cards and restricted actions. Other Ouvert decline positions
+remain unsupported.
 These checks do not establish learning efficacy.

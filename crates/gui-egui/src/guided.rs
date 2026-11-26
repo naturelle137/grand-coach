@@ -154,10 +154,7 @@ fn content(
         GuidedStep::Orient => "guided-orient",
         GuidedStep::Check => "guided-check",
         GuidedStep::Narrow if g.task == Some(GuidedBranch::UnderPartner) => "guided-under",
-        GuidedStep::Narrow
-            if g.task == Some(GuidedBranch::Fallback)
-                && g.rule.as_ref().is_some_and(|r| !r.partner_ahead) =>
-        {
+        GuidedStep::Narrow if g.task == Some(GuidedBranch::Fallback) && g.decline => {
             "guided-decline-attempt"
         }
         GuidedStep::Narrow if g.task == Some(GuidedBranch::Fallback) => "guided-fallback-attempt",
