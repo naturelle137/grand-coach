@@ -1637,6 +1637,14 @@ card list. `hand_declarer_last_keeps_a_loser_when_nothing_beats_the_trick`
 checks both games, a hidden-card substitution and restricted views. This is
 Easy's ordering, not a guarantee of strategic quality.
 
+The ordinary egui walkthrough uses seed 0, Easy opponents and Hand in game 2;
+the human declares either Grand or Herz and plays last under Karo-Ass. Run
+`cargo run --locked -p gui-egui --example screenshots -- OUT_DIR NAME` with
+`NAME` built as `guided-declarer-decline-{grand|herz}-{orient|narrow|rule|observed}-{de|en}`
+and optionally `-narrow`. The real widgets answer the seat and remaining-player questions, select Easy's
+Karo-Neun, play it,
+and show the actual winner. The screenshots are 1440 × 1000 or 960 × 640.
+
 The Grand or Farbspiel Ouvert declarer playing last, with no card that beats the opponents'
 winning card (Hand, own hand as the reveal, exact legal actions), can inspect
 the same fallback; it is fixtured by
