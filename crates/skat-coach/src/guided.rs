@@ -570,7 +570,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         || (ouvert_grand_early
             && rule.branch != Branch::WinEarly
             && !((decline || decline_early) && rule.branch == Branch::Fallback))
-        || (ouvert_last && rule.branch != Branch::WinLast)
+        || (ouvert_last && rule.branch != Branch::WinLast && rule.branch != Branch::Fallback)
         || (contract.ouvert
             && matches!(game, GameType::Farbe(_))
             && view.declarer == Some(view.seat)
@@ -603,6 +603,13 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 && rule.branch == Branch::Fallback
                 && !rule.partner_ahead
                 && rule.winner == view.declarer
+                && !rule.losers.is_empty())
+            // Ouvert declarer last with no card that beats the opponent's trick.
+            || (ouvert_last
+                && rule.branch == Branch::Fallback
+                && rule.last
+                && !rule.partner_ahead
+                && rule.winner.is_some_and(|w| Some(w) != view.declarer)
                 && !rule.losers.is_empty())
             || (decline_early
                 && rule.branch == Branch::Fallback
