@@ -371,6 +371,9 @@ pub fn verify(dir: &Path) -> Result<Verified, ShardError> {
     Ok(out)
 }
 
+/// Opportunities, positive labels, incomplete analyses, fallbacks and empty option lists.
+pub type DoublingCounts = (u64, u64, u64, u64, u64);
+
 /// Agreement of pre-play teacher labels with the shared Classic rules of
 /// thumb ([`validate_labels`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -386,6 +389,9 @@ pub struct LabelReport {
     /// Kontra opportunities: (total, teacher says Kontra, rule says Kontra,
     /// both say Kontra). Each opportunity is counted once.
     pub kontra: (u64, u64, u64, u64),
+    /// Kontra and Re analysis diagnostics by split: (opportunities, positive
+    /// labels, incomplete analyses, fallbacks, missing option values).
+    pub doubling_by_split: [[DoublingCounts; 2]; 3],
     /// Teacher choices and opportunities for each pre-play category.
     pub categories: [(u64, u64); 6],
     /// Category counts by deal split: train, validation, test.
@@ -398,8 +404,8 @@ pub struct LabelReport {
 /// recomputes from the stored permitted view alone. Differing labels are
 /// counted, not hidden: a legitimate teacher may deviate (for example when
 /// Strong analyses), so the caller judges the agreement. Kontra opportunities
-/// are counted separately against the Classic rule; Re and card play are
-/// otherwise outside this check.
+/// are counted separately against the Classic rule. Kontra/Re coverage and
+/// analysis diagnostics are reported by split; none establish strategic quality.
 pub fn validate_labels(dir: &Path) -> Result<LabelReport, ShardError> {
     verify(dir)?;
     let manifest = read_manifest(dir)?;
@@ -438,6 +444,19 @@ pub fn check_labels(records: &[DecisionRecord], out: &mut LabelReport) {
             ] {
                 counts.0 += u64::from(chosen);
                 counts.1 += u64::from(available);
+            }
+        }
+        for (i, action) in [Action::Kontra, Action::Re].into_iter().enumerate() {
+            if r.view.legal_actions.contains(&action) {
+                let counts = &mut out.doubling_by_split[split][i];
+                counts.0 += 1;
+                counts.1 += u64::from(r.action == action);
+                counts.2 += u64::from(matches!(
+                    r.teacher.status,
+                    Some(skat_ai::Status::BudgetExhausted | skat_ai::Status::Cancelled)
+                ));
+                counts.3 += u64::from(r.teacher.fallback);
+                counts.4 += u64::from(r.teacher.options.is_empty());
             }
         }
         if r.view.result.is_some() {
@@ -808,6 +827,46 @@ mod replay_tests {
         check_labels(&rows[i..=i], &mut bad);
         assert_eq!(bad.bad_pairs, 1);
         assert_eq!(bad.kinds[&DecisionKind::Druecken].2, 1);
+    }
+
+    #[test]
+    fn doubling_diagnostics_count_split_coverage_and_analysis_state() {
+        use crate::selfplay::Split;
+        use skat_core::Action;
+
+        let rows = parse_records(include_bytes!("../fixtures/selfplay/shard-00000.jsonl")).unwrap();
+        let kontra = rows
+            .iter()
+            .find(|r| r.view.legal_actions.contains(&Action::Kontra))
+            .expect("fixture has Kontra");
+        let re = rows
+            .iter()
+            .find(|r| r.view.legal_actions.contains(&Action::Re))
+            .expect("fixture has Re");
+        let mut a = kontra.clone();
+        a.split = Split::Train;
+        a.action = Action::Kontra;
+        a.teacher.status = Some(skat_ai::Status::BudgetExhausted);
+        a.teacher.fallback = true;
+        a.teacher.options.clear();
+        let mut b = re.clone();
+        b.split = Split::Test;
+        b.action = Action::KeinRe;
+        b.teacher.status = Some(skat_ai::Status::Complete);
+        b.teacher.fallback = false;
+        let mut c = b.clone();
+        c.action = Action::Re;
+        c.split = Split::Validation;
+        let mut report = LabelReport::default();
+        check_labels(&[a, b, c], &mut report);
+        assert_eq!(report.doubling_by_split[0][0], (1, 1, 1, 1, 1));
+        assert_eq!(report.doubling_by_split[1][0], (0, 0, 0, 0, 0));
+        assert_eq!(report.doubling_by_split[1][1].0, 1);
+        assert_eq!(report.doubling_by_split[1][1].1, 1);
+        assert_eq!(report.doubling_by_split[2][1].0, 1);
+        assert_eq!(report.doubling_by_split[2][1].1, 0);
+        assert_eq!(report.doubling_by_split[2][1].2, 0);
+        assert_eq!(report.doubling_by_split[2][1].3, 0);
     }
 
     #[test]
