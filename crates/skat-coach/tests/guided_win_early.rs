@@ -43,7 +43,8 @@ fn handwritten_a_to_e_both_roles_all_58_legal_completions_and_16_named_winners()
             );
             let l = lesson(&v);
             if n == 4 {
-                assert!(l.is_none());
+                // Declining defender fallback only behind the declarer.
+                assert_eq!(l.is_some(), declarer == Seat::Vorhand);
             } else {
                 let l = l.unwrap();
                 assert_eq!(

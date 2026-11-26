@@ -56,7 +56,7 @@ fn ordinary_fallback_bilingual() {
                         let g = h.state().session().guided().unwrap();
                         if g.rule
                             .as_ref()
-                            .is_some_and(|r| r.branch == GuidedBranch::Fallback)
+                            .is_some_and(|r| r.branch == GuidedBranch::Fallback && r.partner_ahead)
                         {
                             if let Some(path) = &output {
                                 h.render()
