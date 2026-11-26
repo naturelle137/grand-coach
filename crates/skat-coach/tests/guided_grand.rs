@@ -261,7 +261,7 @@ fn grand_exclusions_partner_ahead_not_last_lead_no_winner_and_single_card() {
     let r = rule(&v).unwrap();
     assert!(r.winners.is_empty() && r.last);
     assert_eq!(r.branch, Branch::Fallback);
-    assert!(lesson(&v).is_none());
+    assert_eq!(lesson(&v).unwrap().rule.card, card("H8"));
 
     // Single legal card: CQ is HH's only Kreuz and still wins.
     let d = swap(deal(), card("CA"), card("H7"));

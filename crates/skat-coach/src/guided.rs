@@ -534,6 +534,24 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .iter()
                 .map(Action::Play)
                 .collect::<Vec<_>>();
+    let declarer_last = (grand || suit)
+        && view.declarer == Some(view.seat)
+        && view.declarer_cards.is_none()
+        && view.current_seat == Some(view.seat)
+        && view.hand_game == Some(contract.hand)
+        && if contract.hand {
+            view.own_skat.is_none()
+        } else {
+            view.own_skat
+                .is_some_and(|s| s.len() == 2 && (s & view.hand).is_empty())
+        }
+        && matches!(view.current_trick.cards, [Some(_), Some(_), None])
+        && view.current_trick.leader.map(|s| s.next().next()) == Some(view.seat)
+        && view.legal_actions
+            == skat_core::legal_cards(game, view.hand, view.current_trick.led())
+                .iter()
+                .map(Action::Play)
+                .collect::<Vec<_>>();
     // The declarer acting second keeps a loser: the opponent's lead can be
     // overtaken, but no overtaking card is Trumpf or a follow-class master.
     let decline_early = (grand || suit || contract.ouvert)
@@ -604,8 +622,8 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 && !rule.partner_ahead
                 && rule.winner == view.declarer
                 && !rule.losers.is_empty())
-            // Ouvert declarer last with no card that beats the opponent's trick.
-            || (ouvert_last
+            // Declarer last with no card that beats the opponent's trick.
+            || ((ouvert_last || declarer_last)
                 && rule.branch == Branch::Fallback
                 && rule.last
                 && !rule.partner_ahead

@@ -29,6 +29,8 @@ const SIZE: [f32; 2] = [1280.0, 820.0];
 /// `-narrow` shrink to it after reaching their state.
 const NARROW: [f32; 2] = [960.0, 640.0];
 
+#[path = "support/decline_last_widgets.rs"]
+mod decline_last_widgets;
 #[path = "support/draw_trumpf_widgets.rs"]
 mod draw_trumpf_widgets;
 #[path = "support/lead_master_widgets.rs"]
@@ -1916,6 +1918,7 @@ fn main() {
     };
     let wanted: Vec<String> = args.collect();
     let mut fixture_names = null_widgets::names();
+    fixture_names.extend(decline_last_widgets::names());
     fixture_names.extend(null_middle_widgets::names());
     fixture_names.extend(lead_master_widgets::names());
     fixture_names.extend(draw_trumpf_widgets::names());
@@ -1986,7 +1989,9 @@ fn main() {
     .unwrap();
     for name in fixture_names {
         if wanted.is_empty() || wanted.contains(&name) {
-            if name.starts_with("guided-ouvert-kontra-") {
+            if name.starts_with("guided-declarer-decline-") {
+                decline_last_widgets::render(&name, &out);
+            } else if name.starts_with("guided-ouvert-kontra-") {
                 ouvert_kontra_widgets::render(&name, &out);
             } else if name.starts_with("guided-suit-lead-master-") {
                 suit_lead_widgets::render(&name, Some(&out));

@@ -492,28 +492,60 @@ fn ouvert_last_seat_defender_keeps_a_loser_behind_the_declarer() {
 }
 
 #[test]
-fn grand_ouvert_declarer_last_keeps_a_loser_when_nothing_beats_the_trick() {
-    // Grand Ouvert Hand, HH declares void in clubs without a Jack: VH C9 and MH
+fn hand_declarer_last_keeps_a_loser_when_nothing_beats_the_trick() {
+    let d = swap(swap(deal(), card("CA"), card("S7")), card("CQ"), card("S8"));
+    let d = swap(swap(d, card("DJ"), card("SK")), card("HA"), card("SQ"));
+    for game_type in [GameType::Grand, HERZ] {
+        let game = hand_game(game_type, false);
+        let g = contract_position(d, Seat::Hinterhand, game, &["C9", "CT"]);
+        let v = g.view(Seat::Hinterhand);
+        let l = lesson(&v).expect("declarer last decline lesson");
+        assert_eq!(l.rule.branch, Branch::Fallback);
+        assert_eq!(l.rule.winner, Some(Seat::Mittelhand));
+        assert!(l.rule.winners.is_empty());
+        assert_eq!(l.rule.card, card("S7"));
+        assert!(l.check(Step::Narrow, Answer::Card(card("S7"))));
+        assert!(!l.check(Step::Narrow, Answer::Card(card("SA"))));
+        let other = swap(d, card("C7"), card("DK"));
+        let w =
+            contract_position(other, Seat::Hinterhand, game, &["C9", "CT"]).view(Seat::Hinterhand);
+        assert_eq!((&v, Some(l)), (&w, lesson(&w)));
+        let mut restricted = v.clone();
+        restricted.legal_actions.pop();
+        assert!(lesson(&restricted).is_none());
+        let mut exposed = v.clone();
+        exposed.declarer_cards = Some(v.hand);
+        assert!(lesson(&exposed).is_none());
+    }
+}
+
+#[test]
+fn ouvert_declarer_last_keeps_a_loser_when_nothing_beats_the_trick() {
+    // Grand or Herz Ouvert Hand, HH declares void in clubs without a Jack: VH C9 and MH
     // CT hold the trick, so Easy discards its lowest card S7.
     let d = swap(swap(deal(), card("CA"), card("S7")), card("CQ"), card("S8"));
-    let d = swap(d, card("DJ"), card("SK"));
-    let game = hand_game(GameType::Grand, true);
-    let g = contract_position(d, Seat::Hinterhand, game, &["C9", "CT"]);
-    let v = g.view(Seat::Hinterhand);
-    let l = lesson(&v).expect("Grand Ouvert declarer last decline lesson");
-    assert_eq!(l.rule.branch, Branch::Fallback);
-    assert!(l.rule.last && l.remaining.is_none());
-    assert_eq!(l.rule.winner, Some(Seat::Mittelhand));
-    assert_eq!(l.rule.card, card("S7"));
-    assert!(l.check(Step::Narrow, Answer::Card(card("S7"))));
-    assert!(!l.check(Step::Narrow, Answer::Card(card("HA"))));
-    let other = swap(d, card("C7"), card("C8"));
-    let w = contract_position(other, Seat::Hinterhand, game, &["C9", "CT"]).view(Seat::Hinterhand);
-    assert_eq!(v.hand, w.hand);
-    let mut restricted = v.clone();
-    restricted.legal_actions.pop();
-    assert!(lesson(&restricted).is_none());
-    let mut missing = v.clone();
-    missing.declarer_cards = None;
-    assert!(lesson(&missing).is_none());
+    let d = swap(swap(d, card("DJ"), card("SK")), card("HA"), card("SQ"));
+    for game_type in [GameType::Grand, HERZ] {
+        let game = hand_game(game_type, true);
+        let g = contract_position(d, Seat::Hinterhand, game, &["C9", "CT"]);
+        let v = g.view(Seat::Hinterhand);
+        let l = lesson(&v).expect("Ouvert declarer last decline lesson");
+        assert_eq!(l.rule.branch, Branch::Fallback);
+        assert!(l.rule.last && l.remaining.is_none());
+        assert_eq!(l.rule.winner, Some(Seat::Mittelhand));
+        assert_eq!(l.rule.card, card("S7"));
+        assert!(l.check(Step::Narrow, Answer::Card(card("S7"))));
+        assert!(!l.check(Step::Narrow, Answer::Card(card("SA"))));
+        let other = swap(d, card("C7"), card("DK"));
+        let w =
+            contract_position(other, Seat::Hinterhand, game, &["C9", "CT"]).view(Seat::Hinterhand);
+        assert_eq!(v, w);
+        assert_eq!(Some(l), lesson(&w));
+        let mut restricted = v.clone();
+        restricted.legal_actions.pop();
+        assert!(lesson(&restricted).is_none());
+        let mut missing = v.clone();
+        missing.declarer_cards = None;
+        assert!(lesson(&missing).is_none());
+    }
 }
