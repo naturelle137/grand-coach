@@ -1607,4 +1607,7 @@ declarer hand and the exact legal actions (`ouvert_lead_without_master_or_trumpf
 app test `ouvert_defender_lead_fallback_observes_the_actual_replies`); Easy's
 master test does not use the reveal, and the text says so. Missing or
 overlapping revealed cards and restricted actions stay unsupported.
+The Farbspiel Ouvert defender lead (Herz, Hand, revealed MH declarer) is
+fixtured by `farbspiel_ouvert_defender_lead_without_master_is_the_lowest_card`
+with the same view-invariance and rejection checks.
 These checks do not establish learning efficacy.

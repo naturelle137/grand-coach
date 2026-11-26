@@ -237,3 +237,37 @@ fn ouvert_lead_without_master_or_trumpf_is_the_lowest_card() {
         }
     }
 }
+
+#[test]
+fn farbspiel_ouvert_defender_lead_without_master_is_the_lowest_card() {
+    // Herz Ouvert Hand: defender VH against a revealed MH declarer holds no
+    // side-suit master (CA/SA/DA sit elsewhere) and has no Trumpf to draw.
+    let deal = Deal::new(
+        [
+            cards("C7 C8 C9 S7 S8 S9 D7 D8 D9 DT"),
+            cards("CA CT CK CQ SA ST SK SQ DA DK"),
+            cards("H7 H8 H9 HA HT HK HQ HJ CJ SJ"),
+        ],
+        cards("DQ DJ"),
+    )
+    .unwrap();
+    let g = contract_position(deal, Seat::Mittelhand, hand_game(HERZ, true), &[]);
+    let v = g.view(Seat::Vorhand);
+    let l = lesson(&v).expect("Farbspiel Ouvert lead fallback lesson");
+    assert_eq!(l.rule.branch, Branch::Fallback);
+    assert_eq!(l.rule.card, card("C7"));
+    // Hidden cards may be exchanged without changing the view or the lesson.
+    let other = swap(deal, card("CJ"), card("DQ"));
+    let w =
+        contract_position(other, Seat::Mittelhand, hand_game(HERZ, true), &[]).view(Seat::Vorhand);
+    assert_eq!((&w, lesson(&w)), (&v, Some(l)));
+    let mut restricted = v.clone();
+    restricted.legal_actions.pop();
+    assert!(lesson(&restricted).is_none());
+    let mut missing = v.clone();
+    missing.declarer_cards = None;
+    assert!(lesson(&missing).is_none());
+    let mut overlap = v.clone();
+    overlap.declarer_cards = Some(v.hand);
+    assert!(lesson(&overlap).is_none());
+}
