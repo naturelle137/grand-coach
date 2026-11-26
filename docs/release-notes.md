@@ -1,6 +1,6 @@
 # Release notes: 1.0 candidate
 
-Status: draft for the 1.0 candidate. The workspace version stays 0.1.0; no
+Status: draft for the 1.0 candidate. The workspace version is 1.0.0-rc.1; no
 tag, release or upload exists, and
 [packaging](packaging.md) describes only private RC archives. Statements below
 repeat existing documents and add no new evidence.
@@ -43,6 +43,38 @@ Uninstalling keeps history and recordings; delete them separately to remove
 personal data.
 
 ## Candidate evidence
+
+Private candidate `1.0.0-rc.1`, commit `dc6b4cff0f129f11c7b6dfa67298437d771151f4`:
+[RC packages run 45753362490](https://github.com/naturelle137/grand-coach/actions/runs/45753362490)
+passed on Ubuntu 24.04 and Windows Server 2025. The downloaded archive hashes
+were independently checked against the manifests and `smoke.json`:
+
+| Archive | SHA-256 |
+|---------|---------|
+| Linux `grand-coach-1.0.0-rc.1-rc-dc6b4cff0f12-x86_64-unknown-linux-gnu.tar.gz` | `7295906d9de201f046ac424bb4d3dc257337b327003aaae3159bbf106d590a46` |
+| Windows `grand-coach-1.0.0-rc.1-rc-dc6b4cff0f12-x86_64-pc-windows-msvc.zip` | `0fc3ee37d21f778a9b0e8eb6f59fe7605585c852fb1d9b88cdb33e9aa938f2f2` |
+
+Both package smokes passed the scenarios described in
+[packaging](packaging.md#automated-evidence-and-remaining-release-checks).
+Linux also passed in the network-less runtime container; Windows used the
+documented software driver and verified program-scoped outbound firewall
+block. The build-time manifests say `native-smoke` and `network-isolation`
+were not run; the separate `smoke.json` files record the subsequent results.
+The checks use app commands and controllers rather than widget clicks; the
+upgrade uses the same build and the migration uses a format-1 fixture.
+These unsigned artifacts do not establish release readiness or publication.
+
+[CI run 45753362744](https://github.com/naturelle137/grand-coach/actions/runs/45753362744)
+on the same candidate passed `complete` on Ubuntu and Windows, native,
+portable, MSRV, lint, both screenshot jobs and `ci-ok`; regression and deep
+were skipped. Both screenshot inventories passed their SHA-256 checks. A
+sample on each platform was inspected at the three supported sizes, including
+large text, card faces, held Augen, training and debriefing. The full-suite
+logs include successful widget tests for a series, variants, Live Abstich,
+training and the hold-only Augen display. Package smoke limitations above
+still apply. The local `scripts/check.sh push --base origin/main` and
+`python3 -B scripts/package_test.py` passed; local actionlint was unavailable
+and CI ran it.
 
 Dispatched on `main` at commit `676bb65a95839fa1dbd593f34ff01ff4077891ab`
 (workflow runs of 2026-11-26; later commits are not covered):
@@ -95,8 +127,8 @@ remain open beyond what the smoke and the `complete`/screenshot jobs cover.
 
 ## Zusammenfassung (DE)
 
-Dies ist der Entwurf der Release Notes für den 1.0-Kandidaten; Version,
-Tags und Veröffentlichung bleiben unverändert. Getestet sind Linux
+Dies ist der Entwurf der Release Notes für den 1.0-Kandidaten; Tags und
+Veröffentlichung bleiben ausstehend. Getestet sind Linux
 (Ubuntu 24.04 CI) und Windows (Server 2025 CI mit Software-OpenGL); andere
 Plattformen und echte Windows-11-Hardware gelten nicht als verifiziert.
 Installation, Datenort und Upgrade stehen in [packaging](packaging.md).

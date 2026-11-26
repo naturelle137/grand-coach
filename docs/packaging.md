@@ -1,7 +1,7 @@
 # Private RC packages
 
 These packages are candidates for technical validation of #13, not a public
-release or evidence of 1.0 readiness. The workspace version remains 0.1.0.
+release or evidence of 1.0 readiness. The workspace version is 1.0.0-rc.1.
 The archive name adds `rc`, the source commit and native target. No release,
 tag, installer, administrator access, updater or network service is created.
 

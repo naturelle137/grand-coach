@@ -20,9 +20,9 @@ considered only for a concretely necessary test demonstrably impossible otherwis
 Release 1.0 requires [modern egui #134](https://github.com/naturelle137/grand-coach/issues/134)
 implemented, independently reviewed, tested and merged through the protected
 PR process. Its full acceptance criteria govern; #131's dialogue is not a
-prerequisite and Godot animation is outside this scope. The presentation and
-opponent checks below are required and pending until supported by recorded
-evidence. M8 functional and package checks remain required.
+prerequisite and Godot animation is outside this scope. The checks below
+remain requirements for each candidate; the [release notes](release-notes.md)
+record the evidence and limits of the candidate that was actually tested.
 
 Record the outcome in the [release notes](release-notes.md) and keep its
 known limitations consistent with the evidence.
