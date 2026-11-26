@@ -248,7 +248,9 @@ fn grand_exclusions_partner_ahead_not_last_lead_no_winner_and_single_card() {
     let r = rule(&v).unwrap();
     assert!(!r.last);
     assert_eq!(r.branch, Branch::Fallback);
-    assert!(lesson(&v).is_none());
+    // The declining defender fallback is a distinct lesson (declarer ahead).
+    assert!(!r.partner_ahead && !r.losers.is_empty());
+    assert_eq!(lesson(&v).unwrap().rule.card, card("C7"));
 
     // No winner: HH holds H8 (VH gets D7); MH trumps VH's H7 with SJ and
     // HH's Herz cannot overtake.

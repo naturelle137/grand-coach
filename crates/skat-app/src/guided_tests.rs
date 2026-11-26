@@ -1841,6 +1841,33 @@ fn grand_kontra_precedence_exclusions_and_lifecycle_boundaries() {
         assert!(s.guided().unwrap().observation.is_some());
     }
 
+    // Declarer ahead, no cheap safe winner (MH's CT is no master): the distinct
+    // decline fallback, exercised through observation.
+    let decline = fixture::contract_actions(
+        fixture::deal(),
+        Seat::Vorhand,
+        fixture::hand_game(GRAND, false),
+        &["C9"],
+    );
+    {
+        let mut s = grand_session(Seat::Mittelhand, fixture::deal(), false, &decline);
+        s.execute(Command::StartGuided).unwrap();
+        assert_eq!(s.guided().unwrap().step, S::Orient);
+        respond(&mut s, G::Reveal).unwrap();
+        let g = s.guided().unwrap();
+        let rule = g.rule.clone().unwrap();
+        assert_eq!(rule.branch, crate::GuidedBranch::Fallback);
+        assert!(!rule.partner_ahead);
+        assert_eq!(rule.card, fixture::card("C7"));
+        assert_eq!(g.legal_cards.len(), 3);
+        s.execute(Command::Act(Action::Play(fixture::card("CT"))))
+            .unwrap();
+        s.run_opponents();
+        assert_eq!(s.guided().unwrap().step, S::Observe);
+        respond(&mut s, G::Reveal).unwrap();
+        assert!(s.guided().unwrap().observation.is_some());
+    }
+
     // Automatic levels never start it; off rejects it; re-entry is stale;
     // the next game drops it.
     for level in [
