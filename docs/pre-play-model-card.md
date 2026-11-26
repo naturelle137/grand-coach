@@ -58,6 +58,13 @@ not independent reproduction of each choice or proof of its strategic quality.
 The extreme Kontra rate agrees with the known D-40 concern and does not justify
 shipping a model trained on these labels without separate assessment.
 
+`validate-labels` reports Kontra and Re positive and negative labels, incomplete
+analyses, fallbacks and missing option lists separately for each deal split.
+It explicitly flags a split missing either class, including zero opportunities.
+These diagnostics expose coverage and teacher failures; they do not establish
+strategic quality or make the retained labels suitable for training. A representative
+independent assessment, including Re, remains necessary.
+
 ## First training run
 
 Details and tables in [ai.md](ai.md#first-all-phase-imitation-run-74). The
