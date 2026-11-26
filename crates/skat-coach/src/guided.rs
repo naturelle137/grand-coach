@@ -533,10 +533,17 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .collect::<Vec<_>>();
     // The declarer acting second keeps a loser: the opponent's lead can be
     // overtaken, but no overtaking card is Trumpf or a follow-class master.
-    let decline_early = (grand || suit)
-        && !contract.ouvert
+    let decline_early = (grand || suit || contract.ouvert)
         && view.declarer == Some(view.seat)
-        && view.declarer_cards.is_none()
+        && if contract.ouvert {
+            (game == GameType::Grand || matches!(game, GameType::Farbe(_)))
+                && contract.hand
+                && contract.schneider
+                && contract.schwarz
+                && view.declarer_cards == Some(view.hand)
+        } else {
+            view.declarer_cards.is_none()
+        }
         && view.current_seat == Some(view.seat)
         && matches!(view.current_trick.cards, [Some(_), None, None])
         && view.current_trick.leader.map(Seat::next) == Some(view.seat)
@@ -557,7 +564,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
         || (ouvert_grand_last && rule.branch != Branch::WinLast)
         || (ouvert_grand_early
             && rule.branch != Branch::WinEarly
-            && !(decline && rule.branch == Branch::Fallback))
+            && !((decline || decline_early) && rule.branch == Branch::Fallback))
         || (ouvert_last && rule.branch != Branch::WinLast)
         || (contract.ouvert
             && matches!(game, GameType::Farbe(_))
