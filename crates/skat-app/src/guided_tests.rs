@@ -2298,16 +2298,9 @@ fn grand_win_early_a_to_e_both_fixture_roles_attempt_memory_all_legal_actual_rep
                 assert!(g.rule.is_none() && g.early_condition.is_none() && g.memory.is_none());
                 assert_eq!(respond(&mut s, G::Memory(true)), Err(AppError::NoQuestion));
                 if n == 4 {
-                    // Defender behind the declarer: the decline fallback (no
-                    // safe winner); the declarer's own decision stays out.
-                    assert_eq!(
-                        g.step,
-                        if declarer == Seat::Vorhand {
-                            S::Orient
-                        } else {
-                            S::Unsupported
-                        }
-                    );
+                    // Both roles keep a loser under the current winner: the
+                    // defender's and the declarer's decline fallback.
+                    assert_eq!(g.step, S::Orient);
                     s.execute(Command::Act(Action::Play(c(mine)))).unwrap();
                     s.apply(Action::Play(c(early_oracle::REPLY[n]))).unwrap();
                     assert_eq!(s.game.tricks()[0].winner, early_oracle::winner(n, mine));
@@ -2526,7 +2519,7 @@ fn grand_win_early_exclusions_preserve_existing_app_lessons_and_all_legal_action
             hand_game(GRAND, false),
             vec!["CK"],
             Seat::Mittelhand,
-            None,
+            Some(crate::GuidedBranch::Fallback),
         ),
         (
             one,

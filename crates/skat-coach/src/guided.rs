@@ -527,6 +527,26 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 .iter()
                 .map(Action::Play)
                 .collect::<Vec<_>>();
+    // The declarer acting second keeps a loser: the opponent's lead can be
+    // overtaken, but no overtaking card is Trumpf or a follow-class master.
+    let decline_early = (grand || suit)
+        && !contract.ouvert
+        && view.declarer == Some(view.seat)
+        && view.declarer_cards.is_none()
+        && view.current_seat == Some(view.seat)
+        && matches!(view.current_trick.cards, [Some(_), None, None])
+        && view.current_trick.leader.map(Seat::next) == Some(view.seat)
+        && view.hand_game == Some(contract.hand)
+        && !(contract.hand && view.own_skat.is_some())
+        && (contract.hand
+            || view
+                .own_skat
+                .is_some_and(|s| s.len() == 2 && (s & view.hand).is_empty()))
+        && view.legal_actions
+            == skat_core::legal_cards(game, view.hand, view.current_trick.led())
+                .iter()
+                .map(Action::Play)
+                .collect::<Vec<_>>();
     view.declarer?;
     let rule = baseline::rule(view)?;
     if (ouvert_feed && rule.branch != Branch::FeedPartner)
@@ -567,6 +587,11 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 && rule.branch == Branch::Fallback
                 && !rule.partner_ahead
                 && rule.winner == view.declarer
+                && !rule.losers.is_empty())
+            || (decline_early
+                && rule.branch == Branch::Fallback
+                && !rule.partner_ahead
+                && rule.winner.is_some_and(|w| Some(w) != view.declarer)
                 && !rule.losers.is_empty())
             || (rule.branch == Branch::FeedPartner
                 && (((grand || suit_feed || ouvert_feed) && rule.last)

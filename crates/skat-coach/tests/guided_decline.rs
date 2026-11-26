@@ -107,8 +107,9 @@ fn last_seat_defender_without_an_overtaking_card_keeps_the_lowest_loser() {
 }
 
 #[test]
-fn declarer_role_partner_ahead_and_single_card_stay_outside() {
-    // Declarer in the middle seat takes the same Fallback but is not a defender.
+fn single_card_and_declarer_second_seat_without_loser_stay_outside() {
+    // Declarer in the middle seat: the same Fallback is now admitted only with
+    // a declarer decline lesson (see below); it names the opponent as winner.
     let g = contract_position(
         deal(),
         Seat::Mittelhand,
@@ -117,7 +118,7 @@ fn declarer_role_partner_ahead_and_single_card_stay_outside() {
     );
     let v = g.view(Seat::Mittelhand);
     assert_eq!(rule(&v).unwrap().branch, Branch::Fallback);
-    assert!(lesson(&v).is_none());
+    assert_eq!(lesson(&v).unwrap().rule.winner, Some(Seat::Vorhand));
 
     // Single legal card (C7 only): nothing to choose.
     let d = swap(swap(deal(), card("C8"), card("H7")), card("CT"), card("H8"));
@@ -125,4 +126,29 @@ fn declarer_role_partner_ahead_and_single_card_stay_outside() {
     let v = g.view(Seat::Mittelhand);
     assert_eq!(v.legal_actions, plays(&["C7"]));
     assert!(lesson(&v).is_none());
+}
+
+#[test]
+fn declarer_second_seat_keeps_a_loser_under_an_opponent_lead() {
+    // MH declares; VH leads C9. MH's only overtaking card CT is no master and
+    // no Trumpf, so Easy keeps the lowest loser C7 (C8 ranks higher).
+    for game in [GameType::Grand, HERZ] {
+        let g = contract_position(deal(), Seat::Mittelhand, hand_game(game, false), &["C9"]);
+        let v = g.view(Seat::Mittelhand);
+        let Some(l) = lesson(&v) else {
+            panic!("no declarer decline lesson for {game:?}")
+        };
+        assert_eq!(l.rule.branch, Branch::Fallback);
+        assert!(!l.rule.partner_ahead && !l.rule.last);
+        assert_eq!(l.rule.winner, Some(Seat::Vorhand));
+        assert_eq!(l.rule.card, card("C7"));
+        assert!(l.check(Step::Narrow, Answer::Card(card("C7"))));
+        assert!(!l.check(Step::Narrow, Answer::Card(card("C8"))));
+        let mut restricted = v.clone();
+        restricted.legal_actions.pop();
+        assert!(lesson(&restricted).is_none());
+        let mut revealed = v.clone();
+        revealed.declarer_cards = Some(v.hand);
+        assert!(lesson(&revealed).is_none());
+    }
 }

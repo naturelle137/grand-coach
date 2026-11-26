@@ -43,8 +43,8 @@ fn handwritten_a_to_e_both_roles_all_58_legal_completions_and_16_named_winners()
             );
             let l = lesson(&v);
             if n == 4 {
-                // Declining defender fallback only behind the declarer.
-                assert_eq!(l.is_some(), declarer == Seat::Vorhand);
+                // Declining fallback: defender behind the declarer or the declarer.
+                assert!(l.is_some());
             } else {
                 let l = l.unwrap();
                 assert_eq!(
@@ -154,7 +154,7 @@ fn early_exclusions_retain_existing_branches_and_suit_extension() {
             vec!["CK"],
             Seat::Mittelhand,
             Branch::Fallback,
-            false,
+            true,
         ),
         (
             one,
