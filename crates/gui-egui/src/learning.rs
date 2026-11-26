@@ -236,6 +236,12 @@ impl LearningUi {
         }
     }
 
+    pub(crate) fn record_strategic(&mut self, review: &skat_app::StrategicReview) {
+        if self.history.record_strategic(review) == Ok(true) {
+            self.save();
+        }
+    }
+
     fn save(&mut self) {
         self.mechanism_summary.take();
         self.live_summary.take();
@@ -451,6 +457,7 @@ impl LearningUi {
             self.mechanism_summary
                 .get_or_init(|| self.history.mechanism_responses()),
         );
+        strategic_overview(ui, i, &self.history.strategic_overview());
         ui.separator();
         let summary = self.history.summary();
         ui.label(RichText::new(i.t("learning-descriptive")).strong());
@@ -787,6 +794,49 @@ fn mechanism_responses(ui: &mut egui::Ui, i: &I18n, rows: &[skat_app::MechanismR
                 mechanism_counts(ui, i, w.recent);
             } else {
                 ui.label(i.t("mechanism-sparse"));
+            }
+        });
+    }
+}
+
+fn kind_counts(ui: &mut egui::Ui, i: &I18n, c: skat_app::KindCounts) {
+    ui.label(i.tf(
+        "strategic-counts",
+        &[
+            ("good", c.good.into()),
+            ("bad", c.bad.into()),
+            ("neutral", c.neutral.into()),
+        ],
+    ));
+}
+
+fn strategic_overview(ui: &mut egui::Ui, i: &I18n, o: &skat_app::StrategicOverview) {
+    ui.label(RichText::new(i.t("strategic-title")).strong());
+    ui.label(i.t("strategic-limits"));
+    if o.reviews == 0 {
+        ui.label(i.t("strategic-empty"));
+        return;
+    }
+    ui.label(i.tf(
+        "strategic-reviews",
+        &[
+            ("reviews", o.reviews.into()),
+            ("partial", o.partial.into()),
+            ("moments", o.summary.total.total().into()),
+        ],
+    ));
+    kind_counts(ui, i, o.summary.total);
+    for row in &o.summary.rows {
+        ui.group(|ui| {
+            ui.label(RichText::new(crate::coach::concept(i, row.concept)).strong());
+            kind_counts(ui, i, row.counts);
+            if let Some(t) = row.trend {
+                ui.label(RichText::new(i.t("strategic-earlier")).strong());
+                kind_counts(ui, i, t.earlier);
+                ui.label(RichText::new(i.t("strategic-recent")).strong());
+                kind_counts(ui, i, t.recent);
+            } else {
+                ui.label(i.t("strategic-sparse"));
             }
         });
     }

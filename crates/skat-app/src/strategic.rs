@@ -33,6 +33,34 @@ impl From<&ReviewMoment> for StrategicObservation {
     }
 }
 
+/// The classified moments of one reviewed recording (persisted, #13).
+///
+/// `recording` is a deterministic fingerprint of the recording, so
+/// recording the same review again changes nothing. `exhaustive` keeps the
+/// uncertainty: only an exhaustive review selected from every eligible
+/// decision; a cancelled or time-limited one selected among fewer.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StrategicReview {
+    /// Fingerprint of the reviewed recording.
+    pub recording: u64,
+    /// Every eligible decision was analysed.
+    pub exhaustive: bool,
+    /// The selected moments (at most three) in game order.
+    pub moments: Vec<StrategicObservation>,
+}
+
+/// Most moments a review selects.
+pub(crate) const MAX_REVIEW_MOMENTS: usize = 3;
+
+/// FNV-1a over the recording's canonical JSON: stable across runs and
+/// platforms, not a security measure.
+pub(crate) fn recording_fingerprint(recording: &crate::GameRecording) -> u64 {
+    let bytes = serde_json::to_vec(recording).unwrap_or_default();
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+        (h ^ u64::from(*b)).wrapping_mul(0x100_0000_01b3)
+    })
+}
+
 /// Counts per [`MomentKind`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KindCounts {
@@ -125,6 +153,81 @@ impl StrategicSummary {
             })
             .collect();
         StrategicSummary { rows, total }
+    }
+}
+
+/// The persisted overview: the classification plus how many of the
+/// reviews behind it were partial.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StrategicOverview {
+    /// Classification of all stored moments in recording order.
+    pub summary: StrategicSummary,
+    /// Reviews stored.
+    pub reviews: u32,
+    /// Of these, cancelled, time-limited or otherwise not exhaustive.
+    pub partial: u32,
+}
+
+impl crate::LearningHistory {
+    /// The stored reviews in recording order.
+    pub fn strategic_reviews(&self) -> &[StrategicReview] {
+        &self.strategic
+    }
+
+    /// Stores one review; idempotent per recording. A stored partial review
+    /// is replaced only by an exhaustive one. Returns whether anything
+    /// changed.
+    pub fn record_strategic(
+        &mut self,
+        review: &StrategicReview,
+    ) -> Result<bool, crate::LearningError> {
+        if review.moments.len() > MAX_REVIEW_MOMENTS {
+            return Err(crate::LearningError::InvalidProvenance);
+        }
+        if let Some(old) = self
+            .strategic
+            .iter_mut()
+            .find(|r| r.recording == review.recording)
+        {
+            if old.exhaustive || !review.exhaustive {
+                return Ok(false);
+            }
+            *old = review.clone();
+            return Ok(true);
+        }
+        if self.total_stored() + 1 > crate::MAX_LEARNING_EVENTS {
+            self.refused = true;
+            return Err(crate::LearningError::Full);
+        }
+        self.strategic.push(review.clone());
+        Ok(true)
+    }
+
+    pub(crate) fn validate_strategic(&self) -> Result<(), crate::LearningError> {
+        if self.total_stored() > crate::MAX_LEARNING_EVENTS {
+            return Err(crate::LearningError::TooLarge);
+        }
+        let mut seen = std::collections::HashSet::new();
+        for r in &self.strategic {
+            if r.moments.len() > MAX_REVIEW_MOMENTS || !seen.insert(r.recording) {
+                return Err(crate::LearningError::InvalidProvenance);
+            }
+        }
+        Ok(())
+    }
+
+    /// Descriptive classification of the stored review moments.
+    pub fn strategic_overview(&self) -> StrategicOverview {
+        let observations: Vec<StrategicObservation> = self
+            .strategic
+            .iter()
+            .flat_map(|r| r.moments.iter().copied())
+            .collect();
+        StrategicOverview {
+            summary: StrategicSummary::of(&observations),
+            reviews: self.strategic.len() as u32,
+            partial: self.strategic.iter().filter(|r| !r.exhaustive).count() as u32,
+        }
     }
 }
 

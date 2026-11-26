@@ -351,7 +351,7 @@ file bytes stay untouched.
 
 `skat_app::LearningHistory` is the single local store for learning
 observations; later decision provenance extends it rather than adding a
-second statistics system. Format 6 holds a persisted attempt counter, the
+second statistics system. Format 7 holds a persisted attempt counter, the
 attempts (`AttemptId`, `AttemptKind::Series`, `Practice { attempt }` or
 `Training { attempt }`, where attempt 2 and higher are intentional retries
 or repeats) and the `RetrievalEvent`s exactly as the session or the
@@ -391,7 +391,14 @@ Good/Bad/Neutral per `Concept`) and, from twice `STRATEGIC_WINDOW` (10)
 moments of a concept, the 10 before the last 10 beside the last 10 in
 chronological order. Only moments a review selected (at most three per
 recording) count: no prevalence, error rate, mastery or learning effect;
-persistence and a GUI overview are not part of it yet. Legacy wrong answers have no stored count and stay
+Format 7 persists them as `strategic` reviews: per reviewed recording a
+deterministic fingerprint (FNV-1a of its canonical JSON), the selected
+moments and whether the review was exhaustive. Recording the same recording
+again changes nothing; a stored partial review (cancelled or time-limited)
+is replaced only by an exhaustive one, so uncertainty is kept and the
+selection is never mistaken for opportunity or error prevalence. The
+learning window shows the classification, partial-review count and the
+10-moment windows in German and English. Legacy wrong answers have no stored count and stay
 `MismatchUnrecorded`; their deviation is never reconstructed. `provenance`
 counts opportunities per lesson revision, with unversioned legacy ones
 listed separately. `comparisons` gives, per topic, the number of settled
@@ -431,8 +438,9 @@ of this run stay in memory until the learner chooses **Rename damaged file
 and start a new history**, which renames it to the first free
 `learning-history.damaged-<n>.json` and saves.
 
-Migration: this build reads formats 1 through 6 (`LEARNING_FORMATS_READ`)
-and writes 6. Format 1 (PR #133) is decoded unchanged: the untagged
+Migration: this build reads formats 1 through 7 (`LEARNING_FORMATS_READ`)
+and writes 7. Formats 1 to 6 hold no review moments; such a file with
+`strategic` entries is invalid. Format 1 (PR #133) is decoded unchanged: the untagged
 `OpportunityId::Game` serialises exactly like the former `QuestionId`.
 Formats 1 and 2 (PR #137) are migrated in memory, keeping counter,
 attempts, events and their order, so counts and deduplication are
@@ -440,10 +448,10 @@ identical; their events stay unversioned (`lesson: None`) and their answers
 have no `expected`: no current lesson revision or count is assigned
 retrospectively. Both fields are omitted when absent, so legacy events are
 written back unchanged in shape. Reading never rewrites the file, and the
-next save (after a new event or a reset) writes format 6. A format 1 file
+next save (after a new event or a reset) writes format 7. A format 1 file
 containing training attempts or tasks, and a format 1 or 2 file containing
-provenance fields, is invalid. Any other version (for example 7 from a
-newer build) is reported as unsupported. Older builds report a format 6
+provenance fields, is invalid. Any other version (for example 8 from a
+newer build) is reported as unsupported. Older builds report a format 7
 file as unsupported and keep it, so they never drop its provenance. Two app instances writing the same file are not coordinated; the
 last save wins.
 

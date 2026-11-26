@@ -433,6 +433,12 @@ mod tests {
                     "strength",
                     "length",
                     "factor",
+                    "reviews",
+                    "partial",
+                    "moments",
+                    "good",
+                    "bad",
+                    "neutral",
                 ] {
                     args.set(name, "x");
                 }

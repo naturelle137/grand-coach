@@ -114,8 +114,8 @@ pub use skat_analysis::counting::{AugenCount, Derivation, QuestionKind, TrumpfCo
 pub use skat_coach as coach_model;
 pub use sort::sort_hand;
 pub use strategic::{
-    KindCounts, STRATEGIC_WINDOW, StrategicObservation, StrategicRow, StrategicSummary,
-    StrategicTrend,
+    KindCounts, STRATEGIC_WINDOW, StrategicObservation, StrategicOverview, StrategicReview,
+    StrategicRow, StrategicSummary, StrategicTrend,
 };
 pub use training::{
     TrainingCommand, TrainingError, TrainingFixture, TrainingSession, TrainingTask, TrainingTopic,
