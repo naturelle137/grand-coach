@@ -177,3 +177,14 @@ unshipped) reaches 74.40 % card-play and 87.53 % Drücken test agreement and
 -17.09 points per seat-game against Strong (95 % interval [-21.28, -12.90]),
 not distinguishable from 4×384; see
 [the measurement](ai.md#longer-training-and-wider-network-74).
+
+## Higher Drücken weight
+
+The unshipped 4×384 D = 8 model reached 83.91 % joint-pair agreement on
+2,815 test views, below 86.68 % for D = 4. It selected Kontra on all 1,987
+test opportunities; the teacher selected it on 1,980. See
+[the measurement](ai.md#higher-drücken-weight-74) for the other phases and
+the limits of this single-seed comparison. Against Strong in 1,200 complete
+games with the existing Kontra rule, it scored -17.02 points per seat-game
+(95 % interval [-21.50, -12.54]); no Null, Hand or extended announcement was
+chosen in 594 declarer games. It is not a production candidate.
