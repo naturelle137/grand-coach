@@ -4723,6 +4723,17 @@ fn declarer_last_decline_all_choices_observe_actual_winner() {
                 actions.splice(index..=index, [Action::TakeSkat, Action::Discard(d.skat())]);
             }
             let mut s = grand_session(Seat::Hinterhand, d, false, &actions);
+            let other_deal = fixture::swap(d, c("C7"), c("H7"));
+            let mut other = grand_session(Seat::Hinterhand, other_deal, false, &actions);
+            assert_eq!(
+                s.game.view(Seat::Hinterhand),
+                other.game.view(Seat::Hinterhand)
+            );
+            assert_eq!(
+                skat_coach::guided::lesson(&s.game.view(Seat::Hinterhand)),
+                skat_coach::guided::lesson(&other.game.view(Seat::Hinterhand))
+            );
+            other.execute(Command::StartGuided).unwrap();
             s.execute(Command::StartGuided).unwrap();
             respond(&mut s, G::Reveal).unwrap();
             let g = s.guided().unwrap();
