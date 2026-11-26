@@ -637,6 +637,39 @@ it lies in card play and declarer play, which imitation of Strong at this
 data size does not reproduce. One seed, one 200-deal sample. Nothing is
 shipped; #74 stays open. Raw output: `grand-coach-data/studies/2026-11-26-long-74/`.
 
+#### Higher Drücken weight (#74)
+
+On 2026-11-26, the retained PR #412 trainer ran on this PC (CPU, nice 10,
+1,275 s) with the same three Strong datasets, 4×384 shape, seed 0, six epochs,
+W = 4 and R = 2 as the D = 4 experiment, but `--discard-weight 8` (best
+epoch 6). The unshipped model SHA-256 is
+`1bc4f58c9ce1bd9abb5b6a2c82b7634b966392eec47cfe38e64380016ae979f5`.
+On the same deal-separated test set, agreement with the teacher was Reizen
+21,482/23,034 (93.26 %), Hand/pickup 2,818/2,827 (99.68 %), Drücken
+2,362/2,815 (83.91 %), Ansage 2,507/2,827 (88.68 %), Kontra 1,980/1,987
+(99.65 %), Re 1,799/1,980 (90.86 %) and card play 61,768/84,803 (72.84 %).
+Drücken agreement is lower than D = 4 (86.68 %), as are Reizen and Ansage.
+Validation Drücken agreement was 2,338/2,810 (83.20 %). This is one seed,
+not evidence that every larger weight is worse. On test views the teacher
+chose Kontra 1,980 times and this model all 1,987 times; neither the high
+agreement nor the model establishes suitable Kontra behaviour.
+
+In `calibrate validation nn:MODEL@easy strong 200 4 10000` (1,200 games,
+existing Kontra rule), A − B was -17.02 points per seat-game, 95 % interval
+[-21.50, -12.54], against -18.02 [-22.29, -13.75] for D = 4 on the same
+deals. The intervals overlap, so no ordering follows. A won 68.7 % of 594
+declarer games versus Strong's 86.7 % of 603, and 18.3 % of 1,201 defender
+games versus 26.2 % of 1,193. A passed in 25.0 % of 4,832 Reizen actions
+versus Strong's 23.9 % of 5,018; A participated in Einpassen in 5/1,800
+seat-games versus 4/1,800. A declared Kreuz 208, Pik 143, Herz 83, Karo 73,
+Grand 87 and Null 0, with no Hand or extended announcements in 594 games.
+Strong declared the same contracts 180, 150, 102, 72, 93 and 6 times,
+including four Hand games. A said Kontra in 27/1,201 defender seat-games
+and Re in 7/33 declarer games facing Kontra, using the existing rule.
+One seed and one deal sample do not establish general playing strength. The
+model remains unshipped; Classic remains the default. Training, evaluation
+and calibration logs are in `agent-hq/var/jobs/5069/tmp/discard8/`.
+
 #### Kontra/Re behavioural evidence for W = 4 (#74)
 
 On 2026-11-22, the current `evaluate` and `calibrate` tools at commit
