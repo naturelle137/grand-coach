@@ -1625,4 +1625,10 @@ to the own hand, no overtaking Trumpf or master) can inspect the same decline
 fallback in Grand and Farbspiel; it is fixtured by
 `ouvert_declarer_second_seat_keeps_a_loser_under_an_opponent_lead`, which also
 rejects a missing or mismatching reveal and a restricted action list.
+The Ouvert defender playing last behind the declarer's winning card (Hand, complete
+consistent reveal, exact legal actions) can inspect the same decline fallback in
+Grand and Farbspiel; it is fixtured by
+`ouvert_last_seat_defender_keeps_a_loser_behind_the_declarer` (Easy's lowest
+loser, view invariant under unseen cards, rejection of missing, overlapping
+or restricted input).
 These checks do not establish learning efficacy.
