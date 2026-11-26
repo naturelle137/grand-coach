@@ -7,7 +7,7 @@ exists **and** its verification is recorded in the last column.
 
 ## Architecture
 
-- `crates/gui-godot` is the only crate with Godot types (gdext 0.5.5,
+- `crates/gui-godot` is the only crate with Godot types (gdext 0.5.5, API 4.4,
   MPL-2.0). `adapter` is Godot-free: JSON text in/out of the serde forms of
   `skat-app` `SessionConfig`, `Command`, `TableView` and `AppEvent`.
   `node` exposes it as the GDScript class `SkatApp`.
@@ -30,7 +30,7 @@ adapter contract only, `open` = not started.
 | Capability (egui) | Status | Godot verification |
 |-------------------|--------|--------------------|
 | Session start/restart/stop, seed, fixed or free series | adapter | `crates/gui-godot/tests/adapter.rs` (determinism, restart, rejected restart) |
-| Basic table: hand, phase, first-legal-action play | adapter | `godot/main.gd` (not run: no Godot binary in the agent environment) |
+| Basic table: hand, phase, first-legal-action play | adapter | `godot/main.gd` starts headlessly on Godot 4.4.1; interactive flow remains unverified |
 | Opponent moves off the UI thread, stale results | done | `restart_discards_a_running_computation`, `human_move_makes_pending_result_stale`, `dropping_a_busy_adapter_is_safe` |
 | Structured errors, unchanged session on error | done | `errors_are_structured_and_leave_the_session_unchanged` |
 | Permitted view only; open display; God Mode | adapter | `view_is_the_permitted_view_only` (closed/open); God Mode open |

@@ -16,7 +16,7 @@ crate-type = ["cdylib", "rlib"]
 skat-app.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-godot = { version = "=0.5.5", default-features = false }
+godot = { version = "=0.5.5", default-features = false, features = ["api-4-4"] }
 
 # gdext's entry point needs one `unsafe impl`; everything else stays safe.
 [lints.rust]
