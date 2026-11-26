@@ -1318,6 +1318,25 @@ fn main() {
                             println!("{split} {category}: teacher {chosen}, available {available}");
                         }
                     }
+                    for (split, counts) in ["train", "validation", "test"]
+                        .into_iter()
+                        .zip(r.doubling_by_split)
+                    {
+                        for (phase, (total, positive, incomplete, fallback, no_options)) in
+                            ["Kontra", "Re"].into_iter().zip(counts)
+                        {
+                            println!(
+                                "{split} {phase}: {total} opportunities, {positive} positive, {} negative, {incomplete} incomplete, {fallback} fallback, {no_options} without options",
+                                total - positive
+                            );
+                            if positive == 0 || positive == total {
+                                println!(
+                                    "{split} {phase}: missing positive or negative label coverage"
+                                );
+                            }
+                        }
+                    }
+                    println!("Kontra/Re diagnostics do not validate strategic label quality");
                     let (n, teacher, rules, both) = r.kontra;
                     println!(
                         "Kontra: {n} opportunities, teacher {teacher}, rule {rules}, both {both}"
