@@ -751,11 +751,15 @@ phase the file does not cover, a missing or corrupt file, or an unusable output
 falls back to the selected Classic level with a reported reason; without the
 file the table plays Classic.
 
-**Kontra/Re stay with the Classic rule of thumb.** The retained teacher labels
+**Learned Kontra/Re is postponed; Kontra/Re stay with the Classic rule of thumb.** The retained teacher labels
 are 99.46 % Kontra (6,854 of 6,891 offers), and this model chose Kontra in all
-1,987 test offers; with the model deciding (`@…+ak`) strength dropped further
-(-22.09 versus -16.99). The labels carry the double-dummy bias (D-40), so the
-head is not used by the engine.
+1,987 test offers. A different W = 4, R = 2 candidate scored -22.09 versus
+-16.99 points per seat-game with learned versus rule-based Kontra/Re. The
+extreme labels are consistent with the double-dummy bias concern (D-40); the
+current-teacher pilot also lacks representative split coverage and its model is
+unsuitable. Neither candidate establishes a suitable learned Kontra/Re decision.
+Representative teacher assessment, suitable labels and complete-game evaluation
+remain necessary under the existing training and arena holds.
 
 Behaviour is as measured in the sections above: -17.02 [-21.50, -12.54] points
 per seat-game against Strong, declarer win rate 68.7 % versus 86.7 %, no Hand
