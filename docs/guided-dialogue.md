@@ -1618,4 +1618,17 @@ A later declarer lead without Trumpf after winning a trick (Herz Ouvert, S7) is 
 `farbspiel_ouvert_later_declarer_lead_without_master_or_trumpf_is_the_lowest_card`.
 A later Grand Ouvert declarer lead without a master (S7) is fixtured by
 `grand_ouvert_later_declarer_lead_without_master_is_the_lowest_card`.
+A later Grand Ouvert defender lead without a master (Hand, S9) is fixtured by
+`grand_ouvert_later_defender_lead_without_master_is_the_lowest_card`.
+The Ouvert declarer acting second under an opponent lead (Hand, revealed hand equal
+to the own hand, no overtaking Trumpf or master) can inspect the same decline
+fallback in Grand and Farbspiel; it is fixtured by
+`ouvert_declarer_second_seat_keeps_a_loser_under_an_opponent_lead`, which also
+rejects a missing or mismatching reveal and a restricted action list.
+The Ouvert defender playing last behind the declarer's winning card (Hand, complete
+consistent reveal, exact legal actions) can inspect the same decline fallback in
+Grand and Farbspiel; it is fixtured by
+`ouvert_last_seat_defender_keeps_a_loser_behind_the_declarer` (Easy's lowest
+loser, view invariant under unseen cards, rejection of missing, overlapping
+or restricted input).
 These checks do not establish learning efficacy.

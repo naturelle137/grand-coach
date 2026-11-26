@@ -390,3 +390,103 @@ fn grand_ouvert_later_declarer_lead_without_master_is_the_lowest_card() {
     restricted.legal_actions.pop();
     assert!(lesson(&restricted).is_none());
 }
+
+#[test]
+fn grand_ouvert_later_defender_lead_without_master_is_the_lowest_card() {
+    // Grand Ouvert Hand, MH declares: after VH D7, MH DK the defender HH trumps
+    // with DJ and leads again. No suit master is left (CA, SA, HA, DA sit with
+    // the revealed MH), so Easy leads its lowest plain card S9.
+    let deal = Deal::new(
+        [
+            cards("C7 C8 C9 S7 S8 H7 H8 D7 D8 D9"),
+            cards("CA CT CK SA SK SJ HA HJ DA DK"),
+            cards("CJ DJ CQ S9 ST SQ H9 HK HQ HT"),
+        ],
+        cards("DQ DT"),
+    )
+    .unwrap();
+    let play = ["D7", "DK", "DJ"];
+    let game = hand_game(GameType::Grand, true);
+    let g = contract_position(deal, Seat::Mittelhand, game, &play);
+    let v = g.view(Seat::Hinterhand);
+    let l = lesson(&v).expect("Grand Ouvert later defender lead fallback lesson");
+    assert_eq!(l.rule.branch, Branch::Fallback);
+    assert_eq!(l.rule.card, card("S9"));
+    assert!(lesson(&g.view(Seat::Vorhand)).is_none());
+    assert!(lesson(&g.view(Seat::Mittelhand)).is_none());
+    let other = swap(deal, card("S7"), card("DQ"));
+    let w = contract_position(other, Seat::Mittelhand, game, &play).view(Seat::Hinterhand);
+    assert_eq!((&w, lesson(&w)), (&v, Some(l)));
+    let mut restricted = v.clone();
+    restricted.legal_actions.pop();
+    assert!(lesson(&restricted).is_none());
+    let mut missing = v.clone();
+    missing.declarer_cards = None;
+    assert!(lesson(&missing).is_none());
+}
+
+#[test]
+fn ouvert_declarer_second_seat_keeps_a_loser_under_an_opponent_lead() {
+    // Ouvert Hand, MH declares and VH leads C9: CT is the only overtaking card
+    // and neither Trumpf nor a master, so Easy keeps the lowest loser C7.
+    for game in [GameType::Grand, HERZ] {
+        let g = contract_position(deal(), Seat::Mittelhand, hand_game(game, true), &["C9"]);
+        let v = g.view(Seat::Mittelhand);
+        let l = lesson(&v).expect("Ouvert declarer decline lesson");
+        assert_eq!(l.rule.branch, Branch::Fallback);
+        assert_eq!(l.rule.winner, Some(Seat::Vorhand));
+        assert_eq!(l.rule.card, card("C7"));
+        assert!(l.check(Step::Narrow, Answer::Card(card("C7"))));
+        assert!(!l.check(Step::Narrow, Answer::Card(card("C8"))));
+        let other = contract_position(
+            swap(deal(), card("H8"), card("DK")),
+            Seat::Mittelhand,
+            hand_game(game, true),
+            &["C9"],
+        );
+        assert_eq!(v, other.view(Seat::Mittelhand));
+        let mut restricted = v.clone();
+        restricted.legal_actions.pop();
+        assert!(lesson(&restricted).is_none());
+        let mut missing = v.clone();
+        missing.declarer_cards = None;
+        assert!(lesson(&missing).is_none());
+        let mut mismatch = v.clone();
+        mismatch.declarer_cards = Some(v.hand - v.hand.iter().next().into_iter().collect());
+        assert!(lesson(&mismatch).is_none());
+    }
+}
+
+#[test]
+fn ouvert_last_seat_defender_keeps_a_loser_behind_the_declarer() {
+    // Ouvert Hand, MH declares and trumps VH's H7 with SJ; HH's H8 and HA
+    // cannot overtake, so Easy keeps the lowest loser H8.
+    for game in [GameType::Grand, HERZ] {
+        let d = swap(deal(), card("D7"), card("H8"));
+        let g = contract_position(d, Seat::Mittelhand, hand_game(game, true), &["H7", "SJ"]);
+        let v = g.view(Seat::Hinterhand);
+        let l = lesson(&v).expect("Ouvert last-seat decline lesson");
+        assert_eq!(l.rule.branch, Branch::Fallback);
+        assert!(l.rule.last && l.remaining.is_none());
+        assert_eq!(l.rule.winner, Some(Seat::Mittelhand));
+        assert_eq!(l.rule.card, card("H8"));
+        assert!(l.check(Step::Narrow, Answer::Card(card("H8"))));
+        assert!(!l.check(Step::Narrow, Answer::Card(card("HA"))));
+        let other = contract_position(
+            swap(swap(deal(), card("D7"), card("H8")), card("H9"), card("DK")),
+            Seat::Mittelhand,
+            hand_game(game, true),
+            &["H7", "SJ"],
+        );
+        assert_eq!(v, other.view(Seat::Hinterhand));
+        let mut restricted = v.clone();
+        restricted.legal_actions.pop();
+        assert!(lesson(&restricted).is_none());
+        let mut missing = v.clone();
+        missing.declarer_cards = None;
+        assert!(lesson(&missing).is_none());
+        let mut overlap = v.clone();
+        overlap.declarer_cards = Some(v.hand);
+        assert!(lesson(&overlap).is_none());
+    }
+}
