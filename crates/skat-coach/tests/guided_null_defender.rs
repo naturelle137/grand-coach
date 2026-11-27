@@ -416,3 +416,59 @@ fn ouvert_last_defender_requires_consistent_revealed_hand() {
         assert_eq!(alternative.view(Seat::Hinterhand).tricks.len(), 1);
     }
 }
+
+#[test]
+fn last_defender_forced_overtake_in_closed_and_open_null() {
+    let deal = cases()[0].deal;
+    for ouvert in [false, true] {
+        let setup = |deal| {
+            let mut game = Game::from_deal(deal, RuleConfig { kontra_re: false });
+            for action in [
+                Action::Bid(18),
+                Action::Hold,
+                Action::Pass,
+                Action::Pass,
+                Action::Hand,
+                Action::Announce(Announcement {
+                    ouvert,
+                    ..Announcement::plain(GameType::Null)
+                }),
+                Action::Play(card(1)),
+                Action::Play(card(0)),
+            ] {
+                game.apply(action).unwrap();
+            }
+            game
+        };
+        let game = setup(deal);
+        let view = game.view(Seat::Hinterhand);
+        let l = lesson(&view).expect("last defender forced lesson");
+        assert_eq!(view.legal_actions, [2, 7].map(|n| Action::Play(card(n))));
+        assert_eq!(l.rule.winner, Some(Seat::Vorhand));
+        assert!(l.rule.losers.is_empty());
+        assert_eq!(l.rule.candidates, [card(2), card(7)]);
+        assert_eq!(l.rule.card, card(2));
+        assert_eq!(l.rule, skat_analysis::baseline::rule(&view).unwrap());
+        assert!(l.check(Step::Narrow, Answer::Card(card(2))));
+        assert!(!l.check(Step::Narrow, Answer::Card(card(7))));
+        let other = setup(guided_fixture::swap(deal, card(8), card(30)));
+        assert_eq!(view, other.view(Seat::Hinterhand));
+        assert_eq!(Some(l), lesson(&other.view(Seat::Hinterhand)));
+        let mut invalid = view.clone();
+        invalid.legal_actions.reverse();
+        assert!(lesson(&invalid).is_none());
+        if ouvert {
+            invalid = view.clone();
+            invalid.declarer_cards = None;
+            assert!(lesson(&invalid).is_none());
+        }
+        for action in view.legal_actions {
+            let mut next = game.clone();
+            next.apply(action).unwrap();
+            assert_eq!(
+                next.view(Seat::Hinterhand).tricks[0].winner,
+                Seat::Hinterhand
+            );
+        }
+    }
+}

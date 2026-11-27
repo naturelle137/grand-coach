@@ -3537,6 +3537,33 @@ fn null_middle_fixture_widget_models_match_checked_sessions() {
         g["id"]["generation"] = 0.into();
         frames.push(serde_json::json!({"case": if ouvert { "defender-forced-ouvert" } else { "defender-forced" }, "stage":"rule", "table":s.view(), "guided":g}));
     }
+    for ouvert in [false, true] {
+        let actions = [
+            Action::Bid(18),
+            Action::Hold,
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(skat_core::Announcement {
+                ouvert,
+                ..skat_core::Announcement::plain(NULL)
+            }),
+            Action::Play(middle_fixture::card(1)),
+            Action::Play(middle_fixture::card(0)),
+        ];
+        let mut s = grand_session(
+            Seat::Hinterhand,
+            middle_fixture::cases()[0].deal,
+            false,
+            &actions,
+        );
+        s.execute(Command::StartGuided).unwrap();
+        respond(&mut s, G::Reveal).unwrap();
+        let mut g = serde_json::to_value(s.guided().unwrap()).unwrap();
+        g["id"]["lineage"] = 0.into();
+        g["id"]["generation"] = 0.into();
+        frames.push(serde_json::json!({"case": if ouvert { "defender-last-forced-ouvert" } else { "defender-last-forced" }, "stage":"rule", "table":s.view(), "guided":g}));
+    }
     let value = serde_json::to_string_pretty(&frames).unwrap() + "\n";
     if let Ok(path) = std::env::var("SKAT_NULL_MIDDLE_WIDGET_FIXTURES_OUT") {
         std::fs::write(path, value).unwrap();
@@ -4929,6 +4956,45 @@ fn declarer_last_decline_all_choices_observe_actual_winner() {
                     Some(Seat::Mittelhand)
                 );
             }
+        }
+    }
+}
+
+#[test]
+fn null_last_defender_forced_overtake_observes_each_card() {
+    let deal = middle_fixture::cases()[0].deal;
+    for ouvert in [false, true] {
+        let actions = [
+            Action::Bid(18),
+            Action::Hold,
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(skat_core::Announcement {
+                ouvert,
+                ..skat_core::Announcement::plain(NULL)
+            }),
+            Action::Play(middle_fixture::card(1)),
+            Action::Play(middle_fixture::card(0)),
+        ];
+        let original = grand_session(Seat::Hinterhand, deal, false, &actions);
+        for action in original.view().legal_actions {
+            let mut s = original.clone();
+            s.execute(Command::StartGuided).unwrap();
+            respond(&mut s, G::Answer(A::Seat(Some(Seat::Vorhand)))).unwrap();
+            respond(&mut s, G::Answer(A::Seat(None))).unwrap();
+            assert!(s.guided().unwrap().null_forced);
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().rule.unwrap().card,
+                middle_fixture::card(2)
+            );
+            s.execute(Command::Act(action)).unwrap();
+            respond(&mut s, G::Reveal).unwrap();
+            assert_eq!(
+                s.guided().unwrap().observation.unwrap().winner,
+                Some(Seat::Hinterhand)
+            );
         }
     }
 }
