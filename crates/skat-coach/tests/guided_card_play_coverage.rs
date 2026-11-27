@@ -43,6 +43,7 @@ fn every_multi_choice_card_play_decision_has_a_lesson() {
         GameType::Grand,
         GameType::Farbe(Suit::Kreuz),
         GameType::Farbe(Suit::Herz),
+        GameType::Farbe(Suit::Pik),
         GameType::Farbe(Suit::Karo),
         GameType::Null,
     ];
