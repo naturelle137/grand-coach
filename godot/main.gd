@@ -7,6 +7,7 @@ var texts := preload("res://i18n.gd").new()
 var faces := {}
 var settings_path := "user://settings.cfg"
 var kontra_re := false
+var open_display := false
 var levels := ["Easy", "Easy"]
 var pending_setting := {}
 const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
@@ -19,6 +20,7 @@ func _ready() -> void:
 		if saved in ["de", "en"]:
 			language = saved
 		kontra_re = settings.get_value("game", "kontra_re", false) == true
+		open_display = settings.get_value("game", "open_display", false) == true
 		for i in range(2):
 			var level = settings.get_value("game", "level_%d" % i, "Easy")
 			if level in LEVELS:
@@ -31,6 +33,8 @@ func _ready() -> void:
 	$Layout/Language.item_selected.connect(_language_changed)
 	$Layout/KontraRe.button_pressed = kontra_re
 	$Layout/KontraRe.toggled.connect(_kontra_re_changed)
+	$Layout/OpenDisplay.button_pressed = open_display
+	$Layout/OpenDisplay.toggled.connect(_open_display_changed)
 	$ConfirmRestart.confirmed.connect(_apply_setting)
 	for i in range(2):
 		var selector = $Layout/Opponents.get_child(i)
@@ -42,6 +46,7 @@ func _ready() -> void:
 
 func _start_series() -> void:
 	var config := {"seed": 1, "series": {"Fixed": 3}, "kontra_re": kontra_re,
+		"display": "Open" if open_display else "Closed",
 		"opponents": {"Levels": levels}}
 	failed = false
 	var error := app.start(JSON.stringify(config))
@@ -69,6 +74,11 @@ func _kontra_re_changed(enabled: bool) -> void:
 	pending_setting = {"kontra_re": enabled}
 	_confirm_restart()
 
+func _open_display_changed(enabled: bool) -> void:
+	$Layout/OpenDisplay.set_pressed_no_signal(open_display)
+	pending_setting = {"open_display": enabled}
+	_confirm_restart()
+
 func _level_changed(index: int, player: int) -> void:
 	$Layout/Opponents.get_child(player).select(LEVELS.find(levels[player]))
 	pending_setting = {"player": player, "level": LEVELS[index]}
@@ -79,7 +89,11 @@ func _confirm_restart() -> void:
 	$ConfirmRestart.popup_centered()
 
 func _apply_setting() -> void:
-	if pending_setting.has("kontra_re"):
+	if pending_setting.has("open_display"):
+		open_display = pending_setting["open_display"]
+		$Layout/OpenDisplay.set_pressed_no_signal(open_display)
+		_save_setting("game", "open_display", open_display)
+	elif pending_setting.has("kontra_re"):
 		kontra_re = pending_setting["kontra_re"]
 		$Layout/KontraRe.set_pressed_no_signal(kontra_re)
 		_save_setting("game", "kontra_re", kontra_re)
@@ -203,6 +217,8 @@ func _show() -> void:
 		return
 	$Layout/Language.tooltip_text = texts.tr_key("setting-language")
 	$Layout/KontraRe.text = texts.tr_key("option-kontra-re")
+	$Layout/OpenDisplay.text = texts.tr_key("option-open-display")
+	$Layout/OpenDisplay.tooltip_text = texts.tr_key("option-open-display-description")
 	for i in range(2):
 		var selector = $Layout/Opponents.get_child(i)
 		selector.tooltip_text = texts.tr_key(["opponent-left", "opponent-right"][i])
@@ -214,6 +230,8 @@ func _show() -> void:
 	$Layout/Table.text = "%d · %s\n%s\n%s: %s" % [
 		view["game_number"], texts.tr_key("phase-" + str(view["phase"]).to_lower()),
 		", ".join(hand), texts.tr_key("trick-current"), _trick(view["current_trick"])]
+	$Layout/OpenCards.text = _open_cards(view["open_cards"])
+	$Layout/OpenCards.visible = view["open_cards"] != null
 	_clear($Layout/Hand)
 	_clear($Layout/Trick)
 	for card in view["hand"]:
@@ -239,6 +257,21 @@ func _show() -> void:
 			_add_button(texts.tr_key("button-next-game"), "NextGame")
 		elif view["legal_actions"].is_empty():
 			$Layout/Status.text = texts.tr_key("series-finished", {"games": view["game_number"]}) if view["series_finished"] else ""
+
+func _open_cards(open: Variant) -> String:
+	if not open is Dictionary:
+		return ""
+	var lines: Array[String] = [texts.tr_key("label-open-cards")]
+	for i in range(3):
+		var names: Array[String] = []
+		for card in open["hands"][i]:
+			names.append(_card(int(card)))
+		lines.append("%s: %s" % [texts.tr_key(["player-human", "player-left", "player-right"][i]), ", ".join(names)])
+	var skat: Array[String] = []
+	for card in open["skat"]:
+		skat.append(_card(int(card)))
+	lines.append("Skat: %s" % ", ".join(skat))
+	return "\n".join(lines)
 
 func _add_button(label: String, command: Variant) -> void:
 	var button := Button.new()
