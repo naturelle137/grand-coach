@@ -330,6 +330,8 @@ fn content(
                 "guided-rule-null-lead"
             } else if null_defender && !rule.last && rule.losers.is_empty() && !null_partner_lead {
                 "guided-rule-null-defender-forced-middle"
+            } else if null_defender && rule.last && rule.losers.is_empty() && !null_partner_lead {
+                "guided-rule-null-defender-forced-last"
             } else if null_defender && rule.last {
                 "guided-rule-null-defender-last"
             } else if null_partner_lead {
