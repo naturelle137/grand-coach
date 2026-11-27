@@ -409,3 +409,66 @@ default learned model; v1 remains the fallback comparison. Raw outputs:
 
 Tiny corruption and missing-file fixtures run with the existing Phase 2
 unittest discovery command in [AGENTS.md](../AGENTS.md).
+
+## Target measurement record
+
+Use the exact release archive and its extracted installation on the machine
+being assessed. Keep the raw output alongside the record, outside the source
+checkout. On Linux, collect the following identification before measurement:
+
+```sh
+uname -srmo
+lscpu
+lspci -nn | grep -Ei 'vga|3d|display'
+sha256sum RELEASE_ARCHIVE INSTALLED_EXECUTABLE assets/models/*.gcnn
+wc -c RELEASE_ARCHIVE INSTALLED_EXECUTABLE assets/models/*.gcnn
+```
+
+Replace the uppercase paths with the actual archive and installed executable;
+run the last two commands from the installation directory. Record unavailable
+commands or devices explicitly, and identify which graphics device was used.
+On Windows, record equivalent OS, CPU topology, graphics, file SHA-256 and
+byte counts using native system tools. A six-core CPU and integrated graphics
+alone do not identify the named target: record the machine's identity and
+confirm it against the intended target. Label every other machine **proxy**.
+
+For each run record the date, target/proxy classification, machine identity,
+OS, CPU model, sockets, physical cores, logical CPUs, graphics, memory,
+power mode, load and contention; release commit, build command and features;
+archive, executable and model hashes and byte counts; installation and model
+source; engine, level, scenario, sample count and exact commands. Record cold
+start, warm decision and debriefing latency with units and distributions, and
+process total and incremental RSS with baseline, sampling method and units.
+State whether cold means a fresh process or also a cleared OS cache. Record
+failures, missing data and limitations rather than filling gaps from another
+host. Retain raw observations and the aggregation method. Package size is the
+archive byte count; do not confuse it with extracted or model size.
+
+For a Linux RSS comparison, start the installed app in a fresh process with a
+separate, documented user-data directory and Classic selected. At the same idle
+screen before any learned engine is selected, sample the app process RSS; this
+is the baseline, including the GUI and shared libraries. Keep that process and
+screen, select the learned engine and exercise the recorded scenario, then
+sample again at the corresponding idle point. For example, with the app PID:
+
+```sh
+date -u +%FT%TZ
+ps -o pid=,rss=,args= -p PID
+```
+
+Replace `PID` with the verified installed executable's process ID. Save every
+timestamped sample; `rss` is in KiB on Linux. Report the post-scenario total
+and its signed difference from that process's baseline, not a model-only
+allocation or peak. Repeat in fresh processes and report individual pairs and
+their distribution. Record the sampling points, settings and any background
+work; if a process exits, a sample fails or the engine falls back, invalidate
+that pair. A point sample can miss transient peaks; use a documented sampling
+interval and retain the time series if reporting a peak. Do not subtract RSS
+values from different processes or treat shared pages as private memory.
+
+The existing [release package smoke](release-test-plan.md) verifies behaviour,
+not these timings or memory measurements. The source-tree latency examples
+are diagnostics, not packaged-app measurements. A packaged measurement driver
+is still needed to capture repeatable decision and debriefing timings before results can support
+[#423](https://github.com/naturelle137/grand-coach/issues/423); do not treat
+this record template or proxy runs as completing that issue.
