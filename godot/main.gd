@@ -4,6 +4,7 @@ extends Control
 var app := SkatApp.new()
 var failed := false
 var texts := preload("res://i18n.gd").new()
+var faces := {}
 
 func _ready() -> void:
 	if not texts.load_language("en" if OS.get_locale_language() == "en" else "de"):
@@ -59,6 +60,29 @@ func _card(index: int) -> String:
 		"rank": texts.tr_key(["rank-sieben", "rank-acht", "rank-neun", "rank-zehn",
 			"rank-bube", "rank-dame", "rank-koenig", "rank-ass"][index % 8])})
 
+func _face(index: int) -> Texture2D:
+	if not faces.has(index):
+		var name := "%s-%s" % [["kreuz", "pik", "herz", "karo"][index / 8],
+			["sieben", "acht", "neun", "zehn", "bube", "dame", "koenig", "ass"][index % 8]]
+		var path := ProjectSettings.globalize_path("res://").path_join("../assets/cards/german/%s.svg" % name)
+		var image := Image.new()
+		faces[index] = null
+		if image.load_svg_from_string(FileAccess.get_file_as_string(path), 0.4) == OK:
+			faces[index] = ImageTexture.create_from_image(image)
+	return faces[index]
+
+func _clear(box: Node) -> void:
+	for child in box.get_children():
+		box.remove_child(child)
+		child.queue_free()
+
+func _card_node(index: int, label: String) -> TextureButton:
+	var node := TextureButton.new()
+	node.texture_normal = _face(index)
+	node.tooltip_text = label
+	node.name = "Card%d" % index
+	return node
+
 func _trick(cards: Array) -> String:
 	var played: Array[String] = []
 	for card in cards:
@@ -109,11 +133,26 @@ func _show() -> void:
 	$Layout/Table.text = "%d · %s\n%s\n%s: %s" % [
 		view["game_number"], texts.tr_key("phase-" + str(view["phase"]).to_lower()),
 		", ".join(hand), texts.tr_key("trick-current"), _trick(view["current_trick"])]
+	_clear($Layout/Hand)
+	_clear($Layout/Trick)
+	for card in view["hand"]:
+		var node := _card_node(int(card), _card(int(card)))
+		node.disabled = true
+		$Layout/Hand.add_child(node)
+	for played in view["current_trick"]:
+		var node := _card_node(int(played["card"]), "%s: %s" % [texts.tr_key(["player-human", "player-left", "player-right"][int(played["player"])]), _card(int(played["card"]))])
+		node.disabled = true
+		$Layout/Trick.add_child(node)
 	$Layout/Status.text = texts.tr_key("status-waiting", {"player": texts.tr_key(["player-human", "player-left", "player-right"][int(view["acting"])])}) if view["opponent_to_move"] and view["acting"] != null else ""
 	for child in $Layout/Scroll/Actions.get_children():
 		child.queue_free()
 	if not view["opponent_to_move"]:
 		for action in view["legal_actions"]:
+			if action is Dictionary and action.has("Play"):
+				var card := $Layout/Hand.get_node_or_null("Card%d" % int(action["Play"]))
+				if card != null:
+					card.disabled = false
+					card.pressed.connect(_act.bind({"Act": action}))
 			_add_button(_label(action, int(view["bid"]), view["hand_game"]), {"Act": action})
 		if view["can_next_game"]:
 			_add_button(texts.tr_key("button-next-game"), "NextGame")
