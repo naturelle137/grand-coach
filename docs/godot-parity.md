@@ -46,7 +46,7 @@ adapter contract only, `open` = not started.
 | Save/open recordings, replay window, comments, review, hindsight | open | |
 | Same-deal practice | open | |
 | Learning history, statistics, focused training | open | |
-| Settings persistence | open | |
+| Settings persistence | open | The language selector persists in `user://settings.cfg`; `godot/tests/interaction.gd` verifies both languages after recreating the scene. The optional Kontra/Re checkbox persists in the same file and starts a new series; `interaction.gd` checks both values and both languages (written, not yet run: no Godot binary in the job environment). Other settings remain open. |
 | Linux and Windows 11 export, launch smoke, performance | open | |
 
 ## Build and run
