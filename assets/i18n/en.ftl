@@ -1225,5 +1225,7 @@ mode-pre-play = Learned pre-play (experimental)
 mode-pre-play-description = Experimental imitation model of Classic Strong decides bidding, Skat, discarding, announcements and card play, with the selected Easy/Medium/Strong temperature. It is clearly weaker than Classic Strong. Kontra/Re follow the Classic rules of thumb; any decision the model cannot take uses the selected Classic level. Retrying model loading requires an app restart.
 
 godot-setting-restart-confirm = Start a new series? The current game and series progress will be lost.
+godot-discard-hint = Select two cards to discard.
+godot-discard-confirm = Discard selected cards
 
 guided-rule-null-defender-forced-last = You play last and every legal card overtakes the declarer. Easy chooses fewer Augen, then lower Null rank; the first exact tie in legal order. Every legal card remains playable. This heuristic does not guarantee the game outcome or locate unseen cards.

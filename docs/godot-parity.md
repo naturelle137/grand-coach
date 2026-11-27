@@ -35,7 +35,7 @@ adapter contract only, `open` = not started.
 | Structured errors, unchanged session on error | done | `errors_are_structured_and_leave_the_session_unchanged` |
 | Permitted view only; open display; God Mode | adapter | `view_is_the_permitted_view_only` (closed/open); God Mode open |
 | Same results as direct `skat-app` | done | `adapter_matches_direct_session_and_is_deterministic` |
-| Reizen, Skat, Drücken, Ansage, Hand/Ouvert, all game types | open | |
+| Reizen, Skat, Drücken, Ansage, Hand/Ouvert, all game types | adapter | `declarer_flow` in `crates/gui-godot/tests/adapter.rs`: raw legal-action JSON of every phase (Hand, Skat pickup, Ouvert) executes as `{"Act": ...}`, illegal actions give structured errors with an unchanged view, Drücken masks are exactly two held cards. `godot/main.gd` selects the two Drücken cards by click and confirms a legal pair; `godot/tests/interaction.gd` covers deal to first card in both languages but has not been run on a Godot binary yet, so the row stays `adapter` until it is |
 | Optional Kontra/Re | open | |
 | Opponent levels, Goldfish, Mephisto, God Mode, engines | open | Separate Rookie/Easy/Medium/Strong selections persist and start a new series; `godot/tests/interaction.gd` checks both seats and languages on Godot 4.4.1. Other modes and engines remain open. |
 | Card faces (SVG) and German/English texts from `assets/i18n/` | open | `godot/i18n.gd` reads `assets/i18n/*.ftl`; `godot/tests/interaction.gd` checks language switching, labels and a seeded series. Card faces (hand and trick) are loaded from `assets/cards/german`; selector messages, card selection and export bundling remain open |
