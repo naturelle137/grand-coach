@@ -1720,7 +1720,8 @@ observes the actual trick winner. No learning efficacy is inferred.
 
 `crates/skat-coach/tests/guided_card_play_coverage.rs` replays 200 seeded deals
 through the core for every declarer seat, Grand, all four Farbspiele and
-Null, as Hand, Hand Ouvert and pickup/Drücken games, with seeded random legal
+Null, as Hand, Hand Ouvert and pickup/Drücken games (plus pickup Null Ouvert,
+which the core permits without Hand), with seeded random legal
 play. At every card-play decision with at least two legal cards (over 50,000
 samples) `lesson` must return a lesson; any future Easy branch without a dialogue
 fails the test. This is a sample, not a proof: positions the random play does not
