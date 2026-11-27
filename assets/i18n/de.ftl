@@ -1175,6 +1175,8 @@ guided-rule-null-defender = Easy wählt die ranghöchste Karte, die den Alleinsp
 
 guided-null-defender-last-role = Du bist Gegenspieler im Null und spielst als Letzter. Der Alleinspieler liegt vorn. Es gibt keinen Trumpf, auch Buben bedienen ihre Farbe.
 guided-rule-null-defender-last = Easy wählt die ranghöchste Karte, die den Alleinspieler vorn lässt; bei gleichem Rang die letzte in der erlaubten Reihenfolge. Das ist eine Faustregel ohne Spielgewinn-Garantie.
+guided-null-defender-forced-attempt = Jede legale Karte übersticht den Alleinspieler. Welche wählt Easy nach weniger Augen und niedrigerem Null-Rang?
+guided-rule-null-defender-forced-middle = Jede legale Karte übersticht den Alleinspieler zunächst. Easy wählt weniger Augen, dann den niedrigeren Null-Rang, bei Gleichstand die erste in der erlaubten Reihenfolge. Dein Partner spielt noch und kann überstechen. Jede legale Karte bleibt spielbar; der Spielausgang steht damit nicht fest.
 
 practice-compare = Mit Original vergleichen
 compare-title = Übungsversuch und Originalspiel

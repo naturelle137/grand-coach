@@ -1175,6 +1175,8 @@ guided-rule-null-defender = Easy chooses the highest-ranked card that leaves the
 
 guided-null-defender-last-role = You defend in Null and play last. The declarer is ahead. There is no Trumpf; Buben follow their printed suit.
 guided-rule-null-defender-last = Easy chooses the highest-ranked card that leaves the declarer ahead, with the last equal rank in legal order. This heuristic does not guarantee winning the game.
+guided-null-defender-forced-attempt = Every legal card overtakes the declarer. Which does Easy choose by fewer Augen and lower Null rank?
+guided-rule-null-defender-forced-middle = Every legal card overtakes the declarer for now. Easy chooses fewer Augen, then lower Null rank, with the first exact tie in legal order. Your partner still plays and may overtake. Every legal card remains playable; this does not determine the game outcome.
 
 practice-compare = Compare with original
 compare-title = Practice attempt vs. original game
