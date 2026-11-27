@@ -50,8 +50,12 @@ fn every_multi_choice_card_play_decision_has_a_lesson() {
     for seed in 0..200u64 {
         for declarer in Seat::ALL {
             for game in games {
-                // (ouvert, pickup): Hand, Hand Ouvert, pickup game.
-                for (ouvert, pickup) in [(false, false), (true, false), (false, true)] {
+                // (ouvert, pickup): Hand, Hand Ouvert, pickup game, pickup Null Ouvert.
+                for (ouvert, pickup) in [(false, false), (true, false), (false, true), (true, true)]
+                {
+                    if pickup && ouvert && game != GameType::Null {
+                        continue; // Ouvert Farbspiel/Grand is Hand only
+                    }
                     let ann = if game == GameType::Null {
                         Announcement {
                             game,
@@ -63,7 +67,10 @@ fn every_multi_choice_card_play_decision_has_a_lesson() {
                         hand_game(game, ouvert)
                     };
                     let ann = if pickup {
-                        Announcement::plain(game)
+                        Announcement {
+                            ouvert,
+                            ..Announcement::plain(game)
+                        }
                     } else {
                         ann
                     };
