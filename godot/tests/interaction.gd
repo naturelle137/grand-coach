@@ -163,6 +163,7 @@ func play_series(lang: String) -> void:
 	var saw_play := false
 	var saw_next := false
 	var saw_card_click := false
+	var saw_discard := false
 	var captured := false
 	var deadline := Time.get_ticks_msec() + 60000
 	while Time.get_ticks_msec() < deadline:
@@ -184,6 +185,12 @@ func play_series(lang: String) -> void:
 			continue
 		var enabled = hand_nodes.filter(func(node): return not node.disabled)
 		var plays = view["legal_actions"].filter(func(a): return a is Dictionary and a.has("Play"))
+		var discards = view["legal_actions"].filter(func(a): return a is Dictionary and a.has("Discard"))
+		if not discards.is_empty():
+			assert(enabled.size() == hand_nodes.size() and hand_nodes.size() == 12)
+			await discard(table, view, discards)
+			saw_discard = true
+			continue
 		assert(enabled.size() == plays.size())
 		if not enabled.is_empty() and not saw_card_click and view["legal_actions"].size() == plays.size():
 			saw_card_click = true
@@ -195,7 +202,7 @@ func play_series(lang: String) -> void:
 		assert(buttons.size() == actions.size() + int(view["can_next_game"]))
 		if view["series_finished"]:
 			check_sheet(table, view)
-			assert(saw_bid and saw_play and saw_next and saw_card_click and actions.is_empty())
+			assert(saw_bid and saw_play and saw_next and saw_card_click and saw_discard and actions.is_empty())
 			table.queue_free()
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(table.settings_path))
 			return
@@ -264,3 +271,30 @@ func check_sheet(table: Node, view: Dictionary) -> void:
 			assert(shown[2 * seat + 1].text == table.texts.tr_key("figure-" + key))
 			assert(table._player(1 + seat) == shown[2 * seat + 1].text)
 			assert(shown[2 * seat].texture != null)
+
+# Drücken: two marked cards confirm exactly one legal Discard action, in both languages.
+func discard(table: Node, view: Dictionary, discards: Array) -> void:
+	var hand: Array = view["hand"]
+	var buttons = func(): return table.get_node("Layout/Scroll/Actions").get_children().filter(
+		func(button): return not button.is_queued_for_deletion() and button.name == "ConfirmDiscard")
+	assert(buttons.call().size() == 1 and buttons.call()[0].disabled)
+	var nodes = func(): return table.get_node("Layout/Hand").get_children().filter(
+		func(node): return not node.is_queued_for_deletion())
+	nodes.call()[0].button_pressed = true
+	assert(table.discard_selection == [int(hand[0])] and buttons.call()[0].disabled)
+	nodes.call()[1].button_pressed = true
+	var expected: int = (1 << int(hand[0])) | (1 << int(hand[1]))
+	assert(table._discard_mask() == expected and not buttons.call()[0].disabled)
+	for lang in ["de", "en"]:
+		table.texts.load_language(lang)
+		table._show()
+		assert(table.discard_selection.size() == 2 and not buttons.call()[0].disabled)
+		assert(buttons.call()[0].text == table.texts.tr_key("coach-action-discard", {"cards": ", ".join([table._card(int(hand[0])), table._card(int(hand[1]))])}))
+		assert(nodes.call()[0].button_pressed and nodes.call()[1].button_pressed)
+	nodes.call()[1].button_pressed = false
+	assert(buttons.call()[0].disabled)
+	nodes.call()[1].button_pressed = true
+	buttons.call()[0].pressed.emit()
+	assert(not table.failed, table.get_node("Layout/Status").text)
+	assert(JSON.parse_string(table.app.view())["phase"] != "Druecken" and table.discard_selection.is_empty())
+	await process_frame
