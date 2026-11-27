@@ -1225,3 +1225,6 @@ mode-pre-play = Learned pre-play (experimental)
 mode-pre-play-description = Experimental imitation model of Classic Strong decides bidding, Skat, discarding, announcements and card play, with the selected Easy/Medium/Strong temperature. It is clearly weaker than Classic Strong. Kontra/Re follow the Classic rules of thumb; any decision the model cannot take uses the selected Classic level. Retrying model loading requires an app restart.
 
 guided-rule-null-defender-forced-last = You play last and every legal card overtakes the declarer. Easy chooses fewer Augen, then lower Null rank; the first exact tie in legal order. Every legal card remains playable. This heuristic does not guarantee the game outcome or locate unseen cards.
+
+guided-forced-early-attempt = Every legal card overtakes the lead, but none is a Trumpf or the highest card of its suit. One player still follows. Which card does Easy choose by nontrump, fewer Augen and lower rank?
+guided-rule-forced-early = Every legal card overtakes the current lead and none is a Trumpf or a highest card of the led suit, so Easy has no early winner to prefer. Easy chooses among all legal cards: nontrump first, then fewer Augen and lower rank; the first exact tie. This guarantees neither the trick nor the game and says nothing about unseen cards; every legal card remains playable.

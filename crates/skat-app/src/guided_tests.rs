@@ -4998,3 +4998,43 @@ fn null_last_defender_forced_overtake_observes_each_card() {
         }
     }
 }
+
+#[test]
+fn forced_second_seat_overtake_observes_each_legal_card() {
+    use fixture::card as c;
+    let deal = skat_core::Deal::new(
+        [
+            fixture::cards("C7 CK S7 S8 S9 ST SK H7 H8 H9"),
+            fixture::cards("C8 C9 SA SQ D7 D8 D9 DT DK DQ"),
+            fixture::cards("CT CJ CQ CA SJ HJ HQ HK HA DJ"),
+        ],
+        fixture::cards("DA HT"),
+    )
+    .unwrap();
+    for game in [GRAND, skat_core::GameType::Farbe(skat_core::Suit::Herz)] {
+        for declarer in [Seat::Vorhand, Seat::Mittelhand] {
+            let actions =
+                fixture::contract_actions(deal, declarer, fixture::hand_game(game, false), &["C7"]);
+            let original = grand_session(Seat::Mittelhand, deal, false, &actions);
+            for action in original.view().legal_actions {
+                let mut s = original.clone();
+                s.execute(Command::StartGuided).unwrap();
+                assert!(!s.guided().unwrap().overtake_forced);
+                respond(&mut s, G::Answer(A::Seat(Some(Seat::Vorhand)))).unwrap();
+                respond(&mut s, G::Answer(A::Seat(Some(Seat::Hinterhand)))).unwrap();
+                assert!(s.guided().unwrap().overtake_forced);
+                assert!(s.guided().unwrap().rule.is_none());
+                respond(&mut s, G::Reveal).unwrap();
+                assert_eq!(s.guided().unwrap().rule.unwrap().card, c("C8"));
+                s.execute(Command::Act(action)).unwrap();
+                assert_eq!(s.guided().unwrap().step, S::Waiting);
+                s.apply(Action::Play(c("CT"))).unwrap();
+                respond(&mut s, G::Reveal).unwrap();
+                assert_eq!(
+                    s.guided().unwrap().observation.unwrap().winner,
+                    Some(Seat::Hinterhand)
+                );
+            }
+        }
+    }
+}
