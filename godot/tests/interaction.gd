@@ -78,6 +78,36 @@ func settings_persistence() -> void:
 				assert(open_cards.text.count("\n") == 4)
 		table.queue_free()
 		await process_frame
+	for index in range(4):
+		var table = load("res://main.tscn").instantiate()
+		table.settings_path = path
+		root.add_child(table)
+		var selector = table.get_node("Layout/Engine")
+		selector.select(index)
+		selector.item_selected.emit(index)
+		assert(selector.selected == table.ENGINES.find(table.engine))
+		assert(table.get_node("ConfirmRestart").visible)
+		table.get_node("ConfirmRestart").confirmed.emit()
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		table.queue_free()
+		await process_frame
+		table = load("res://main.tscn").instantiate()
+		table.settings_path = path
+		root.add_child(table)
+		selector = table.get_node("Layout/Engine")
+		assert(selector.selected == index and table.engine == table.ENGINES[index])
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		for lang in ["de", "en"]:
+			table.texts.load_language(lang)
+			table._show()
+			assert(selector.get_item_text(index) == table.texts.tr_key(table.ENGINE_KEYS[index]))
+			assert(selector.tooltip_text == table.texts.tr_key("opponent-engine"))
+		table.queue_free()
+		await process_frame
+	var reset = ConfigFile.new()
+	reset.load(path)
+	reset.set_value("game", "engine", "Classic")
+	reset.save(path)
 	for player in range(2):
 		for index in range(4):
 			var table = load("res://main.tscn").instantiate()

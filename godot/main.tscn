@@ -35,6 +35,9 @@ layout_mode = 2
 [node name="OpenDisplay" type="CheckBox" parent="Layout"]
 layout_mode = 2
 
+[node name="Engine" type="OptionButton" parent="Layout"]
+layout_mode = 2
+
 [node name="Opponents" type="HBoxContainer" parent="Layout"]
 layout_mode = 2
 

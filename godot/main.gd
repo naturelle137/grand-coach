@@ -9,9 +9,12 @@ var settings_path := "user://settings.cfg"
 var kontra_re := false
 var open_display := false
 var levels := ["Easy", "Easy"]
+var engine := "Classic"
 var pending_setting := {}
 var discard_selection: Array[int] = []
 const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
+const ENGINES := ["Classic", "Neural", "PrePlay", "Hybrid"]
+const ENGINE_KEYS := ["engine-classic", "mode-neural", "mode-pre-play", "mode-hybrid"]
 
 func _ready() -> void:
 	var language := "en" if OS.get_locale_language() == "en" else "de"
@@ -22,10 +25,14 @@ func _ready() -> void:
 			language = saved
 		kontra_re = settings.get_value("game", "kontra_re", false) == true
 		open_display = settings.get_value("game", "open_display", false) == true
+		var saved_engine = settings.get_value("game", "engine", "Classic")
+		if saved_engine in ENGINES:
+			engine = saved_engine
 		for i in range(2):
 			var level = settings.get_value("game", "level_%d" % i, "Easy")
 			if level in LEVELS:
 				levels[i] = level
+		_coerce_rookie()
 	if not texts.load_language(language):
 		texts.load_language("de")
 	$Layout/Language.add_item(texts.tr_key("language-de"))
@@ -36,6 +43,10 @@ func _ready() -> void:
 	$Layout/KontraRe.toggled.connect(_kontra_re_changed)
 	$Layout/OpenDisplay.button_pressed = open_display
 	$Layout/OpenDisplay.toggled.connect(_open_display_changed)
+	for key in ENGINE_KEYS:
+		$Layout/Engine.add_item(texts.tr_key(key))
+	$Layout/Engine.select(ENGINES.find(engine))
+	$Layout/Engine.item_selected.connect(_engine_changed)
 	$ConfirmRestart.confirmed.connect(_apply_setting)
 	for i in range(2):
 		var selector = $Layout/Opponents.get_child(i)
@@ -49,6 +60,8 @@ func _start_series() -> void:
 	var config := {"seed": 1, "series": {"Fixed": 3}, "kontra_re": kontra_re,
 		"display": "Open" if open_display else "Closed",
 		"opponents": {"Levels": levels}}
+	if engine != "Classic":
+		config["engine"] = engine
 	failed = false
 	var error := app.start(JSON.stringify(config))
 	if error != "":
@@ -80,9 +93,26 @@ func _open_display_changed(enabled: bool) -> void:
 	pending_setting = {"open_display": enabled}
 	_confirm_restart()
 
+func _engine_changed(index: int) -> void:
+	$Layout/Engine.select(ENGINES.find(engine))
+	pending_setting = {"engine": ENGINES[index]}
+	_confirm_restart()
+
+# Learned engines have no Rookie level (as in the egui app).
+func _coerce_rookie() -> void:
+	if engine == "Classic":
+		return
+	for i in range(2):
+		if levels[i] == "Rookie":
+			levels[i] = "Easy"
+			$Layout/Opponents.get_child(i).select(LEVELS.find("Easy"))
+			_save_setting("game", "level_%d" % i, "Easy")
+
 func _level_changed(index: int, player: int) -> void:
 	$Layout/Opponents.get_child(player).select(LEVELS.find(levels[player]))
 	pending_setting = {"player": player, "level": LEVELS[index]}
+	if engine != "Classic" and LEVELS[index] == "Rookie":
+		pending_setting["level"] = "Easy"
 	_confirm_restart()
 
 func _confirm_restart() -> void:
@@ -90,7 +120,16 @@ func _confirm_restart() -> void:
 	$ConfirmRestart.popup_centered()
 
 func _apply_setting() -> void:
-	if pending_setting.has("open_display"):
+	if pending_setting.has("engine"):
+		engine = pending_setting["engine"]
+		$Layout/Engine.select(ENGINES.find(engine))
+		_save_setting("game", "engine", engine)
+		for i in range(2):
+			if levels[i] == "Rookie" and engine != "Classic":
+				levels[i] = "Easy"
+				$Layout/Opponents.get_child(i).select(LEVELS.find("Easy"))
+				_save_setting("game", "level_%d" % i, "Easy")
+	elif pending_setting.has("open_display"):
 		open_display = pending_setting["open_display"]
 		$Layout/OpenDisplay.set_pressed_no_signal(open_display)
 		_save_setting("game", "open_display", open_display)
@@ -247,6 +286,9 @@ func _show() -> void:
 		selector.tooltip_text = texts.tr_key(["opponent-left", "opponent-right"][i])
 		for j in range(LEVELS.size()):
 			selector.set_item_text(j, "%s %s" % [selector.tooltip_text, texts.tr_key("level-" + LEVELS[j].to_lower())])
+	$Layout/Engine.tooltip_text = texts.tr_key("opponent-engine")
+	for j in range(ENGINES.size()):
+		$Layout/Engine.set_item_text(j, texts.tr_key(ENGINE_KEYS[j]))
 	var hand: Array[String] = []
 	for card in view["hand"]:
 		hand.append(_card(int(card)))
