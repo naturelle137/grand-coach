@@ -629,6 +629,15 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
                 && !rule.partner_ahead
                 && rule.winner.is_some_and(|w| Some(w) != view.declarer)
                 && !rule.losers.is_empty())
+            // Second seat, every legal card overtakes the opponent's lead, yet
+            // none is Trumpf or a follow-class master: Easy keeps the lowest.
+            || ((decline || decline_early)
+                && rule.branch == Branch::Fallback
+                && !rule.partner_ahead
+                && rule.losers.is_empty()
+                && rule.winner.is_some_and(|w| {
+                    (Some(w) == view.declarer) != (view.declarer == Some(view.seat))
+                }))
             || (decline_early
                 && rule.branch == Branch::Fallback
                 && !rule.partner_ahead
