@@ -24,6 +24,12 @@ offset_bottom = -16.0
 layout_mode = 2
 autowrap_mode = 2
 
+[node name="Trick" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="Hand" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
 [node name="Status" type="Label" parent="Layout"]
 layout_mode = 2
 

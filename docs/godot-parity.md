@@ -30,7 +30,7 @@ adapter contract only, `open` = not started.
 | Capability (egui) | Status | Godot verification |
 |-------------------|--------|--------------------|
 | Session start/restart/stop, seed, fixed or free series | adapter | `crates/gui-godot/tests/adapter.rs` (determinism, restart, rejected restart) |
-| Basic table: hand, phase, selectable legal actions | adapter | `godot/tests/interaction.gd` selects bids and cards and checks translated current-trick labels in Godot 4.4.1; full table presentation remains open |
+| Basic table: hand, phase, selectable legal actions | adapter | `godot/tests/interaction.gd` selects bids and cards, checks current-trick labels, SVG hand and trick card faces and clicking a legal hand card; written but not yet run (no Godot binary in the job); remaining table presentation open |
 | Opponent moves off the UI thread, stale results | done | `restart_discards_a_running_computation`, `human_move_makes_pending_result_stale`, `dropping_a_busy_adapter_is_safe` |
 | Structured errors, unchanged session on error | done | `errors_are_structured_and_leave_the_session_unchanged` |
 | Permitted view only; open display; God Mode | adapter | `view_is_the_permitted_view_only` (closed/open); God Mode open |
@@ -38,7 +38,7 @@ adapter contract only, `open` = not started.
 | Reizen, Skat, Drücken, Ansage, Hand/Ouvert, all game types | open | |
 | Optional Kontra/Re | open | |
 | Opponent levels, Goldfish, Mephisto, God Mode, engines | open | |
-| Card faces (SVG) and German/English texts from `assets/i18n/` | open | texts and action labels: `godot/i18n.gd` reads `assets/i18n/*.ftl`; `godot/tests/interaction.gd` checks German and English labels and a seeded series on Godot 4.4.1. Card faces, selector messages and export bundling remain open |
+| Card faces (SVG) and German/English texts from `assets/i18n/` | open | texts and action labels: `godot/i18n.gd` reads `assets/i18n/*.ftl`; `godot/tests/interaction.gd` checks German and English labels and a seeded series on Godot 4.4.1. Card faces (hand and trick) are loaded from `assets/cards/german`; selector messages and export bundling remain open |
 | Live coach modes, warnings, proceed/reconsider | open | |
 | Counting aid and quiz | open | |
 | Guided dialogues and Abstich question | open | |
