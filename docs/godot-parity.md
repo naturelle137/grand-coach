@@ -46,7 +46,7 @@ adapter contract only, `open` = not started.
 | Save/open recordings, replay window, comments, review, hindsight | open | |
 | Same-deal practice | open | |
 | Learning history, statistics, focused training | open | |
-| Settings persistence | open | |
+| Settings persistence | open | The language selector persists in `user://settings.cfg`; `godot/tests/interaction.gd` verifies both languages after recreating the scene. Other settings remain open. |
 | Linux and Windows 11 export, launch smoke, performance | open | |
 
 ## Build and run

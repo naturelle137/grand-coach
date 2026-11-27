@@ -5,9 +5,16 @@ var app := SkatApp.new()
 var failed := false
 var texts := preload("res://i18n.gd").new()
 var faces := {}
+var settings_path := "user://settings.cfg"
 
 func _ready() -> void:
-	if not texts.load_language("en" if OS.get_locale_language() == "en" else "de"):
+	var language := "en" if OS.get_locale_language() == "en" else "de"
+	var settings := ConfigFile.new()
+	if settings.load(settings_path) == OK:
+		var saved = settings.get_value("display", "language", language)
+		if saved in ["de", "en"]:
+			language = saved
+	if not texts.load_language(language):
 		texts.load_language("de")
 	$Layout/Language.add_item(texts.tr_key("language-de"))
 	$Layout/Language.add_item(texts.tr_key("language-en"))
@@ -23,6 +30,13 @@ func _ready() -> void:
 
 func _language_changed(index: int) -> void:
 	if texts.load_language(["de", "en"][index]):
+		var settings := ConfigFile.new()
+		var error := settings.load(settings_path)
+		if error == OK or error == ERR_FILE_NOT_FOUND:
+			settings.set_value("display", "language", texts.language)
+			error = settings.save(settings_path)
+		if error != OK:
+			push_warning("Could not save settings: %s" % error_string(error))
 		_show()
 
 func _process(_delta: float) -> void:

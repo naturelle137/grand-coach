@@ -5,13 +5,38 @@ func _initialize() -> void:
 	run.call_deferred()
 
 func run() -> void:
+	await settings_persistence()
 	for lang in ["de", "en"]:
 		await play_series(lang)
 	print("Godot interaction: German and English bidding, cards, next game and finished series")
 	quit(0)
 
+func settings_persistence() -> void:
+	var path := "user://interaction-settings.cfg"
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	for lang in ["de", "en"]:
+		var table = load("res://main.tscn").instantiate()
+		table.settings_path = path
+		root.add_child(table)
+		var language = table.get_node("Layout/Language")
+		var index := 0 if lang == "de" else 1
+		language.select(index)
+		language.item_selected.emit(index)
+		table.queue_free()
+		await process_frame
+		table = load("res://main.tscn").instantiate()
+		table.settings_path = path
+		root.add_child(table)
+		assert(table.texts.language == lang)
+		assert(table.get_node("Layout/Language").selected == index)
+		table.queue_free()
+		await process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
 func play_series(lang: String) -> void:
 	var table = load("res://main.tscn").instantiate()
+	table.settings_path = "user://interaction-settings.cfg"
 	root.add_child(table)
 	for label_lang in ["de", "en"]:
 		assert(table.texts.load_language(label_lang))
@@ -68,6 +93,7 @@ func play_series(lang: String) -> void:
 		if view["series_finished"]:
 			assert(saw_bid and saw_play and saw_next and saw_card_click and actions.is_empty())
 			table.queue_free()
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(table.settings_path))
 			return
 		if actions.is_empty():
 			if view["can_next_game"]:
