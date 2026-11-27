@@ -1223,3 +1223,5 @@ guided-rule-lead-fallback = You lead and no legal side-suit card is a master by 
 guided-lead-fallback-ouvert = The declarer's hand is open. Easy's rule does not use it for this lead; check for yourself which cards can still follow.
 mode-pre-play = Learned pre-play (experimental)
 mode-pre-play-description = Experimental imitation model of Classic Strong decides bidding, Skat, discarding, announcements and card play, with the selected Easy/Medium/Strong temperature. It is clearly weaker than Classic Strong. Kontra/Re follow the Classic rules of thumb; any decision the model cannot take uses the selected Classic level. Retrying model loading requires an app restart.
+
+godot-setting-restart-confirm = Start a new series? The current game and series progress will be lost.

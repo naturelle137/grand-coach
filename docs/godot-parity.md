@@ -37,7 +37,7 @@ adapter contract only, `open` = not started.
 | Same results as direct `skat-app` | done | `adapter_matches_direct_session_and_is_deterministic` |
 | Reizen, Skat, Drücken, Ansage, Hand/Ouvert, all game types | open | |
 | Optional Kontra/Re | open | |
-| Opponent levels, Goldfish, Mephisto, God Mode, engines | open | |
+| Opponent levels, Goldfish, Mephisto, God Mode, engines | open | Separate Rookie/Easy/Medium/Strong selections persist and start a new series; `godot/tests/interaction.gd` checks both seats and languages on Godot 4.4.1. Other modes and engines remain open. |
 | Card faces (SVG) and German/English texts from `assets/i18n/` | open | `godot/i18n.gd` reads `assets/i18n/*.ftl`; `godot/tests/interaction.gd` checks language switching, labels and a seeded series. Card faces (hand and trick) are loaded from `assets/cards/german`; selector messages, card selection and export bundling remain open |
 | Live coach modes, warnings, proceed/reconsider | open | |
 | Counting aid and quiz | open | |
@@ -46,7 +46,7 @@ adapter contract only, `open` = not started.
 | Save/open recordings, replay window, comments, review, hindsight | open | |
 | Same-deal practice | open | |
 | Learning history, statistics, focused training | open | |
-| Settings persistence | open | The language selector persists in `user://settings.cfg`; `godot/tests/interaction.gd` verifies both languages after recreating the scene. The optional Kontra/Re checkbox persists in the same file and starts a new series; `interaction.gd` checks both values and both languages (written, not yet run: no Godot binary in the job environment). Other settings remain open. |
+| Settings persistence | open | The language selector persists in `user://settings.cfg`; `godot/tests/interaction.gd` verifies both languages after recreating the scene. The optional Kontra/Re checkbox and both opponent levels persist in the same file and start a new series after confirmation; `interaction.gd` checks both values, all four levels, both seats and both languages on Godot 4.4.1. Other settings remain open. |
 | Linux and Windows 11 export, launch smoke, performance | open | |
 
 ## Build and run

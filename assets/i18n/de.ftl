@@ -1223,3 +1223,5 @@ guided-rule-lead-fallback = Du spielst aus, keine legale Beikarte ist nach den g
 guided-lead-fallback-ouvert = Die Hand des Alleinspielers liegt offen. Easys Regel nutzt sie für dieses Ausspiel nicht; prüfe selbst, welche Karten noch bedienen können.
 mode-pre-play = Gelerntes Vorspiel (experimentell)
 mode-pre-play-description = Ein experimentelles Imitationsmodell von Classic Stark entscheidet Reizen, Skat, Drücken, Ansagen und Kartenspiel mit der gewählten Temperatur Leicht/Mittel/Stark. Es ist deutlich schwächer als Classic Stark. Kontra/Re folgen den Classic-Faustregeln; nicht mögliche Entscheidungen übernimmt die gewählte Classic-Stufe. Ein erneuter Ladeversuch erfordert einen App-Neustart.
+
+godot-setting-restart-confirm = Eine neue Serie beginnen? Das laufende Spiel und der bisherige Serienstand gehen verloren.

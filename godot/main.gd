@@ -7,6 +7,9 @@ var texts := preload("res://i18n.gd").new()
 var faces := {}
 var settings_path := "user://settings.cfg"
 var kontra_re := false
+var levels := ["Easy", "Easy"]
+var pending_setting := {}
+const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
 
 func _ready() -> void:
 	var language := "en" if OS.get_locale_language() == "en" else "de"
@@ -16,6 +19,10 @@ func _ready() -> void:
 		if saved in ["de", "en"]:
 			language = saved
 		kontra_re = settings.get_value("game", "kontra_re", false) == true
+		for i in range(2):
+			var level = settings.get_value("game", "level_%d" % i, "Easy")
+			if level in LEVELS:
+				levels[i] = level
 	if not texts.load_language(language):
 		texts.load_language("de")
 	$Layout/Language.add_item(texts.tr_key("language-de"))
@@ -24,11 +31,18 @@ func _ready() -> void:
 	$Layout/Language.item_selected.connect(_language_changed)
 	$Layout/KontraRe.button_pressed = kontra_re
 	$Layout/KontraRe.toggled.connect(_kontra_re_changed)
+	$ConfirmRestart.confirmed.connect(_apply_setting)
+	for i in range(2):
+		var selector = $Layout/Opponents.get_child(i)
+		for level in LEVELS:
+			selector.add_item(level)
+		selector.select(LEVELS.find(levels[i]))
+		selector.item_selected.connect(_level_changed.bind(i))
 	_start_series()
 
 func _start_series() -> void:
 	var config := {"seed": 1, "series": {"Fixed": 3}, "kontra_re": kontra_re,
-		"opponents": {"Levels": ["Easy", "Easy"]}}
+		"opponents": {"Levels": levels}}
 	failed = false
 	var error := app.start(JSON.stringify(config))
 	if error != "":
@@ -50,10 +64,31 @@ func _language_changed(index: int) -> void:
 		_save_setting("display", "language", texts.language)
 		_show()
 
-## Kontra/Re applies to a new series, as in the egui setup (D-03).
 func _kontra_re_changed(enabled: bool) -> void:
-	kontra_re = enabled
-	_save_setting("game", "kontra_re", enabled)
+	$Layout/KontraRe.set_pressed_no_signal(kontra_re)
+	pending_setting = {"kontra_re": enabled}
+	_confirm_restart()
+
+func _level_changed(index: int, player: int) -> void:
+	$Layout/Opponents.get_child(player).select(LEVELS.find(levels[player]))
+	pending_setting = {"player": player, "level": LEVELS[index]}
+	_confirm_restart()
+
+func _confirm_restart() -> void:
+	$ConfirmRestart.dialog_text = texts.tr_key("godot-setting-restart-confirm")
+	$ConfirmRestart.popup_centered()
+
+func _apply_setting() -> void:
+	if pending_setting.has("kontra_re"):
+		kontra_re = pending_setting["kontra_re"]
+		$Layout/KontraRe.set_pressed_no_signal(kontra_re)
+		_save_setting("game", "kontra_re", kontra_re)
+	else:
+		var player: int = pending_setting["player"]
+		levels[player] = pending_setting["level"]
+		$Layout/Opponents.get_child(player).select(LEVELS.find(levels[player]))
+		_save_setting("game", "level_%d" % player, levels[player])
+	pending_setting.clear()
 	_start_series()
 
 func _process(_delta: float) -> void:
@@ -168,6 +203,11 @@ func _show() -> void:
 		return
 	$Layout/Language.tooltip_text = texts.tr_key("setting-language")
 	$Layout/KontraRe.text = texts.tr_key("option-kontra-re")
+	for i in range(2):
+		var selector = $Layout/Opponents.get_child(i)
+		selector.tooltip_text = texts.tr_key(["opponent-left", "opponent-right"][i])
+		for j in range(LEVELS.size()):
+			selector.set_item_text(j, "%s %s" % [selector.tooltip_text, texts.tr_key("level-" + LEVELS[j].to_lower())])
 	var hand: Array[String] = []
 	for card in view["hand"]:
 		hand.append(_card(int(card)))
