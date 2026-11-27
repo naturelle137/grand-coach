@@ -640,9 +640,9 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || (null
                 && rule.branch == Branch::Null
                 && (!rule.losers.is_empty()
-                    // A declarer with no loser uses the lowest-cost fallback.
                     || !null_defender
-                    || (null_defender && rule.winner != view.declarer))))
+                    || rule.winner != view.declarer
+                    || !rule.last)))
     {
         return None;
     }
