@@ -1715,3 +1715,14 @@ Kreuz-Acht. The core test replays both roles in Grand and Herz, rejects missing,
 overlapping and restricted views and exchanges unseen cards; the app test
 `forced_second_seat_overtake_observes_each_legal_card` plays each legal card and
 observes the actual trick winner. No learning efficacy is inferred.
+
+## Card-play coverage sample (#131)
+
+`crates/skat-coach/tests/guided_card_play_coverage.rs` replays 200 seeded deals
+through the core for every declarer seat, Grand, the three tested Farbspiele and
+Null, as Hand, Hand Ouvert and pickup/Drücken games, with seeded random legal
+play. At every card-play decision with at least two legal cards (over 50,000
+samples) `lesson` must return a lesson; any future Easy branch without a dialogue
+fails the test. This is a sample, not a proof: positions the random play does not
+reach, single-legal-card turns and Kontra/Re rounds are outside it, and it says
+nothing about explanation quality or learner outcomes.
