@@ -9,6 +9,10 @@ var faces := {}
 func _ready() -> void:
 	if not texts.load_language("en" if OS.get_locale_language() == "en" else "de"):
 		texts.load_language("de")
+	$Layout/Language.add_item(texts.tr_key("language-de"))
+	$Layout/Language.add_item(texts.tr_key("language-en"))
+	$Layout/Language.select(1 if texts.language == "en" else 0)
+	$Layout/Language.item_selected.connect(_language_changed)
 	var config := {"seed": 1, "series": {"Fixed": 3}, "kontra_re": false,
 		"opponents": {"Levels": ["Easy", "Easy"]}}
 	var error := app.start(JSON.stringify(config))
@@ -16,6 +20,10 @@ func _ready() -> void:
 		_report_error(error)
 		return
 	_show()
+
+func _language_changed(index: int) -> void:
+	if texts.load_language(["de", "en"][index]):
+		_show()
 
 func _process(_delta: float) -> void:
 	if failed:
@@ -127,6 +135,7 @@ func _show() -> void:
 	var view = JSON.parse_string(app.view())
 	if not view is Dictionary:
 		return
+	$Layout/Language.tooltip_text = texts.tr_key("setting-language")
 	var hand: Array[String] = []
 	for card in view["hand"]:
 		hand.append(_card(int(card)))

@@ -5,10 +5,16 @@ func _initialize() -> void:
 	run.call_deferred()
 
 func run() -> void:
+	for lang in ["de", "en"]:
+		await play_series(lang)
+	print("Godot interaction: German and English bidding, cards, next game and finished series")
+	quit(0)
+
+func play_series(lang: String) -> void:
 	var table = load("res://main.tscn").instantiate()
 	root.add_child(table)
-	for lang in ["de", "en"]:
-		assert(table.texts.load_language(lang))
+	for label_lang in ["de", "en"]:
+		assert(table.texts.load_language(label_lang))
 		assert(table._label({"Bid": 18}, 18, false) == table.texts.tr_key("button-bid", {"value": 18}))
 		assert(table._label("Hold", 18, false) == table.texts.tr_key("button-hold", {"value": 18}))
 		assert(table._label("Pass", 18, false) == table.texts.tr_key("button-pass"))
@@ -18,6 +24,13 @@ func run() -> void:
 		assert(table.texts.tr_key("contract-schneider") in label)
 		assert(table._trick([]) == "")
 		assert(table._trick([{"player": 1, "card": 0}]) == "%s: %s" % [table.texts.tr_key("player-left"), table._card(0)])
+	var language = table.get_node("Layout/Language")
+	for selected in [0, 1, 0 if lang == "de" else 1]:
+		language.select(selected)
+		language.item_selected.emit(selected)
+		assert(table.texts.language == ["de", "en"][selected])
+		assert(language.tooltip_text == table.texts.tr_key("setting-language"))
+		assert(table.texts.tr_key("trick-current") in table.get_node("Layout/Table").text)
 	var saw_bid := false
 	var saw_play := false
 	var saw_next := false
@@ -54,8 +67,7 @@ func run() -> void:
 		assert(buttons.size() == actions.size() + int(view["can_next_game"]))
 		if view["series_finished"]:
 			assert(saw_bid and saw_play and saw_next and saw_card_click and actions.is_empty())
-			print("Godot interaction: bidding, cards, next game and finished series")
-			quit(0)
+			table.queue_free()
 			return
 		if actions.is_empty():
 			if view["can_next_game"]:
