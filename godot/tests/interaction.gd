@@ -32,6 +32,24 @@ func settings_persistence() -> void:
 		assert(table.get_node("Layout/Language").selected == index)
 		table.queue_free()
 		await process_frame
+	for enabled in [true, false]:
+		var table = load("res://main.tscn").instantiate()
+		table.settings_path = path
+		root.add_child(table)
+		table.get_node("Layout/KontraRe").button_pressed = enabled
+		table.queue_free()
+		await process_frame
+		table = load("res://main.tscn").instantiate()
+		table.settings_path = path
+		root.add_child(table)
+		assert(table.kontra_re == enabled)
+		assert(table.get_node("Layout/KontraRe").button_pressed == enabled)
+		for lang in ["de", "en"]:
+			table.texts.load_language(lang)
+			table._show()
+			assert(table.get_node("Layout/KontraRe").text == table.texts.tr_key("option-kontra-re"))
+		table.queue_free()
+		await process_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 func play_series(lang: String) -> void:

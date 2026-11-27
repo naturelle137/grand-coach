@@ -27,6 +27,9 @@ autowrap_mode = 2
 [node name="Language" type="OptionButton" parent="Layout"]
 layout_mode = 2
 
+[node name="KontraRe" type="CheckBox" parent="Layout"]
+layout_mode = 2
+
 [node name="Trick" type="HBoxContainer" parent="Layout"]
 layout_mode = 2
 

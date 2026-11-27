@@ -6,6 +6,7 @@ var failed := false
 var texts := preload("res://i18n.gd").new()
 var faces := {}
 var settings_path := "user://settings.cfg"
+var kontra_re := false
 
 func _ready() -> void:
 	var language := "en" if OS.get_locale_language() == "en" else "de"
@@ -14,30 +15,46 @@ func _ready() -> void:
 		var saved = settings.get_value("display", "language", language)
 		if saved in ["de", "en"]:
 			language = saved
+		kontra_re = settings.get_value("game", "kontra_re", false) == true
 	if not texts.load_language(language):
 		texts.load_language("de")
 	$Layout/Language.add_item(texts.tr_key("language-de"))
 	$Layout/Language.add_item(texts.tr_key("language-en"))
 	$Layout/Language.select(1 if texts.language == "en" else 0)
 	$Layout/Language.item_selected.connect(_language_changed)
-	var config := {"seed": 1, "series": {"Fixed": 3}, "kontra_re": false,
+	$Layout/KontraRe.button_pressed = kontra_re
+	$Layout/KontraRe.toggled.connect(_kontra_re_changed)
+	_start_series()
+
+func _start_series() -> void:
+	var config := {"seed": 1, "series": {"Fixed": 3}, "kontra_re": kontra_re,
 		"opponents": {"Levels": ["Easy", "Easy"]}}
+	failed = false
 	var error := app.start(JSON.stringify(config))
 	if error != "":
 		_report_error(error)
 		return
 	_show()
 
+func _save_setting(section: String, key: String, value: Variant) -> void:
+	var settings := ConfigFile.new()
+	var error := settings.load(settings_path)
+	if error == OK or error == ERR_FILE_NOT_FOUND:
+		settings.set_value(section, key, value)
+		error = settings.save(settings_path)
+	if error != OK:
+		push_warning("Could not save settings: %s" % error_string(error))
+
 func _language_changed(index: int) -> void:
 	if texts.load_language(["de", "en"][index]):
-		var settings := ConfigFile.new()
-		var error := settings.load(settings_path)
-		if error == OK or error == ERR_FILE_NOT_FOUND:
-			settings.set_value("display", "language", texts.language)
-			error = settings.save(settings_path)
-		if error != OK:
-			push_warning("Could not save settings: %s" % error_string(error))
+		_save_setting("display", "language", texts.language)
 		_show()
+
+## Kontra/Re applies to a new series, as in the egui setup (D-03).
+func _kontra_re_changed(enabled: bool) -> void:
+	kontra_re = enabled
+	_save_setting("game", "kontra_re", enabled)
+	_start_series()
 
 func _process(_delta: float) -> void:
 	if failed:
@@ -150,6 +167,7 @@ func _show() -> void:
 	if not view is Dictionary:
 		return
 	$Layout/Language.tooltip_text = texts.tr_key("setting-language")
+	$Layout/KontraRe.text = texts.tr_key("option-kontra-re")
 	var hand: Array[String] = []
 	for card in view["hand"]:
 		hand.append(_card(int(card)))
