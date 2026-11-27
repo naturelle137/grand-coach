@@ -24,8 +24,13 @@ func play_series(lang: String) -> void:
 		assert(table.texts.tr_key("contract-schneider") in label)
 		assert(table._trick([]) == "")
 		assert(table._trick([{"player": 1, "card": 0}]) == "%s: %s" % [table.texts.tr_key("player-left"), table._card(0)])
-	assert(table.texts.load_language(lang))
-	table._show()
+	var language = table.get_node("Layout/Language")
+	for selected in [0, 1, 0 if lang == "de" else 1]:
+		language.select(selected)
+		language.item_selected.emit(selected)
+		assert(table.texts.language == ["de", "en"][selected])
+		assert(language.tooltip_text == table.texts.tr_key("setting-language"))
+		assert(table.texts.tr_key("trick-current") in table.get_node("Layout/Table").text)
 	var saw_bid := false
 	var saw_play := false
 	var saw_next := false
