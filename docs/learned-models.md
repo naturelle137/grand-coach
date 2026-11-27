@@ -468,7 +468,34 @@ values from different processes or treat shared pages as private memory.
 
 The existing [release package smoke](release-test-plan.md) verifies behaviour,
 not these timings or memory measurements. The source-tree latency examples
-are diagnostics, not packaged-app measurements. A packaged measurement driver
-is still needed to capture repeatable decision and debriefing timings before results can support
-[#423](https://github.com/naturelle137/grand-coach/issues/423); do not treat
-this record template or proxy runs as completing that issue.
+are diagnostics, not packaged-app measurements.
+
+`scripts/package-measure.py` is the packaged driver (Linux). From the RC build
+directory that holds the archive and `persistence-probe`:
+
+```sh
+python3 -B scripts/package-measure.py ARCHIVE --out NEW_DIR \
+  --classification proxy --machine "PROXY: description" --runs 5
+```
+
+It verifies and installs the archive, records identification, hashes and byte
+counts, and runs the probe's `measure` scenario in fresh processes (Easy
+opponents, seed 7: cold start to the first Neural card-play decision, later
+warm decisions, one full learned-order debriefing). Any model fallback
+invalidates the run. RSS is the `ps` KiB sample of the same probe process at
+the Classic baseline and after the scenario, as above; `runs.jsonl` keeps the raw
+observations, `measurement.json` the record and distributions. Limits: it
+measures the probe linked to the package's skat-app build, not the GUI
+process, so the GUI baseline stays a manual step; cold is a fresh process with
+a warm OS cache; power mode and contention are not controlled.
+
+Proxy validation of the procedure (2026-11-27, Intel Core i9-10900K, 10 cores
+/ 20 threads, **not the target**, so no target evidence; RC built from
+`3d119f2`, rustc 1.99.1, 5 runs): cold start 24.2-25.1 ms; warm decision
+median 0.146 ms, p95 0.189 ms (95 decisions); debriefing 875-954 ms; RSS
+after the scenario 248,164-265,348 KiB, delta from
+baseline 244,000-260,976 KiB. Raw files:
+`grand-coach-data/studies/2026-11-27-packaged-measure-proxy/`. Target
+measurements stay open until the named six-core machine is available;
+[#423](https://github.com/naturelle137/grand-coach/issues/423) is not
+complete.
