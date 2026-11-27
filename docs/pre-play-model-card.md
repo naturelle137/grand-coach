@@ -68,6 +68,8 @@ engine therefore does not yet provide a fully learned opponent.
 `validate-labels` reports Kontra and Re positive and negative labels, incomplete
 analyses, fallbacks and missing option lists separately for each deal split.
 It explicitly flags a split missing either class, including zero opportunities.
+An inference regression also gives illegal Kontra/Re actions extreme logits in
+the opposite decision and checks that the legal policy remains normalised.
 The current-teacher pilot has no positive Kontra in the test split and no Re
 opportunities in validation or test; it cannot support split-level assessment.
 A focused runtime regression exercises both legal decision types with the

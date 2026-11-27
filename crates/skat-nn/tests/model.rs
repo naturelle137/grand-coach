@@ -286,6 +286,50 @@ fn illegal_actions_are_masked_before_normalisation() {
 }
 
 #[test]
+fn illegal_doubling_logits_cannot_override_legal_kontra_or_re_choices() {
+    let mut seen = [false; 2];
+    let mut game = Game::new(0, RULES);
+    while let Some(seat) = game.current_seat() {
+        let view = game.view(seat);
+        let kind = if view.legal_actions.contains(&Action::Kontra) {
+            Some((0, [Action::Re, Action::KeinRe]))
+        } else if view.legal_actions.contains(&Action::Re) {
+            Some((1, [Action::Kontra, Action::KeinKontra]))
+        } else {
+            None
+        };
+        if let Some((kind, illegal)) = kind {
+            for action in illegal {
+                assert!(!view.legal_actions.contains(&action));
+                let bias = policy_bias() + action_index(action).unwrap();
+                let model = model_with(Phases::ALL, |k| if k == bias { 1000.0 } else { 0.0 });
+                let evaluation = model.evaluate(&view).unwrap();
+                assert_eq!(evaluation.action, view.legal_actions[0]);
+                assert_eq!(evaluation.policy.len(), view.legal_actions.len());
+                for (action, probability) in evaluation.policy {
+                    assert!(view.legal_actions.contains(&action));
+                    assert!((probability - 1.0 / view.legal_actions.len() as f32).abs() < 1e-5);
+                }
+            }
+            seen[kind] = true;
+        }
+        let action = if view.legal_actions.contains(&Action::Kontra) {
+            Action::Kontra
+        } else if view.phase == Phase::Reizen {
+            view.legal_actions
+                .iter()
+                .copied()
+                .find(|a| matches!(a, Action::Bid(v) if *v <= 24) || *a == Action::Hold)
+                .unwrap_or(Action::Pass)
+        } else {
+            *view.legal_actions.last().unwrap()
+        };
+        game.apply(action).unwrap();
+    }
+    assert_eq!(seen, [true, true]);
+}
+
+#[test]
 fn non_finite_outputs_fall_back() {
     let view = decision_views(1).remove(0);
     for bad in [f32::NAN, f32::INFINITY] {
