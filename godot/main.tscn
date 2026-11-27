@@ -35,6 +35,12 @@ layout_mode = 2
 [node name="OpenDisplay" type="CheckBox" parent="Layout"]
 layout_mode = 2
 
+[node name="CountingAid" type="CheckBox" parent="Layout"]
+layout_mode = 2
+
+[node name="Quiz" type="CheckBox" parent="Layout"]
+layout_mode = 2
+
 [node name="Engine" type="OptionButton" parent="Layout"]
 layout_mode = 2
 
@@ -69,6 +75,44 @@ layout_mode = 2
 columns = 5
 
 [node name="Series" type="Label" parent="Layout"]
+visible = false
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="Aid" type="Label" parent="Layout"]
+visible = false
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="QuizBox" type="VBoxContainer" parent="Layout"]
+visible = false
+layout_mode = 2
+
+[node name="Question" type="Label" parent="Layout/QuizBox"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="Controls" type="HBoxContainer" parent="Layout/QuizBox"]
+layout_mode = 2
+
+[node name="Value" type="SpinBox" parent="Layout/QuizBox/Controls"]
+layout_mode = 2
+max_value = 255.0
+rounded = true
+
+[node name="Answer" type="Button" parent="Layout/QuizBox/Controls"]
+layout_mode = 2
+
+[node name="Skip" type="Button" parent="Layout/QuizBox/Controls"]
+layout_mode = 2
+
+[node name="ShowHelp" type="Button" parent="Layout/QuizBox/Controls"]
+layout_mode = 2
+
+[node name="Off" type="Button" parent="Layout/QuizBox/Controls"]
+layout_mode = 2
+
+[node name="QuizFeedback" type="Label" parent="Layout"]
 visible = false
 layout_mode = 2
 autowrap_mode = 2
