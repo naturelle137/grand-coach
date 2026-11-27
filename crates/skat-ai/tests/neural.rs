@@ -306,3 +306,74 @@ fn pre_play_decisions_depend_only_on_the_permitted_view() {
     }
     assert!(compared > 100);
 }
+
+#[test]
+fn learned_kontra_and_re_mask_actions_and_fall_back_deterministically() {
+    let mut healthy = neural(Phases::ALL, 17);
+    healthy.classic.profile.search_kontra = true;
+    let missing = NeuralOpponent::new(Err(ModelError::Missing), healthy.classic);
+    let mut uncovered = neural(Phases::from_bits(1).unwrap(), 17);
+    uncovered.classic = healthy.classic;
+    let shape = NetShape::current(FIXTURE_HIDDEN);
+    let net = PolicyValueNet::from_weights(shape, &Device::flex(), || f32::NAN);
+    let bytes = write_model(
+        &ModelHeader {
+            encoder_version: ENCODER_VERSION,
+            shape,
+            phases: Phases::ALL,
+        },
+        net,
+    )
+    .unwrap();
+    let non_finite = NeuralOpponent::new(model(&bytes), healthy.classic);
+    let mut seen = [false; 2];
+    for seed in 0..20 {
+        let mut game = Game::new(seed, RULES);
+        while let Some(seat) = game.current_seat() {
+            let view = game.view(seat);
+            let kind = if view.legal_actions.contains(&Action::Kontra) {
+                Some(0)
+            } else if view.legal_actions.contains(&Action::Re) {
+                Some(1)
+            } else {
+                None
+            };
+            if let Some(kind) = kind {
+                let evaluation = healthy.model().unwrap().evaluate(&view).unwrap();
+                assert_eq!(evaluation.policy.len(), view.legal_actions.len());
+                assert!(evaluation.policy.iter().all(|(action, p)| {
+                    view.legal_actions.contains(action) && p.is_finite() && *p >= 0.0
+                }));
+                let decision = healthy.decide_explained(&view, None).unwrap();
+                assert!(view.legal_actions.contains(&decision.decision.action));
+                assert_eq!(decision.fallback, None);
+                assert_eq!(decision, healthy.decide_explained(&view, None).unwrap());
+                for (opponent, reason) in [
+                    (&missing, Fallback::Model(ModelError::Missing)),
+                    (&uncovered, Fallback::UnsupportedPhase(Phase::Spiel)),
+                    (&non_finite, Fallback::NonFinite),
+                ] {
+                    let fallback = opponent.decide_explained(&view, None).unwrap();
+                    assert_eq!(fallback.fallback, Some(reason));
+                    assert_eq!(
+                        Some(fallback.decision),
+                        opponent.classic.decide(&view, None)
+                    );
+                    assert!(view.legal_actions.contains(&fallback.decision.action));
+                    assert_eq!(fallback, opponent.decide_explained(&view, None).unwrap());
+                }
+                seen[kind] = true;
+            }
+            let action = if view.legal_actions.contains(&Action::Kontra) {
+                Action::Kontra
+            } else {
+                BaselineOpponent.decide(&view).unwrap()
+            };
+            game.apply(action).unwrap();
+        }
+        if seen == [true, true] {
+            break;
+        }
+    }
+    assert_eq!(seen, [true, true], "both decision types must be exercised");
+}
