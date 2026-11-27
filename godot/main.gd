@@ -59,6 +59,12 @@ func _card(index: int) -> String:
 		"rank": texts.tr_key(["rank-sieben", "rank-acht", "rank-neun", "rank-zehn",
 			"rank-bube", "rank-dame", "rank-koenig", "rank-ass"][index % 8])})
 
+func _trick(cards: Array) -> String:
+	var played: Array[String] = []
+	for card in cards:
+		played.append("%s: %s" % [texts.tr_key(["player-human", "player-left", "player-right"][int(card["player"])]), _card(int(card["card"]))])
+	return ", ".join(played)
+
 func _label(action: Variant, bid: int, hand_game: Variant) -> String:
 	if action is String:
 		var keys := {"Hold": "button-hold", "Pass": "button-pass", "Hand": "button-hand",
@@ -102,7 +108,7 @@ func _show() -> void:
 		hand.append(_card(int(card)))
 	$Layout/Table.text = "%d · %s\n%s\n%s: %s" % [
 		view["game_number"], texts.tr_key("phase-" + str(view["phase"]).to_lower()),
-		", ".join(hand), texts.tr_key("trick-current"), JSON.stringify(view["current_trick"])]
+		", ".join(hand), texts.tr_key("trick-current"), _trick(view["current_trick"])]
 	$Layout/Status.text = texts.tr_key("status-waiting", {"player": texts.tr_key(["player-human", "player-left", "player-right"][int(view["acting"])])}) if view["opponent_to_move"] and view["acting"] != null else ""
 	for child in $Layout/Scroll/Actions.get_children():
 		child.queue_free()

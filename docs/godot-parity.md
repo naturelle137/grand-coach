@@ -30,7 +30,7 @@ adapter contract only, `open` = not started.
 | Capability (egui) | Status | Godot verification |
 |-------------------|--------|--------------------|
 | Session start/restart/stop, seed, fixed or free series | adapter | `crates/gui-godot/tests/adapter.rs` (determinism, restart, rejected restart) |
-| Basic table: hand, phase, selectable legal actions | adapter | `godot/tests/interaction.gd` selects bids and cards in Godot 4.4.1; full table presentation remains open |
+| Basic table: hand, phase, selectable legal actions | adapter | `godot/tests/interaction.gd` selects bids and cards and checks translated current-trick labels in Godot 4.4.1; full table presentation remains open |
 | Opponent moves off the UI thread, stale results | done | `restart_discards_a_running_computation`, `human_move_makes_pending_result_stale`, `dropping_a_busy_adapter_is_safe` |
 | Structured errors, unchanged session on error | done | `errors_are_structured_and_leave_the_session_unchanged` |
 | Permitted view only; open display; God Mode | adapter | `view_is_the_permitted_view_only` (closed/open); God Mode open |
@@ -53,6 +53,7 @@ adapter contract only, `open` = not started.
 
 ```sh
 cargo build -p gui-godot            # target/debug/libgui_godot.so (gui_godot.dll)
+godot --headless --editor --path godot --import --quit # register the extension on first use
 godot --path godot                  # Godot 4.4+, from the repository root
 cargo test -p gui-godot             # adapter contract tests, no Godot needed
 godot --headless --path godot --script res://tests/interaction.gd # interaction smoke
