@@ -7,6 +7,15 @@ func _initialize() -> void:
 func run() -> void:
 	var table = load("res://main.tscn").instantiate()
 	root.add_child(table)
+	for lang in ["de", "en"]:
+		assert(table.texts.load_language(lang))
+		assert(table._label({"Bid": 18}, 18, false) == table.texts.tr_key("button-bid", {"value": 18}))
+		assert(table._label("Hold", 18, false) == table.texts.tr_key("button-hold", {"value": 18}))
+		assert(table._label("Pass", 18, false) == table.texts.tr_key("button-pass"))
+		var announcement := {"game": {"Farbe": "Kreuz"}, "schneider": true, "schwarz": false, "ouvert": false}
+		var label: String = table._label({"Announce": announcement}, 18, true)
+		assert(table.texts.tr_key("suit-kreuz") in label and table.texts.tr_key("contract-hand") in label)
+		assert(table.texts.tr_key("contract-schneider") in label)
 	var saw_bid := false
 	var saw_play := false
 	var saw_next := false
@@ -42,7 +51,7 @@ func run() -> void:
 					saw_bid = true
 				if action.has("Play"):
 					saw_play = true
-		if not captured and OS.has_environment("GODOT_SCREENSHOT") and actions[selected] is Dictionary and actions[selected].has("Play"):
+		if not captured and OS.has_environment("GODOT_SCREENSHOT") and actions[selected] is Dictionary and actions[selected].has("Bid"):
 			root.get_texture().get_image().save_png(OS.get_environment("GODOT_SCREENSHOT"))
 			captured = true
 		buttons[selected].pressed.emit()

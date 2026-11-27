@@ -59,8 +59,30 @@ func _card(index: int) -> String:
 		"rank": texts.tr_key(["rank-sieben", "rank-acht", "rank-neun", "rank-zehn",
 			"rank-bube", "rank-dame", "rank-koenig", "rank-ass"][index % 8])})
 
-func _label(action: Variant) -> String:
+func _label(action: Variant, bid: int, hand_game: Variant) -> String:
+	if action is String:
+		var keys := {"Hold": "button-hold", "Pass": "button-pass", "Hand": "button-hand",
+			"TakeSkat": "button-take-skat", "Kontra": "button-kontra",
+			"KeinKontra": "button-kein-kontra", "Re": "button-re", "KeinRe": "button-kein-re"}
+		if keys.has(action):
+			return texts.tr_key(keys[action], {"value": bid})
 	if action is Dictionary:
+		if action.has("Bid"):
+			return texts.tr_key("button-bid", {"value": int(action["Bid"])})
+		if action.has("Announce"):
+			var announcement: Dictionary = action["Announce"]
+			var game = announcement["game"]
+			var parts: Array[String] = []
+			if game is Dictionary:
+				parts.append(texts.tr_key("suit-" + str(game["Farbe"]).to_lower()))
+			else:
+				parts.append(texts.tr_key("game-" + str(game).to_lower()))
+			if hand_game == true:
+				parts.append(texts.tr_key("contract-hand"))
+			for modifier in ["schneider", "schwarz", "ouvert"]:
+				if announcement[modifier]:
+					parts.append(texts.tr_key("contract-" + modifier))
+			return texts.tr_key("coach-action-announce", {"game": " · ".join(parts)})
 		if action.has("Play"):
 			return _card(int(action["Play"]))
 		if action.has("Discard"):
@@ -86,7 +108,7 @@ func _show() -> void:
 		child.queue_free()
 	if not view["opponent_to_move"]:
 		for action in view["legal_actions"]:
-			_add_button(_label(action), {"Act": action})
+			_add_button(_label(action, int(view["bid"]), view["hand_game"]), {"Act": action})
 		if view["can_next_game"]:
 			_add_button(texts.tr_key("button-next-game"), "NextGame")
 		elif view["legal_actions"].is_empty():

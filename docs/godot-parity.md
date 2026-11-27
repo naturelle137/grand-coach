@@ -38,7 +38,7 @@ adapter contract only, `open` = not started.
 | Reizen, Skat, Drücken, Ansage, Hand/Ouvert, all game types | open | |
 | Optional Kontra/Re | open | |
 | Opponent levels, Goldfish, Mephisto, God Mode, engines | open | |
-| Card faces (SVG) and German/English texts from `assets/i18n/` | open | texts: `godot/i18n.gd` reads `assets/i18n/*.ftl` (phases, card names, status, buttons); not run in Godot here, card faces, selector messages and export bundling open |
+| Card faces (SVG) and German/English texts from `assets/i18n/` | open | texts and action labels: `godot/i18n.gd` reads `assets/i18n/*.ftl`; `godot/tests/interaction.gd` checks German and English labels and a seeded series on Godot 4.4.1. Card faces, selector messages and export bundling remain open |
 | Live coach modes, warnings, proceed/reconsider | open | |
 | Counting aid and quiz | open | |
 | Guided dialogues and Abstich question | open | |
