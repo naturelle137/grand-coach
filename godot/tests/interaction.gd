@@ -52,6 +52,32 @@ func settings_persistence() -> void:
 			assert(table.get_node("Layout/KontraRe").text == table.texts.tr_key("option-kontra-re"))
 		table.queue_free()
 		await process_frame
+	for enabled in [true, false]:
+		var table = load("res://main.tscn").instantiate()
+		table.settings_path = path
+		root.add_child(table)
+		table.get_node("Layout/OpenDisplay").button_pressed = enabled
+		assert(table.open_display != enabled)
+		table.get_node("ConfirmRestart").confirmed.emit()
+		table.queue_free()
+		await process_frame
+		table = load("res://main.tscn").instantiate()
+		table.settings_path = path
+		root.add_child(table)
+		assert(table.open_display == enabled)
+		assert(table.get_node("Layout/OpenDisplay").button_pressed == enabled)
+		var open_cards = table.get_node("Layout/OpenCards")
+		var view: Dictionary = JSON.parse_string(table.app.view())
+		assert((view["open_cards"] != null) == enabled and open_cards.visible == enabled)
+		for lang in ["de", "en"]:
+			table.texts.load_language(lang)
+			table._show()
+			assert(table.get_node("Layout/OpenDisplay").text == table.texts.tr_key("option-open-display"))
+			if enabled:
+				assert(open_cards.text.begins_with(table.texts.tr_key("label-open-cards")))
+				assert(open_cards.text.count("\n") == 4)
+		table.queue_free()
+		await process_frame
 	for player in range(2):
 		for index in range(4):
 			var table = load("res://main.tscn").instantiate()

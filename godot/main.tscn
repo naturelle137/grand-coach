@@ -32,6 +32,9 @@ layout_mode = 2
 [node name="KontraRe" type="CheckBox" parent="Layout"]
 layout_mode = 2
 
+[node name="OpenDisplay" type="CheckBox" parent="Layout"]
+layout_mode = 2
+
 [node name="Opponents" type="HBoxContainer" parent="Layout"]
 layout_mode = 2
 
@@ -40,6 +43,11 @@ layout_mode = 2
 
 [node name="Right" type="OptionButton" parent="Layout/Opponents"]
 layout_mode = 2
+
+[node name="OpenCards" type="Label" parent="Layout"]
+visible = false
+layout_mode = 2
+autowrap_mode = 2
 
 [node name="Trick" type="HBoxContainer" parent="Layout"]
 layout_mode = 2

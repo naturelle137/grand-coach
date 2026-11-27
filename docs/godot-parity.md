@@ -46,7 +46,7 @@ adapter contract only, `open` = not started.
 | Save/open recordings, replay window, comments, review, hindsight | open | |
 | Same-deal practice | open | |
 | Learning history, statistics, focused training | open | |
-| Settings persistence | open | The language selector persists in `user://settings.cfg`; `godot/tests/interaction.gd` verifies both languages after recreating the scene. The optional Kontra/Re checkbox and both opponent levels persist in the same file and start a new series after confirmation; `interaction.gd` checks both values, all four levels, both seats and both languages on Godot 4.4.1. Other settings remain open. |
+| Settings persistence | open | The language selector persists in `user://settings.cfg`; `godot/tests/interaction.gd` verifies both languages after recreating the scene. The optional Kontra/Re checkbox and both opponent levels persist in the same file and start a new series after confirmation; `interaction.gd` checks both values, all four levels, both seats and both languages on Godot 4.4.1. The open-display checkbox persists the same way and shows all hands and the Skat from the permitted open view; `interaction.gd` checks both values and languages. Other settings remain open. |
 | Linux and Windows 11 export, launch smoke, performance | open | |
 
 ## Build and run
