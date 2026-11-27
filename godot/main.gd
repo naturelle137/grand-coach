@@ -3,8 +3,11 @@ extends Control
 
 var app := SkatApp.new()
 var failed := false
+var texts := preload("res://i18n.gd").new()
 
 func _ready() -> void:
+	if not texts.load_language("en" if OS.get_locale_language() == "en" else "de"):
+		texts.load_language("de")
 	var config := {"seed": 1, "series": {"Fixed": 3}, "kontra_re": false,
 		"opponents": {"Levels": ["Easy", "Easy"]}}
 	var error := app.start(JSON.stringify(config))
@@ -28,7 +31,7 @@ func _process(_delta: float) -> void:
 func _report_error(result: String) -> bool:
 	var parsed = JSON.parse_string(result)
 	if parsed is Dictionary and parsed.has("error"):
-		$Layout/Status.text = "Fehler: " + JSON.stringify(parsed["error"])
+		$Layout/Status.text = JSON.stringify(parsed["error"])
 		failed = true
 		return true
 	return false
@@ -51,19 +54,21 @@ func _act(command: Variant) -> void:
 		_show()
 
 func _card(index: int) -> String:
-	return ["Kreuz", "Pik", "Herz", "Karo"][index / 8] + " " + \
-		["7", "8", "9", "10", "Bube", "Dame", "König", "Ass"][index % 8]
+	return texts.tr_key("card-name", {
+		"suit": texts.tr_key(["suit-kreuz", "suit-pik", "suit-herz", "suit-karo"][index / 8]),
+		"rank": texts.tr_key(["rank-sieben", "rank-acht", "rank-neun", "rank-zehn",
+			"rank-bube", "rank-dame", "rank-koenig", "rank-ass"][index % 8])})
 
 func _label(action: Variant) -> String:
 	if action is Dictionary:
 		if action.has("Play"):
-			return "Spielen: " + _card(int(action["Play"]))
+			return _card(int(action["Play"]))
 		if action.has("Discard"):
 			var cards: Array[String] = []
 			for i in range(32):
 				if int(action["Discard"]) & (1 << i):
 					cards.append(_card(i))
-			return "Drücken: " + ", ".join(cards)
+			return texts.tr_key("coach-action-discard", {"cards": ", ".join(cards)})
 	return JSON.stringify(action)
 
 func _show() -> void:
@@ -73,18 +78,19 @@ func _show() -> void:
 	var hand: Array[String] = []
 	for card in view["hand"]:
 		hand.append(_card(int(card)))
-	$Layout/Table.text = "Spiel %d · %s\nHand: %s\nStich: %s" % [
-		view["game_number"], view["phase"], ", ".join(hand), JSON.stringify(view["current_trick"])]
-	$Layout/Status.text = "Gegner am Zug …" if view["opponent_to_move"] else "Aktion wählen"
+	$Layout/Table.text = "%d · %s\n%s\n%s: %s" % [
+		view["game_number"], texts.tr_key("phase-" + str(view["phase"]).to_lower()),
+		", ".join(hand), texts.tr_key("trick-current"), JSON.stringify(view["current_trick"])]
+	$Layout/Status.text = texts.tr_key("status-waiting", {"player": texts.tr_key(["player-human", "player-left", "player-right"][int(view["acting"])])}) if view["opponent_to_move"] and view["acting"] != null else ""
 	for child in $Layout/Scroll/Actions.get_children():
 		child.queue_free()
 	if not view["opponent_to_move"]:
 		for action in view["legal_actions"]:
 			_add_button(_label(action), {"Act": action})
 		if view["can_next_game"]:
-			_add_button("Nächstes Spiel", "NextGame")
+			_add_button(texts.tr_key("button-next-game"), "NextGame")
 		elif view["legal_actions"].is_empty():
-			$Layout/Status.text = "Serie beendet" if view["series_finished"] else "Keine Aktion verfügbar"
+			$Layout/Status.text = texts.tr_key("series-finished", {"games": view["game_number"]}) if view["series_finished"] else ""
 
 func _add_button(label: String, command: Variant) -> void:
 	var button := Button.new()
