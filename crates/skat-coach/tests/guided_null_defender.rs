@@ -6,6 +6,82 @@ mod fixture;
 use fixture::{card, cases};
 use skat_coach::guided::{Answer, Step, lesson};
 use skat_core::{Action, Announcement, Game, GameType, RuleConfig, Seat};
+#[allow(dead_code)]
+#[path = "support/guided.rs"]
+mod guided_fixture;
+
+#[test]
+fn defender_must_overtake_declarer_in_closed_and_open_null() {
+    // VH leads C7; MH must follow with C8, CT, CJ or CK. Easy selects C8.
+    let deal = guided_fixture::swap(cases()[0].deal, card(0), card(1));
+    for ouvert in [false, true] {
+        let mut game = Game::from_deal(deal, RuleConfig { kontra_re: false });
+        for action in [
+            Action::Bid(18),
+            Action::Hold,
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(Announcement {
+                ouvert,
+                ..Announcement::plain(GameType::Null)
+            }),
+            Action::Play(card(0)),
+        ] {
+            game.apply(action).unwrap();
+        }
+        let view = game.view(Seat::Mittelhand);
+        assert_eq!(view.declarer, Some(Seat::Vorhand));
+        let l = lesson(&view).expect("forced defender lesson");
+        let hidden = guided_fixture::swap(deal, card(2), card(30));
+        let mut other = Game::from_deal(hidden, RuleConfig { kontra_re: false });
+        for action in [
+            Action::Bid(18),
+            Action::Hold,
+            Action::Pass,
+            Action::Pass,
+            Action::Hand,
+            Action::Announce(Announcement {
+                ouvert,
+                ..Announcement::plain(GameType::Null)
+            }),
+            Action::Play(card(0)),
+        ] {
+            other.apply(action).unwrap();
+        }
+        assert_eq!(view, other.view(Seat::Mittelhand));
+        assert_eq!(Some(l.clone()), lesson(&other.view(Seat::Mittelhand)));
+        assert_eq!(
+            view.legal_actions,
+            [1, 3, 4, 6].map(|n| Action::Play(card(n)))
+        );
+        assert!(l.rule.losers.is_empty());
+        assert_eq!(l.rule.card, card(1));
+        assert_eq!(l.rule.candidates, [1, 3, 4, 6].map(card));
+        assert!(l.check(Step::Narrow, Answer::Card(card(1))));
+        assert!(!l.check(Step::Narrow, Answer::Card(card(3))));
+        let mut bad = view.clone();
+        bad.legal_actions.reverse();
+        assert!(lesson(&bad).is_none());
+        if ouvert {
+            let mut bad = view.clone();
+            bad.declarer_cards = None;
+            assert!(lesson(&bad).is_none());
+        }
+        for action in &view.legal_actions {
+            let mut next = game.clone();
+            next.apply(*action).unwrap();
+            for reply in next.view(Seat::Hinterhand).legal_actions {
+                let mut finished = next.clone();
+                finished.apply(reply).unwrap();
+                assert_ne!(
+                    finished.view(Seat::Mittelhand).tricks[0].winner,
+                    Seat::Vorhand
+                );
+            }
+        }
+    }
+}
 
 #[test]
 fn defender_follows_declarer_and_observes_reply() {

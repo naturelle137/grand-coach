@@ -139,6 +139,12 @@ pub fn render(name: &str, out: Option<&str>) {
         });
         h.run_steps(8);
         h.get_by_label(&I18n::new(language).t("guided-title"));
+        if entry["case"]
+            .as_str()
+            .is_some_and(|case| case.starts_with("defender-forced"))
+        {
+            h.get_by_label(&I18n::new(language).t("guided-rule-null-defender-forced-middle"));
+        }
         if let Some(out) = out {
             h.render()
                 .unwrap()

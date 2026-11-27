@@ -171,7 +171,9 @@ fn content(
             "guided-null-partner-attempt"
         }
         GuidedStep::Narrow if g.task == Some(GuidedBranch::Null) && g.null_forced => {
-            if table.current_trick.len() == 1 {
+            if null_defender {
+                "guided-null-defender-forced-attempt"
+            } else if table.current_trick.len() == 1 {
                 "guided-null-middle-forced-attempt"
             } else {
                 "guided-null-forced-attempt"
@@ -326,6 +328,8 @@ fn content(
         } else if rule.branch == GuidedBranch::Null {
             if g.lead.is_some() {
                 "guided-rule-null-lead"
+            } else if null_defender && !rule.last && rule.losers.is_empty() && !null_partner_lead {
+                "guided-rule-null-defender-forced-middle"
             } else if null_defender && rule.last {
                 "guided-rule-null-defender-last"
             } else if null_partner_lead {
