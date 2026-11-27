@@ -53,6 +53,7 @@ pub fn deal_hh(hh: &str, skat: &str) -> Deal {
     Deal::new([vh, mh, hh], skat).unwrap()
 }
 
+#[allow(dead_code)]
 pub fn swap(deal: Deal, a: Card, b: Card) -> Deal {
     let swap = |mut set: CardSet| {
         if set.contains(a) != set.contains(b) {
