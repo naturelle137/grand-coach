@@ -59,7 +59,7 @@ separate factual oracles.
   [opening lead](#null-opening-lead-176) also supports Ouvert. Ouvert turns
   require the matching revealed hand. All require at least two pure legal cards;
   the linked sections define the full guards.
-- **Null defender:** opening lead in Vorhand, including Ouvert after reveal; second after either player leads, or last with the declarer ahead. At least two exact legal actions are required; a current loser is required in the last-seat declarer-ahead branch.
+- **Null defender:** opening lead in Vorhand, including Ouvert after reveal; second after either player leads, or last with the declarer ahead. At least two exact legal actions are required.
 - **Exclusions:** other leads, Farbspiel WinEarly outside the [#178 guards](#farbspiel-winearly-178),
   early feeding or Farbspiel feeding outside the #185 guards, arbitrary fallback,
   single legal action, other Grand branches, other Grand Ouvert turns, other Null card play or
@@ -1257,9 +1257,19 @@ declarer currently wins and a legal card leaves the declarer ahead. Easy
 chooses the highest Null rank among those cards, last in legal order on a tie.
 All legal cards remain playable; the observation reports the actual card and
 winner, including if the learner overtakes. The lesson uses only the permitted
-view and excludes a partner currently ahead or no losing card. Null Ouvert
+view. Null Ouvert
 requires a consistent revealed declarer hand. This
 heuristic does not guarantee the game outcome.
+
+If no legal card leaves the declarer ahead, every legal card overtakes and
+Easy instead chooses fewer Augen, then lower Null rank, first exact tie. For a
+reproducible DE/EN walkthrough, use the core-accepted Hand deal in
+`last_defender_forced_overtake_in_closed_and_open_null`: Vorhand declares Null,
+leads Kreuz-Acht, Mittelhand follows Kreuz-Sieben, and Hinterhand chooses
+between Kreuz-Neun and Kreuz-Ass. The dialogue reveals Easy's Kreuz-Neun only
+on request; either card wins the trick. The fixture substitutes an unseen
+Skat card without changing the permitted view, and the app test observes each
+actual choice. No learner outcome is inferred.
 
 A defender playing last while the partner currently wins the trick uses
 Easy's fallback instead: lowest Augen, then lowest Null rank, first exact tie

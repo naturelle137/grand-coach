@@ -637,12 +637,7 @@ pub fn lesson(view: &PlayerView) -> Option<Lesson> {
             || (rule.branch == Branch::FeedPartner
                 && (((grand || suit_feed || ouvert_feed) && rule.last)
                     || (feed_early && rule.partner_ahead && rule.table_master)))
-            || (null
-                && rule.branch == Branch::Null
-                && (!rule.losers.is_empty()
-                    || !null_defender
-                    || rule.winner != view.declarer
-                    || !rule.last)))
+            || (null && rule.branch == Branch::Null))
     {
         return None;
     }
