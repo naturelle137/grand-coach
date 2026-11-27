@@ -61,6 +61,18 @@ layout_mode = 2
 [node name="Status" type="Label" parent="Layout"]
 layout_mode = 2
 
+[node name="SheetTitle" type="Label" parent="Layout"]
+layout_mode = 2
+
+[node name="Sheet" type="GridContainer" parent="Layout"]
+layout_mode = 2
+columns = 5
+
+[node name="Series" type="Label" parent="Layout"]
+visible = false
+layout_mode = 2
+autowrap_mode = 2
+
 [node name="Scroll" type="ScrollContainer" parent="Layout"]
 layout_mode = 2
 size_flags_vertical = 3

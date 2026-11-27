@@ -42,7 +42,7 @@ adapter contract only, `open` = not started.
 | Live coach modes, warnings, proceed/reconsider | open | |
 | Counting aid and quiz | open | |
 | Guided dialogues and Abstich question | open | |
-| Score sheet, series result, series figures | open | |
+| Score sheet, series result, series figures | adapter | Sheet rows and series ranking render the `skat-app` view values in German and English (`sheet_and_series_result_cross_the_wire_like_the_egui_view_model`); `interaction.gd` `check_sheet` was written without a Godot runtime in the job environment and is not yet executed. Series figures (cast portraits) remain open, so the row stays open. |
 | Save/open recordings, replay window, comments, review, hindsight | open | |
 | Same-deal practice | open | |
 | Learning history, statistics, focused training | open | |
