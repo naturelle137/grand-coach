@@ -14,7 +14,11 @@ fn accepted_cases_nonabsent_lessons_candidates_conditions_and_all_observations()
         let v = c.game().view(c.view.seat);
         let l = lesson(&v);
         if c.rule.branch != Branch::WinEarly {
-            assert!(l.is_none());
+            // Only the forced second-seat overtake fallback is a lesson.
+            let forced = c.rule.branch == Branch::Fallback
+                && c.rule.losers.is_empty()
+                && !c.rule.partner_ahead;
+            assert_eq!(l.is_some(), forced);
             continue;
         }
         let l = l.unwrap();
