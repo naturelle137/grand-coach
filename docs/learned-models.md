@@ -485,9 +485,16 @@ warm decisions, one full learned-order debriefing). Any model fallback
 invalidates the run. RSS is the `ps` KiB sample of the same probe process at
 the Classic baseline and after the scenario, as above; `runs.jsonl` keeps the raw
 observations, `measurement.json` the record and distributions. Limits: it
-measures the probe linked to the package's skat-app build, not the GUI
-process, so the GUI baseline stays a manual step; cold is a fresh process with
-a warm OS cache; power mode and contention are not controlled.
+measures the probe linked to the package's skat-app build; cold is a fresh
+process with a warm OS cache; power mode and contention are not controlled.
+With `--gui-delay SECONDS` (run under an X display of at least 1280x820, e.g.
+`xvfb-run -a -s "-screen 0 1920x1080x24"` with `WAYLAND_DISPLAY` unset) it
+also starts fresh installed GUI processes per run, Classic (new-series screen)
+and Neural (`GRAND_COACH_PACKAGE_NEURAL`, the package smoke's learned
+opponent), each closing itself after the screenshot, and polls their `ps` RSS
+every 0.25 s (`gui.jsonl`, `gui_rss`). That is the GUI-process RSS of the
+smoke scenario, not of an interactive played game; the sampled maximum is not
+a kernel peak. Windows is recorded with native tools, not this driver.
 
 Proxy validation of the procedure (2026-11-27, Intel Core i9-10900K, 10 cores
 / 20 threads, **not the target**, so no target evidence; RC built from
@@ -495,7 +502,14 @@ Proxy validation of the procedure (2026-11-27, Intel Core i9-10900K, 10 cores
 median 0.146 ms, p95 0.189 ms (95 decisions); debriefing 875-954 ms; RSS
 after the scenario 248,164-265,348 KiB, delta from
 baseline 244,000-260,976 KiB. Raw files:
-`grand-coach-data/studies/2026-11-27-packaged-measure-proxy/`. Target
-measurements stay open until the named six-core machine is available;
+`grand-coach-data/studies/2026-11-27-packaged-measure-proxy/`.
+
+GUI-process proxy run (same host, Xvfb software rendering, RC `f8d5440`,
+5 runs, `--gui-delay 5`): Classic GUI RSS median 121,396 KiB (120,484-132,608);
+Neural GUI RSS at exit median 306,748 KiB (286,628-310,004), sampled maximum
+median 329,688 KiB (320,332-347,796). Software GL is included, so this is not
+target evidence either. Raw files:
+`grand-coach-data/studies/2026-11-27-packaged-measure-proxy-gui/`. Target
+measurements (`--classification target`, Windows native) stay open until the named six-core machine is available;
 [#423](https://github.com/naturelle137/grand-coach/issues/423) is not
 complete.
