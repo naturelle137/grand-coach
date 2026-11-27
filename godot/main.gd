@@ -11,6 +11,7 @@ var open_display := false
 var levels := ["Easy", "Easy"]
 var engine := "Classic"
 var pending_setting := {}
+var discard_selection: Array[int] = []
 const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
 const ENGINES := ["Classic", "Neural", "PrePlay", "Hybrid"]
 const ENGINE_KEYS := ["engine-classic", "mode-neural", "mode-pre-play", "mode-hybrid"]
@@ -343,10 +344,16 @@ func _show() -> void:
 		node.disabled = true
 		$Layout/Trick.add_child(node)
 	$Layout/Status.text = texts.tr_key("status-waiting", {"player": texts.tr_key(["player-human", "player-left", "player-right"][int(view["acting"])])}) if view["opponent_to_move"] and view["acting"] != null else ""
-	for child in $Layout/Scroll/Actions.get_children():
-		child.queue_free()
+	_clear($Layout/Scroll/Actions)
 	if not view["opponent_to_move"]:
+		var discards := {}
 		for action in view["legal_actions"]:
+			if action is Dictionary and action.has("Discard"):
+				discards[int(action["Discard"])] = action
+		_show_discard(discards)
+		for action in view["legal_actions"]:
+			if action is Dictionary and action.has("Discard"):
+				continue
 			if action is Dictionary and action.has("Play"):
 				var card := $Layout/Hand.get_node_or_null("Card%d" % int(action["Play"]))
 				if card != null:
@@ -357,6 +364,58 @@ func _show() -> void:
 			_add_button(texts.tr_key("button-next-game"), "NextGame")
 		elif view["legal_actions"].is_empty():
 			$Layout/Status.text = texts.tr_key("series-finished", {"games": view["game_number"]}) if view["series_finished"] else ""
+
+# Drücken: the player marks two hand cards and confirms; the resulting mask
+# must be one of the legal Discard actions of the view.
+func _show_discard(discards: Dictionary) -> void:
+	if discards.is_empty():
+		discard_selection.clear()
+		return
+	for card in discard_selection.duplicate():
+		if $Layout/Hand.get_node_or_null("Card%d" % card) == null:
+			discard_selection.erase(card)
+	for node in $Layout/Hand.get_children():
+		if node.is_queued_for_deletion():
+			continue
+		node.disabled = false
+		node.toggle_mode = true
+		node.set_pressed_no_signal(discard_selection.has(node.name.trim_prefix("Card").to_int()))
+		node.modulate = Color(1, 1, 1, 0.55) if node.button_pressed else Color.WHITE
+		node.toggled.connect(_discard_toggled.bind(node.name.trim_prefix("Card").to_int(), discards))
+	var mask := _discard_mask()
+	var button := Button.new()
+	button.name = "ConfirmDiscard"
+	button.text = texts.tr_key("coach-action-discard", {"cards": ", ".join(discard_selection.map(_card))})
+	button.disabled = not discards.has(mask)
+	if not button.disabled:
+		button.pressed.connect(_act.bind({"Act": discards[mask]}))
+	$Layout/Scroll/Actions.add_child(button)
+
+func _discard_mask() -> int:
+	var mask := 0
+	for card in discard_selection:
+		mask |= 1 << card
+	return mask
+
+func _discard_toggled(on: bool, card: int, discards: Dictionary) -> void:
+	discard_selection.erase(card)
+	if on:
+		discard_selection.append(card)
+	_discard_refresh(discards)
+
+func _discard_refresh(discards: Dictionary) -> void:
+	for node in $Layout/Hand.get_children():
+		var pressed: bool = discard_selection.has(node.name.trim_prefix("Card").to_int())
+		node.modulate = Color(1, 1, 1, 0.55) if pressed else Color.WHITE
+	for child in $Layout/Scroll/Actions.get_children():
+		if child.name == "ConfirmDiscard" and not child.is_queued_for_deletion():
+			var mask := _discard_mask()
+			child.text = texts.tr_key("coach-action-discard", {"cards": ", ".join(discard_selection.map(_card))})
+			child.disabled = not discards.has(mask)
+			for c in child.pressed.get_connections():
+				child.pressed.disconnect(c["callable"])
+			if not child.disabled:
+				child.pressed.connect(_act.bind({"Act": discards[mask]}))
 
 func _open_cards(open: Variant) -> String:
 	if not open is Dictionary:
