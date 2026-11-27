@@ -55,6 +55,12 @@ impl SkatApp {
             .unwrap_or_default()
     }
 
+    /// Figure catalogue keys as a JSON array, indexed by the view's `FigureId`.
+    #[func]
+    fn figure_keys(&self) -> GString {
+        GString::from(Adapter::figure_keys_json().as_str())
+    }
+
     /// Executes a `Command` JSON; returns the events or an error JSON.
     #[func]
     fn execute(&mut self, command_json: GString) -> GString {
