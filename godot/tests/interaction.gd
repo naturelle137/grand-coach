@@ -259,6 +259,18 @@ func check_sheet(table: Node, view: Dictionary) -> void:
 		assert(table.texts.tr_key("series-rank", {"rank": 1, "player": table._player(best),
 			"total": int(series["totals"][best]), "won": int(series["won"][best]),
 			"lost": int(series["lost"][best])}) in text)
+		# Series figures: the view's cast names and portraits, per language pool.
+		var keys: Array = JSON.parse_string(table.app.figure_keys())
+		var pool: Array = view["cast"]["german" if lang == "de" else "english"]
+		var cast = table.get_node("Layout/Cast")
+		var shown: Array = cast.get_children().filter(func(n): return not n.is_queued_for_deletion())
+		assert(shown.size() == 4)
+		for seat in range(2):
+			var key: String = keys[int(pool[seat])]
+			assert(key.begins_with("de-" if lang == "de" else "en-"))
+			assert(shown[2 * seat + 1].text == table.texts.tr_key("figure-" + key))
+			assert(table._player(1 + seat) == shown[2 * seat + 1].text)
+			assert(shown[2 * seat].texture != null)
 
 # Drücken: two marked cards confirm exactly one legal Discard action, in both languages.
 func discard(table: Node, view: Dictionary, discards: Array) -> void:

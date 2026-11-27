@@ -102,6 +102,13 @@ impl Adapter {
         serde_json::to_string(&self.session.view()).expect("plain data serialises")
     }
 
+    /// Resource keys of the figure catalogue, indexed by `FigureId`, so a
+    /// frontend resolves the view's cast to names and portraits (D-72).
+    pub fn figure_keys_json() -> String {
+        let keys: Vec<&str> = skat_app::FIGURES.iter().map(|f| f.key).collect();
+        serde_json::to_string(&keys).expect("plain data serialises")
+    }
+
     /// Executes a serialised [`Command`]; returns the events as JSON.
     pub fn execute_json(&mut self, command_json: &str) -> Result<String, AdapterError> {
         let command: Command =

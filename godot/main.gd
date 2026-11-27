@@ -5,6 +5,9 @@ var app := SkatApp.new()
 var failed := false
 var texts := preload("res://i18n.gd").new()
 var faces := {}
+var figure_keys: Array = []
+var cast_keys := ["", "", ""]  # figure key per seat; "" for the human
+var portraits := {}
 var settings_path := "user://settings.cfg"
 var kontra_re := false
 var open_display := false
@@ -242,6 +245,8 @@ func _label(action: Variant, bid: int, hand_game: Variant) -> String:
 	return JSON.stringify(action)
 
 func _player(index: int) -> String:
+	if cast_keys[index] != "":
+		return texts.tr_key("figure-" + cast_keys[index])
 	return texts.tr_key(["player-human", "player-left", "player-right"][index])
 
 func _contract_parts(game: Variant, hand: bool, levels: Dictionary) -> Array[String]:
@@ -294,7 +299,38 @@ func _series_text(view: Dictionary) -> String:
 			"total": int(series["totals"][p]), "won": int(series["won"][p]), "lost": int(series["lost"][p])}))
 	return "\n".join(lines)
 
+# Figures of the series in the language's pool: skat-app picks them, the
+# adapter names the catalogue, GDScript only loads name and portrait.
+func _update_cast(view: Dictionary) -> void:
+	if figure_keys.is_empty():
+		figure_keys = JSON.parse_string(app.figure_keys())
+	var pool: Array = view["cast"]["german" if texts.language == "de" else "english"]
+	cast_keys = ["", str(figure_keys[int(pool[0])]), str(figure_keys[int(pool[1])])]
+
+func _portrait(key: String) -> Texture2D:
+	if not portraits.has(key):
+		var path := ProjectSettings.globalize_path("res://").path_join("../assets/portraits/%s.svg" % key)
+		var image := Image.new()
+		portraits[key] = null
+		if image.load_svg_from_string(FileAccess.get_file_as_string(path), 0.5) == OK:
+			portraits[key] = ImageTexture.create_from_image(image)
+	return portraits[key]
+
+func _show_cast() -> void:
+	var box: HBoxContainer = $Layout/Cast
+	_clear(box)
+	for seat in [1, 2]:
+		var picture := TextureRect.new()
+		picture.texture = _portrait(cast_keys[seat])
+		picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		picture.custom_minimum_size = Vector2(56, 56)
+		box.add_child(picture)
+		var name_label := Label.new()
+		name_label.text = _player(seat)
+		box.add_child(name_label)
+
 func _show_sheet(view: Dictionary) -> void:
+	_update_cast(view)
 	var grid: GridContainer = $Layout/Sheet
 	_clear(grid)
 	$Layout/SheetTitle.text = texts.tr_key("sheet-title")
@@ -305,6 +341,7 @@ func _show_sheet(view: Dictionary) -> void:
 			var label := Label.new()
 			label.text = cell
 			grid.add_child(label)
+	_show_cast()
 	$Layout/Series.text = _series_text(view)
 	$Layout/Series.visible = view["series_result"] != null
 
