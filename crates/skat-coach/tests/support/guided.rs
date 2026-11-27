@@ -30,6 +30,7 @@ pub fn cards(s: &str) -> CardSet {
     s.split_whitespace().map(card).collect()
 }
 
+#[allow(dead_code)]
 pub fn deal() -> Deal {
     Deal::new(
         [

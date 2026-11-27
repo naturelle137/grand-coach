@@ -138,6 +138,9 @@ pub struct GuidedView {
     /// Declarer fallback with no player following.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub decline_last: bool,
+    /// Second-seat fallback in which every legal card overtakes the lead.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub overtake_forced: bool,
     /// Null player with no card that leaves the current winner ahead.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub null_forced: bool,
@@ -404,6 +407,14 @@ impl GuidedState {
                     l.rule.branch == GuidedBranch::Fallback
                         && l.rule.last
                         && Some(l.seat) == l.knowledge.declarer
+                }),
+            overtake_forced: matches!(self.step, GuidedStep::Narrow | GuidedStep::Act)
+                && self.lesson.as_ref().is_some_and(|l| {
+                    l.rule.branch == GuidedBranch::Fallback
+                        && l.lead_declarer.is_none()
+                        && !l.rule.partner_ahead
+                        && !l.rule.last
+                        && l.rule.losers.is_empty()
                 }),
             null_forced: matches!(self.step, GuidedStep::Narrow | GuidedStep::Act)
                 && self.lesson.as_ref().is_some_and(|l| {

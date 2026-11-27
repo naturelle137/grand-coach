@@ -1696,3 +1696,22 @@ the same fallback; it is fixtured by
 `ouvert_declarer_last_keeps_a_loser_when_nothing_beats_the_trick`
 (Easy's lowest card, rejection of missing or restricted input).
 These checks do not establish learning efficacy.
+
+## Forced second-seat overtake (#131)
+
+In non-Ouvert and validated Ouvert Grand or Farbspiel, a player acting second
+behind an opponent's lead (the defender behind the declarer, or the declarer
+behind a defender) can inspect the case in which every legal card overtakes
+the lead yet none is a Trumpf or a follow-class master. Easy has no early winner
+to prefer and chooses among all legal cards by nontrump, fewer Augen, lower
+rank, first exact tie. The prompt says only that every legal card overtakes; the
+chosen card appears on request. Ouvert requires the consistent revealed hand
+(the own hand for the declarer) and the exact legal list.
+
+Reproducible DE/EN walkthrough: the deal of `forced_deal` in
+`crates/skat-coach/tests/guided_forced_early.rs` has Vorhand lead Kreuz-Sieben
+while Mittelhand holds only Kreuz-Acht and Kreuz-Neun in Kreuz; Easy picks
+Kreuz-Acht. The core test replays both roles in Grand and Herz, rejects missing,
+overlapping and restricted views and exchanges unseen cards; the app test
+`forced_second_seat_overtake_observes_each_legal_card` plays each legal card and
+observes the actual trick winner. No learning efficacy is inferred.

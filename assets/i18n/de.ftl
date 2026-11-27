@@ -1229,3 +1229,6 @@ godot-discard-hint = Wähle zwei Karten zum Drücken.
 godot-discard-confirm = Gewählte Karten drücken
 
 guided-rule-null-defender-forced-last = Du spielst zuletzt und jede legale Karte übersticht den Alleinspieler. Easy wählt weniger Augen, dann den niedrigeren Null-Rang; bei genau gleichem Wert die erste Karte in der erlaubten Reihenfolge. Jede legale Karte bleibt spielbar. Die Faustregel garantiert keinen Spielausgang und verrät keine ungesehenen Karten.
+
+guided-forced-early-attempt = Jede legale Karte übersticht den Ausspielenden, aber keine ist ein Trumpf oder die höchste Karte ihrer Farbe. Ein Spieler folgt noch. Welche Karte wählt Easy nach Nichttrumpf, weniger Augen und niedrigerem Rang?
+guided-rule-forced-early = Jede legale Karte übersticht die aktuelle Ausspielkarte und keine ist ein Trumpf oder eine höchste Karte der angespielten Farbe; Easy hat also keinen frühen Stich zu bevorzugen. Easy wählt unter allen legalen Karten: zuerst Nichttrumpf, dann weniger Augen und niedrigerer Rang; bei genau gleichem Wert die erste. Das garantiert weder den Stich noch das Spiel und sagt nichts über ungesehene Karten; jede legale Karte bleibt spielbar.
