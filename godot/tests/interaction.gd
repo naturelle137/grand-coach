@@ -37,6 +37,8 @@ func settings_persistence() -> void:
 		table.settings_path = path
 		root.add_child(table)
 		table.get_node("Layout/KontraRe").button_pressed = enabled
+		assert(table.kontra_re != enabled)
+		table.get_node("ConfirmRestart").confirmed.emit()
 		table.queue_free()
 		await process_frame
 		table = load("res://main.tscn").instantiate()
@@ -50,6 +52,33 @@ func settings_persistence() -> void:
 			assert(table.get_node("Layout/KontraRe").text == table.texts.tr_key("option-kontra-re"))
 		table.queue_free()
 		await process_frame
+	for player in range(2):
+		for index in range(4):
+			var table = load("res://main.tscn").instantiate()
+			table.settings_path = path
+			root.add_child(table)
+			var selector = table.get_node("Layout/Opponents").get_child(player)
+			var before: String = table.app.view()
+			selector.select(index)
+			selector.item_selected.emit(index)
+			assert(selector.selected == table.LEVELS.find(table.levels[player]))
+			assert(table.app.view() == before)
+			assert(table.get_node("ConfirmRestart").visible)
+			table.get_node("ConfirmRestart").confirmed.emit()
+			table.queue_free()
+			await process_frame
+			table = load("res://main.tscn").instantiate()
+			table.settings_path = path
+			root.add_child(table)
+			selector = table.get_node("Layout/Opponents").get_child(player)
+			assert(selector.selected == index and table.levels[player] == table.LEVELS[index])
+			for lang in ["de", "en"]:
+				table.texts.load_language(lang)
+				table._show()
+				assert(selector.tooltip_text == table.texts.tr_key(["opponent-left", "opponent-right"][player]))
+				assert(selector.get_item_text(index) == "%s %s" % [selector.tooltip_text, table.texts.tr_key("level-" + table.LEVELS[index].to_lower())])
+			table.queue_free()
+			await process_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 func play_series(lang: String) -> void:
