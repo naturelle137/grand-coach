@@ -15,11 +15,13 @@ evidence; every other host must say proxy.
 import argparse
 import hashlib
 import json
+import os
 import platform
 import shutil
 import statistics
 import subprocess
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -60,6 +62,32 @@ def one_run(probe, env, cwd):
     return run
 
 
+def gui_run(binary, neural, env, cwd, delay):
+    """One GUI process (screenshot smoke, closes itself); RSS polled every 0.25 s.
+
+    Classic: new-series screen, Classic opponents. Neural: GRAND_COACH_PACKAGE_NEURAL
+    plays the package smoke's learned opponent. Needs a display (xvfb-run is fine).
+    """
+    shot = Path(cwd) / "gui.ppm"
+    gui_env = dict(env, GRAND_COACH_DATA=str(Path(cwd) / "data"), GRAND_COACH_SEED="13",
+                   GRAND_COACH_SCREENSHOT=str(shot), GRAND_COACH_SCREENSHOT_DELAY=str(delay),
+                   **{k: v for k, v in os.environ.items() if k in ("DISPLAY", "XAUTHORITY")})
+    if neural:
+        gui_env["GRAND_COACH_PACKAGE_NEURAL"] = "1"
+    proc = subprocess.Popen([str(binary)], cwd=cwd, env=gui_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    samples = []
+    while proc.poll() is None:
+        try:
+            samples.append(rss_kib(proc.pid))
+        except ValueError:
+            break
+        time.sleep(0.25)
+    if proc.wait(timeout=60) != 0 or not shot.is_file() or not samples:
+        raise ValueError("GUI run failed; pair invalid")
+    shot.unlink()
+    return {"neural": neural, "samples_kib": samples, "last_kib": samples[-1], "max_sampled_kib": max(samples)}
+
+
 def dist(values):
     values = sorted(values)
     pick = lambda p: values[min(len(values) - 1, int(p * len(values)))]
@@ -74,6 +102,7 @@ def main():
     parser.add_argument("--classification", choices=("target", "proxy"), required=True)
     parser.add_argument("--machine", required=True, help="machine identity; for proxy, say so")
     parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument("--gui-delay", type=float, default=0, help="also run the GUI process (Classic and Neural) per run, closing after this many seconds (e.g. 20); needs a display")
     args = parser.parse_args()
     if platform.system() != "Linux":
         raise SystemExit("Linux only; record Windows with native tools")
@@ -111,7 +140,18 @@ def main():
                             "power mode and contention not controlled by this driver; record them manually"],
         }
         runs = [one_run(probe, env, directory) for _ in range(args.runs)]
+        guis = [gui_run(install / manifest["binary"], neural, env, directory, args.gui_delay)
+                for _ in range(args.runs) if args.gui_delay for neural in (False, True)]
     (args.out / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in runs), encoding="utf-8")
+    if guis:
+        (args.out / "gui.jsonl").write_text("".join(json.dumps(g) + "\n" for g in guis), encoding="utf-8")
+        record["gui_rss"] = {name: {"last_kib": dist([g["last_kib"] for g in guis if g["neural"] == flag]),
+                                    "max_sampled_kib": dist([g["max_sampled_kib"] for g in guis if g["neural"] == flag])}
+                             for name, flag in (("classic", False), ("neural", True))}
+        record["gui_method"] = ("grand-coach process with GRAND_COACH_SCREENSHOT smoke, closing after --gui-delay s; ps -o rss= every 0.25 s; "
+                                "classic = new-series screen with Classic opponents, neural = GRAND_COACH_PACKAGE_NEURAL=1 (as the package smoke); "
+                                "last = final sample before exit; sampled maximum is not the kernel peak; each GUI process is fresh")
+        record["limitations"][0] = "RSS of the probe is not the GUI's; GUI RSS above comes from separate fresh GUI processes in the screenshot smoke, not an interactive session or a played game"
     record["summary"] = {
         "cold_start_ms": dist([r["cold_start_ms"] for r in runs]),
         "warm_decision_ms": dist([v for r in runs for v in r["warm_decision_ms"]]),
