@@ -1224,6 +1224,8 @@ guided-lead-fallback-ouvert = Die Hand des Alleinspielers liegt offen. Easys Reg
 mode-pre-play = Gelerntes Vorspiel (experimentell)
 mode-pre-play-description = Ein experimentelles Imitationsmodell von Classic Stark entscheidet Reizen, Skat, Drücken, Ansagen und Kartenspiel mit der gewählten Temperatur Leicht/Mittel/Stark. Es ist deutlich schwächer als Classic Stark. Kontra/Re folgen den Classic-Faustregeln; nicht mögliche Entscheidungen übernimmt die gewählte Classic-Stufe. Ein erneuter Ladeversuch erfordert einen App-Neustart.
 
+godot-setting-restart-confirm = Eine neue Serie beginnen? Das laufende Spiel und der bisherige Serienstand gehen verloren.
+
 guided-rule-null-defender-forced-last = Du spielst zuletzt und jede legale Karte übersticht den Alleinspieler. Easy wählt weniger Augen, dann den niedrigeren Null-Rang; bei genau gleichem Wert die erste Karte in der erlaubten Reihenfolge. Jede legale Karte bleibt spielbar. Die Faustregel garantiert keinen Spielausgang und verrät keine ungesehenen Karten.
 
 guided-forced-early-attempt = Jede legale Karte übersticht den Ausspielenden, aber keine ist ein Trumpf oder die höchste Karte ihrer Farbe. Ein Spieler folgt noch. Welche Karte wählt Easy nach Nichttrumpf, weniger Augen und niedrigerem Rang?

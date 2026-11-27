@@ -192,6 +192,16 @@ mod tests {
                 found.insert(literal.to_owned());
             }
         }
+        // Godot-only messages are used by the second frontend.
+        for literal in include_str!("../../../godot/main.gd")
+            .split('"')
+            .skip(1)
+            .step_by(2)
+        {
+            if literal.starts_with("godot-") {
+                found.insert(literal.to_owned());
+            }
+        }
         // Figure names are looked up by key (`text::figure_name`).
         for figure in skat_app::FIGURES {
             found.insert(format!("figure-{}", figure.key));

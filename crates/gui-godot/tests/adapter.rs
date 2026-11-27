@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 
 use gui_godot::adapter::{Adapter, AdapterError};
 use skat_app::{
-    AppError, Command, Level, Opponents, SeriesLength, Session, SessionConfig, TableDisplay,
-    TableView,
+    AppError, Command, Level, OpponentEngine, Opponents, SeriesLength, Session, SessionConfig,
+    TableDisplay, TableView,
 };
 
 fn config(seed: u64) -> SessionConfig {
@@ -88,6 +88,26 @@ fn adapter_matches_direct_session_and_is_deterministic() {
     assert_eq!(first, play_adapter(11));
     assert_eq!(first, play_direct(11));
     assert_ne!(first.sheet, play_adapter(12).sheet);
+}
+
+#[test]
+fn sheet_and_series_result_cross_the_wire_like_the_egui_view_model() {
+    let direct = play_direct(11);
+    let wire = serde_json::to_value(play_adapter(11)).unwrap();
+    assert_eq!(wire["sheet"], serde_json::to_value(&direct.sheet).unwrap());
+    assert_eq!(
+        wire["series_result"],
+        serde_json::to_value(direct.series_result.as_ref().unwrap()).unwrap()
+    );
+    assert_eq!(direct.series_result, Some(direct.sheet.result()));
+    assert_eq!(direct.sheet.records.len(), 2);
+    let totals = direct.sheet.totals();
+    assert!(
+        direct
+            .players
+            .iter()
+            .all(|p| p.total == totals[p.player.index()])
+    );
 }
 
 #[test]
@@ -193,4 +213,24 @@ fn dropping_a_busy_adapter_is_safe() {
     to_opponent_turn(&mut adapter);
     assert!(adapter.start_opponent());
     drop(adapter);
+}
+
+#[test]
+fn engine_selection_travels_over_the_wire_and_classic_is_omitted() {
+    assert!(!json(&config(3)).contains("engine"));
+    for engine in [
+        OpponentEngine::Neural,
+        OpponentEngine::PrePlay,
+        OpponentEngine::Hybrid,
+    ] {
+        let selected = SessionConfig {
+            engine,
+            ..config(3)
+        };
+        let text = json(&selected);
+        assert!(text.contains(&format!("\"engine\":\"{engine:?}\"")));
+        // Missing models fall back to Classic; the session must start either way.
+        let adapter = Adapter::new(&text).unwrap();
+        assert_eq!(view(&adapter).hand.len(), 10);
+    }
 }

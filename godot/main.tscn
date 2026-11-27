@@ -10,6 +10,8 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1")
 
+[node name="ConfirmRestart" type="ConfirmationDialog" parent="."]
+
 [node name="Layout" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -30,6 +32,26 @@ layout_mode = 2
 [node name="KontraRe" type="CheckBox" parent="Layout"]
 layout_mode = 2
 
+[node name="OpenDisplay" type="CheckBox" parent="Layout"]
+layout_mode = 2
+
+[node name="Engine" type="OptionButton" parent="Layout"]
+layout_mode = 2
+
+[node name="Opponents" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="Left" type="OptionButton" parent="Layout/Opponents"]
+layout_mode = 2
+
+[node name="Right" type="OptionButton" parent="Layout/Opponents"]
+layout_mode = 2
+
+[node name="OpenCards" type="Label" parent="Layout"]
+visible = false
+layout_mode = 2
+autowrap_mode = 2
+
 [node name="Trick" type="HBoxContainer" parent="Layout"]
 layout_mode = 2
 
@@ -38,6 +60,18 @@ layout_mode = 2
 
 [node name="Status" type="Label" parent="Layout"]
 layout_mode = 2
+
+[node name="SheetTitle" type="Label" parent="Layout"]
+layout_mode = 2
+
+[node name="Sheet" type="GridContainer" parent="Layout"]
+layout_mode = 2
+columns = 5
+
+[node name="Series" type="Label" parent="Layout"]
+visible = false
+layout_mode = 2
+autowrap_mode = 2
 
 [node name="Scroll" type="ScrollContainer" parent="Layout"]
 layout_mode = 2

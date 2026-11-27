@@ -7,6 +7,13 @@ var texts := preload("res://i18n.gd").new()
 var faces := {}
 var settings_path := "user://settings.cfg"
 var kontra_re := false
+var open_display := false
+var levels := ["Easy", "Easy"]
+var engine := "Classic"
+var pending_setting := {}
+const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
+const ENGINES := ["Classic", "Neural", "PrePlay", "Hybrid"]
+const ENGINE_KEYS := ["engine-classic", "mode-neural", "mode-pre-play", "mode-hybrid"]
 
 func _ready() -> void:
 	var language := "en" if OS.get_locale_language() == "en" else "de"
@@ -16,6 +23,15 @@ func _ready() -> void:
 		if saved in ["de", "en"]:
 			language = saved
 		kontra_re = settings.get_value("game", "kontra_re", false) == true
+		open_display = settings.get_value("game", "open_display", false) == true
+		var saved_engine = settings.get_value("game", "engine", "Classic")
+		if saved_engine in ENGINES:
+			engine = saved_engine
+		for i in range(2):
+			var level = settings.get_value("game", "level_%d" % i, "Easy")
+			if level in LEVELS:
+				levels[i] = level
+		_coerce_rookie()
 	if not texts.load_language(language):
 		texts.load_language("de")
 	$Layout/Language.add_item(texts.tr_key("language-de"))
@@ -24,11 +40,27 @@ func _ready() -> void:
 	$Layout/Language.item_selected.connect(_language_changed)
 	$Layout/KontraRe.button_pressed = kontra_re
 	$Layout/KontraRe.toggled.connect(_kontra_re_changed)
+	$Layout/OpenDisplay.button_pressed = open_display
+	$Layout/OpenDisplay.toggled.connect(_open_display_changed)
+	for key in ENGINE_KEYS:
+		$Layout/Engine.add_item(texts.tr_key(key))
+	$Layout/Engine.select(ENGINES.find(engine))
+	$Layout/Engine.item_selected.connect(_engine_changed)
+	$ConfirmRestart.confirmed.connect(_apply_setting)
+	for i in range(2):
+		var selector = $Layout/Opponents.get_child(i)
+		for level in LEVELS:
+			selector.add_item(level)
+		selector.select(LEVELS.find(levels[i]))
+		selector.item_selected.connect(_level_changed.bind(i))
 	_start_series()
 
 func _start_series() -> void:
 	var config := {"seed": 1, "series": {"Fixed": 3}, "kontra_re": kontra_re,
-		"opponents": {"Levels": ["Easy", "Easy"]}}
+		"display": "Open" if open_display else "Closed",
+		"opponents": {"Levels": levels}}
+	if engine != "Classic":
+		config["engine"] = engine
 	failed = false
 	var error := app.start(JSON.stringify(config))
 	if error != "":
@@ -50,10 +82,66 @@ func _language_changed(index: int) -> void:
 		_save_setting("display", "language", texts.language)
 		_show()
 
-## Kontra/Re applies to a new series, as in the egui setup (D-03).
 func _kontra_re_changed(enabled: bool) -> void:
-	kontra_re = enabled
-	_save_setting("game", "kontra_re", enabled)
+	$Layout/KontraRe.set_pressed_no_signal(kontra_re)
+	pending_setting = {"kontra_re": enabled}
+	_confirm_restart()
+
+func _open_display_changed(enabled: bool) -> void:
+	$Layout/OpenDisplay.set_pressed_no_signal(open_display)
+	pending_setting = {"open_display": enabled}
+	_confirm_restart()
+
+func _engine_changed(index: int) -> void:
+	$Layout/Engine.select(ENGINES.find(engine))
+	pending_setting = {"engine": ENGINES[index]}
+	_confirm_restart()
+
+# Learned engines have no Rookie level (as in the egui app).
+func _coerce_rookie() -> void:
+	if engine == "Classic":
+		return
+	for i in range(2):
+		if levels[i] == "Rookie":
+			levels[i] = "Easy"
+			$Layout/Opponents.get_child(i).select(LEVELS.find("Easy"))
+			_save_setting("game", "level_%d" % i, "Easy")
+
+func _level_changed(index: int, player: int) -> void:
+	$Layout/Opponents.get_child(player).select(LEVELS.find(levels[player]))
+	pending_setting = {"player": player, "level": LEVELS[index]}
+	if engine != "Classic" and LEVELS[index] == "Rookie":
+		pending_setting["level"] = "Easy"
+	_confirm_restart()
+
+func _confirm_restart() -> void:
+	$ConfirmRestart.dialog_text = texts.tr_key("godot-setting-restart-confirm")
+	$ConfirmRestart.popup_centered()
+
+func _apply_setting() -> void:
+	if pending_setting.has("engine"):
+		engine = pending_setting["engine"]
+		$Layout/Engine.select(ENGINES.find(engine))
+		_save_setting("game", "engine", engine)
+		for i in range(2):
+			if levels[i] == "Rookie" and engine != "Classic":
+				levels[i] = "Easy"
+				$Layout/Opponents.get_child(i).select(LEVELS.find("Easy"))
+				_save_setting("game", "level_%d" % i, "Easy")
+	elif pending_setting.has("open_display"):
+		open_display = pending_setting["open_display"]
+		$Layout/OpenDisplay.set_pressed_no_signal(open_display)
+		_save_setting("game", "open_display", open_display)
+	elif pending_setting.has("kontra_re"):
+		kontra_re = pending_setting["kontra_re"]
+		$Layout/KontraRe.set_pressed_no_signal(kontra_re)
+		_save_setting("game", "kontra_re", kontra_re)
+	else:
+		var player: int = pending_setting["player"]
+		levels[player] = pending_setting["level"]
+		$Layout/Opponents.get_child(player).select(LEVELS.find(levels[player]))
+		_save_setting("game", "level_%d" % player, levels[player])
+	pending_setting.clear()
 	_start_series()
 
 func _process(_delta: float) -> void:
@@ -140,17 +228,7 @@ func _label(action: Variant, bid: int, hand_game: Variant) -> String:
 			return texts.tr_key("button-bid", {"value": int(action["Bid"])})
 		if action.has("Announce"):
 			var announcement: Dictionary = action["Announce"]
-			var game = announcement["game"]
-			var parts: Array[String] = []
-			if game is Dictionary:
-				parts.append(texts.tr_key("suit-" + str(game["Farbe"]).to_lower()))
-			else:
-				parts.append(texts.tr_key("game-" + str(game).to_lower()))
-			if hand_game == true:
-				parts.append(texts.tr_key("contract-hand"))
-			for modifier in ["schneider", "schwarz", "ouvert"]:
-				if announcement[modifier]:
-					parts.append(texts.tr_key("contract-" + modifier))
+			var parts := _contract_parts(announcement["game"], hand_game == true, announcement)
 			return texts.tr_key("coach-action-announce", {"game": " · ".join(parts)})
 		if action.has("Play"):
 			return _card(int(action["Play"]))
@@ -162,18 +240,98 @@ func _label(action: Variant, bid: int, hand_game: Variant) -> String:
 			return texts.tr_key("coach-action-discard", {"cards": ", ".join(cards)})
 	return JSON.stringify(action)
 
+func _player(index: int) -> String:
+	return texts.tr_key(["player-human", "player-left", "player-right"][index])
+
+func _contract_parts(game: Variant, hand: bool, levels: Dictionary) -> Array[String]:
+	var parts: Array[String] = []
+	if game is Dictionary:
+		parts.append(texts.tr_key("suit-" + str(game["Farbe"]).to_lower()))
+	else:
+		parts.append(texts.tr_key("game-" + str(game).to_lower()))
+	if hand:
+		parts.append(texts.tr_key("contract-hand"))
+	for modifier in ["schneider", "schwarz", "ouvert"]:
+		if levels[modifier]:
+			parts.append(texts.tr_key("contract-" + modifier))
+	return parts
+
+# Score sheet as rows of cells: the values come from skat-app's view; only
+# formatting happens here.
+func _sheet_rows(view: Dictionary) -> Array:
+	var rows := []
+	var head := [texts.tr_key("sheet-number"), texts.tr_key("sheet-game")]
+	for i in range(3):
+		head.append(_player(i))
+	rows.append(head)
+	for record in view["sheet"]["records"]:
+		var game: String = texts.tr_key("sheet-eingepasst")
+		if record["result"] != null:
+			var contract: Dictionary = record["contract"]
+			var score := int(record["result"]["score"])
+			game = "%s %s %s%d" % [_player(int(record["declarer"])),
+				" ".join(_contract_parts(contract["game"], contract["hand"], contract)),
+				"+" if record["result"]["won"] else "−", absi(score)]
+		var row := [str(int(record["number"])), game]
+		for total in record["totals"]:
+			row.append(str(int(total)))
+		rows.append(row)
+	var foot := [texts.tr_key("sheet-total"), ""]
+	for player in view["players"]:
+		foot.append(str(int(player["total"])))
+	rows.append(foot)
+	return rows
+
+func _series_text(view: Dictionary) -> String:
+	var series = view["series_result"]
+	if not series is Dictionary:
+		return ""
+	var lines: Array[String] = [texts.tr_key("series-finished", {"games": int(series["games"])})]
+	for rank in range(series["ranking"].size()):
+		var p := int(series["ranking"][rank])
+		lines.append(texts.tr_key("series-rank", {"rank": rank + 1, "player": _player(p),
+			"total": int(series["totals"][p]), "won": int(series["won"][p]), "lost": int(series["lost"][p])}))
+	return "\n".join(lines)
+
+func _show_sheet(view: Dictionary) -> void:
+	var grid: GridContainer = $Layout/Sheet
+	_clear(grid)
+	$Layout/SheetTitle.text = texts.tr_key("sheet-title")
+	if view["practice"]:
+		return
+	for row in _sheet_rows(view):
+		for cell in row:
+			var label := Label.new()
+			label.text = cell
+			grid.add_child(label)
+	$Layout/Series.text = _series_text(view)
+	$Layout/Series.visible = view["series_result"] != null
+
 func _show() -> void:
 	var view = JSON.parse_string(app.view())
 	if not view is Dictionary:
 		return
 	$Layout/Language.tooltip_text = texts.tr_key("setting-language")
 	$Layout/KontraRe.text = texts.tr_key("option-kontra-re")
+	$Layout/OpenDisplay.text = texts.tr_key("option-open-display")
+	$Layout/OpenDisplay.tooltip_text = texts.tr_key("option-open-display-description")
+	for i in range(2):
+		var selector = $Layout/Opponents.get_child(i)
+		selector.tooltip_text = texts.tr_key(["opponent-left", "opponent-right"][i])
+		for j in range(LEVELS.size()):
+			selector.set_item_text(j, "%s %s" % [selector.tooltip_text, texts.tr_key("level-" + LEVELS[j].to_lower())])
+	$Layout/Engine.tooltip_text = texts.tr_key("opponent-engine")
+	for j in range(ENGINES.size()):
+		$Layout/Engine.set_item_text(j, texts.tr_key(ENGINE_KEYS[j]))
 	var hand: Array[String] = []
 	for card in view["hand"]:
 		hand.append(_card(int(card)))
 	$Layout/Table.text = "%d · %s\n%s\n%s: %s" % [
 		view["game_number"], texts.tr_key("phase-" + str(view["phase"]).to_lower()),
 		", ".join(hand), texts.tr_key("trick-current"), _trick(view["current_trick"])]
+	_show_sheet(view)
+	$Layout/OpenCards.text = _open_cards(view["open_cards"])
+	$Layout/OpenCards.visible = view["open_cards"] != null
 	_clear($Layout/Hand)
 	_clear($Layout/Trick)
 	for card in view["hand"]:
@@ -199,6 +357,21 @@ func _show() -> void:
 			_add_button(texts.tr_key("button-next-game"), "NextGame")
 		elif view["legal_actions"].is_empty():
 			$Layout/Status.text = texts.tr_key("series-finished", {"games": view["game_number"]}) if view["series_finished"] else ""
+
+func _open_cards(open: Variant) -> String:
+	if not open is Dictionary:
+		return ""
+	var lines: Array[String] = [texts.tr_key("label-open-cards")]
+	for i in range(3):
+		var names: Array[String] = []
+		for card in open["hands"][i]:
+			names.append(_card(int(card)))
+		lines.append("%s: %s" % [texts.tr_key(["player-human", "player-left", "player-right"][i]), ", ".join(names)])
+	var skat: Array[String] = []
+	for card in open["skat"]:
+		skat.append(_card(int(card)))
+	lines.append("Skat: %s" % ", ".join(skat))
+	return "\n".join(lines)
 
 func _add_button(label: String, command: Variant) -> void:
 	var button := Button.new()
