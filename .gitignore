@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 /target/
+godot/.godot/
 .tmp/
 .worktrees/
 .bash_history

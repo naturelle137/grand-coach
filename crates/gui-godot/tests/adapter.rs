@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 
 use gui_godot::adapter::{Adapter, AdapterError};
 use skat_app::{
-    AppError, Command, Level, Opponents, SeriesLength, Session, SessionConfig, TableDisplay,
-    TableView,
+    AppError, Command, Level, OpponentEngine, Opponents, SeriesLength, Session, SessionConfig,
+    TableDisplay, TableView,
 };
 
 fn config(seed: u64) -> SessionConfig {
@@ -193,4 +193,24 @@ fn dropping_a_busy_adapter_is_safe() {
     to_opponent_turn(&mut adapter);
     assert!(adapter.start_opponent());
     drop(adapter);
+}
+
+#[test]
+fn engine_selection_travels_over_the_wire_and_classic_is_omitted() {
+    assert!(!json(&config(3)).contains("engine"));
+    for engine in [
+        OpponentEngine::Neural,
+        OpponentEngine::PrePlay,
+        OpponentEngine::Hybrid,
+    ] {
+        let selected = SessionConfig {
+            engine,
+            ..config(3)
+        };
+        let text = json(&selected);
+        assert!(text.contains(&format!("\"engine\":\"{engine:?}\"")));
+        // Missing models fall back to Classic; the session must start either way.
+        let adapter = Adapter::new(&text).unwrap();
+        assert_eq!(view(&adapter).hand.len(), 10);
+    }
 }
