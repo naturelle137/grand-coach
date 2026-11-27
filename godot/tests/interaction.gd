@@ -231,6 +231,7 @@ func play_series(lang: String) -> void:
 			func(button): return not button.is_queued_for_deletion())
 		assert(buttons.size() == actions.size() + int(view["can_next_game"]))
 		if view["series_finished"]:
+			check_sheet(table, view)
 			assert(saw_bid and saw_play and saw_next and saw_card_click and actions.is_empty())
 			assert(saw_skat_phase and saw_discard and saw_announce, "declarer flow not reached")
 			table.queue_free()
@@ -263,3 +264,38 @@ func play_series(lang: String) -> void:
 		buttons[selected].pressed.emit()
 	push_error("Interaction did not reach bidding and card play")
 	quit(1)
+
+# The sheet shows exactly the skat-app values, in both languages.
+func check_sheet(table: Node, view: Dictionary) -> void:
+	assert(view["sheet"]["records"].size() == 3 and view["series_result"] != null)
+	for lang in ["de", "en"]:
+		table.texts.load_language(lang)
+		table._show()
+		var rows: Array = table._sheet_rows(view)
+		assert(rows.size() == 5)
+		assert(rows[0][0] == table.texts.tr_key("sheet-number") and rows[0][1] == table.texts.tr_key("sheet-game"))
+		assert(rows[4][0] == table.texts.tr_key("sheet-total"))
+		for i in range(3):
+			assert(rows[0][2 + i] == table._player(i))
+			assert(rows[4][2 + i] == str(int(view["players"][i]["total"])))
+			assert(rows[3][2 + i] == str(int(view["sheet"]["records"][2]["totals"][i])))
+		for r in range(3):
+			var record: Dictionary = view["sheet"]["records"][r]
+			assert(rows[1 + r][0] == str(int(record["number"])))
+			if record["result"] == null:
+				assert(rows[1 + r][1] == table.texts.tr_key("sheet-eingepasst"))
+			else:
+				assert(rows[1 + r][1].begins_with(table._player(int(record["declarer"]))))
+				assert(str(absi(int(record["result"]["score"]))) in rows[1 + r][1])
+		var grid = table.get_node("Layout/Sheet")
+		assert(grid.get_children().filter(func(n): return not n.is_queued_for_deletion()).size() == 25)
+		assert(table.get_node("Layout/SheetTitle").text == table.texts.tr_key("sheet-title"))
+		var series: Dictionary = view["series_result"]
+		var text: String = table.get_node("Layout/Series").text
+		assert(table.get_node("Layout/Series").visible)
+		assert(text.begins_with(table.texts.tr_key("series-finished", {"games": int(series["games"])})))
+		assert(text.split("\n").size() == 4)
+		var best := int(series["ranking"][0])
+		assert(table.texts.tr_key("series-rank", {"rank": 1, "player": table._player(best),
+			"total": int(series["totals"][best]), "won": int(series["won"][best]),
+			"lost": int(series["lost"][best])}) in text)

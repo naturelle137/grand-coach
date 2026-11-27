@@ -91,6 +91,26 @@ fn adapter_matches_direct_session_and_is_deterministic() {
 }
 
 #[test]
+fn sheet_and_series_result_cross_the_wire_like_the_egui_view_model() {
+    let direct = play_direct(11);
+    let wire = serde_json::to_value(play_adapter(11)).unwrap();
+    assert_eq!(wire["sheet"], serde_json::to_value(&direct.sheet).unwrap());
+    assert_eq!(
+        wire["series_result"],
+        serde_json::to_value(direct.series_result.as_ref().unwrap()).unwrap()
+    );
+    assert_eq!(direct.series_result, Some(direct.sheet.result()));
+    assert_eq!(direct.sheet.records.len(), 2);
+    let totals = direct.sheet.totals();
+    assert!(
+        direct
+            .players
+            .iter()
+            .all(|p| p.total == totals[p.player.index()])
+    );
+}
+
+#[test]
 fn view_is_the_permitted_view_only() {
     let adapter = Adapter::new(&json(&config(3))).unwrap();
     let v = view(&adapter);

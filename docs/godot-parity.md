@@ -37,12 +37,12 @@ adapter contract only, `open` = not started.
 | Same results as direct `skat-app` | done | `adapter_matches_direct_session_and_is_deterministic` |
 | Reizen, Skat, Drücken, Ansage, Hand/Ouvert, all game types | adapter | `declarer_flow` in `crates/gui-godot/tests/adapter.rs`: raw legal-action JSON of every phase (Hand, Skat pickup, Ouvert) executes as `{"Act": ...}`, illegal actions give structured errors with an unchanged view, Drücken masks are exactly two held cards. `godot/main.gd` selects the two Drücken cards by click and confirms a legal pair; `godot/tests/interaction.gd` covers deal to first card in both languages but has not been run on a Godot binary yet, so the row stays `adapter` until it is |
 | Optional Kontra/Re | open | |
-| Opponent levels, Goldfish, Mephisto, God Mode, engines | open | Separate Rookie/Easy/Medium/Strong selections persist and start a new series; `godot/tests/interaction.gd` checks both seats and languages on Godot 4.4.1. Other modes remain open. The engine selector (Classic, Neural, PrePlay, Hybrid; Rookie maps to Easy for learned engines) persists and travels over the wire (`engine_selection_travels_over_the_wire_and_classic_is_omitted`); its `interaction.gd` coverage was written without a Godot runtime in the job environment and is not yet executed, so the row stays open. |
+| Opponent levels, Goldfish, Mephisto, God Mode, engines | open | Separate Rookie/Easy/Medium/Strong selections persist and start a new series; `godot/tests/interaction.gd` checks both seats and languages on Godot 4.4.1. Other modes remain open. The engine selector (Classic, Neural, PrePlay, Hybrid; Rookie maps to Easy for learned engines) persists and travels over the wire (`engine_selection_travels_over_the_wire_and_classic_is_omitted`); `interaction.gd` checks the selector, its persistence and tooltip in both languages on Godot 4.4.1. Goldfish, Mephisto and God Mode remain open, so the row stays open. |
 | Card faces (SVG) and German/English texts from `assets/i18n/` | open | `godot/i18n.gd` reads `assets/i18n/*.ftl`; `godot/tests/interaction.gd` checks language switching, labels and a seeded series. Card faces (hand and trick) are loaded from `assets/cards/german`; selector messages, card selection and export bundling remain open |
 | Live coach modes, warnings, proceed/reconsider | open | |
 | Counting aid and quiz | open | |
 | Guided dialogues and Abstich question | open | |
-| Score sheet, series result, series figures | open | |
+| Score sheet, series result, series figures | adapter | Sheet rows and series ranking render the `skat-app` view values in German and English (`sheet_and_series_result_cross_the_wire_like_the_egui_view_model`); `interaction.gd` `check_sheet` ran on Godot 4.4.1 in both languages. Series figures (cast portraits) remain open, so the row stays open. |
 | Save/open recordings, replay window, comments, review, hindsight | open | |
 | Same-deal practice | open | |
 | Learning history, statistics, focused training | open | |
@@ -56,7 +56,7 @@ cargo build -p gui-godot            # target/debug/libgui_godot.so (gui_godot.dl
 godot --headless --editor --path godot --import --quit # register the extension on first use
 godot --path godot                  # Godot 4.4+, from the repository root
 cargo test -p gui-godot             # adapter contract tests, no Godot needed
-godot --headless --path godot --script res://tests/interaction.gd # interaction smoke
+godot --headless --path godot --script res://tests/interaction.gd # interaction smoke; a failed assert prints SCRIPT ERROR (exit code stays 0)
 ```
 
 The `.gdextension` file loads the library from `target/`. Export presets,

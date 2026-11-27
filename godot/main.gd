@@ -251,17 +251,7 @@ func _label(action: Variant, bid: int, hand_game: Variant) -> String:
 			return texts.tr_key("button-bid", {"value": int(action["Bid"])})
 		if action.has("Announce"):
 			var announcement: Dictionary = action["Announce"]
-			var game = announcement["game"]
-			var parts: Array[String] = []
-			if game is Dictionary:
-				parts.append(texts.tr_key("suit-" + str(game["Farbe"]).to_lower()))
-			else:
-				parts.append(texts.tr_key("game-" + str(game).to_lower()))
-			if hand_game == true:
-				parts.append(texts.tr_key("contract-hand"))
-			for modifier in ["schneider", "schwarz", "ouvert"]:
-				if announcement[modifier]:
-					parts.append(texts.tr_key("contract-" + modifier))
+			var parts := _contract_parts(announcement["game"], hand_game == true, announcement)
 			return texts.tr_key("coach-action-announce", {"game": " · ".join(parts)})
 		if action.has("Play"):
 			return _card(int(action["Play"]))
@@ -272,6 +262,73 @@ func _label(action: Variant, bid: int, hand_game: Variant) -> String:
 					cards.append(_card(i))
 			return texts.tr_key("coach-action-discard", {"cards": ", ".join(cards)})
 	return JSON.stringify(action)
+
+func _player(index: int) -> String:
+	return texts.tr_key(["player-human", "player-left", "player-right"][index])
+
+func _contract_parts(game: Variant, hand: bool, levels: Dictionary) -> Array[String]:
+	var parts: Array[String] = []
+	if game is Dictionary:
+		parts.append(texts.tr_key("suit-" + str(game["Farbe"]).to_lower()))
+	else:
+		parts.append(texts.tr_key("game-" + str(game).to_lower()))
+	if hand:
+		parts.append(texts.tr_key("contract-hand"))
+	for modifier in ["schneider", "schwarz", "ouvert"]:
+		if levels[modifier]:
+			parts.append(texts.tr_key("contract-" + modifier))
+	return parts
+
+# Score sheet as rows of cells: the values come from skat-app's view; only
+# formatting happens here.
+func _sheet_rows(view: Dictionary) -> Array:
+	var rows := []
+	var head := [texts.tr_key("sheet-number"), texts.tr_key("sheet-game")]
+	for i in range(3):
+		head.append(_player(i))
+	rows.append(head)
+	for record in view["sheet"]["records"]:
+		var game: String = texts.tr_key("sheet-eingepasst")
+		if record["result"] != null:
+			var contract: Dictionary = record["contract"]
+			var score := int(record["result"]["score"])
+			game = "%s %s %s%d" % [_player(int(record["declarer"])),
+				" ".join(_contract_parts(contract["game"], contract["hand"], contract)),
+				"+" if record["result"]["won"] else "−", absi(score)]
+		var row := [str(int(record["number"])), game]
+		for total in record["totals"]:
+			row.append(str(int(total)))
+		rows.append(row)
+	var foot := [texts.tr_key("sheet-total"), ""]
+	for player in view["players"]:
+		foot.append(str(int(player["total"])))
+	rows.append(foot)
+	return rows
+
+func _series_text(view: Dictionary) -> String:
+	var series = view["series_result"]
+	if not series is Dictionary:
+		return ""
+	var lines: Array[String] = [texts.tr_key("series-finished", {"games": int(series["games"])})]
+	for rank in range(series["ranking"].size()):
+		var p := int(series["ranking"][rank])
+		lines.append(texts.tr_key("series-rank", {"rank": rank + 1, "player": _player(p),
+			"total": int(series["totals"][p]), "won": int(series["won"][p]), "lost": int(series["lost"][p])}))
+	return "\n".join(lines)
+
+func _show_sheet(view: Dictionary) -> void:
+	var grid: GridContainer = $Layout/Sheet
+	_clear(grid)
+	$Layout/SheetTitle.text = texts.tr_key("sheet-title")
+	if view["practice"]:
+		return
+	for row in _sheet_rows(view):
+		for cell in row:
+			var label := Label.new()
+			label.text = cell
+			grid.add_child(label)
+	$Layout/Series.text = _series_text(view)
+	$Layout/Series.visible = view["series_result"] != null
 
 func _show() -> void:
 	var view = JSON.parse_string(app.view())
@@ -295,6 +352,7 @@ func _show() -> void:
 	$Layout/Table.text = "%d · %s\n%s\n%s: %s" % [
 		view["game_number"], texts.tr_key("phase-" + str(view["phase"]).to_lower()),
 		", ".join(hand), texts.tr_key("trick-current"), _trick(view["current_trick"])]
+	_show_sheet(view)
 	$Layout/OpenCards.text = _open_cards(view["open_cards"])
 	$Layout/OpenCards.visible = view["open_cards"] != null
 	_clear($Layout/Hand)
