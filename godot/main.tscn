@@ -117,6 +117,9 @@ visible = false
 layout_mode = 2
 autowrap_mode = 2
 
+[node name="Cast" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
 [node name="Scroll" type="ScrollContainer" parent="Layout"]
 layout_mode = 2
 size_flags_vertical = 3

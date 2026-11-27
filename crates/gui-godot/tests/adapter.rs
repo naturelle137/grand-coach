@@ -111,6 +111,24 @@ fn sheet_and_series_result_cross_the_wire_like_the_egui_view_model() {
 }
 
 #[test]
+fn cast_resolves_to_catalogue_keys_like_the_egui_view_model() {
+    let adapter = Adapter::new(&json(&config(11))).unwrap();
+    let keys: Vec<String> = serde_json::from_str(&Adapter::figure_keys_json()).unwrap();
+    assert_eq!(keys.len(), skat_app::FIGURES.len());
+    let cast = view(&adapter).cast;
+    let wire: serde_json::Value = serde_json::from_str(&adapter.view_json()).unwrap();
+    for (pool, name) in [
+        (skat_app::FigurePool::German, "german"),
+        (skat_app::FigurePool::English, "english"),
+    ] {
+        for seat in 0..2 {
+            let id = wire["cast"][name][seat].as_u64().unwrap() as usize;
+            assert_eq!(keys[id], cast.pool(pool)[seat].key());
+        }
+    }
+}
+
+#[test]
 fn view_is_the_permitted_view_only() {
     let adapter = Adapter::new(&json(&config(3))).unwrap();
     let v = view(&adapter);
