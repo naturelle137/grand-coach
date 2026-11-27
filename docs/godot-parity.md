@@ -30,7 +30,7 @@ adapter contract only, `open` = not started.
 | Capability (egui) | Status | Godot verification |
 |-------------------|--------|--------------------|
 | Session start/restart/stop, seed, fixed or free series | adapter | `crates/gui-godot/tests/adapter.rs` (determinism, restart, rejected restart) |
-| Basic table: hand, phase, selectable legal actions | adapter | `godot/tests/interaction.gd` selects bids and cards, checks current-trick labels, SVG hand and trick card faces and clicking a legal hand card; written but not yet run (no Godot binary in the job); remaining table presentation open |
+| Basic table: hand, phase, selectable legal actions | adapter | `godot/tests/interaction.gd` played a seeded series in German and English on Godot 4.4.1, checking bids, current-trick labels, SVG hand and trick faces and a legal card click; remaining table presentation open |
 | Opponent moves off the UI thread, stale results | done | `restart_discards_a_running_computation`, `human_move_makes_pending_result_stale`, `dropping_a_busy_adapter_is_safe` |
 | Structured errors, unchanged session on error | done | `errors_are_structured_and_leave_the_session_unchanged` |
 | Permitted view only; open display; God Mode | adapter | `view_is_the_permitted_view_only` (closed/open); God Mode open |
