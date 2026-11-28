@@ -346,6 +346,7 @@ func play_series(lang: String) -> void:
 			saw_skat = true
 			assert(table.texts.tr_key("label-own-skat") in table.get_node("Layout/Table").text)
 		if view["series_finished"]:
+			await check_recording(table, lang)
 			check_sheet(table, view)
 			assert(saw_bid and saw_play and saw_next and saw_card_click and saw_discard and saw_announce and saw_skat and actions.is_empty())
 			if OS.has_environment("GODOT_SHEET_SCREENSHOTS"):
@@ -465,3 +466,49 @@ func announce(table: Node, view: Dictionary, announces: Array) -> void:
 	picker.select(picker.item_count - 1)
 	table.get_node("Layout/Scroll/Actions/ConfirmAnnounce").pressed.emit()
 	assert(not table.failed, table.get_node("Layout/Status").text)
+
+# Save and reopen the finished game, navigating every recorded action.
+func check_recording(table: Node, lang: String) -> void:
+	table.texts.load_language(lang)
+	table._show()
+	var path := "user://interaction-recording-" + lang + ".json"
+	var absolute := ProjectSettings.globalize_path(path)
+	DirAccess.remove_absolute(absolute)
+	assert(not table.get_node("Layout/RecordingFiles/SaveRecording").disabled)
+	table.get_node("Layout/RecordingFiles/SaveRecording").pressed.emit()
+	assert(table.get_node("RecordingConsent").dialog_text == table.texts.tr_key("record-export-warning"))
+	table.get_node("RecordingConsent").confirmed.emit()
+	table.get_node("RecordingConsent").hide()
+	await process_frame
+	table.get_node("RecordingFile").file_selected.emit(absolute)
+	table.get_node("RecordingFile").hide()
+	assert(FileAccess.file_exists(path))
+	table._recording_selected(absolute)
+	await process_frame
+	assert(table.get_node("RecordingError").dialog_text == table.texts.tr_key("record-error-exists"))
+	table.get_node("RecordingError").hide()
+	table.get_node("Layout/RecordingFiles/OpenRecording").pressed.emit()
+	table.get_node("RecordingFile").file_selected.emit(absolute)
+	table.get_node("RecordingFile").hide()
+	await process_frame
+	assert(table.get_node("Replay").visible and table.replay_index == 0)
+	var total: int = table.replay_total
+	assert(total > 0)
+	if OS.has_environment("GODOT_REPLAY_SCREENSHOTS"):
+		table.replay_index = int(total / 2)
+		table._replay_show()
+		await process_frame
+		await RenderingServer.frame_post_draw
+		assert(table.get_node("Replay").get_texture().get_image().save_png(OS.get_environment("GODOT_REPLAY_SCREENSHOTS").path_join(lang + ".png")) == OK)
+		table.replay_index = 0
+		table._replay_show()
+	for index in range(1, total + 1):
+		table.get_node("Replay/Content/Navigation/Next").pressed.emit()
+		assert(table.replay_index == index)
+	for index in range(total - 1, -1, -1):
+		table.get_node("Replay/Content/Navigation/Previous").pressed.emit()
+		assert(table.replay_index == index)
+	table.get_node("Replay").close_requested.emit()
+	assert(not table.replay_active)
+	DirAccess.remove_absolute(absolute)
+	await process_frame

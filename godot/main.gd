@@ -18,6 +18,10 @@ var quiz := false
 var learning_path := "user://learning-history.json"
 var quiz_id := ""
 var pending_setting := {}
+var replay_active := false
+var replay_index := 0
+var replay_total := 0
+var recording_save := false
 var discard_selection: Array[int] = []
 const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
 const ENGINES := ["Classic", "Neural", "PrePlay", "Hybrid"]
@@ -74,6 +78,14 @@ func _ready() -> void:
 	$Layout/PracticeControls/Practice.pressed.connect(_practice)
 	$Layout/PracticeControls/Return.pressed.connect(_return_to_series)
 	$Layout/PracticeControls/HistoryButton.pressed.connect(_history)
+
+	$Layout/RecordingFiles/SaveRecording.pressed.connect(_recording_consent)
+	$Layout/RecordingFiles/OpenRecording.pressed.connect(_recording_open_dialog)
+	$RecordingConsent.confirmed.connect(func(): _recording_save_dialog.call_deferred())
+	$RecordingFile.file_selected.connect(_recording_selected)
+	$Replay.close_requested.connect(_replay_close)
+	$Replay/Content/Navigation/Previous.pressed.connect(_replay_step.bind(-1))
+	$Replay/Content/Navigation/Next.pressed.connect(_replay_step.bind(1))
 	_start_series()
 
 func _practice() -> void:
@@ -104,6 +116,86 @@ func _history() -> void:
 	$History.title = texts.tr_key("learning-title")
 	$History/Scroll/Summary.text = "\n".join(lines)
 	$History.popup_centered(Vector2i(1000, 500))
+
+func _recording_consent() -> void:
+	$RecordingConsent.dialog_text = texts.tr_key("record-export-warning")
+	$RecordingConsent.popup_centered()
+
+func _recording_save_dialog() -> void:
+	recording_save = true
+	$RecordingFile.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	$RecordingFile.popup_centered_ratio()
+
+func _recording_open_dialog() -> void:
+	recording_save = false
+	$RecordingFile.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	$RecordingFile.popup_centered_ratio()
+
+func _recording_selected(path: String) -> void:
+	var error: String = app.save_recording(path) if recording_save else app.open_recording(path)
+	if error != "":
+		var parsed = JSON.parse_string(error)
+		var detail = parsed.get("error", {}) if parsed is Dictionary else {}
+		var kind = detail.get("Recording", "Io") if detail is Dictionary else "Io"
+		if kind is Dictionary:
+			kind = "InvalidRecording"
+		var keys := {"InvalidJson": "json", "UnsupportedFormat": "format", "UnsupportedEngine": "engine", "InvalidRecording": "history", "TooLarge": "large", "Missing": "missing", "AlreadyExists": "exists", "Io": "io"}
+		$RecordingError.dialog_text = texts.tr_key("record-error-" + keys.get(kind, "io"))
+		$RecordingError.popup_centered.call_deferred()
+	elif not recording_save:
+		replay_active = true
+		replay_index = 0
+		_replay_show()
+		$Replay.popup_centered.call_deferred()
+
+func _replay_close() -> void:
+	replay_active = false
+	$Replay.hide()
+
+func _replay_step(delta: int) -> void:
+	replay_index = clampi(replay_index + delta, 0, replay_total)
+	_replay_show()
+
+func _replay_show() -> void:
+	var replay: Dictionary = JSON.parse_string(app.replay(replay_index))
+	replay_total = int(replay["total"])
+	var view: Dictionary = replay["view"]
+	var cards: Array[String] = []
+	for card in replay["hand"]:
+		cards.append(_card(int(card)))
+	var bids: Array[String] = []
+	for bid in view["bidding"]:
+		var call = bid["call"]
+		var label: String = texts.tr_key("button-pass")
+		if call is Dictionary:
+			var kind: String = call.keys()[0]
+			label = texts.tr_key("button-" + kind.to_lower(), {"value": int(call[kind])})
+		bids.append(texts.tr_key("seat-" + str(bid["seat"]).to_lower()) + ": " + label)
+	var tricks: Array[String] = []
+	for trick in view["tricks"]:
+		tricks.append(_replay_cards(trick["cards"]))
+	$Replay.title = texts.tr_key("record-title")
+	$Replay/Content/Scroll/Position.text = "\n".join([texts.tr_key("record-boundary", {"count": replay_index}), texts.tr_key("phase-" + str(view["phase"]).to_lower()), ", ".join(cards), texts.tr_key("record-bidding") + ": " + ", ".join(bids), texts.tr_key("record-tricks") + ": " + "; ".join(tricks), texts.tr_key("record-current-trick") + ": " + _replay_cards(view["current_trick"]["cards"])])
+	if view["contract"] is Dictionary:
+		var contract: Dictionary = view["contract"]
+		$Replay/Content/Scroll/Position.text += "\n" + texts.tr_key("label-announce") + " " + " · ".join(_contract_parts(contract["game"], contract["hand"], contract))
+	if view["own_skat"] != null:
+		var skat: Array[String] = []
+		for i in range(32):
+			if int(view["own_skat"]) & (1 << i):
+				skat.append(_card(i))
+		$Replay/Content/Scroll/Position.text += "\n" + texts.tr_key("label-own-skat") + " " + ", ".join(skat)
+	$Replay/Content/Navigation/Previous.text = texts.tr_key("record-previous")
+	$Replay/Content/Navigation/Next.text = texts.tr_key("record-next")
+	$Replay/Content/Navigation/Previous.disabled = replay_index == 0
+	$Replay/Content/Navigation/Next.disabled = replay_index == replay_total
+
+func _replay_cards(cards: Array) -> String:
+	var names: Array[String] = []
+	for card in cards:
+		if card != null:
+			names.append(_card(int(card)))
+	return ", ".join(names)
 
 func _start_series() -> void:
 	var config := {"seed": 1, "series": {"Fixed": 3}, "kontra_re": kontra_re,
@@ -218,7 +310,7 @@ func _apply_setting() -> void:
 	_start_series()
 
 func _process(_delta: float) -> void:
-	if failed:
+	if failed or replay_active:
 		return
 	var events := app.poll_opponent()
 	if events != "":
@@ -425,6 +517,9 @@ func _show() -> void:
 	$Layout/PracticeControls/Return.visible = view["practice"]
 	$Layout/PracticeControls/Return.text = texts.tr_key("practice-return")
 	$Layout/PracticeControls/HistoryButton.text = texts.tr_key("learning-open")
+	$Layout/RecordingFiles/SaveRecording.text = texts.tr_key("record-save")
+	$Layout/RecordingFiles/OpenRecording.text = texts.tr_key("record-open")
+	$Layout/RecordingFiles/SaveRecording.disabled = not (view["can_next_game"] or view["series_finished"])
 	$Layout/Language.tooltip_text = texts.tr_key("setting-language")
 	$Layout/KontraRe.text = texts.tr_key("option-kontra-re")
 	$Layout/OpenDisplay.text = texts.tr_key("option-open-display")

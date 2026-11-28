@@ -103,6 +103,19 @@ impl SkatApp {
             .unwrap_or_default()
     }
 
+    /// Save a completed game to a new local file.
+    #[func]
+    fn save_recording(&self, path: GString) -> GString {
+        let Some(adapter) = &self.adapter else {
+            return GString::from(r#"{"error":"NoSession"}"#);
+        };
+        adapter
+            .save_recording(std::path::Path::new(&path.to_string()))
+            .err()
+            .map(|e| error_text(&e))
+            .unwrap_or_default()
+    }
+
     /// Return from practice to the parked series.
     #[func]
     fn return_to_series(&mut self) {
@@ -118,6 +131,34 @@ impl SkatApp {
             .as_ref()
             .map(|a| GString::from(a.learning_summary_json().as_str()))
             .unwrap_or_default()
+    }
+
+    /// Open a local recording.
+    #[func]
+    fn open_recording(&mut self, path: GString) -> GString {
+        let Some(adapter) = &mut self.adapter else {
+            return GString::from(r#"{"error":"NoSession"}"#);
+        };
+        adapter
+            .open_recording(std::path::Path::new(&path.to_string()))
+            .err()
+            .map(|e| error_text(&e))
+            .unwrap_or_default()
+    }
+
+    /// Historical permitted view at the requested action.
+    #[func]
+    fn replay(&self, index: i64) -> GString {
+        let Some(adapter) = &self.adapter else {
+            return GString::from(r#"{"error":"NoSession"}"#);
+        };
+        match usize::try_from(index)
+            .ok()
+            .and_then(|i| adapter.replay_json(i).ok())
+        {
+            Some(view) => GString::from(view.as_str()),
+            None => GString::from(r#"{"error":"InvalidReplayPosition"}"#),
+        }
     }
 
     /// Starts the pending opponent computation on a worker thread.
