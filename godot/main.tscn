@@ -66,6 +66,7 @@ layout_mode = 2
 
 [node name="Sheet" type="GridContainer" parent="Layout"]
 layout_mode = 2
+theme_override_constants/h_separation = 16
 columns = 5
 
 [node name="Series" type="Label" parent="Layout"]

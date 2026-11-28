@@ -42,7 +42,7 @@ adapter contract only, `open` = not started.
 | Live coach modes, warnings, proceed/reconsider | open | |
 | Counting aid and quiz | open | |
 | Guided dialogues and Abstich question | open | |
-| Score sheet, series result, series figures | adapter | Sheet rows and series ranking render the `skat-app` view values in German and English (`sheet_and_series_result_cross_the_wire_like_the_egui_view_model`); `interaction.gd` `check_sheet` ran on Godot 4.4.1 in both languages. Series figures: the adapter names the figure catalogue (`cast_resolves_to_catalogue_keys_like_the_egui_view_model`); `main.gd` shows the view's cast with name and portrait per language pool and `interaction.gd` `check_sheet` checks them, but that part was written without a Godot runtime in the job environment and is not yet executed, so the row stays open. |
+| Score sheet, series result, series figures | done | `sheet_and_series_result_cross_the_wire_like_the_egui_view_model` and `cast_resolves_to_catalogue_keys_like_the_egui_view_model` compare the adapter with `skat-app`. `interaction.gd` `check_sheet` verified the sheet, ranking, figure names and portraits in German and English on Godot 4.4.1, headless and with a rendered display. |
 | Save/open recordings, replay window, comments, review, hindsight | open | |
 | Same-deal practice | open | |
 | Learning history, statistics, focused training | open | |

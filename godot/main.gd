@@ -410,7 +410,7 @@ func _show() -> void:
 		if view["can_next_game"]:
 			_add_button(texts.tr_key("button-next-game"), "NextGame")
 		elif view["legal_actions"].is_empty():
-			$Layout/Status.text = texts.tr_key("series-finished", {"games": view["game_number"]}) if view["series_finished"] else ""
+			$Layout/Status.text = texts.tr_key("series-finished", {"games": int(view["game_number"])}) if view["series_finished"] else ""
 
 # Ansage: one picker over exactly the legal Announce actions of the view.
 func _show_announcements(announcements: Array, hand_game: Variant) -> void:
