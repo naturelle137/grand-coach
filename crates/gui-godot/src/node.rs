@@ -20,6 +20,7 @@ unsafe impl ExtensionLibrary for GrandCoachExtension {}
 #[class(base = RefCounted, init)]
 pub struct SkatApp {
     adapter: Option<Adapter>,
+    localization: crate::localization::Localization,
 }
 
 fn error_text(e: &AdapterError) -> GString {
@@ -28,6 +29,22 @@ fn error_text(e: &AdapterError) -> GString {
 
 #[godot_api]
 impl SkatApp {
+    /// Full Fluent formatting of the embedded shared translations.
+    #[func]
+    fn translate(&self, language: GString, key: GString, arguments: GString) -> GString {
+        let result = serde_json::from_str(&arguments.to_string())
+            .map_err(|e| e.to_string())
+            .and_then(|args| {
+                self.localization
+                    .format(&language.to_string(), &key.to_string(), &args)
+            });
+        GString::from(
+            serde_json::to_string(&result)
+                .expect("plain data serialises")
+                .as_str(),
+        )
+    }
+
     /// Starts (or restarts) a session from a `SessionConfig` JSON text.
     /// Returns `""` on success, else an error JSON.
     #[func]
