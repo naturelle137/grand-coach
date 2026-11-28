@@ -367,6 +367,11 @@ func _show() -> void:
 	$Layout/Table.text = "%d · %s\n%s\n%s: %s" % [
 		view["game_number"], texts.tr_key("phase-" + str(view["phase"]).to_lower()),
 		", ".join(hand), texts.tr_key("trick-current"), _trick(view["current_trick"])]
+	if view["own_skat"] is Array:
+		var skat_cards: Array[String] = []
+		for card in view["own_skat"]:
+			skat_cards.append(_card(int(card)))
+		$Layout/Table.text += "\n%s %s" % [texts.tr_key("label-own-skat"), ", ".join(skat_cards)]
 	_show_sheet(view)
 	$Layout/OpenCards.text = _open_cards(view["open_cards"])
 	$Layout/OpenCards.visible = view["open_cards"] != null
@@ -388,8 +393,13 @@ func _show() -> void:
 			if action is Dictionary and action.has("Discard"):
 				discards[int(action["Discard"])] = action
 		_show_discard(discards)
+		var announcements: Array = []
 		for action in view["legal_actions"]:
-			if action is Dictionary and action.has("Discard"):
+			if action is Dictionary and action.has("Announce"):
+				announcements.append(action)
+		_show_announcements(announcements, view["hand_game"])
+		for action in view["legal_actions"]:
+			if action is Dictionary and (action.has("Discard") or action.has("Announce")):
 				continue
 			if action is Dictionary and action.has("Play"):
 				var card := $Layout/Hand.get_node_or_null("Card%d" % int(action["Play"]))
@@ -401,6 +411,25 @@ func _show() -> void:
 			_add_button(texts.tr_key("button-next-game"), "NextGame")
 		elif view["legal_actions"].is_empty():
 			$Layout/Status.text = texts.tr_key("series-finished", {"games": int(view["game_number"])}) if view["series_finished"] else ""
+
+# Ansage: one picker over exactly the legal Announce actions of the view.
+func _show_announcements(announcements: Array, hand_game: Variant) -> void:
+	if announcements.is_empty():
+		return
+	var title := Label.new()
+	title.name = "AnnounceLabel"
+	title.text = texts.tr_key("label-announce")
+	$Layout/Scroll/Actions.add_child(title)
+	var picker := OptionButton.new()
+	picker.name = "AnnouncePicker"
+	for action in announcements:
+		picker.add_item(_label(action, 0, hand_game))
+	$Layout/Scroll/Actions.add_child(picker)
+	var confirm := Button.new()
+	confirm.name = "ConfirmAnnounce"
+	confirm.text = texts.tr_key("button-announce")
+	confirm.pressed.connect(func(): _act({"Act": announcements[picker.selected]}))
+	$Layout/Scroll/Actions.add_child(confirm)
 
 # Drücken: the player marks two hand cards and confirms; the resulting mask
 # must be one of the legal Discard actions of the view.
