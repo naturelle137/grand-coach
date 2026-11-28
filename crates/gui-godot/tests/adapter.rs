@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 
 use gui_godot::adapter::{Adapter, AdapterError};
 use skat_app::{
-    AppError, Command, Level, OpponentEngine, Opponents, SeriesLength, Session, SessionConfig,
-    TableDisplay, TableView,
+    AppError, AssistSettings, Command, CountingState, Level, OpponentEngine, Opponents,
+    SeriesLength, Session, SessionConfig, TableDisplay, TableView,
 };
 
 fn config(seed: u64) -> SessionConfig {
@@ -409,4 +409,121 @@ fn engine_selection_travels_over_the_wire_and_classic_is_omitted() {
         let adapter = Adapter::new(&text).unwrap();
         assert_eq!(view(&adapter).hand.len(), 10);
     }
+}
+
+/// Plays (first legal action) until a counting question is pending.
+fn until_question(adapter: &mut Adapter) -> TableView {
+    for _ in 0..2000 {
+        let v = view(adapter);
+        if v.assist.quiz.question.is_some() {
+            return v;
+        }
+        if v.series_finished {
+            break;
+        }
+        if v.opponent_to_move {
+            assert!(adapter.start_opponent());
+            finish_opponent(adapter).expect("move applied");
+        } else if let Some(&action) = v.legal_actions.first() {
+            adapter
+                .execute_json(&command(Command::Act(action)))
+                .unwrap();
+        } else {
+            adapter.execute_json(&command(Command::NextGame)).unwrap();
+        }
+    }
+    panic!("no question was asked");
+}
+
+fn assist_on(adapter: &mut Adapter) {
+    let settings = AssistSettings {
+        counting_aid: true,
+        quiz: true,
+        ..AssistSettings::default()
+    };
+    adapter
+        .execute_json(&command(Command::SetAssist(settings)))
+        .unwrap();
+}
+
+fn temp_file(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("gui-godot-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir.join("learning-history.json")
+}
+
+#[test]
+fn counting_aid_and_quiz_show_only_the_permitted_view() {
+    let mut adapter = Adapter::new(&json(&config(3))).unwrap();
+    assert_eq!(view(&adapter).assist.counting, CountingState::Off);
+    assist_on(&mut adapter);
+    // The wire form equals the permitted view of a direct session.
+    let mut direct = Session::new(config(3));
+    direct
+        .execute(Command::SetAssist(view(&adapter).assist.settings))
+        .unwrap();
+    assert_eq!(view(&adapter).assist, direct.view().assist);
+    assert!(matches!(
+        view(&adapter).assist.counting,
+        CountingState::Shown(_)
+    ));
+    let asked = until_question(&mut adapter);
+    // The question holds the decision and withholds aid and help, so the
+    // answer cannot be read from the view.
+    assert_eq!(asked.assist.counting, CountingState::Withheld);
+    assert!(asked.assist.quiz.help.is_none());
+    let wire = serde_json::to_value(&asked.assist).unwrap();
+    assert_eq!(wire["quiz"]["help"], serde_json::Value::Null);
+    assert_eq!(wire["counting"], serde_json::json!("Withheld"));
+    // No hidden card enters the aid's JSON: the played cards are tricks.
+    adapter
+        .execute_json(&command(Command::RestoreQuizHelp))
+        .unwrap();
+    let helped = view(&adapter);
+    assert!(helped.assist.quiz.help.is_some());
+    assert!(matches!(helped.assist.counting, CountingState::Shown(_)));
+    // Game actions stay rejected while the question is pending.
+    let act = Command::Act(helped.legal_actions[0]);
+    assert!(matches!(
+        adapter.execute_json(&command(act)),
+        Err(AdapterError::App(AppError::QuestionPending))
+    ));
+}
+
+#[test]
+fn quiz_events_reach_the_persistent_learning_history() {
+    let path = temp_file("quiz");
+    let mut adapter = Adapter::new(&json(&config(3))).unwrap();
+    adapter.use_learning_file(path.clone());
+    assist_on(&mut adapter);
+    until_question(&mut adapter);
+    let asked = adapter.learning_events();
+    adapter.execute_json(&command(Command::SkipQuiz)).unwrap();
+    assert!(adapter.learning_events() > asked, "skip is recorded");
+    assert!(path.exists(), "history file written");
+    let mut reopened = Adapter::new(&json(&config(3))).unwrap();
+    reopened.use_learning_file(path.clone());
+    assert_eq!(reopened.learning_events(), adapter.learning_events());
+    // An answer is recorded too.
+    until_question(&mut adapter);
+    let before = adapter.learning_events();
+    adapter
+        .execute_json(&command(Command::AnswerQuiz(1)))
+        .unwrap();
+    assert!(adapter.learning_events() > before, "answer is recorded");
+    std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn damaged_learning_file_is_left_unchanged() {
+    let path = temp_file("damaged");
+    std::fs::write(&path, "not json").unwrap();
+    let mut adapter = Adapter::new(&json(&config(3))).unwrap();
+    adapter.use_learning_file(path.clone());
+    assist_on(&mut adapter);
+    until_question(&mut adapter);
+    adapter.execute_json(&command(Command::SkipQuiz)).unwrap();
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "not json");
+    std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
 }

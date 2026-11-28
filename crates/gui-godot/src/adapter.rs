@@ -7,11 +7,15 @@
 //! worker thread; each result carries the generation of the session it was
 //! computed for, so a restarted or dropped session never receives it.
 
+use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 
 use serde::Serialize;
-use skat_app::{AppError, Cancel, Command, OpponentMove, Session, SessionConfig};
+use skat_app::{
+    AppError, AppEvent, AttemptId, AttemptKind, Cancel, Command, LearningFileError,
+    LearningHistory, OpponentMove, RetrievalEvent, Session, SessionConfig,
+};
 
 /// Structured failure at the boundary, serialised as `{"error": ...}`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -48,6 +52,52 @@ pub struct Adapter {
     sender: Sender<Computed>,
     receiver: Receiver<Computed>,
     in_flight: bool,
+    learning: Learning,
+}
+
+/// The learning history (D-70) and the attempt of the running series. The
+/// history is saved only while its file was read cleanly: a damaged or
+/// unsupported file is kept unchanged.
+#[derive(Default)]
+struct Learning {
+    history: LearningHistory,
+    attempt: Option<AttemptId>,
+    path: Option<PathBuf>,
+    damaged: bool,
+}
+
+impl Learning {
+    /// Stores the retrieval events among `events`, starting the series
+    /// attempt on the first one.
+    fn record(&mut self, events: &[AppEvent]) {
+        let retrieval: Vec<RetrievalEvent> = events
+            .iter()
+            .filter_map(|e| match e {
+                AppEvent::Retrieval(r) => Some(*r),
+                _ => None,
+            })
+            .collect();
+        if retrieval.is_empty() {
+            return;
+        }
+        let attempt = match self.attempt {
+            Some(id) => id,
+            None => match self.history.begin_attempt(AttemptKind::Series) {
+                Ok(id) => *self.attempt.insert(id),
+                Err(_) => return,
+            },
+        };
+        if self
+            .history
+            .record(attempt, &retrieval)
+            .is_ok_and(|r| r.added > 0)
+            && !self.damaged
+            && let Some(path) = &self.path
+        {
+            // A failed write keeps the in-memory history; the next event retries.
+            let _ = self.history.save_local(path);
+        }
+    }
 }
 
 impl Drop for Adapter {
@@ -74,6 +124,7 @@ impl Adapter {
             sender,
             receiver,
             in_flight: false,
+            learning: Learning::default(),
         })
     }
 
@@ -89,7 +140,29 @@ impl Adapter {
         self.receiver = receiver;
         self.in_flight = false;
         self.session = session;
+        self.learning.attempt = None;
         Ok(())
+    }
+
+    /// Keeps the learning history in the file at `path`: a valid file is
+    /// loaded, a missing one is created by the first event, a damaged one
+    /// stays unchanged and the history then lives in memory only.
+    pub fn use_learning_file(&mut self, path: PathBuf) {
+        let mut learning = Learning::default();
+        match LearningHistory::open_local(&path) {
+            Ok(history) => learning.history = history,
+            Err(error) => {
+                learning.history.invalidate_exposure();
+                learning.damaged = !matches!(error, LearningFileError::Missing);
+            }
+        }
+        learning.path = Some(path);
+        self.learning = learning;
+    }
+
+    /// Number of recorded retrieval events (question, answer, skip, help).
+    pub fn learning_events(&self) -> usize {
+        self.learning.history.events().len()
     }
 
     /// Generation of the current session; changes on every restart.
@@ -114,6 +187,7 @@ impl Adapter {
         let command: Command =
             serde_json::from_str(command_json).map_err(|e| AdapterError::Invalid(e.to_string()))?;
         let events = self.session.execute(command).map_err(AdapterError::App)?;
+        self.learning.record(&events);
         Ok(serde_json::to_string(&events).expect("plain data serialises"))
     }
 
@@ -148,9 +222,12 @@ impl Adapter {
             return Ok(None);
         }
         match self.session.finish_opponent(done.mv) {
-            Ok(events) => Ok(Some(
-                serde_json::to_string(&events).expect("plain data serialises"),
-            )),
+            Ok(events) => {
+                self.learning.record(&events);
+                Ok(Some(
+                    serde_json::to_string(&events).expect("plain data serialises"),
+                ))
+            }
             Err(AppError::StaleOpponentMove | AppError::NoOpponentToMove) => Ok(None),
             Err(e) => Err(AdapterError::App(e)),
         }

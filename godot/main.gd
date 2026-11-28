@@ -13,6 +13,10 @@ var kontra_re := false
 var open_display := false
 var levels := ["Easy", "Easy"]
 var engine := "Classic"
+var counting_aid := false
+var quiz := false
+var learning_path := "user://learning-history.json"
+var quiz_id := ""
 var pending_setting := {}
 var discard_selection: Array[int] = []
 const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
@@ -28,6 +32,8 @@ func _ready() -> void:
 			language = saved
 		kontra_re = settings.get_value("game", "kontra_re", false) == true
 		open_display = settings.get_value("game", "open_display", false) == true
+		counting_aid = settings.get_value("assist", "counting_aid", false) == true
+		quiz = settings.get_value("assist", "quiz", false) == true
 		var saved_engine = settings.get_value("game", "engine", "Classic")
 		if saved_engine in ENGINES:
 			engine = saved_engine
@@ -46,6 +52,14 @@ func _ready() -> void:
 	$Layout/KontraRe.toggled.connect(_kontra_re_changed)
 	$Layout/OpenDisplay.button_pressed = open_display
 	$Layout/OpenDisplay.toggled.connect(_open_display_changed)
+	$Layout/CountingAid.button_pressed = counting_aid
+	$Layout/CountingAid.toggled.connect(_assist_changed)
+	$Layout/Quiz.button_pressed = quiz
+	$Layout/Quiz.toggled.connect(_assist_changed)
+	$Layout/QuizBox/Controls/Answer.pressed.connect(_answer_quiz)
+	$Layout/QuizBox/Controls/Skip.pressed.connect(_act.bind("SkipQuiz"))
+	$Layout/QuizBox/Controls/ShowHelp.pressed.connect(_act.bind("RestoreQuizHelp"))
+	$Layout/QuizBox/Controls/Off.pressed.connect(_quiz_off)
 	for key in ENGINE_KEYS:
 		$Layout/Engine.add_item(texts.tr_key(key))
 	$Layout/Engine.select(ENGINES.find(engine))
@@ -70,7 +84,30 @@ func _start_series() -> void:
 	if error != "":
 		_report_error(error)
 		return
+	app.use_learning_file(ProjectSettings.globalize_path(learning_path))
+	_send_assist()
 	_show()
+
+# Assistance (D-64) is set on every new session; changing it never changes
+# the game, so it needs no restart.
+func _send_assist() -> void:
+	var result := app.execute(JSON.stringify({"SetAssist": {
+		"counting_aid": counting_aid, "quiz": quiz}}))
+	_report_error(result)
+
+func _assist_changed(_enabled: bool) -> void:
+	counting_aid = $Layout/CountingAid.button_pressed
+	quiz = $Layout/Quiz.button_pressed
+	_save_setting("assist", "counting_aid", counting_aid)
+	_save_setting("assist", "quiz", quiz)
+	_send_assist()
+	_show()
+
+func _quiz_off() -> void:
+	$Layout/Quiz.button_pressed = false
+
+func _answer_quiz() -> void:
+	_act({"AnswerQuiz": int($Layout/QuizBox/Controls/Value.value)})
 
 func _save_setting(section: String, key: String, value: Variant) -> void:
 	var settings := ConfigFile.new()
@@ -359,6 +396,10 @@ func _show() -> void:
 		for j in range(LEVELS.size()):
 			selector.set_item_text(j, "%s %s" % [selector.tooltip_text, texts.tr_key("level-" + LEVELS[j].to_lower())])
 	$Layout/Engine.tooltip_text = texts.tr_key("opponent-engine")
+	$Layout/CountingAid.text = texts.tr_key("setting-aid")
+	$Layout/CountingAid.tooltip_text = texts.tr_key("setting-aid-description")
+	$Layout/Quiz.text = texts.tr_key("setting-quiz")
+	$Layout/Quiz.tooltip_text = texts.tr_key("setting-quiz-description")
 	for j in range(ENGINES.size()):
 		$Layout/Engine.set_item_text(j, texts.tr_key(ENGINE_KEYS[j]))
 	var hand: Array[String] = []
@@ -373,6 +414,7 @@ func _show() -> void:
 			skat_cards.append(_card(int(card)))
 		$Layout/Table.text += "\n%s %s" % [texts.tr_key("label-own-skat"), ", ".join(skat_cards)]
 	_show_sheet(view)
+	var holding := _show_assist(view["assist"])
 	$Layout/OpenCards.text = _open_cards(view["open_cards"])
 	$Layout/OpenCards.visible = view["open_cards"] != null
 	_clear($Layout/Hand)
@@ -387,7 +429,7 @@ func _show() -> void:
 		$Layout/Trick.add_child(node)
 	$Layout/Status.text = texts.tr_key("status-waiting", {"player": texts.tr_key(["player-human", "player-left", "player-right"][int(view["acting"])])}) if view["opponent_to_move"] and view["acting"] != null else ""
 	_clear($Layout/Scroll/Actions)
-	if not view["opponent_to_move"]:
+	if not view["opponent_to_move"] and not holding:
 		var discards := {}
 		for action in view["legal_actions"]:
 			if action is Dictionary and action.has("Discard"):
@@ -503,3 +545,151 @@ func _add_button(label: String, command: Variant) -> void:
 	button.text = label
 	button.pressed.connect(_act.bind(command))
 	$Layout/Scroll/Actions.add_child(button)
+
+# Counting aid and quiz: every figure comes from skat-app's permitted view;
+# only wording happens here. Returns true while a question holds the move.
+func _show_assist(assist: Dictionary) -> bool:
+	var counting = assist["counting"]
+	var aid_lines: Array[String] = []
+	if counting is Dictionary:
+		aid_lines = _aid_lines(counting["Shown"])
+		aid_lines.push_front(texts.tr_key("aid-exact"))
+		aid_lines.push_front(texts.tr_key("aid-title"))
+	elif counting == "Withheld":
+		aid_lines = [texts.tr_key("aid-title"), texts.tr_key("aid-withheld")]
+	$Layout/Aid.text = "\n".join(aid_lines)
+	$Layout/Aid.visible = not aid_lines.is_empty()
+	var quiz_view: Dictionary = assist["quiz"]
+	var question = quiz_view["question"]
+	var box := $Layout/QuizBox
+	box.visible = question != null
+	if question != null:
+		var id := JSON.stringify(quiz_view["id"])
+		if id != quiz_id:
+			quiz_id = id
+			box.get_node("Controls/Value").value = 0
+		var lines: Array[String] = [texts.tr_key("quiz-title"), _question_text(question),
+			texts.tr_key("quiz-hint")]
+		if quiz_view["help"] != null:
+			lines.append_array(_derivation_lines(quiz_view["help"]))
+			lines.append(texts.tr_key("retrieval-assisted"))
+		box.get_node("Question").text = "\n".join(lines)
+		box.get_node("Controls/Answer").text = texts.tr_key("quiz-submit")
+		box.get_node("Controls/Skip").text = texts.tr_key("quiz-skip")
+		box.get_node("Controls/ShowHelp").text = texts.tr_key("retrieval-help")
+		box.get_node("Controls/ShowHelp").disabled = quiz_view["help"] != null
+		box.get_node("Controls/Off").text = texts.tr_key("quiz-off")
+	var feedback = quiz_view["feedback"]
+	$Layout/QuizFeedback.visible = feedback != null
+	if feedback != null:
+		var lines: Array[String] = [texts.tr_key("quiz-feedback-title")]
+		lines.append_array(_feedback_lines(feedback))
+		$Layout/QuizFeedback.text = "\n".join(lines)
+	return question != null
+
+func _class_name(follow: Variant) -> String:
+	if follow is Dictionary:
+		return texts.tr_key("suit-" + str(follow["Farbe"]).to_lower())
+	return texts.tr_key("quiz-class-trumpf")
+
+func _suit_name(index: int) -> String:
+	return texts.tr_key(["suit-kreuz", "suit-pik", "suit-herz", "suit-karo"][index])
+
+func _aid_lines(aid: Dictionary) -> Array[String]:
+	var lines: Array[String] = [texts.tr_key("aid-played", {"count": aid["played"].size()})]
+	if not aid["played"].is_empty():
+		var cards: Array[String] = []
+		for card in aid["played"]:
+			cards.append(_card(int(card)))
+		lines.append(texts.tr_key("aid-played-cards", {"cards": ", ".join(cards)}))
+	var trumpf = aid["trumpf"]
+	if trumpf is Dictionary:
+		lines.append(texts.tr_key("aid-trumpf", {"outside": int(trumpf["outside"]),
+			"total": int(trumpf["total"]), "own": int(trumpf["own"]), "played": int(trumpf["played"])}))
+		if int(trumpf["discarded"]) > 0:
+			lines.append(texts.tr_key("aid-trumpf-discard", {"discarded": int(trumpf["discarded"])}))
+		if trumpf["skat_unknown"]:
+			lines.append(texts.tr_key("aid-trumpf-skat"))
+	elif aid["game"] != null:
+		lines.append(texts.tr_key("aid-trumpf-null"))
+	else:
+		lines.append(texts.tr_key("aid-trumpf-later"))
+	var augen: Dictionary = aid["augen"]
+	if augen["declarer"] != null and augen["defenders"] != null:
+		lines.append(texts.tr_key("aid-augen", {"declarer": int(augen["declarer"]),
+			"defenders": int(augen["defenders"])}))
+	else:
+		lines.append(texts.tr_key("aid-augen-later"))
+	lines.append(texts.tr_key("aid-augen-outstanding", {"count": int(augen["outstanding"])}))
+	if augen["skat"] != null:
+		lines.append(texts.tr_key("aid-augen-skat", {"count": int(augen["skat"])}))
+	lines.append(texts.tr_key("aid-voids"))
+	var any_void := false
+	for player in [1, 2]:
+		var voids: Dictionary = aid["voids"][player]
+		var classes: Array[String] = []
+		if voids["trumpf"]:
+			classes.append(texts.tr_key("aid-void-trumpf"))
+		for suit in range(4):
+			if voids["suits"][suit]:
+				classes.append(_suit_name(suit))
+		if not classes.is_empty():
+			any_void = true
+			lines.append(texts.tr_key("aid-void-line", {"player": _player(player),
+				"classes": ", ".join(classes)}))
+	if not any_void:
+		lines.append(texts.tr_key("aid-void-none"))
+	return lines
+
+func _question_text(question: Variant) -> String:
+	if question is String:
+		return texts.tr_key("quiz-q-trumpf")
+	if question.has("AugenWon"):
+		return texts.tr_key("quiz-q-augen-declarer" if question["AugenWon"]["declarer"] else "quiz-q-augen-defenders")
+	if question.has("ClassPlayed"):
+		return texts.tr_key("quiz-q-played", {"class": _class_name(question["ClassPlayed"]["class"])})
+	return texts.tr_key("quiz-q-voids", {"class": _class_name(question["ProvenVoids"]["class"])})
+
+# The exact answer as skat-app derived it; nothing is computed from hidden cards.
+func _expected(derivation: Dictionary) -> int:
+	if derivation.has("TrumpfOutside"):
+		return int(derivation["TrumpfOutside"]["outside"])
+	if derivation.has("AugenWon"):
+		return int(derivation["AugenWon"]["augen"])
+	if derivation.has("ClassPlayed"):
+		return int(derivation["ClassPlayed"]["played"])
+	return derivation["ProvenVoids"]["seats"].count(true)
+
+func _derivation_lines(derivation: Dictionary) -> Array[String]:
+	var lines: Array[String] = []
+	if derivation.has("TrumpfOutside"):
+		var t: Dictionary = derivation["TrumpfOutside"]
+		lines.append(texts.tr_key("quiz-why-trumpf", {"total": int(t["total"]), "own": int(t["own"]),
+			"played": int(t["played"]), "discarded": int(t["discarded"]), "outside": int(t["outside"])}))
+		if t["skat_unknown"]:
+			lines.append(texts.tr_key("quiz-why-trumpf-skat"))
+	elif derivation.has("AugenWon"):
+		var a: Dictionary = derivation["AugenWon"]
+		lines.append(texts.tr_key("quiz-why-augen", {"augen": int(a["augen"]), "other": int(a["other"])}))
+	elif derivation.has("ClassPlayed"):
+		var c: Dictionary = derivation["ClassPlayed"]
+		lines.append(texts.tr_key("quiz-why-played", {"class": _class_name(c["class"]),
+			"size": int(c["size"]), "played": int(c["played"]), "unplayed": int(c["unplayed"])}))
+	else:
+		var v: Dictionary = derivation["ProvenVoids"]
+		lines.append(texts.tr_key("quiz-why-voids", {"class": _class_name(v["class"]),
+			"count": _expected(derivation)}))
+	return lines
+
+func _feedback_lines(feedback: Dictionary) -> Array[String]:
+	var expected := _expected(feedback["derivation"])
+	var outcome = feedback["outcome"]
+	var lines: Array[String] = []
+	if outcome is Dictionary:
+		lines.append(texts.tr_key("quiz-incorrect", {"given": int(outcome["Incorrect"]["given"]), "expected": expected}))
+	elif outcome == "Correct":
+		lines.append(texts.tr_key("quiz-correct", {"expected": expected}))
+	else:
+		lines.append(texts.tr_key("quiz-skipped", {"expected": expected}))
+	lines.append_array(_derivation_lines(feedback["derivation"]))
+	return lines

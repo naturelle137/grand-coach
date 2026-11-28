@@ -73,6 +73,23 @@ impl SkatApp {
         }
     }
 
+    /// Keeps the learning history in the file at `path` (absolute, e.g. the
+    /// globalised `user://` path). No-op without a session.
+    #[func]
+    fn use_learning_file(&mut self, path: GString) {
+        if let Some(adapter) = self.adapter.as_mut() {
+            adapter.use_learning_file(path.to_string().into());
+        }
+    }
+
+    /// Number of recorded learning events of this history.
+    #[func]
+    fn learning_events(&self) -> i64 {
+        self.adapter
+            .as_ref()
+            .map_or(0, |a| a.learning_events() as i64)
+    }
+
     /// Starts the pending opponent computation on a worker thread.
     #[func]
     fn start_opponent(&mut self) -> bool {
