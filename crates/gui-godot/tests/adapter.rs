@@ -502,6 +502,13 @@ fn quiz_events_reach_the_persistent_learning_history() {
     adapter.execute_json(&command(Command::SkipQuiz)).unwrap();
     assert!(adapter.learning_events() > asked, "skip is recorded");
     assert!(path.exists(), "history file written");
+    let expected = skat_app::LearningHistory::open_local(&path)
+        .unwrap()
+        .summary();
+    let summary: skat_app::LearningSummary =
+        serde_json::from_str(&adapter.learning_summary_json()).unwrap();
+    assert_eq!(summary, expected);
+    assert_eq!(summary.totals.skips, 1);
     let mut reopened = Adapter::new(&json(&config(3))).unwrap();
     reopened.use_learning_file(path.clone());
     assert_eq!(reopened.learning_events(), adapter.learning_events());
@@ -526,6 +533,34 @@ fn damaged_learning_file_is_left_unchanged() {
     adapter.execute_json(&command(Command::SkipQuiz)).unwrap();
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "not json");
     std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn same_deal_practice_parks_the_series_and_keeps_cards_private() {
+    let mut adapter = Adapter::new(&json(&config(31))).unwrap();
+    let original = view(&adapter);
+    adapter.practice().unwrap();
+    let first = view(&adapter);
+    assert!(first.practice);
+    assert_eq!(first.hand, original.hand);
+    assert!(first.open_cards.is_none());
+    adapter.practice().unwrap();
+    let retry = view(&adapter);
+    assert_eq!(retry.hand, first.hand);
+    assert!(retry.open_cards.is_none());
+    adapter.return_to_series();
+    assert_eq!(view(&adapter), original);
+
+    let mut open_config = config(31);
+    open_config.display = TableDisplay::Open;
+    let mut open = Adapter::new(&json(&open_config)).unwrap();
+    let deal = view(&open)
+        .open_cards
+        .expect("open display reveals the deal");
+    open.practice().unwrap();
+    assert_eq!(view(&open).open_cards, Some(deal.clone()));
+    open.practice().unwrap();
+    assert_eq!(view(&open).open_cards, Some(deal));
 }
 
 #[test]

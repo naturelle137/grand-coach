@@ -58,7 +58,15 @@ pub struct Adapter {
     receiver: Receiver<Computed>,
     in_flight: bool,
     learning: Learning,
+    practice: Option<Practice>,
     replay: Option<GameRecording>,
+}
+
+struct Practice {
+    live: Session,
+    source: GameRecording,
+    attempt: u32,
+    live_attempt: Option<AttemptId>,
 }
 
 /// The learning history (D-70) and the attempt of the running series. The
@@ -75,7 +83,7 @@ struct Learning {
 impl Learning {
     /// Stores the retrieval events among `events`, starting the series
     /// attempt on the first one.
-    fn record(&mut self, events: &[AppEvent]) {
+    fn record(&mut self, events: &[AppEvent], kind: AttemptKind) {
         let retrieval: Vec<RetrievalEvent> = events
             .iter()
             .filter_map(|e| match e {
@@ -88,7 +96,7 @@ impl Learning {
         }
         let attempt = match self.attempt {
             Some(id) => id,
-            None => match self.history.begin_attempt(AttemptKind::Series) {
+            None => match self.history.begin_attempt(kind) {
                 Ok(id) => *self.attempt.insert(id),
                 Err(_) => return,
             },
@@ -131,6 +139,7 @@ impl Adapter {
             receiver,
             in_flight: false,
             learning: Learning::default(),
+            practice: None,
             replay: None,
         })
     }
@@ -139,6 +148,13 @@ impl Adapter {
     /// longer reach the new session. On error the old session stays.
     pub fn restart(&mut self, config_json: &str) -> Result<(), AdapterError> {
         let session = parse_config(config_json)?;
+        self.practice = None;
+        self.replace_session(session);
+        self.learning.attempt = None;
+        Ok(())
+    }
+
+    fn replace_session(&mut self, session: Session) -> Session {
         self.cancel.cancel();
         self.cancel = Cancel::new();
         self.generation += 1;
@@ -146,9 +162,7 @@ impl Adapter {
         self.sender = sender;
         self.receiver = receiver;
         self.in_flight = false;
-        self.session = session;
-        self.learning.attempt = None;
-        Ok(())
+        std::mem::replace(&mut self.session, session)
     }
 
     /// Keeps the learning history in the file at `path`: a valid file is
@@ -170,6 +184,63 @@ impl Adapter {
     /// Number of recorded retrieval events (question, answer, skip, help).
     pub fn learning_events(&self) -> usize {
         self.learning.history.events().len()
+    }
+
+    /// Descriptive counting history, with no card or deal data.
+    pub fn learning_summary_json(&self) -> String {
+        serde_json::to_string(&self.learning.history.summary()).expect("plain data serialises")
+    }
+
+    /// Start or retry practice using the current deal without exposing its recording.
+    pub fn practice(&mut self) -> Result<(), AdapterError> {
+        let (source, attempt) = match &self.practice {
+            Some(p) => (
+                p.source.clone(),
+                p.attempt.checked_add(1).ok_or(AdapterError::Config)?,
+            ),
+            None => (
+                self.session
+                    .export_current_recording_privileged()
+                    .ok_or(AdapterError::Config)?,
+                1,
+            ),
+        };
+        let session = self
+            .session
+            .start_practice(&source)
+            .map_err(|_| AdapterError::Config)?;
+        if self.practice.is_none() {
+            let live = self.replace_session(session);
+            self.practice = Some(Practice {
+                live,
+                source,
+                attempt,
+                live_attempt: self.learning.attempt,
+            });
+        } else {
+            self.replace_session(session);
+            self.practice.as_mut().expect("practice exists").attempt = attempt;
+        }
+        self.learning.attempt = None;
+        Ok(())
+    }
+
+    /// Return to the unchanged live series.
+    pub fn return_to_series(&mut self) {
+        if let Some(practice) = self.practice.take() {
+            self.replace_session(practice.live);
+            self.learning.attempt = practice.live_attempt;
+        }
+    }
+
+    fn record_learning(&mut self, events: &[AppEvent]) {
+        let kind = self
+            .practice
+            .as_ref()
+            .map_or(AttemptKind::Series, |p| AttemptKind::Practice {
+                attempt: p.attempt,
+            });
+        self.learning.record(events, kind);
     }
 
     /// Generation of the current session; changes on every restart.
@@ -194,7 +265,7 @@ impl Adapter {
         let command: Command =
             serde_json::from_str(command_json).map_err(|e| AdapterError::Invalid(e.to_string()))?;
         let events = self.session.execute(command).map_err(AdapterError::App)?;
-        self.learning.record(&events);
+        self.record_learning(&events);
         Ok(serde_json::to_string(&events).expect("plain data serialises"))
     }
 
@@ -263,7 +334,7 @@ impl Adapter {
         }
         match self.session.finish_opponent(done.mv) {
             Ok(events) => {
-                self.learning.record(&events);
+                self.record_learning(&events);
                 Ok(Some(
                     serde_json::to_string(&events).expect("plain data serialises"),
                 ))
