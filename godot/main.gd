@@ -13,6 +13,7 @@ var kontra_re := false
 var open_display := false
 var levels := ["Easy", "Easy"]
 var engine := "Classic"
+var mode := "Levels"
 var counting_aid := false
 var quiz := false
 var coach_level := "OnRequest"
@@ -28,6 +29,8 @@ var discard_selection: Array[int] = []
 const COACH_LEVELS := ["Off", "OnRequest", "Important", "EveryMove"]
 const COACH_LEVEL_KEYS := ["coach-level-off", "coach-level-on-request", "coach-level-important", "coach-level-every-move"]
 const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
+const MODES := ["Levels", "Goldfish", "Mephisto", "GodMode"]
+const MODE_KEYS := ["mode-levels", "mode-goldfish", "mode-mephisto", "mode-god"]
 const ENGINES := ["Classic", "Neural", "PrePlay", "Hybrid"]
 const ENGINE_KEYS := ["engine-classic", "mode-neural", "mode-pre-play", "mode-hybrid"]
 
@@ -49,6 +52,11 @@ func _ready() -> void:
 		var saved_engine = settings.get_value("game", "engine", "Classic")
 		if saved_engine in ENGINES:
 			engine = saved_engine
+		var saved_mode = settings.get_value("game", "mode", "Levels")
+		if saved_mode in MODES:
+			mode = saved_mode
+		if mode != "Levels":
+			engine = "Classic"  # learned engines need individual levels
 		for i in range(2):
 			var level = settings.get_value("game", "level_%d" % i, "Easy")
 			if level in LEVELS:
@@ -80,6 +88,10 @@ func _ready() -> void:
 	$Layout/CoachWarnings.toggled.connect(_coach_changed)
 	$Layout/CoachBox/Controls/Proceed.pressed.connect(_act.bind("ProceedAnyway"))
 	$Layout/CoachBox/Controls/Reconsider.pressed.connect(_act.bind("Reconsider"))
+	for key in MODE_KEYS:
+		$Layout/Mode.add_item(texts.tr_key(key))
+	$Layout/Mode.select(MODES.find(mode))
+	$Layout/Mode.item_selected.connect(_mode_changed)
 	for key in ENGINE_KEYS:
 		$Layout/Engine.add_item(texts.tr_key(key))
 	$Layout/Engine.select(ENGINES.find(engine))
@@ -91,6 +103,10 @@ func _ready() -> void:
 			selector.add_item(level)
 		selector.select(LEVELS.find(levels[i]))
 		selector.item_selected.connect(_level_changed.bind(i))
+	$Layout/PracticeControls/Practice.pressed.connect(_practice)
+	$Layout/PracticeControls/Return.pressed.connect(_return_to_series)
+	$Layout/PracticeControls/HistoryButton.pressed.connect(_history)
+
 	$Layout/RecordingFiles/SaveRecording.pressed.connect(_recording_consent)
 	$Layout/RecordingFiles/OpenRecording.pressed.connect(_recording_open_dialog)
 	$RecordingConsent.confirmed.connect(func(): _recording_save_dialog.call_deferred())
@@ -99,6 +115,35 @@ func _ready() -> void:
 	$Replay/Content/Navigation/Previous.pressed.connect(_replay_step.bind(-1))
 	$Replay/Content/Navigation/Next.pressed.connect(_replay_step.bind(1))
 	_start_series()
+
+func _practice() -> void:
+	var error := app.practice()
+	if error != "":
+		_report_error(error)
+		return
+	_show()
+
+func _return_to_series() -> void:
+	app.return_to_series()
+	_show()
+
+func _history() -> void:
+	var summary: Dictionary = JSON.parse_string(app.learning_summary())
+	var lines: Array[String] = [texts.tr_key("learning-descriptive")]
+	var totals: Dictionary = summary["totals"]
+	lines.append(texts.tr_key("learning-observed", {"count": int(totals["opportunities"]), "attempts": int(summary["attempts"])}))
+	lines.append("%s | %s | %s | %s | %s | %s | %s" % [texts.tr_key("learning-col-topic"), texts.tr_key("learning-col-context"), texts.tr_key("learning-col-opportunities"), texts.tr_key("learning-col-answers"), texts.tr_key("learning-col-unaided"), texts.tr_key("learning-col-help"), texts.tr_key("learning-col-skips")])
+	var topics := {"TrumpfOutside": "trumpf", "ProvenVoids": "voids", "AugenWon": "augen", "ClassPlayed": "played"}
+	var contexts := {"Series": "series", "Practice": "practice", "PracticeRetry": "retry", "Training": "training", "TrainingRepeat": "training-repeat"}
+	for row in summary["rows"]:
+		var c: Dictionary = row["counts"]
+		lines.append("%s | %s | %s | %s (%s) | %s (%s) | %s | %s" % [texts.tr_key("learning-topic-" + topics[row["topic"]]), texts.tr_key("learning-context-" + contexts[row["context"]]), int(c["opportunities"]), int(c["answers"]), int(c["correct"]), int(c["unaided_answers"]), int(c["unaided_correct"]), int(c["help"]), int(c["skips"])])
+	if summary["full"]:
+		lines.append(texts.tr_key("learning-full"))
+	lines.append(texts.tr_key("learning-legend"))
+	$History.title = texts.tr_key("learning-title")
+	$History/Scroll/Summary.text = "\n".join(lines)
+	$History.popup_centered(Vector2i(1000, 500))
 
 func _recording_consent() -> void:
 	$RecordingConsent.dialog_text = texts.tr_key("record-export-warning")
@@ -180,10 +225,22 @@ func _replay_cards(cards: Array) -> String:
 			names.append(_card(int(card)))
 	return ", ".join(names)
 
+# Disclosure of what the selected mode lets the human or the opponents see.
+# God Mode is stated apart from the open-display option (D-62).
+func _mode_note() -> String:
+	match mode:
+		"Goldfish":
+			return texts.tr_key("mode-goldfish-description")
+		"Mephisto":
+			return texts.tr_key("option-open-display-mephisto")
+		"GodMode":
+			return "%s %s" % [texts.tr_key("mode-god-description"), texts.tr_key("option-open-display-god")]
+	return ""
+
 func _start_series() -> void:
 	var config := {"seed": 1, "series": {"Fixed": 3}, "kontra_re": kontra_re,
 		"display": "Open" if open_display else "Closed",
-		"opponents": {"Levels": levels}}
+		"opponents": {"Levels": levels} if mode == "Levels" else mode}
 	if engine != "Classic":
 		config["engine"] = engine
 	failed = false
@@ -258,6 +315,11 @@ func _open_display_changed(enabled: bool) -> void:
 	pending_setting = {"open_display": enabled}
 	_confirm_restart()
 
+func _mode_changed(index: int) -> void:
+	$Layout/Mode.select(MODES.find(mode))
+	pending_setting = {"mode": MODES[index]}
+	_confirm_restart()
+
 func _engine_changed(index: int) -> void:
 	$Layout/Engine.select(ENGINES.find(engine))
 	pending_setting = {"engine": ENGINES[index]}
@@ -285,8 +347,20 @@ func _confirm_restart() -> void:
 	$ConfirmRestart.popup_centered()
 
 func _apply_setting() -> void:
-	if pending_setting.has("engine"):
+	if pending_setting.has("mode"):
+		mode = pending_setting["mode"]
+		$Layout/Mode.select(MODES.find(mode))
+		_save_setting("game", "mode", mode)
+		if mode != "Levels" and engine != "Classic":
+			engine = "Classic"
+			$Layout/Engine.select(0)
+			_save_setting("game", "engine", engine)
+	elif pending_setting.has("engine"):
 		engine = pending_setting["engine"]
+		if engine != "Classic" and mode != "Levels":
+			mode = "Levels"
+			$Layout/Mode.select(0)
+			_save_setting("game", "mode", mode)
 		$Layout/Engine.select(ENGINES.find(engine))
 		_save_setting("game", "engine", engine)
 		for i in range(2):
@@ -517,6 +591,13 @@ func _show() -> void:
 	var view = JSON.parse_string(app.view())
 	if not view is Dictionary:
 		return
+	$Layout/PracticeControls/Practice.text = texts.tr_key("practice-restart" if view["practice"] else "record-practice-start")
+	$Layout/PracticeControls/Practice.tooltip_text = texts.tr_key("record-practice-help")
+	$Layout/PracticeNotice.visible = view["practice"]
+	$Layout/PracticeNotice.text = texts.tr_key("practice-isolation")
+	$Layout/PracticeControls/Return.visible = view["practice"]
+	$Layout/PracticeControls/Return.text = texts.tr_key("practice-return")
+	$Layout/PracticeControls/HistoryButton.text = texts.tr_key("learning-open")
 	$Layout/RecordingFiles/SaveRecording.text = texts.tr_key("record-save")
 	$Layout/RecordingFiles/OpenRecording.text = texts.tr_key("record-open")
 	$Layout/RecordingFiles/SaveRecording.disabled = not (view["can_next_game"] or view["series_finished"])
@@ -535,6 +616,13 @@ func _show() -> void:
 		$Layout/CoachLevel.set_item_text(j, texts.tr_key(COACH_LEVEL_KEYS[j]))
 	$Layout/CoachWarnings.text = texts.tr_key("setting-coach-warnings")
 	$Layout/CoachWarnings.tooltip_text = texts.tr_key("setting-coach-warnings-description")
+	$Layout/Mode.tooltip_text = texts.tr_key("mode-levels")
+	for j in range(MODES.size()):
+		$Layout/Mode.set_item_text(j, texts.tr_key(MODE_KEYS[j]))
+	$Layout/ModeNote.text = _mode_note()
+	$Layout/ModeNote.visible = $Layout/ModeNote.text != ""
+	for i in range(2):
+		$Layout/Opponents.get_child(i).disabled = mode != "Levels"
 	$Layout/CountingAid.text = texts.tr_key("setting-aid")
 	$Layout/CountingAid.tooltip_text = texts.tr_key("setting-aid-description")
 	$Layout/Quiz.text = texts.tr_key("setting-quiz")
@@ -668,7 +756,8 @@ func _discard_refresh(discards: Dictionary) -> void:
 func _open_cards(open: Variant) -> String:
 	if not open is Dictionary:
 		return ""
-	var lines: Array[String] = [texts.tr_key("label-open-cards")]
+	# God Mode is labelled apart from the open display.
+	var lines: Array[String] = [texts.tr_key("mode-god" if mode == "GodMode" else "label-open-cards")]
 	for i in range(3):
 		var names: Array[String] = []
 		for card in open["hands"][i]:
