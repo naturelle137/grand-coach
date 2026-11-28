@@ -90,12 +90,16 @@ impl SkatApp {
             .map_or(0, |a| a.learning_events() as i64)
     }
 
-    /// The learning history overview (`LearningSummary` JSON).
+    /// Start or retry the current deal as an isolated practice.
     #[func]
-    fn learning_summary(&self) -> GString {
-        self.adapter
-            .as_ref()
-            .map(|a| GString::from(a.learning_summary_json().as_str()))
+    fn practice(&mut self) -> GString {
+        let Some(adapter) = self.adapter.as_mut() else {
+            return GString::from(r#"{"error":"NoSession"}"#);
+        };
+        adapter
+            .practice()
+            .err()
+            .map(|e| error_text(&e))
             .unwrap_or_default()
     }
 
@@ -154,6 +158,23 @@ impl SkatApp {
             .save_recording(std::path::Path::new(&path.to_string()))
             .err()
             .map(|e| error_text(&e))
+            .unwrap_or_default()
+    }
+
+    /// Return from practice to the parked series.
+    #[func]
+    fn return_to_series(&mut self) {
+        if let Some(adapter) = self.adapter.as_mut() {
+            adapter.return_to_series();
+        }
+    }
+
+    /// Descriptive learning summary without deal data.
+    #[func]
+    fn learning_summary(&self) -> GString {
+        self.adapter
+            .as_ref()
+            .map(|a| GString::from(a.learning_summary_json().as_str()))
             .unwrap_or_default()
     }
 
