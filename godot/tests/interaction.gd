@@ -544,6 +544,15 @@ func coach_flow(lang: String) -> void:
 	assert(table.coach_level == "Important" and table.coach_warnings and not table.failed)
 	var coach_view: Dictionary = JSON.parse_string(table.app.view())["coach"]["settings"]
 	assert(coach_view["level"] == "Important" and coach_view["warnings"] == true)
+	table.get_node("Layout/ShowFigures").button_pressed = true
+	coach_view = JSON.parse_string(table.app.view())["coach"]["settings"]
+	assert(coach_view["level"] == "Important" and coach_view["warnings"] and coach_view["show_figures"])
+	selector.select(3)
+	selector.item_selected.emit(3)
+	coach_view = JSON.parse_string(table.app.view())["coach"]["settings"]
+	assert(coach_view["level"] == "EveryMove" and coach_view["warnings"] and coach_view["show_figures"])
+	selector.select(2)
+	selector.item_selected.emit(2)
 	table.queue_free()
 	await process_frame
 	table = load("res://main.tscn").instantiate()
@@ -554,7 +563,7 @@ func coach_flow(lang: String) -> void:
 	warnings = table.get_node("Layout/CoachWarnings")
 	assert(selector.selected == 2 and warnings.button_pressed)
 	coach_view = JSON.parse_string(table.app.view())["coach"]["settings"]
-	assert(coach_view["level"] == "Important" and coach_view["warnings"] == true)
+	assert(coach_view["level"] == "Important" and coach_view["warnings"] and coach_view["show_figures"])
 	assert(table.texts.load_language(lang))
 	table._show()
 	for j in range(4):

@@ -272,11 +272,6 @@ func _figures_changed(enabled: bool) -> void:
 	_send_coach()
 	_show()
 
-# Only the figures switch of the coach settings is exposed (D-52, off by default).
-func _send_coach() -> void:
-	_report_error(app.execute(JSON.stringify({"SetCoach": {"level": "OnRequest",
-		"warnings": false, "show_figures": show_figures, "focus": null}})))
-
 func _assist_changed(_enabled: bool) -> void:
 	counting_aid = $Layout/CountingAid.button_pressed
 	quiz = $Layout/Quiz.button_pressed
@@ -291,7 +286,7 @@ func _assist_changed(_enabled: bool) -> void:
 func _send_coach() -> void:
 	var result := app.execute(JSON.stringify({"SetCoach": {
 		"level": coach_level, "warnings": coach_warnings,
-		"show_figures": false, "focus": null}}))
+		"show_figures": show_figures, "focus": null}}))
 	_report_error(result)
 
 func _coach_changed(_value: Variant) -> void:
