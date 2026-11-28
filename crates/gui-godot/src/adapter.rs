@@ -13,8 +13,9 @@ use std::thread;
 
 use serde::Serialize;
 use skat_app::{
-    AppError, AppEvent, AttemptId, AttemptKind, Cancel, CoachResult, Command, LearningFileError,
-    LearningHistory, OpponentMove, RetrievalEvent, Session, SessionConfig,
+    AppError, AppEvent, AttemptId, AttemptKind, Cancel, CoachResult, Command, GameRecording,
+    LearningFileError, LearningHistory, OpponentMove, PlayerId, RecordingEnd, RecordingFileError,
+    RetrievalEvent, Session, SessionConfig,
 };
 
 /// Structured failure at the boundary, serialised as `{"error": ...}`.
@@ -24,6 +25,10 @@ pub enum AdapterError {
     Invalid(String),
     /// The configuration is not allowed (e.g. an unavailable engine).
     Config,
+    /// Recording file failure.
+    Recording(RecordingFileError),
+    /// No completed game is available.
+    NoRecording,
     /// `skat-app` rejected the command; the session is unchanged.
     App(AppError),
 }
@@ -61,6 +66,7 @@ pub struct Adapter {
     coach_receiver: Receiver<CoachDone>,
     coach_in_flight: bool,
     learning: Learning,
+    replay: Option<GameRecording>,
 }
 
 /// The learning history (D-70) and the attempt of the running series. The
@@ -137,6 +143,7 @@ impl Adapter {
             coach_receiver,
             coach_in_flight: false,
             learning: Learning::default(),
+            replay: None,
         })
     }
 
@@ -205,6 +212,39 @@ impl Adapter {
         let events = self.session.execute(command).map_err(AdapterError::App)?;
         self.learning.record(&events);
         Ok(serde_json::to_string(&events).expect("plain data serialises"))
+    }
+
+    /// Saves the current completed game without overwriting an existing file.
+    pub fn save_recording(&self, path: &std::path::Path) -> Result<(), AdapterError> {
+        let recording = self
+            .session
+            .export_current_recording_privileged()
+            .filter(|r| r.end != RecordingEnd::InProgress)
+            .ok_or(AdapterError::NoRecording)?;
+        recording
+            .save_local_new(path)
+            .map_err(AdapterError::Recording)
+    }
+
+    /// Opens and validates a recording before replacing the current replay.
+    pub fn open_recording(&mut self, path: &std::path::Path) -> Result<(), AdapterError> {
+        let recording = GameRecording::open_local(path).map_err(AdapterError::Recording)?;
+        self.replay = Some(recording);
+        Ok(())
+    }
+
+    /// Historical view of the human at an action boundary; no concealed deal crosses the wire.
+    pub fn replay_json(&self, index: usize) -> Result<String, AdapterError> {
+        let recording = self.replay.as_ref().ok_or(AdapterError::NoRecording)?;
+        let position = recording
+            .reconstruct_privileged(index)
+            .map_err(|e| AdapterError::Recording(RecordingFileError::InvalidRecording(e)))?;
+        let view = &position.state.seats[PlayerId::HUMAN.seat(recording.context.dealer).index()];
+        Ok(
+            serde_json::json!({"index": index, "total": recording.actions.len(), "view": view,
+            "hand": view.hand.iter().collect::<Vec<_>>()})
+            .to_string(),
+        )
     }
 
     /// Starts computing the pending opponent move on a worker thread.
