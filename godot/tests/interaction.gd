@@ -7,6 +7,8 @@ func _initialize() -> void:
 func run() -> void:
 	await settings_persistence()
 	for lang in ["de", "en"]:
+		await assist_flow(lang)
+	for lang in ["de", "en"]:
 		await play_series(lang)
 	print("Godot interaction: German and English bidding, cards, next game and finished series")
 	quit(0)
@@ -136,6 +138,106 @@ func settings_persistence() -> void:
 			table.queue_free()
 			await process_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+# Counting aid and quiz: settings persist, a question holds the move and hides
+# the aid, and answer, help and skip reach the learning history.
+func assist_flow(lang: String) -> void:
+	var path := "user://interaction-assist.cfg"
+	var history := "user://interaction-assist-history.json"
+	for file in [path, history]:
+		if FileAccess.file_exists(file):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(file))
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = path
+	table.learning_path = history
+	root.add_child(table)
+	assert(not table.counting_aid and not table.quiz)
+	table.get_node("Layout/CountingAid").button_pressed = true
+	table.get_node("Layout/Quiz").button_pressed = true
+	table.queue_free()
+	await process_frame
+	table = load("res://main.tscn").instantiate()
+	table.settings_path = path
+	table.learning_path = history
+	root.add_child(table)
+	assert(table.counting_aid and table.quiz)
+	assert(table.get_node("Layout/CountingAid").button_pressed and table.get_node("Layout/Quiz").button_pressed)
+	assert(table.texts.load_language(lang))
+	table._show()
+	assert(table.get_node("Layout/CountingAid").text == table.texts.tr_key("setting-aid"))
+	assert(table.get_node("Layout/Quiz").text == table.texts.tr_key("setting-quiz"))
+	assert(table.get_node("Layout/Aid").visible and not table.get_node("Layout/QuizBox").visible)
+	var box = table.get_node("Layout/QuizBox")
+	var deadline := Time.get_ticks_msec() + 60000
+	var view: Dictionary = JSON.parse_string(table.app.view())
+	while view["assist"]["quiz"]["question"] == null and Time.get_ticks_msec() < deadline:
+		await process_frame
+		view = JSON.parse_string(table.app.view())
+		if view["assist"]["quiz"]["question"] != null:
+			break  # the question arrived during this frame and holds the move
+		if view["opponent_to_move"]:
+			continue
+		if not view["legal_actions"].is_empty():
+			table._act({"Act": view["legal_actions"][0]})
+		elif view["can_next_game"]:
+			table._act("NextGame")
+		else:
+			break
+	assert(view["assist"]["quiz"]["question"] != null, "no counting question was asked")
+	assert(box.visible and table.get_node("Layout/Aid").text.contains(table.texts.tr_key("aid-withheld")))
+	assert(view["assist"]["counting"] == "Withheld" and view["assist"]["quiz"]["help"] == null)
+	assert(box.get_node("Question").text.contains(table._question_text(view["assist"]["quiz"]["question"])))
+	for node in table.get_node("Layout/Hand").get_children():
+		assert(node.disabled)
+	assert(table.get_node("Layout/Scroll/Actions").get_children().filter(
+		func(button): return not button.is_queued_for_deletion()).is_empty())
+	for other in ["de", "en"]:
+		table.texts.load_language(other)
+		table._show()
+		assert(box.get_node("Question").text.contains(table.texts.tr_key("quiz-hint")))
+		assert(box.get_node("Controls/Answer").text == table.texts.tr_key("quiz-submit"))
+		assert(box.get_node("Controls/Skip").text == table.texts.tr_key("quiz-skip"))
+		assert(box.get_node("Controls/Off").text == table.texts.tr_key("quiz-off"))
+	table.texts.load_language(lang)
+	table._show()
+	var asked: int = table.app.learning_events()
+	box.get_node("Controls/ShowHelp").pressed.emit()
+	view = JSON.parse_string(table.app.view())
+	var help = view["assist"]["quiz"]["help"]
+	assert(help != null and view["assist"]["quiz"]["question"] != null)
+	assert(box.get_node("Question").text.contains(table._derivation_lines(help)[0]))
+	assert(box.get_node("Controls/ShowHelp").disabled)
+	assert(table.get_node("Layout/Aid").text.contains(table.texts.tr_key("aid-exact")))
+	if lang == "de":
+		box.get_node("Controls/Answer").pressed.emit()
+	else:
+		box.get_node("Controls/Skip").pressed.emit()
+	assert(not table.failed, table.get_node("Layout/Status").text)
+	view = JSON.parse_string(table.app.view())
+	assert(view["assist"]["quiz"]["question"] == null and not box.visible)
+	var feedback = view["assist"]["quiz"]["feedback"]
+	assert(feedback != null and table.get_node("Layout/QuizFeedback").visible)
+	var lines = table._feedback_lines(feedback)
+	assert(table.get_node("Layout/QuizFeedback").text.contains(lines[0]))
+	assert(table.get_node("Layout/Aid").text.contains(table.texts.tr_key("aid-title")))
+	assert(not table.get_node("Layout/Aid").text.contains(table.texts.tr_key("aid-withheld")))
+	assert(table.app.learning_events() > asked)
+	var recorded: int = table.app.learning_events()
+	table.get_node("Layout/Quiz").button_pressed = false
+	assert(not table.quiz and table.app.learning_events() == recorded)
+	assert(not box.visible)
+	table.queue_free()
+	await process_frame
+	table = load("res://main.tscn").instantiate()
+	table.settings_path = path
+	table.learning_path = history
+	root.add_child(table)
+	assert(table.counting_aid and not table.quiz)
+	assert(table.app.learning_events() == recorded, "history survives a new session")
+	table.queue_free()
+	await process_frame
+	for file in [path, history]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(file))
 
 func play_series(lang: String) -> void:
 	var table = load("res://main.tscn").instantiate()
