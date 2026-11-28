@@ -1119,3 +1119,351 @@ fn reizen_dialogue_matches_the_direct_session_and_stays_in_the_permitted_view() 
     // The dialogue never acts: the legal choices are untouched.
     assert_eq!(view(&adapter).legal_actions, permitted.legal_actions);
 }
+
+/// Scans seeds with a direct session (first non-Pass legal action) for the
+/// first human decision the probe accepts; returns the seed and the commands
+/// leading there, so adapter and direct session can replay them in lockstep.
+fn find_decision(
+    series: SeriesLength,
+    probe: impl Fn(&mut Session) -> bool,
+) -> (SessionConfig, Vec<Command>) {
+    for seed in 1..4000u64 {
+        let cfg = SessionConfig {
+            series,
+            kontra_re: true,
+            ..config(seed)
+        };
+        let mut session = Session::new(cfg);
+        let mut path = Vec::new();
+        for _ in 0..400 {
+            session.run_opponents();
+            let v = session.view();
+            if !v.legal_actions.is_empty() && probe(&mut session) {
+                return (cfg, path);
+            }
+            // Even seeds declare (and pick up the Skat), odd seeds defend.
+            let wanted = |a: &&skat_app::Action| {
+                if seed % 2 == 1 {
+                    **a == skat_app::Action::Pass
+                } else {
+                    !matches!(a, skat_app::Action::Pass | skat_app::Action::Hand)
+                }
+            };
+            let next = match v.legal_actions.iter().find(wanted) {
+                Some(&a) => Command::Act(a),
+                None if v.series_finished && v.legal_actions.is_empty() => break,
+                None => match v.legal_actions.first() {
+                    Some(&a) => Command::Act(a),
+                    None => Command::NextGame,
+                },
+            };
+            if let Err(e) = session.execute(next) {
+                eprintln!("{seed} {next:?} {e:?}");
+                break;
+            }
+            path.push(next);
+        }
+    }
+    panic!("no matching decision found");
+}
+
+fn replay(cfg: &SessionConfig, path: &[Command]) -> (Adapter, Session) {
+    let mut adapter = Adapter::new(&json(cfg)).unwrap();
+    let mut session = Session::new(*cfg);
+    for &c in path {
+        settle(&mut adapter, &mut session);
+        same(&mut adapter, &mut session, c).unwrap();
+    }
+    settle(&mut adapter, &mut session);
+    (adapter, session)
+}
+
+/// Opens the dialogue, answers once (retrying a wrong answer), reveals the
+/// worked answer and checks that every step equals the direct session, that
+/// the wire carries no seed and that the legal choices stay untouched.
+fn run_dialogue(
+    adapter: &mut Adapter,
+    session: &mut Session,
+    answer: skat_app::GuidedAnswer,
+) -> skat_app::GuidedView {
+    let permitted = view(adapter);
+    same(adapter, session, Command::StartGuided).unwrap();
+    assert!(!adapter.guided_json().contains("seed"));
+    let (id, direct) = guided_ids(adapter, session);
+    let attempt = skat_app::GuidedAction::Answer(answer);
+    let _ = both(
+        adapter,
+        session,
+        Command::Guided(id, attempt),
+        Command::Guided(direct, attempt),
+    );
+    if guided_view(adapter).and_then(|g| g.correct) == Some(false) {
+        let retry = skat_app::GuidedAction::Retry;
+        both(
+            adapter,
+            session,
+            Command::Guided(id, retry),
+            Command::Guided(direct, retry),
+        )
+        .unwrap();
+    }
+    let reveal = skat_app::GuidedAction::Reveal;
+    both(
+        adapter,
+        session,
+        Command::Guided(id, reveal),
+        Command::Guided(direct, reveal),
+    )
+    .unwrap();
+    assert_eq!(view(adapter).legal_actions, permitted.legal_actions);
+    guided_view(adapter).expect("dialogue still open")
+}
+
+/// Opens the dialogue on the direct session, asks `accept` about it and
+/// closes it again, so the scan continues from an unchanged game.
+fn probe_guided(
+    session: &mut Session,
+    accept: impl Fn(&TableView, &skat_app::GuidedView) -> bool,
+) -> bool {
+    let table = session.view();
+    if session.execute(Command::StartGuided).is_err() {
+        return false;
+    }
+    let Some(g) = session.guided() else {
+        return false;
+    };
+    let ok = g.step != skat_app::GuidedStep::Unsupported && accept(&table, &g);
+    session
+        .execute(Command::Guided(g.id, skat_app::GuidedAction::Return))
+        .unwrap();
+    ok
+}
+
+fn has_action(v: &TableView, wanted: skat_app::Action) -> bool {
+    v.legal_actions.contains(&wanted)
+}
+
+#[test]
+fn skat_pickup_discard_and_announce_dialogues_match_the_direct_session() {
+    for (phase, answer) in [
+        (
+            skat_app::Phase::SkatAufnahme,
+            skat_app::GuidedAnswer::Game(skat_app::GuidedGameBranch::Suit),
+        ),
+        (
+            skat_app::Phase::Druecken,
+            skat_app::GuidedAnswer::Game(skat_app::GuidedGameBranch::Grand),
+        ),
+        (
+            skat_app::Phase::Ansage,
+            skat_app::GuidedAnswer::Game(skat_app::GuidedGameBranch::Null),
+        ),
+    ] {
+        let (cfg, path) = find_decision(SeriesLength::Fixed(2), |s| {
+            s.view().phase == phase
+                && probe_guided(s, |_, g| {
+                    g.preplay.as_ref().is_some_and(|p| p.phase == phase)
+                })
+        });
+        let (mut adapter, mut session) = replay(&cfg, &path);
+        let before = view(&adapter);
+        let opened = {
+            same(&mut adapter, &mut session, Command::StartGuided).unwrap();
+            let g = guided_view(&adapter).unwrap();
+            let (id, direct) = guided_ids(&adapter, &session);
+            let r = skat_app::GuidedAction::Return;
+            both(
+                &mut adapter,
+                &mut session,
+                Command::Guided(id, r),
+                Command::Guided(direct, r),
+            )
+            .unwrap();
+            g
+        };
+        // Orientation shows only public facts: no candidate game, rule or Skat.
+        let p = opened.preplay.expect("a preplay dialogue");
+        assert_eq!(p.phase, phase);
+        assert!(p.game.is_none() && p.threshold.is_none() && opened.pre_rule.is_none());
+        if phase == skat_app::Phase::Druecken {
+            // Neutral answer controls are the own twelve cards.
+            assert!(p.cards.iter().all(|c| before.hand.contains(c)));
+        }
+        let done = run_dialogue(&mut adapter, &mut session, answer);
+        assert!(done.pre_rule.is_some(), "{phase:?}: worked rule revealed");
+        assert!(done.preplay.unwrap().game.is_some());
+    }
+}
+
+#[test]
+fn kontra_and_re_dialogues_match_the_direct_session_and_never_call() {
+    for (wanted, factor) in [(skat_app::Action::Kontra, 2), (skat_app::Action::Re, 4)] {
+        let (cfg, path) = find_decision(SeriesLength::Fixed(6), |s| {
+            has_action(&s.view(), wanted)
+                && probe_guided(s, |_, g| {
+                    g.kontra.is_some() && !g.kontra.unwrap().ouvert_round
+                })
+        });
+        let (mut adapter, mut session) = replay(&cfg, &path);
+        let permitted = view(&adapter);
+        let done = run_dialogue(
+            &mut adapter,
+            &mut session,
+            skat_app::GuidedAnswer::Factor(factor),
+        );
+        let k = done.kontra.expect("a Kontra/Re dialogue");
+        assert_eq!(k.factor, Some(factor));
+        assert!(
+            done.kontra_rule.is_some(),
+            "{wanted:?}: worked rule revealed"
+        );
+        // The dialogue never calls: the table still waits for the learner.
+        assert!(has_action(&view(&adapter), wanted));
+        assert_eq!(view(&adapter).kontra, permitted.kontra);
+    }
+}
+
+#[test]
+fn lead_and_null_dialogues_match_the_direct_session() {
+    let lead = |s: &mut Session| {
+        let v = s.view();
+        let plays = v
+            .legal_actions
+            .iter()
+            .filter(|a| matches!(a, skat_app::Action::Play(_)))
+            .count();
+        v.phase == skat_app::Phase::Spiel
+            && v.current_trick.is_empty()
+            && plays >= 2
+            && probe_guided(s, |_, g| g.lead.is_some())
+    };
+    let (cfg, path) = find_decision(SeriesLength::Fixed(2), lead);
+    let (mut adapter, mut session) = replay(&cfg, &path);
+    let opened = {
+        same(&mut adapter, &mut session, Command::StartGuided).unwrap();
+        guided_view(&adapter).unwrap()
+    };
+    let seat = opened.lead.expect("an empty-trick orientation");
+    let (id, direct) = guided_ids(&adapter, &session);
+    let r = skat_app::GuidedAction::Return;
+    both(
+        &mut adapter,
+        &mut session,
+        Command::Guided(id, r),
+        Command::Guided(direct, r),
+    )
+    .unwrap();
+    let done = run_dialogue(
+        &mut adapter,
+        &mut session,
+        skat_app::GuidedAnswer::Lead {
+            seat,
+            declarer: true,
+        },
+    );
+    assert!(done.lead.is_some());
+
+    // A Null contract is worded from the same permitted view.
+    let (cfg, path) = find_decision(SeriesLength::Fixed(12), |s| {
+        let v = s.view();
+        v.phase == skat_app::Phase::Spiel
+            && v.contract
+                .is_some_and(|c| c.game == skat_app::GameType::Null)
+            && v.legal_actions
+                .iter()
+                .any(|a| matches!(a, skat_app::Action::Play(_)))
+            && probe_guided(s, |_, g| {
+                g.task == Some(skat_app::GuidedBranch::Null) || g.lead.is_some()
+            })
+    });
+    let (mut adapter, mut session) = replay(&cfg, &path);
+    let first = adapter.guided_json();
+    assert_eq!(first, "null");
+    same(&mut adapter, &mut session, Command::StartGuided).unwrap();
+    let g = guided_view(&adapter).unwrap();
+    assert_ne!(g.step, skat_app::GuidedStep::Unsupported);
+    assert!(g.rule.is_none(), "no rule before the deliberate reveal");
+}
+
+#[test]
+fn card_memory_and_model_comparison_match_the_direct_session() {
+    let mut adapter = Adapter::new(&json(&config(21))).unwrap();
+    let mut session = Session::new(config(21));
+    let coach = skat_app::CoachSettings {
+        show_figures: true,
+        ..skat_app::CoachSettings::default()
+    };
+    same(&mut adapter, &mut session, Command::SetCoach(coach)).unwrap();
+    to_card_choice(&mut adapter, &mut session);
+    same(&mut adapter, &mut session, Command::StartGuided).unwrap();
+    let permitted = view(&adapter);
+    let (id, direct) = guided_ids(&adapter, &session);
+    // Card memory is withheld until the worked answer is allowed.
+    let open = skat_app::GuidedAction::Memory(true);
+    assert!(
+        both(
+            &mut adapter,
+            &mut session,
+            Command::Guided(id, open),
+            Command::Guided(direct, open)
+        )
+        .is_err()
+    );
+    assert!(guided_view(&adapter).unwrap().memory.is_none());
+    let reveal = skat_app::GuidedAction::Reveal;
+    both(
+        &mut adapter,
+        &mut session,
+        Command::Guided(id, reveal),
+        Command::Guided(direct, reveal),
+    )
+    .unwrap();
+    both(
+        &mut adapter,
+        &mut session,
+        Command::Guided(id, open),
+        Command::Guided(direct, open),
+    )
+    .unwrap();
+    let memory = guided_view(&adapter)
+        .unwrap()
+        .memory
+        .expect("memory opened");
+    // Only cards the learner's own permitted view can know.
+    assert!(permitted.hand.iter().all(|c| memory.own.contains(*c)));
+    assert_eq!(memory.own.len(), permitted.hand.len());
+    let wire = adapter.guided_json();
+    assert!(!wire.contains("seed"));
+
+    // Play the learner's own card; the model comparison is a separate request.
+    let play = *permitted
+        .legal_actions
+        .iter()
+        .find(|a| matches!(a, skat_app::Action::Play(_)))
+        .unwrap();
+    same(&mut adapter, &mut session, Command::Act(play)).unwrap();
+    settle(&mut adapter, &mut session);
+    if let Some(g) = guided_view(&adapter)
+        && g.step == skat_app::GuidedStep::Observe
+    {
+        let (id, direct) = guided_ids(&adapter, &session);
+        let answer = skat_app::GuidedAction::Answer(skat_app::GuidedAnswer::Void(false));
+        both(
+            &mut adapter,
+            &mut session,
+            Command::Guided(id, answer),
+            Command::Guided(direct, answer),
+        )
+        .unwrap();
+    }
+    let (id, direct) = guided_ids(&adapter, &session);
+    let figures = skat_app::GuidedAction::Figures;
+    both(
+        &mut adapter,
+        &mut session,
+        Command::Guided(id, figures),
+        Command::Guided(direct, figures),
+    )
+    .unwrap();
+    assert!(guided_view(&adapter).unwrap().figures_requested);
+}
