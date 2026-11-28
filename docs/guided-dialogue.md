@@ -1722,10 +1722,13 @@ observes the actual trick winner. No learning efficacy is inferred.
 through the core for every declarer seat, Grand, all four Farbspiele and
 Null, as Hand, Hand Ouvert and pickup/Drücken games (plus pickup Null Ouvert,
 which the core permits without Hand), with seeded random legal
-play. At every card-play decision with at least two legal cards (over 50,000
+play. A second pass of 60 deals per case enables the optional Kontra/Re setting
+with a Kontra-eligible defender (it bids or holds once, D-26.1); random play then
+takes Kontra/Re, Ouvert and Null included, and each such decision must have a
+`kontra_lesson`, each later card decision a `lesson`. At every card-play decision with at least two legal cards (over 50,000
 samples) `lesson` must return a lesson; any future Easy branch without a dialogue
 fails the test. This is a sample, not a proof: positions the random play does not
-reach, single-legal-card turns and Kontra/Re rounds are outside it, and it says
+reach, single-legal-card turns are outside it, and it says
 nothing about explanation quality or learner outcomes.
 
 ### Later-phase evidence check (#131)
