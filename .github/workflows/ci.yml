@@ -82,6 +82,8 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: scripts/check.sh pr
+      - name: Godot headless interaction (DE/EN, pinned Godot)
+        run: scripts/godot-headless.sh
 
   native:
     needs: changes

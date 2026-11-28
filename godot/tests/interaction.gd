@@ -173,6 +173,8 @@ func assist_flow(lang: String) -> void:
 	while view["assist"]["quiz"]["question"] == null and Time.get_ticks_msec() < deadline:
 		await process_frame
 		view = JSON.parse_string(table.app.view())
+		if view["assist"]["quiz"]["question"] != null:
+			break  # the question arrived during this frame and holds the move
 		if view["opponent_to_move"]:
 			continue
 		if not view["legal_actions"].is_empty():
