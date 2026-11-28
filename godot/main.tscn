@@ -128,3 +128,52 @@ size_flags_vertical = 3
 [node name="Actions" type="VBoxContainer" parent="Layout/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="RecordingFiles" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="SaveRecording" type="Button" parent="Layout/RecordingFiles"]
+layout_mode = 2
+
+[node name="OpenRecording" type="Button" parent="Layout/RecordingFiles"]
+layout_mode = 2
+
+[node name="RecordingFile" type="FileDialog" parent="."]
+access = 2
+
+[node name="RecordingConsent" type="ConfirmationDialog" parent="."]
+
+[node name="RecordingError" type="AcceptDialog" parent="."]
+
+[node name="Replay" type="Window" parent="."]
+exclusive = true
+title = "Recording"
+size = Vector2i(680, 400)
+visible = false
+
+[node name="Content" type="VBoxContainer" parent="Replay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
+
+[node name="Scroll" type="ScrollContainer" parent="Replay/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Position" type="Label" parent="Replay/Content/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+
+[node name="Navigation" type="HBoxContainer" parent="Replay/Content"]
+layout_mode = 2
+
+[node name="Previous" type="Button" parent="Replay/Content/Navigation"]
+layout_mode = 2
+
+[node name="Next" type="Button" parent="Replay/Content/Navigation"]
+layout_mode = 2

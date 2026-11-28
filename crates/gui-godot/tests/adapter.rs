@@ -527,3 +527,48 @@ fn damaged_learning_file_is_left_unchanged() {
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "not json");
     std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
 }
+
+#[test]
+fn recording_round_trip_exposes_only_the_human_historical_view() {
+    let mut adapter = Adapter::new(&json(&config(11))).unwrap();
+    loop {
+        let v = view(&adapter);
+        if v.can_next_game || v.series_finished {
+            break;
+        }
+        if v.opponent_to_move {
+            assert!(adapter.start_opponent());
+            finish_opponent(&mut adapter).unwrap();
+        } else if let Some(&action) = v.legal_actions.first() {
+            adapter
+                .execute_json(&command(Command::Act(action)))
+                .unwrap();
+        } else {
+            panic!("game stalled");
+        }
+    }
+    let path = std::env::temp_dir().join(format!(
+        "grand-coach-godot-replay-{}.json",
+        std::process::id()
+    ));
+    adapter.save_recording(&path).unwrap();
+    assert!(adapter.save_recording(&path).is_err());
+    let recording = skat_app::GameRecording::open_local(&path).unwrap();
+    adapter.open_recording(&path).unwrap();
+    for index in 0..=recording.actions.len() {
+        let wire: serde_json::Value =
+            serde_json::from_str(&adapter.replay_json(index).unwrap()).unwrap();
+        let state = recording.reconstruct_privileged(index).unwrap().state;
+        let expected = &state.seats[skat_app::PlayerId::HUMAN
+            .seat(recording.context.dealer)
+            .index()];
+        assert_eq!(wire["view"], serde_json::to_value(expected).unwrap());
+        assert_eq!(
+            wire["hand"],
+            serde_json::to_value(expected.hand.iter().collect::<Vec<_>>()).unwrap()
+        );
+        assert!(wire.get("deal").is_none() && wire.get("state").is_none());
+    }
+    assert!(adapter.replay_json(recording.actions.len() + 1).is_err());
+    std::fs::remove_file(path).unwrap();
+}
