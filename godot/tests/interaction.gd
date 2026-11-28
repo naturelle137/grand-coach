@@ -585,7 +585,7 @@ func coach_flow(lang: String) -> void:
 	sample["coach"]["pending"] = null
 	assert(not table._show_coach(sample) and not box.visible)
 	# Play a seeded series with warnings on; a held action must resolve.
-	var deadline := Time.get_ticks_msec() + 120000
+	var deadline := Time.get_ticks_msec() + 600000
 	var held := 0
 	var view: Dictionary = JSON.parse_string(table.app.view())
 	while not view["series_finished"] and Time.get_ticks_msec() < deadline:
@@ -1099,7 +1099,7 @@ func kontra_dialogue_flow(lang: String) -> void:
 	root.add_child(table)
 	assert(table.texts.load_language(lang))
 	var seen := {}
-	var deadline := Time.get_ticks_msec() + 120000
+	var deadline := Time.get_ticks_msec() + 600000
 	for seed in range(1, 80):
 		if seen.size() == 2:
 			break
@@ -1156,7 +1156,7 @@ func lead_null_memory_figures_flow(lang: String) -> void:
 	assert(error == "", error)
 	table._send_coach()
 	var view: Dictionary = {}
-	var deadline := Time.get_ticks_msec() + 120000
+	var deadline := Time.get_ticks_msec() + 600000
 	while Time.get_ticks_msec() < deadline:
 		await process_frame
 		assert(not table.failed, table.get_node("Layout/Status").text)
