@@ -12,6 +12,7 @@ func run() -> void:
 		await assist_flow(lang)
 	for lang in ["de", "en"]:
 		await coach_flow(lang)
+		await coach_text_flow(lang)
 		await dialogue_flow(lang)
 		await reizen_dialogue_flow(lang)
 	for lang in ["de", "en"]:
@@ -600,6 +601,103 @@ func coach_flow(lang: String) -> void:
 	table.queue_free()
 	await process_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+# Hints on request, the note on the last move and the debriefing come from the
+# permitted view; texts follow the language and nothing ranks an option
+# before the move.
+func coach_text_flow(lang: String) -> void:
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = "user://interaction-coach-text.cfg"
+	root.add_child(table)
+	assert(table.texts.load_language(lang))
+	var t = table.texts
+	# Samples shaped like the skat-app view.
+	var view := {"bid": 18, "hand_game": false, "players": [
+		{"seat": "Vorhand", "player": 0}, {"seat": "Mittelhand", "player": 1}, {"seat": "Hinterhand", "player": 2}]}
+	var hints := {"decision": "Card", "role": "Defender", "objective": {"Augen": {"target": 61}},
+		"status": "Complete", "lesson": {"ProvenVoid": {}}, "compare_question": true,
+		"considerations": [
+			{"Known": {"Void": {"seat": "Mittelhand", "follow": "Trumpf"}}},
+			{"Known": {"TrumpsOut": {"count": 3}}},
+			{"Inferred": {"inference": {"holder": {"Seat": "Hinterhand"}, "class": "Trumps", "certain": false,
+				"max": 2}, "amount": "AboutOne"}}],
+		"situation": {"situation": {"SeveralEqual": {"count": 2}}, "important": true, "options": [{"Play": 0}, {"Play": 9}]}}
+	var text := "\n".join(table._advice_lines(view, {"Ready": hints}))
+	for expected in [t.tr_key("coach-decision-card"), t.tr_key("coach-role-defender"),
+			t.tr_key("coach-objective-augen-defender", {"target": 61}),
+			t.tr_key("coach-lesson-proven-void-question"),
+			t.tr_key("coach-fact-void", {"player": table._player(1), "class": t.tr_key("quiz-class-trumpf")}),
+			t.tr_key("coach-fact-trumps-out", {"count": 3}),
+			t.tr_key("coach-inferred-about-one", {"holder": table._player(2), "class": t.tr_key("coach-class-trumps")}),
+			t.tr_key("coach-situation-several", {"count": 2}), t.tr_key("coach-important"),
+			t.tr_key("coach-question-compare"), "• " + table._card(0), "• " + table._card(9)]:
+		assert(text.contains(expected), expected)
+	assert(not text.contains("coach-"), "untranslated key in " + text)
+	assert(table._advice_lines(view, "Computing") == [t.tr_key("coach-status-computing")])
+	assert(table._advice_lines(view, {"Unavailable": "Cancelled"}) == [t.tr_key("coach-unavailable-cancelled")])
+	var last := {"action": {"Play": 0}, "bid": 18, "hand_game": false, "note": "ClearlyWeaker"}
+	assert(table._note_line(last) == t.tr_key("coach-note", {"action": table._card(0),
+		"note": t.tr_key("coach-note-clearly-weaker")}))
+	last["note"] = null
+	assert(table._note_line(last).contains(t.tr_key("coach-note-computing")))
+	var moment := {"moment": {"concept": "ProvenVoid", "review": {"bid": 18, "hand_game": false, "status": "Complete",
+		"chosen": {"action": {"Play": 0}, "judgement": "Weak"}, "best": {"action": {"Play": 9}}}}}
+	var debrief := "\n".join(table._debriefing_lines({"Ready": [moment]}))
+	assert(debrief.contains(t.tr_key("coach-debriefing-title")))
+	assert(debrief.contains(t.tr_key("coach-moment-chosen-weak", {"action": table._card(0), "best": table._card(9)})))
+	assert(table._debriefing_lines({"Ready": []})[1] == t.tr_key("coach-debriefing-none"))
+	assert(table._debriefing_lines({"Computing": {"remaining": 2, "moments": []}})[1] == t.tr_key("coach-debriefing-computing", {"count": 2}))
+	# Live: ask for hints at a human decision; the help button follows the
+	# stage and the advice arrives from the worker.
+	var selector = table.get_node("Layout/CoachLevel")
+	selector.select(1)
+	selector.item_selected.emit(1)
+	table._start_series()
+	var ask = table.get_node("Layout/CoachHelp/Ask")
+	var advice = table.get_node("Layout/CoachAdvice")
+	var deadline := Time.get_ticks_msec() + 60000
+	var view_now: Dictionary = JSON.parse_string(table.app.view())
+	while Time.get_ticks_msec() < deadline and not (view_now["coach"]["help_available"] and not view_now["opponent_to_move"]):
+		await process_frame
+		view_now = JSON.parse_string(table.app.view())
+		if not view_now["opponent_to_move"] and not view_now["coach"]["help_available"] and not view_now["legal_actions"].is_empty():
+			table._act({"Act": view_now["legal_actions"][0]})
+	assert(ask.visible and ask.text == t.tr_key("button-coach-considerations"))
+	assert(not advice.visible)
+	ask.pressed.emit()
+	while Time.get_ticks_msec() < deadline and not (view_now["coach"]["advice"] is Dictionary):
+		await process_frame
+		view_now = JSON.parse_string(table.app.view())
+	assert(view_now["coach"]["advice"] is Dictionary, "advice did not arrive")
+	await process_frame
+	assert(advice.visible and advice.text.contains(t.tr_key("coach-decision-" + str(view_now["coach"]["advice"].values()[0]["decision"]).to_lower())))
+	assert(not advice.text.contains("coach-"))
+	if OS.has_environment("GODOT_COACH_SCREENSHOT"):
+		root.size = Vector2i(1152, 648)
+		await process_frame
+		root.get_texture().get_image().save_png(OS.get_environment("GODOT_COACH_SCREENSHOT") + "-" + lang + ".png")
+	table.get_node("Layout/CoachHelp/Hide").pressed.emit()
+	assert(not advice.visible)
+	# Finish the series: the note on the last move and the debriefing arrive.
+	var saw_note := false
+	var saw_debriefing := false
+	while Time.get_ticks_msec() < deadline + 120000:
+		await process_frame
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		view_now = JSON.parse_string(table.app.view())
+		saw_note = saw_note or table.get_node("Layout/CoachNote").text.contains(t.tr_key("coach-note", {"action": "", "note": ""}).substr(0, 8))
+		saw_debriefing = saw_debriefing or (view_now["coach"]["debriefing"] != null and table.get_node("Layout/CoachNote").text.contains(t.tr_key("coach-debriefing-title")))
+		if view_now["series_finished"]:
+			break
+		if view_now["opponent_to_move"] or view_now["coach"]["pending"] != null:
+			continue
+		if not view_now["legal_actions"].is_empty():
+			table._act({"Act": view_now["legal_actions"][0]})
+		elif view_now["can_next_game"]:
+			table._act("NextGame")
+	assert(saw_note and saw_debriefing, "note or debriefing missing")
+	table.queue_free()
+	await process_frame
 
 func play_series(lang: String) -> void:
 	var table = load("res://main.tscn").instantiate()

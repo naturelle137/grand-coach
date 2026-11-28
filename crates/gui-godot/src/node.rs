@@ -205,6 +205,13 @@ impl SkatApp {
         self.adapter.as_mut().is_some_and(Adapter::start_coach)
     }
 
+    /// Starts the analysis of a played own decision (note, debriefing) on its
+    /// own worker thread.
+    #[func]
+    fn start_review(&mut self) -> bool {
+        self.adapter.as_mut().is_some_and(Adapter::start_review)
+    }
+
     /// Collects a finished coach analysis: events JSON (a held action may now
     /// be played or warned about), `""` if nothing changed, or an error JSON.
     #[func]

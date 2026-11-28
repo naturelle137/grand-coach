@@ -88,6 +88,8 @@ func _ready() -> void:
 	$Layout/CoachWarnings.toggled.connect(_coach_changed)
 	$Layout/CoachBox/Controls/Proceed.pressed.connect(_act.bind("ProceedAnyway"))
 	$Layout/CoachBox/Controls/Reconsider.pressed.connect(_act.bind("Reconsider"))
+	$Layout/CoachHelp/Ask.pressed.connect(_act.bind("RequestAdvice"))
+	$Layout/CoachHelp/Hide.pressed.connect(_act.bind("SkipAdvice"))
 	$Layout/DialogueEntry/Guided.pressed.connect(_act.bind("StartGuided"))
 	$Layout/DialogueEntry/Abstich.pressed.connect(_act.bind("StartLiveAbstich"))
 	for key in MODE_KEYS:
@@ -393,8 +395,9 @@ func _process(_delta: float) -> void:
 	if coach_events != "":
 		if not _report_error(coach_events):
 			_show()
-	elif coach_warnings:
+	else:
 		app.start_coach()
+		app.start_review()
 	var events := app.poll_opponent()
 	if events != "":
 		if not _report_error(events):
@@ -645,6 +648,7 @@ func _show() -> void:
 	_show_sheet(view)
 	var holding := _show_assist(view["assist"])
 	holding = _show_coach(view) or holding
+	_show_coach_text(view)
 	# An open Abstich question refuses game actions until the learner returns.
 	holding = _show_dialogue(view, holding) or holding
 	$Layout/OpenCards.text = _open_cards(view["open_cards"])
@@ -842,6 +846,223 @@ func _show_coach(view: Dictionary) -> bool:
 		proceed.visible = false
 	box.get_node("Controls/Reconsider").text = texts.tr_key("button-coach-reconsider")
 	return true
+
+# Live coach texts from the permitted view: the hints of the revealed stages
+# (never ranked before the move), the note on the last move and the
+# debriefing. Only formatting happens here; figures are not shown.
+const CONCEPT_KEYS := {"HandStructure": "coach-concept-hand-structure",
+	"GameValue": "coach-concept-game-value", "ProvenVoid": "coach-concept-proven-void",
+	"RemainingTrumpf": "coach-concept-remaining-trumpf",
+	"TrumpfVulnerability": "coach-concept-trumpf-vulnerability",
+	"PartnerOvertake": "coach-concept-partner-overtake"}
+const LESSON_QUESTIONS := {"RemainingTrumpf": "coach-lesson-remaining-trumpf-question",
+	"ProvenVoid": "coach-lesson-proven-void-question",
+	"HandStructure": "coach-lesson-hand-structure-question",
+	"GameValue": "coach-lesson-game-value-question"}
+const STAGE_KEYS := {"Considerations": "button-coach-considerations",
+	"Situation": "button-coach-situation"}
+
+func _show_coach_text(view: Dictionary) -> void:
+	var coach: Dictionary = view["coach"]
+	var help := $Layout/CoachHelp
+	var next = coach["next_stage"]
+	# The figures stage is not rendered, so it is not offered.
+	help.get_node("Ask").visible = coach["help_available"] and next is String and STAGE_KEYS.has(next)
+	if help.get_node("Ask").visible:
+		help.get_node("Ask").text = texts.tr_key(STAGE_KEYS[next])
+	help.get_node("Hide").visible = coach["skippable"]
+	help.get_node("Hide").text = texts.tr_key("button-coach-skip")
+	help.visible = help.get_node("Ask").visible or help.get_node("Hide").visible
+	var lines := _advice_lines(view, coach["advice"])
+	$Layout/CoachAdvice.text = "\n".join(lines)
+	$Layout/CoachAdvice.visible = not lines.is_empty()
+	var note_lines: Array[String] = []
+	var last = coach["last_move"]
+	if last is Dictionary and coach["settings"]["level"] != "Off":
+		note_lines.append(_note_line(last))
+	note_lines.append_array(_debriefing_lines(coach["debriefing"]))
+	$Layout/CoachNote.text = "\n".join(note_lines)
+	$Layout/CoachNote.visible = not note_lines.is_empty()
+
+func _advice_lines(view: Dictionary, advice: Variant) -> Array[String]:
+	if advice is String:
+		match advice:
+			"Computing":
+				return [texts.tr_key("coach-status-computing")]
+			"NoLesson":
+				return [texts.tr_key("coach-status-no-lesson")]
+		return []
+	var state: String = advice.keys()[0]
+	if state == "Unavailable":
+		return [texts.tr_key("coach-unavailable-" + str(advice[state]).to_lower())]
+	var hints: Dictionary = advice[state]
+	var lines: Array[String] = [texts.tr_key("coach-decision-" + str(hints["decision"]).to_lower()) + " · "
+		+ texts.tr_key("coach-role-" + str(hints["role"]).to_lower())]
+	lines.append(_objective_line(hints["role"], hints["objective"]))
+	if state == "Provisional":
+		lines.append(texts.tr_key("coach-provisional"))
+	var lesson = hints["lesson"]
+	if lesson is Dictionary and LESSON_QUESTIONS.has(lesson.keys()[0]):
+		lines.append(texts.tr_key("coach-section-lesson"))
+		lines.append(texts.tr_key(LESSON_QUESTIONS[lesson.keys()[0]]))
+	var facts: Array[String] = []
+	var guesses: Array[String] = []
+	for consideration in hints["considerations"]:
+		if consideration.has("Known"):
+			facts.append("• " + _fact_line(view, consideration["Known"]))
+		else:
+			guesses.append("• " + _inferred_line(view, consideration["Inferred"]))
+	if not facts.is_empty():
+		lines.append(texts.tr_key("coach-section-facts"))
+		lines.append_array(facts)
+	if not guesses.is_empty():
+		lines.append(texts.tr_key("coach-section-inferred"))
+		lines.append_array(guesses)
+	var situation = hints["situation"]
+	if situation is Dictionary:
+		lines.append(texts.tr_key("coach-section-situation"))
+		lines.append(_situation_line(situation["situation"]))
+		if situation["important"] and hints["status"] == "Complete":
+			lines.append(texts.tr_key("coach-important"))
+		if hints["compare_question"]:
+			lines.append(texts.tr_key("coach-question-compare"))
+		lines.append(texts.tr_key("coach-section-options"))
+		for option in situation["options"]:
+			lines.append("• " + _label(option, int(view["bid"]), view["hand_game"]))
+	return lines
+
+func _objective_line(role: String, objective: Variant) -> String:
+	var defender := role == "Defender"
+	var suffix := "-defender" if defender else ""
+	if objective is Dictionary:
+		return texts.tr_key("coach-objective-augen" + suffix, {"target": int(objective["Augen"]["target"])})
+	match str(objective):
+		"AllTricks":
+			return texts.tr_key("coach-objective-all-tricks" + suffix)
+		"NoTrick":
+			return texts.tr_key("coach-objective-no-trick" + suffix)
+	return texts.tr_key("coach-objective-undecided")
+
+func _situation_line(situation: Variant) -> String:
+	if situation is Dictionary:
+		return texts.tr_key("coach-situation-several", {"count": int(situation["SeveralEqual"]["count"])})
+	return texts.tr_key({"Forced": "coach-situation-forced", "OneStandsOut": "coach-situation-one"}
+		.get(str(situation), "coach-situation-unclear"))
+
+func _coach_seat_player(view: Dictionary, seat: String) -> String:
+	for info in view["players"]:
+		if info["seat"] == seat:
+			return _player(int(info["player"]))
+	return seat
+
+func _popcount(mask: int) -> int:
+	var count := 0
+	for i in range(32):
+		count += (mask >> i) & 1
+	return count
+
+func _range_text(range: Dictionary) -> String:
+	return str(int(range["low"])) if range["low"] == range["high"] else "%d–%d" % [int(range["low"]), int(range["high"])]
+
+func _game_name(game: Variant) -> String:
+	return _contract_parts(game, false, {"schneider": false, "schwarz": false, "ouvert": false})[0]
+
+func _fact_line(view: Dictionary, fact: Dictionary) -> String:
+	var kind: String = fact.keys()[0]
+	var data = fact[kind]
+	match kind:
+		"Void":
+			return texts.tr_key("coach-fact-void", {"player": _coach_seat_player(view, data["seat"]),
+				"class": _class_name(data["follow"])})
+		"TrumpsOut":
+			return texts.tr_key("coach-fact-trumps-out", {"count": int(data["count"])})
+		"AugenWon":
+			return texts.tr_key("coach-fact-augen-won", {"declarer": int(data["declarer"]),
+				"defenders": int(data["defenders"])})
+		"AugenOut":
+			return texts.tr_key("coach-fact-augen-out", {"augen": int(data["augen"])})
+		"SkatKnown":
+			var cards: Array[String] = []
+			for i in range(32):
+				if int(data["cards"]) & (1 << i):
+					cards.append(_card(i))
+			return texts.tr_key("coach-fact-skat-known", {"cards": ", ".join(cards)})
+		"BidShown":
+			return texts.tr_key("coach-fact-bid-shown", {"player": _coach_seat_player(view, data["seat"]),
+				"value": int(data["value"])})
+		"KontraEligible":
+			return texts.tr_key("coach-fact-kontra-eligible", {"player": _coach_seat_player(view, data["seat"])})
+		"TrumpfSets":
+			return texts.tr_key("coach-fact-trumpf-unseen", {"count": _popcount(int(data["unseen"]))})
+		"Structure":
+			return texts.tr_key("coach-fact-structure", {"game": _game_name(data["game"]),
+				"count": _popcount(int(data["trumpf"]))})
+		"GameValues":
+			var ranges: Array[String] = []
+			for key in ["plain", "hand", "ouvert", "hand_ouvert"]:
+				if data[key] is Dictionary:
+					ranges.append(_range_text(data[key]))
+			return texts.tr_key("coach-fact-game-values", {"game": _game_name(data["game"]),
+				"value": ", ".join(ranges)})
+		"Commitment":
+			return texts.tr_key("coach-fact-commitment", {"value": int(data["value"])})
+	return kind
+
+func _inferred_line(view: Dictionary, inferred: Dictionary) -> String:
+	var inference: Dictionary = inferred["inference"]
+	var holder = inference["holder"]
+	var who := texts.tr_key("coach-holder-skat") if holder is String else _coach_seat_player(view, holder["Seat"])
+	var what := texts.tr_key("coach-class-" + str(inference["class"]).to_lower())
+	if inference["certain"]:
+		return texts.tr_key("coach-inferred-certain", {"holder": who, "count": int(inference["max"]), "class": what})
+	var key: String = {"Hardly": "coach-inferred-hardly", "AboutOne": "coach-inferred-about-one"}.get(
+		str(inferred["amount"]), "coach-inferred-several")
+	return texts.tr_key(key, {"holder": who, "class": what})
+
+func _note_line(last: Dictionary) -> String:
+	var keys := {"Good": "coach-note-good", "AboutEqual": "coach-note-about-equal",
+		"SomewhatWeaker": "coach-note-somewhat-weaker", "ClearlyWeaker": "coach-note-clearly-weaker",
+		"Forced": "coach-note-forced", "Uncertain": "coach-note-uncertain"}
+	var note = last["note"]
+	var judged := texts.tr_key(keys[note] if note is String else "coach-note-computing")
+	return texts.tr_key("coach-note", {"action": _label(last["action"], int(last["bid"]), last["hand_game"]),
+		"note": judged})
+
+func _debriefing_lines(debriefing: Variant) -> Array[String]:
+	var lines: Array[String] = []
+	if debriefing == null:
+		return lines
+	lines.append(texts.tr_key("coach-debriefing-title"))
+	var moments: Array = []
+	if debriefing.has("Computing"):
+		lines.append(texts.tr_key("coach-debriefing-computing", {"count": int(debriefing["Computing"]["remaining"])}))
+		moments = debriefing["Computing"]["moments"]
+		if not moments.is_empty():
+			lines.append(texts.tr_key("coach-debriefing-partial"))
+	else:
+		moments = debriefing["Ready"]
+		if moments.is_empty():
+			lines.append(texts.tr_key("coach-debriefing-none"))
+	for entry in moments:
+		var moment: Dictionary = entry["moment"]
+		var review: Dictionary = moment["review"]
+		var chosen: Dictionary = review["chosen"]
+		var action := _label(chosen["action"], int(review["bid"]), review["hand_game"])
+		var best := ""
+		if review["best"] is Dictionary:
+			best = _label(review["best"]["action"], int(review["bid"]), review["hand_game"])
+		var id := "coach-moment-chosen-unrated"
+		if review["status"] == "Complete":
+			id = {"Best": "coach-moment-chosen-best", "Equivalent": "coach-moment-chosen-equivalent",
+				"Worse": "coach-moment-chosen-worse", "Weak": "coach-moment-chosen-weak"}.get(
+				str(chosen["judgement"]), id)
+		else:
+			id = "coach-moment-chosen-provisional"
+		if best == "" and id != "coach-moment-chosen-best":
+			id = "coach-moment-chosen-unrated"
+		lines.append("• %s: %s" % [texts.tr_key(CONCEPT_KEYS[moment["concept"]]),
+			texts.tr_key(id, {"action": action, "best": best})])
+	return lines
 
 func _class_name(follow: Variant) -> String:
 	if follow is Dictionary:

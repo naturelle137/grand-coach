@@ -51,6 +51,7 @@ struct Computed {
 
 struct CoachDone {
     generation: u64,
+    review: bool,
     result: CoachResult,
 }
 
@@ -65,6 +66,7 @@ pub struct Adapter {
     coach_sender: Sender<CoachDone>,
     coach_receiver: Receiver<CoachDone>,
     coach_in_flight: bool,
+    review_in_flight: bool,
     learning: Learning,
     practice: Option<Practice>,
     replay: Option<GameRecording>,
@@ -150,6 +152,7 @@ impl Adapter {
             coach_sender,
             coach_receiver,
             coach_in_flight: false,
+            review_in_flight: false,
             learning: Learning::default(),
             practice: None,
             replay: None,
@@ -178,6 +181,7 @@ impl Adapter {
         self.coach_sender = coach_sender;
         self.coach_receiver = coach_receiver;
         self.coach_in_flight = false;
+        self.review_in_flight = false;
         std::mem::replace(&mut self.session, session)
     }
 
@@ -382,17 +386,41 @@ impl Adapter {
         let Some(job) = self.session.coach_job().filter(|j| !j.is_review()) else {
             return false;
         };
+        self.coach_in_flight = true;
+        self.spawn_coach(job, false);
+        true
+    }
+
+    /// Starts the oldest analysis of an already played own decision (it backs
+    /// the note and the debriefing) in its own slot, so it never delays the
+    /// analysis of the current decision. Returns `false` if none is due or
+    /// one is running.
+    pub fn start_review(&mut self) -> bool {
+        if self.review_in_flight {
+            return false;
+        }
+        let Some(job) = self.session.coach_review_job() else {
+            return false;
+        };
+        self.review_in_flight = true;
+        self.spawn_coach(job, true);
+        true
+    }
+
+    fn spawn_coach(&self, job: skat_app::CoachJob, review: bool) {
         let (generation, cancel, sender) = (
             self.generation,
             self.cancel.clone(),
             self.coach_sender.clone(),
         );
-        self.coach_in_flight = true;
         thread::spawn(move || {
             let result = job.run(Some(&cancel));
-            let _ = sender.send(CoachDone { generation, result });
+            let _ = sender.send(CoachDone {
+                generation,
+                review,
+                result,
+            });
         });
-        true
     }
 
     /// Applies a finished coach analysis, if any; the action a warning held
@@ -402,9 +430,13 @@ impl Adapter {
         let Ok(done) = self.coach_receiver.try_recv() else {
             return Ok(None);
         };
-        self.coach_in_flight = false;
         if done.generation != self.generation {
             return Ok(None);
+        }
+        if done.review {
+            self.review_in_flight = false;
+        } else {
+            self.coach_in_flight = false;
         }
         match self.session.finish_coach(done.result) {
             Ok(events) => {
@@ -420,7 +452,7 @@ impl Adapter {
 
     /// `true` while a coach analysis has not been collected.
     pub fn coach_busy(&self) -> bool {
-        self.coach_in_flight
+        self.coach_in_flight || self.review_in_flight
     }
 
     /// `true` while an opponent computation has not been collected.
