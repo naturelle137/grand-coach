@@ -1715,3 +1715,30 @@ Kreuz-Acht. The core test replays both roles in Grand and Herz, rejects missing,
 overlapping and restricted views and exchanges unseen cards; the app test
 `forced_second_seat_overtake_observes_each_legal_card` plays each legal card and
 observes the actual trick winner. No learning efficacy is inferred.
+
+## Card-play coverage sample (#131)
+
+`crates/skat-coach/tests/guided_card_play_coverage.rs` replays 200 seeded deals
+through the core for every declarer seat, Grand, all four Farbspiele and
+Null, as Hand, Hand Ouvert and pickup/Drücken games (plus pickup Null Ouvert,
+which the core permits without Hand), with seeded random legal
+play. A second pass of 60 deals per case enables the optional Kontra/Re setting
+with a Kontra-eligible defender (it bids or holds once, D-26.1); random play then
+takes Kontra/Re, Ouvert and Null included, and each such decision must have a
+`kontra_lesson`, each later card decision a `lesson`. At every card-play decision with at least two legal cards (over 50,000
+samples) `lesson` must return a lesson; any future Easy branch without a dialogue
+fails the test. This is a sample, not a proof: positions the random play does not
+reach, single-legal-card turns are outside it, and it says
+nothing about explanation quality or learner outcomes.
+
+### Later-phase evidence check (#131)
+
+Checked against the merged sources, not by a new learner study: Reizen
+(`guided_reizen.rs`, #148), Skataufnahme/Hand and Drücken
+(`guided_preplay.rs`, #151), Ansage (`guided_announce.rs`, #151) and Kontra/Re
+(`guided_kontra.rs`, #153, #155, #271, #308) each have core-legal fixtures, a
+comparison, a source-backed Easy action, changed-condition cases and a
+phase-specific fallback; Grand and Null have their own rules and fixtures.
+Single-card turns stay outside the dialogue. Whether this closes the open
+"Later phase support" checkbox is the maintainer's call. No learning, transfer
+or UAT claim follows.

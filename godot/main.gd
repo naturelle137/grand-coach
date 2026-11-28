@@ -5,6 +5,9 @@ var app := SkatApp.new()
 var failed := false
 var texts := preload("res://i18n.gd").new()
 var faces := {}
+var figure_keys: Array = []
+var cast_keys := ["", "", ""]  # figure key per seat; "" for the human
+var portraits := {}
 var settings_path := "user://settings.cfg"
 var kontra_re := false
 var open_display := false
@@ -204,28 +207,6 @@ func _clear(box: Node) -> void:
 		box.remove_child(child)
 		child.queue_free()
 
-func _discard_masks(actions: Array) -> Array[int]:
-	var masks: Array[int] = []
-	for action in actions:
-		if action is Dictionary and action.has("Discard"):
-			masks.append(int(action["Discard"]))
-	return masks
-
-func _selection_mask() -> int:
-	var mask := 0
-	for card in discard_selection:
-		mask |= 1 << card
-	return mask
-
-func _toggle_discard(card: int) -> void:
-	if card in discard_selection:
-		discard_selection.erase(card)
-	else:
-		if discard_selection.size() == 2:
-			discard_selection.remove_at(0)
-		discard_selection.append(card)
-	_show()
-
 func _card_node(index: int, label: String) -> TextureButton:
 	var node := TextureButton.new()
 	node.texture_normal = _face(index)
@@ -264,6 +245,8 @@ func _label(action: Variant, bid: int, hand_game: Variant) -> String:
 	return JSON.stringify(action)
 
 func _player(index: int) -> String:
+	if cast_keys[index] != "":
+		return texts.tr_key("figure-" + cast_keys[index])
 	return texts.tr_key(["player-human", "player-left", "player-right"][index])
 
 func _contract_parts(game: Variant, hand: bool, levels: Dictionary) -> Array[String]:
@@ -316,7 +299,38 @@ func _series_text(view: Dictionary) -> String:
 			"total": int(series["totals"][p]), "won": int(series["won"][p]), "lost": int(series["lost"][p])}))
 	return "\n".join(lines)
 
+# Figures of the series in the language's pool: skat-app picks them, the
+# adapter names the catalogue, GDScript only loads name and portrait.
+func _update_cast(view: Dictionary) -> void:
+	if figure_keys.is_empty():
+		figure_keys = JSON.parse_string(app.figure_keys())
+	var pool: Array = view["cast"]["german" if texts.language == "de" else "english"]
+	cast_keys = ["", str(figure_keys[int(pool[0])]), str(figure_keys[int(pool[1])])]
+
+func _portrait(key: String) -> Texture2D:
+	if not portraits.has(key):
+		var path := ProjectSettings.globalize_path("res://").path_join("../assets/portraits/%s.svg" % key)
+		var image := Image.new()
+		portraits[key] = null
+		if image.load_svg_from_string(FileAccess.get_file_as_string(path), 0.5) == OK:
+			portraits[key] = ImageTexture.create_from_image(image)
+	return portraits[key]
+
+func _show_cast() -> void:
+	var box: HBoxContainer = $Layout/Cast
+	_clear(box)
+	for seat in [1, 2]:
+		var picture := TextureRect.new()
+		picture.texture = _portrait(cast_keys[seat])
+		picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		picture.custom_minimum_size = Vector2(56, 56)
+		box.add_child(picture)
+		var name_label := Label.new()
+		name_label.text = _player(seat)
+		box.add_child(name_label)
+
 func _show_sheet(view: Dictionary) -> void:
+	_update_cast(view)
 	var grid: GridContainer = $Layout/Sheet
 	_clear(grid)
 	$Layout/SheetTitle.text = texts.tr_key("sheet-title")
@@ -327,6 +341,7 @@ func _show_sheet(view: Dictionary) -> void:
 			var label := Label.new()
 			label.text = cell
 			grid.add_child(label)
+	_show_cast()
 	$Layout/Series.text = _series_text(view)
 	$Layout/Series.visible = view["series_result"] != null
 
@@ -357,16 +372,9 @@ func _show() -> void:
 	$Layout/OpenCards.visible = view["open_cards"] != null
 	_clear($Layout/Hand)
 	_clear($Layout/Trick)
-	var masks: Array[int] = []
-	if not view["opponent_to_move"]:
-		masks = _discard_masks(view["legal_actions"])
-	if masks.is_empty():
-		discard_selection.clear()
 	for card in view["hand"]:
 		var node := _card_node(int(card), _card(int(card)))
 		node.disabled = true
-		if int(card) in discard_selection:
-			node.modulate = Color(1.0, 0.85, 0.3)
 		$Layout/Hand.add_child(node)
 	for played in view["current_trick"]:
 		var node := _card_node(int(played["card"]), "%s: %s" % [texts.tr_key(["player-human", "player-left", "player-right"][int(played["player"])]), _card(int(played["card"]))])
@@ -375,32 +383,76 @@ func _show() -> void:
 	$Layout/Status.text = texts.tr_key("status-waiting", {"player": texts.tr_key(["player-human", "player-left", "player-right"][int(view["acting"])])}) if view["opponent_to_move"] and view["acting"] != null else ""
 	_clear($Layout/Scroll/Actions)
 	if not view["opponent_to_move"]:
+		var discards := {}
 		for action in view["legal_actions"]:
+			if action is Dictionary and action.has("Discard"):
+				discards[int(action["Discard"])] = action
+		_show_discard(discards)
+		for action in view["legal_actions"]:
+			if action is Dictionary and action.has("Discard"):
+				continue
 			if action is Dictionary and action.has("Play"):
 				var card := $Layout/Hand.get_node_or_null("Card%d" % int(action["Play"]))
 				if card != null:
 					card.disabled = false
 					card.pressed.connect(_act.bind({"Act": action}))
-			if action is Dictionary and action.has("Discard"):
-				continue
 			_add_button(_label(action, int(view["bid"]), view["hand_game"]), {"Act": action})
-		if not masks.is_empty():
-			var usable := 0
-			for mask in masks:
-				usable |= mask
-			for card in view["hand"]:
-				if usable & (1 << int(card)):
-					var node := $Layout/Hand.get_node("Card%d" % int(card))
-					node.disabled = false
-					node.pressed.connect(_toggle_discard.bind(int(card)))
-			$Layout/Status.text = texts.tr_key("godot-discard-hint")
-			var confirm := _add_button(texts.tr_key("godot-discard-confirm"), {"Act": {"Discard": _selection_mask()}})
-			confirm.name = "ConfirmDiscard"
-			confirm.disabled = not _selection_mask() in masks
 		if view["can_next_game"]:
 			_add_button(texts.tr_key("button-next-game"), "NextGame")
 		elif view["legal_actions"].is_empty():
 			$Layout/Status.text = texts.tr_key("series-finished", {"games": view["game_number"]}) if view["series_finished"] else ""
+
+# Drücken: the player marks two hand cards and confirms; the resulting mask
+# must be one of the legal Discard actions of the view.
+func _show_discard(discards: Dictionary) -> void:
+	if discards.is_empty():
+		discard_selection.clear()
+		return
+	for card in discard_selection.duplicate():
+		if $Layout/Hand.get_node_or_null("Card%d" % card) == null:
+			discard_selection.erase(card)
+	for node in $Layout/Hand.get_children():
+		if node.is_queued_for_deletion():
+			continue
+		node.disabled = false
+		node.toggle_mode = true
+		node.set_pressed_no_signal(discard_selection.has(node.name.trim_prefix("Card").to_int()))
+		node.modulate = Color(1, 1, 1, 0.55) if node.button_pressed else Color.WHITE
+		node.toggled.connect(_discard_toggled.bind(node.name.trim_prefix("Card").to_int(), discards))
+	var mask := _discard_mask()
+	var button := Button.new()
+	button.name = "ConfirmDiscard"
+	button.text = texts.tr_key("coach-action-discard", {"cards": ", ".join(discard_selection.map(_card))})
+	button.disabled = not discards.has(mask)
+	if not button.disabled:
+		button.pressed.connect(_act.bind({"Act": discards[mask]}))
+	$Layout/Scroll/Actions.add_child(button)
+
+func _discard_mask() -> int:
+	var mask := 0
+	for card in discard_selection:
+		mask |= 1 << card
+	return mask
+
+func _discard_toggled(on: bool, card: int, discards: Dictionary) -> void:
+	discard_selection.erase(card)
+	if on:
+		discard_selection.append(card)
+	_discard_refresh(discards)
+
+func _discard_refresh(discards: Dictionary) -> void:
+	for node in $Layout/Hand.get_children():
+		var pressed: bool = discard_selection.has(node.name.trim_prefix("Card").to_int())
+		node.modulate = Color(1, 1, 1, 0.55) if pressed else Color.WHITE
+	for child in $Layout/Scroll/Actions.get_children():
+		if child.name == "ConfirmDiscard" and not child.is_queued_for_deletion():
+			var mask := _discard_mask()
+			child.text = texts.tr_key("coach-action-discard", {"cards": ", ".join(discard_selection.map(_card))})
+			child.disabled = not discards.has(mask)
+			for c in child.pressed.get_connections():
+				child.pressed.disconnect(c["callable"])
+			if not child.disabled:
+				child.pressed.connect(_act.bind({"Act": discards[mask]}))
 
 func _open_cards(open: Variant) -> String:
 	if not open is Dictionary:
@@ -417,9 +469,8 @@ func _open_cards(open: Variant) -> String:
 	lines.append("Skat: %s" % ", ".join(skat))
 	return "\n".join(lines)
 
-func _add_button(label: String, command: Variant) -> Button:
+func _add_button(label: String, command: Variant) -> void:
 	var button := Button.new()
 	button.text = label
 	button.pressed.connect(_act.bind(command))
 	$Layout/Scroll/Actions.add_child(button)
-	return button
