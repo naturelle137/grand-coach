@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 """Failure-oriented tests of the actual RC archive format and resource contract."""
 
+import importlib.util
 import json
 import subprocess
 from types import SimpleNamespace
@@ -13,12 +14,27 @@ from unittest.mock import patch
 import package
 
 
+class MeasurementTests(unittest.TestCase):
+    def test_hung_gui_is_killed_and_reaped(self):
+        spec = importlib.util.spec_from_file_location("package_measure", Path(__file__).with_name("package-measure.py"))
+        measure = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(measure)
+        with patch.object(measure.subprocess, "Popen") as popen, \
+                patch.object(measure.time, "monotonic", side_effect=[0, 61]):
+            process = popen.return_value
+            process.poll.return_value = None
+            with self.assertRaisesRegex(ValueError, "timed out"):
+                measure.gui_run(Path("app"), False, {}, ".", 0)
+            process.kill.assert_called_once()
+            process.wait.assert_called_once()
+
+
 class PackageTests(unittest.TestCase):
     def setUp(self):
         self.names = package.resources(package.ROOT)
-        self.files = {name: (package.ROOT / name).read_bytes() for name in (*package.LEGAL, *self.names, *package.MODELS)}
+        self.files = {name: (package.ROOT / name).read_bytes() for name in (*package.LEGAL, *self.names, *package.MODELS, *package.PRE_PLAY)}
         self.files.update({"grand-coach": b"test executable", "INSTALL.md": b"install", "THIRD-PARTY.md": b"sources"})
-        self.manifest = {"binary": "grand-coach", "embedded_resources": self.names, "models": list(package.MODELS),
+        self.manifest = {"binary": "grand-coach", "embedded_resources": self.names, "models": [*package.MODELS, *package.PRE_PLAY],
                          "files": {k: package.digest(v) for k, v in self.files.items()}}
 
     def write(self, directory, files, windows=False):

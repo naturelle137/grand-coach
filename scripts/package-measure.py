@@ -15,6 +15,7 @@ evidence; every other host must say proxy.
 import argparse
 import hashlib
 import json
+import math
 import os
 import platform
 import shutil
@@ -76,14 +77,22 @@ def gui_run(binary, neural, env, cwd, delay):
         gui_env["GRAND_COACH_PACKAGE_NEURAL"] = "1"
     proc = subprocess.Popen([str(binary)], cwd=cwd, env=gui_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     samples = []
-    while proc.poll() is None:
-        try:
-            samples.append(rss_kib(proc.pid))
-        except ValueError:
-            break
-        time.sleep(0.25)
-    if proc.wait(timeout=60) != 0 or not shot.is_file() or not samples:
-        raise ValueError("GUI run failed; pair invalid")
+    deadline = time.monotonic() + delay + 60
+    try:
+        while proc.poll() is None:
+            if time.monotonic() >= deadline:
+                raise ValueError("GUI run timed out; pair invalid")
+            try:
+                samples.append(rss_kib(proc.pid))
+            except ValueError:
+                break
+            time.sleep(0.25)
+        if proc.wait(timeout=60) != 0 or not shot.is_file() or not samples:
+            raise ValueError("GUI run failed; pair invalid")
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
     shot.unlink()
     return {"neural": neural, "samples_kib": samples, "last_kib": samples[-1], "max_sampled_kib": max(samples)}
 
@@ -104,6 +113,8 @@ def main():
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--gui-delay", type=float, default=0, help="also run the GUI process (Classic and Neural) per run, closing after this many seconds (e.g. 20); needs a display")
     args = parser.parse_args()
+    if args.runs < 1 or not math.isfinite(args.gui_delay) or args.gui_delay < 0:
+        parser.error("--runs must be positive and --gui-delay must be finite and non-negative")
     if platform.system() != "Linux":
         raise SystemExit("Linux only; record Windows with native tools")
     manifest, files = package.verify(args.archive)
