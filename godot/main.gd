@@ -87,6 +87,10 @@ func _ready() -> void:
 			selector.add_item(level)
 		selector.select(LEVELS.find(levels[i]))
 		selector.item_selected.connect(_level_changed.bind(i))
+	$Layout/PracticeControls/Practice.pressed.connect(_practice)
+	$Layout/PracticeControls/Return.pressed.connect(_return_to_series)
+	$Layout/PracticeControls/HistoryButton.pressed.connect(_history)
+
 	$Layout/RecordingFiles/SaveRecording.pressed.connect(_recording_consent)
 	$Layout/RecordingFiles/OpenRecording.pressed.connect(_recording_open_dialog)
 	$RecordingConsent.confirmed.connect(func(): _recording_save_dialog.call_deferred())
@@ -95,6 +99,35 @@ func _ready() -> void:
 	$Replay/Content/Navigation/Previous.pressed.connect(_replay_step.bind(-1))
 	$Replay/Content/Navigation/Next.pressed.connect(_replay_step.bind(1))
 	_start_series()
+
+func _practice() -> void:
+	var error := app.practice()
+	if error != "":
+		_report_error(error)
+		return
+	_show()
+
+func _return_to_series() -> void:
+	app.return_to_series()
+	_show()
+
+func _history() -> void:
+	var summary: Dictionary = JSON.parse_string(app.learning_summary())
+	var lines: Array[String] = [texts.tr_key("learning-descriptive")]
+	var totals: Dictionary = summary["totals"]
+	lines.append(texts.tr_key("learning-observed", {"count": int(totals["opportunities"]), "attempts": int(summary["attempts"])}))
+	lines.append("%s | %s | %s | %s | %s | %s | %s" % [texts.tr_key("learning-col-topic"), texts.tr_key("learning-col-context"), texts.tr_key("learning-col-opportunities"), texts.tr_key("learning-col-answers"), texts.tr_key("learning-col-unaided"), texts.tr_key("learning-col-help"), texts.tr_key("learning-col-skips")])
+	var topics := {"TrumpfOutside": "trumpf", "ProvenVoids": "voids", "AugenWon": "augen", "ClassPlayed": "played"}
+	var contexts := {"Series": "series", "Practice": "practice", "PracticeRetry": "retry", "Training": "training", "TrainingRepeat": "training-repeat"}
+	for row in summary["rows"]:
+		var c: Dictionary = row["counts"]
+		lines.append("%s | %s | %s | %s (%s) | %s (%s) | %s | %s" % [texts.tr_key("learning-topic-" + topics[row["topic"]]), texts.tr_key("learning-context-" + contexts[row["context"]]), int(c["opportunities"]), int(c["answers"]), int(c["correct"]), int(c["unaided_answers"]), int(c["unaided_correct"]), int(c["help"]), int(c["skips"])])
+	if summary["full"]:
+		lines.append(texts.tr_key("learning-full"))
+	lines.append(texts.tr_key("learning-legend"))
+	$History.title = texts.tr_key("learning-title")
+	$History/Scroll/Summary.text = "\n".join(lines)
+	$History.popup_centered(Vector2i(1000, 500))
 
 func _recording_consent() -> void:
 	$RecordingConsent.dialog_text = texts.tr_key("record-export-warning")
@@ -518,6 +551,13 @@ func _show() -> void:
 	var view = JSON.parse_string(app.view())
 	if not view is Dictionary:
 		return
+	$Layout/PracticeControls/Practice.text = texts.tr_key("practice-restart" if view["practice"] else "record-practice-start")
+	$Layout/PracticeControls/Practice.tooltip_text = texts.tr_key("record-practice-help")
+	$Layout/PracticeNotice.visible = view["practice"]
+	$Layout/PracticeNotice.text = texts.tr_key("practice-isolation")
+	$Layout/PracticeControls/Return.visible = view["practice"]
+	$Layout/PracticeControls/Return.text = texts.tr_key("practice-return")
+	$Layout/PracticeControls/HistoryButton.text = texts.tr_key("learning-open")
 	$Layout/RecordingFiles/SaveRecording.text = texts.tr_key("record-save")
 	$Layout/RecordingFiles/OpenRecording.text = texts.tr_key("record-open")
 	$Layout/RecordingFiles/SaveRecording.disabled = not (view["can_next_game"] or view["series_finished"])

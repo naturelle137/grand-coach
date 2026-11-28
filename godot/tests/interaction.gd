@@ -8,6 +8,7 @@ func run() -> void:
 	await settings_persistence()
 	await bidding_reachable()
 	for lang in ["de", "en"]:
+		await practice_history_flow(lang)
 		await assist_flow(lang)
 	for lang in ["de", "en"]:
 		await play_series(lang)
@@ -44,6 +45,32 @@ func bidding_reachable() -> void:
 				assert(table.app.view() != before)
 				table.queue_free()
 				await process_frame
+
+func practice_history_flow(lang: String) -> void:
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = "user://interaction-practice.cfg"
+	table.learning_path = "user://interaction-practice-history.json"
+	root.add_child(table)
+	assert(table.texts.load_language(lang))
+	table._show()
+	var original: Dictionary = JSON.parse_string(table.app.view())
+	table.get_node("Layout/PracticeControls/Practice").pressed.emit()
+	var first: Dictionary = JSON.parse_string(table.app.view())
+	assert(first["practice"] and first["hand"] == original["hand"] and first["open_cards"] == null)
+	assert(table.get_node("Layout/PracticeControls/Return").visible)
+	assert(table.get_node("Layout/PracticeControls/Practice").text == table.texts.tr_key("practice-restart"))
+	table.get_node("Layout/PracticeControls/Practice").pressed.emit()
+	assert(JSON.parse_string(table.app.view())["hand"] == first["hand"])
+	table.get_node("Layout/PracticeControls/HistoryButton").pressed.emit()
+	assert(table.get_node("History/Scroll/Summary").text.contains(table.texts.tr_key("learning-col-answers")))
+	if OS.has_environment("GODOT_PRACTICE_SCREENSHOT"):
+		await process_frame
+		root.get_texture().get_image().save_png(OS.get_environment("GODOT_PRACTICE_SCREENSHOT") + "-" + lang + ".png")
+	table.get_node("History").hide()
+	table.get_node("Layout/PracticeControls/Return").pressed.emit()
+	assert(JSON.parse_string(table.app.view()) == original)
+	table.queue_free()
+	await process_frame
 
 func settings_persistence() -> void:
 	var path := "user://interaction-settings.cfg"
@@ -313,6 +340,11 @@ func assist_flow(lang: String) -> void:
 	assert(table.get_node("Layout/Aid").text.contains(table.texts.tr_key("aid-title")))
 	assert(not table.get_node("Layout/Aid").text.contains(table.texts.tr_key("aid-withheld")))
 	assert(table.app.learning_events() > asked)
+	table.get_node("Layout/PracticeControls/HistoryButton").pressed.emit()
+	var summary: Dictionary = JSON.parse_string(table.app.learning_summary())
+	assert(not summary["rows"].is_empty())
+	assert(table.get_node("History/Scroll/Summary").text.contains(str(int(summary["totals"]["opportunities"]))))
+	table.get_node("History").hide()
 	var recorded: int = table.app.learning_events()
 	table.get_node("Layout/Quiz").button_pressed = false
 	assert(not table.quiz and table.app.learning_events() == recorded)
