@@ -1,9 +1,11 @@
 # Godot frontend (M9): parity checklist
 
-Contract for the second frontend (D-79). The egui app stays; Godot adds the
-same trainer behaviour on `skat-app` (D-12). Functional parity is required,
-pixel-identical layout is not. A row is ticked only when the Godot flow
-exists **and** its verification is recorded in the last column.
+Contract for replacing egui with Godot as the sole frontend (D-79).
+The CEO's replacement order supersedes #14's requirement to retain egui.
+Keep egui working until Godot preserves the existing trainer behaviour,
+accessibility and user data on `skat-app` (D-12). Functional parity is
+required, pixel-identical layout is not. A row is ticked only when the
+Godot flow exists **and** its verification is recorded in the last column.
 
 ## Architecture
 
@@ -18,9 +20,14 @@ exists **and** its verification is recorded in the last column.
   generation. `restart`, `stop` and drop cancel the work; a result of an
   older generation is discarded and a result for a changed position is
   refused by `Session::finish_opponent`.
-- Data: recordings and the learning history use the existing `skat-app`
-  formats and file helpers, so switching frontends needs no conversion.
+- Data contract: reuse the existing `skat-app` recording and learning-history
+  formats and file helpers. The corresponding Godot flows and existing-data
+  interoperability remain open in the checklist; do not convert user files
+  or claim compatibility before verification.
 - No change to `skat-core`, `skat-analysis`, `skat-ai` or `skat-coach`.
+- Translations use `fluent-bundle` in the Godot adapter, with the shared
+  resources embedded in the extension. The GDScript wrapper passes typed
+  arguments; multiline coach messages and selectors use Fluent itself.
 
 ## Checklist
 
@@ -38,7 +45,8 @@ adapter contract only, `open` = not started.
 | Reizen, Skat, Drücken, Ansage, Hand/Ouvert, all game types | done | Bids and Skat/Hand choice are the generic legal-action buttons. Drücken marks two hand cards and confirms one legal `Discard` (no 66 buttons); `godot/tests/interaction.gd` checks selection, confirm state, language switch and the resulting phase on Godot 4.4.1. Announcements use a picker over exactly the legal `Announce` actions with a confirm button, and the discarded Skat is shown after Drücken; the interaction test covers both in DE and EN and plays seeded games from deal to the finished series. |
 | Optional Kontra/Re | open | |
 | Opponent levels, Goldfish, Mephisto, God Mode, engines | done | Separate Rookie/Easy/Medium/Strong selections persist and start a new series; `godot/tests/interaction.gd` checks both seats and languages on Godot 4.4.1. The mode selector (individual levels, Goldfish, Mephisto, God Mode) persists in `[game] mode`, restarts the series after confirmation and discloses the mode in a note; God Mode is labelled apart from the open display and its note states that every card, the Skat included, is visible and that the coach sees them too. Learned engines and non-level modes exclude each other (as `SessionConfig::validate` requires). `opponent_mode_opening_views_match_skat_app` and the slow `opponent_modes_match_skat_app_and_disclose_only_in_god_mode` show equality with the direct `skat-app` result and `open_cards` only in God Mode; `interaction.gd` checks selector, persistence, disclosure and disabled level selectors in both languages. At 1152 × 648 it also scrolls to both bidding actions and submits an action in Levels and God Mode, in both languages. The engine selector (Classic, Neural, PrePlay, Hybrid; Rookie maps to Easy for learned engines) persists and travels over the wire (`engine_selection_travels_over_the_wire_and_classic_is_omitted`); `interaction.gd` checks the selector, its persistence and tooltip in both languages on Godot 4.4.1. |
-| Card faces (SVG) and German/English texts from `assets/i18n/` | open | `godot/i18n.gd` reads `assets/i18n/*.ftl`; `godot/tests/interaction.gd` checks language switching, labels and a seeded series. Card faces (hand and trick) are loaded from `assets/cards/german`; selector messages, card selection and export bundling remain open |
+| Card faces (SVG) and German/English texts from `assets/i18n/` | open | `Localization` embeds and formats both Fluent resources, including multiline selectors; Rust tests and `godot/tests/interaction.gd` cover formatting and switching. Card faces (hand and trick) are loaded from `assets/cards/german`; deck selection and export bundling remain open |
+| Keyboard navigation, screenreader labels, scaling and concealed-Augen hold | open | Godot 4.4 has no screenreader API; [screenreader support starts in Godot 4.5](https://godotengine.org/releases/4.5/index.html). Select and verify a runtime with AccessKit on both targets before replacing egui. Keyboard focus, card names, modal return, scaling and release/focus-loss concealment require actual UI coverage. |
 | Live coach modes, warnings, proceed/reconsider | open | |
 | Counting aid and quiz | done | The aid and quiz toggles persist in `user://settings.cfg` (`[assist]`) and are sent as `SetAssist` on every new session. The adapter records the `Retrieval` events of answer, help and skip in the existing learning-history file (`quiz_events_reach_the_persistent_learning_history`, `damaged_learning_file_is_left_unchanged`); `counting_aid_and_quiz_show_only_the_permitted_view` checks that aid and help equal the direct `skat-app` view, are withheld while a question holds the move and that game actions are refused. `godot/tests/interaction.gd` `assist_flow` runs in German and English on pinned Godot 4.4.1 in the CI `portable` job (`scripts/godot-headless.sh`, green on main at 8f22827). |
 | Guided dialogues and Abstich question | open | |
@@ -64,3 +72,11 @@ The `.gdextension` file loads the library from `target/`. Export presets,
 packaged artifacts and target-platform smoke tests are open work; M9 stays
 incomplete until every row above is `done` and the lower layers are verified
 unchanged.
+
+The Fluent bridge's unit tests cover both languages, multiline numeric
+selectors, invalid arguments and missing variables. The bilingual interaction
+script exercises the same selectors through the actual GDExtension, then
+plays both series. This ran on Godot 4.7.2 with the 4.4 extension API and
+X11/Compatibility rendering at 1440 × 1000. This is
+translation and basic-play evidence only; it does not establish full parity,
+AccessKit behaviour or Windows packaging.
