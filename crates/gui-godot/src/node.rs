@@ -55,6 +55,24 @@ impl SkatApp {
             .unwrap_or_default()
     }
 
+    /// The open guided dialogue as JSON (`GuidedView` or `null`).
+    #[func]
+    fn guided(&self) -> GString {
+        self.adapter
+            .as_ref()
+            .map(|a| GString::from(a.guided_json().as_str()))
+            .unwrap_or_default()
+    }
+
+    /// The open live Abstich question as JSON (`LiveAbstichView` or `null`).
+    #[func]
+    fn live_abstich(&self) -> GString {
+        self.adapter
+            .as_ref()
+            .map(|a| GString::from(a.live_abstich_json().as_str()))
+            .unwrap_or_default()
+    }
+
     /// Figure catalogue keys as a JSON array, indexed by the view's `FigureId`.
     #[func]
     fn figure_keys(&self) -> GString {
@@ -220,6 +238,26 @@ impl SkatApp {
             return GString::new();
         };
         match adapter.poll_opponent() {
+            Ok(Some(events)) => GString::from(events.as_str()),
+            Ok(None) => GString::new(),
+            Err(e) => error_text(&e),
+        }
+    }
+
+    /// Starts the due coach analysis on a worker thread.
+    #[func]
+    fn start_coach(&mut self) -> bool {
+        self.adapter.as_mut().is_some_and(Adapter::start_coach)
+    }
+
+    /// Collects a finished coach analysis: events JSON (a held action may now
+    /// be played or warned about), `""` if nothing changed, or an error JSON.
+    #[func]
+    fn poll_coach(&mut self) -> GString {
+        let Some(adapter) = self.adapter.as_mut() else {
+            return GString::new();
+        };
+        match adapter.poll_coach() {
             Ok(Some(events)) => GString::from(events.as_str()),
             Ok(None) => GString::new(),
             Err(e) => error_text(&e),

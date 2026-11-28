@@ -13,10 +13,10 @@ use std::thread;
 
 use serde::Serialize;
 use skat_app::{
-    AppError, AppEvent, AssistanceLevel, AttemptId, AttemptKind, Cancel, Command, GameRecording,
-    LearningFileError, LearningHistory, OpponentMove, PlayerId, RecordingEnd, RecordingFileError,
-    RetrievalEvent, Session, SessionConfig, TrainingCommand, TrainingFixture, TrainingSession,
-    TrainingTopic,
+    AppError, AppEvent, AssistanceLevel, AttemptId, AttemptKind, Cancel, CoachResult, Command,
+    GameRecording, LearningFileError, LearningHistory, OpponentMove, PlayerId, RecordingEnd,
+    RecordingFileError, RetrievalEvent, Session, SessionConfig, TrainingCommand, TrainingFixture,
+    TrainingSession, TrainingTopic,
 };
 
 /// Structured failure at the boundary, serialised as `{"error": ...}`.
@@ -54,6 +54,11 @@ struct Computed {
     mv: OpponentMove,
 }
 
+struct CoachDone {
+    generation: u64,
+    result: CoachResult,
+}
+
 /// One session plus its asynchronous opponent computation.
 pub struct Adapter {
     session: Session,
@@ -62,6 +67,9 @@ pub struct Adapter {
     sender: Sender<Computed>,
     receiver: Receiver<Computed>,
     in_flight: bool,
+    coach_sender: Sender<CoachDone>,
+    coach_receiver: Receiver<CoachDone>,
+    coach_in_flight: bool,
     learning: Learning,
     practice: Option<Practice>,
     replay: Option<GameRecording>,
@@ -155,6 +163,7 @@ impl Adapter {
     pub fn new(config_json: &str) -> Result<Adapter, AdapterError> {
         let session = parse_config(config_json)?;
         let (sender, receiver) = channel();
+        let (coach_sender, coach_receiver) = channel();
         Ok(Adapter {
             session,
             generation: 0,
@@ -162,6 +171,9 @@ impl Adapter {
             sender,
             receiver,
             in_flight: false,
+            coach_sender,
+            coach_receiver,
+            coach_in_flight: false,
             learning: Learning::default(),
             practice: None,
             replay: None,
@@ -187,6 +199,10 @@ impl Adapter {
         self.sender = sender;
         self.receiver = receiver;
         self.in_flight = false;
+        let (coach_sender, coach_receiver) = channel();
+        self.coach_sender = coach_sender;
+        self.coach_receiver = coach_receiver;
+        self.coach_in_flight = false;
         std::mem::replace(&mut self.session, session)
     }
 
@@ -344,6 +360,18 @@ impl Adapter {
         serde_json::to_string(&self.session.view()).expect("plain data serialises")
     }
 
+    /// The explicitly entered guided dialogue (`Option<GuidedView>`) as JSON;
+    /// `null` when none is open.
+    pub fn guided_json(&self) -> String {
+        serde_json::to_string(&self.session.guided()).expect("plain data serialises")
+    }
+
+    /// The explicitly entered live Abstich question (`Option<LiveAbstichView>`)
+    /// as JSON; `null` when none is open.
+    pub fn live_abstich_json(&self) -> String {
+        serde_json::to_string(&self.session.live_abstich()).expect("plain data serialises")
+    }
+
     /// Resource keys of the figure catalogue, indexed by `FigureId`, so a
     /// frontend resolves the view's cast to names and portraits (D-72).
     pub fn figure_keys_json() -> String {
@@ -433,6 +461,57 @@ impl Adapter {
             Err(AppError::StaleOpponentMove | AppError::NoOpponentToMove) => Ok(None),
             Err(e) => Err(AdapterError::App(e)),
         }
+    }
+
+    /// Starts the coach analysis due for the human's current decision on a
+    /// worker thread (permitted view only, D-23). Review analyses of past
+    /// moves are not run. Returns `false` if none is due or one is running.
+    pub fn start_coach(&mut self) -> bool {
+        if self.coach_in_flight {
+            return false;
+        }
+        let Some(job) = self.session.coach_job().filter(|j| !j.is_review()) else {
+            return false;
+        };
+        let (generation, cancel, sender) = (
+            self.generation,
+            self.cancel.clone(),
+            self.coach_sender.clone(),
+        );
+        self.coach_in_flight = true;
+        thread::spawn(move || {
+            let result = job.run(Some(&cancel));
+            let _ = sender.send(CoachDone { generation, result });
+        });
+        true
+    }
+
+    /// Applies a finished coach analysis, if any; the action a warning held
+    /// back is then played or held with its warning. Stale results are
+    /// dropped. Returns the events as JSON, or `None` if nothing was applied.
+    pub fn poll_coach(&mut self) -> Result<Option<String>, AdapterError> {
+        let Ok(done) = self.coach_receiver.try_recv() else {
+            return Ok(None);
+        };
+        self.coach_in_flight = false;
+        if done.generation != self.generation {
+            return Ok(None);
+        }
+        match self.session.finish_coach(done.result) {
+            Ok(events) => {
+                self.record_learning(&events);
+                Ok(Some(
+                    serde_json::to_string(&events).expect("plain data serialises"),
+                ))
+            }
+            Err(AppError::StaleCoachResult) => Ok(None),
+            Err(e) => Err(AdapterError::App(e)),
+        }
+    }
+
+    /// `true` while a coach analysis has not been collected.
+    pub fn coach_busy(&self) -> bool {
+        self.coach_in_flight
     }
 
     /// `true` while an opponent computation has not been collected.

@@ -12,9 +12,12 @@ func run() -> void:
 		await assist_flow(lang)
 	for lang in ["de", "en"]:
 		await learning_flow(lang)
+		await coach_flow(lang)
+		await dialogue_flow(lang)
+		await reizen_dialogue_flow(lang)
 	for lang in ["de", "en"]:
 		await play_series(lang)
-	print("Godot interaction: German and English bidding, cards, next game and finished series")
+	print("Godot interaction: German and English bidding, cards, dialogues, next game and finished series")
 	quit(0)
 
 func bidding_reachable() -> void:
@@ -364,6 +367,241 @@ func assist_flow(lang: String) -> void:
 	for file in [path, history]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(file))
 
+# Advances the game (first legal action) to the next human card choice among
+# at least two cards; null when the series ends first.
+func next_card_choice(table: Node, skip_first := false) -> Variant:
+	var deadline := Time.get_ticks_msec() + 60000
+	var skipped := not skip_first
+	while Time.get_ticks_msec() < deadline:
+		await process_frame
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		var view: Dictionary = JSON.parse_string(table.app.view())
+		if view["opponent_to_move"]:
+			continue
+		var plays = view["legal_actions"].filter(func(a): return a is Dictionary and a.has("Play"))
+		if plays.size() >= 2 and skipped:
+			return view
+		if not view["legal_actions"].is_empty():
+			skipped = true
+			table._act({"Act": view["legal_actions"][0]})
+		elif view["can_next_game"]:
+			table._act("NextGame")
+		else:
+			return null
+	return null
+
+func dialogue_buttons(table: Node) -> Array:
+	return table.get_node("Layout/Dialogue/Buttons").get_children().filter(
+		func(button): return not button.is_queued_for_deletion())
+
+func press(table: Node, text: String) -> void:
+	for button in dialogue_buttons(table):
+		if button.text == text:
+			button.pressed.emit()
+			return
+	assert(false, "no dialogue button: " + text)
+
+# Guided dialogue from attempt to observation, then the Abstich question; legal
+# choices stay available throughout and everything comes from skat-app.
+func dialogue_flow(lang: String) -> void:
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = "user://interaction-dialogue.cfg"
+	table.learning_path = "user://interaction-dialogue-history.json"
+	root.add_child(table)
+	assert(table.texts.load_language(lang))
+	var texts = table.texts
+	var entry = table.get_node("Layout/DialogueEntry")
+	var dialogue = table.get_node("Layout/Dialogue")
+	var reached_observation := false
+	var view = await next_card_choice(table)
+	while view != null and not reached_observation:
+		table._show()
+		assert(entry.visible and not dialogue.visible)
+		assert(entry.get_node("Guided").text == texts.tr_key("guided-start"))
+		entry.get_node("Guided").pressed.emit()
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		var guided = JSON.parse_string(table.app.guided())
+		assert(guided is Dictionary and dialogue.visible and not entry.visible)
+		assert(dialogue.get_node("Text").text.contains(texts.tr_key("guided-title")))
+		# Legal choices stay available while the dialogue is open.
+		var enabled = table.get_node("Layout/Hand").get_children().filter(
+			func(node): return not node.is_queued_for_deletion() and not node.disabled)
+		assert(enabled.size() >= 2)
+		if dialogue.get_node("Text").text.contains(texts.tr_key("guided-unsupported")):
+			press(table, texts.tr_key("guided-return"))
+			assert(not dialogue.visible)
+			view = await next_card_choice(table, true)
+			continue
+		assert(dialogue.get_node("Text").text.contains(table._guided_prompt(guided)))
+		assert(guided["rule"] == null and not dialogue.get_node("Text").text.contains(
+			texts.tr_key("guided-rule-card", {"card": ""})))
+		press(table, texts.tr_key("guided-reveal"))
+		guided = JSON.parse_string(table.app.guided())
+		assert(guided["rule"] != null and dialogue.get_node("Text").text.contains(table._guided_rule(guided)))
+		# Language switch re-words the same step.
+		for other in ["de", "en", lang]:
+			texts.load_language(other)
+			table._show()
+			assert(dialogue.get_node("Text").text.contains(texts.tr_key("guided-title")))
+			assert(dialogue_buttons(table).back().text == texts.tr_key("guided-return"))
+		# The learner's own card is played, the dialogue then observes the result.
+		var card = table.get_node("Layout/Hand").get_children().filter(
+			func(node): return not node.is_queued_for_deletion() and not node.disabled)[0]
+		card.pressed.emit()
+		var deadline := Time.get_ticks_msec() + 60000
+		while Time.get_ticks_msec() < deadline:
+			await process_frame
+			guided = JSON.parse_string(table.app.guided())
+			if guided == null or guided["step"] == "Observe":
+				break
+		assert(guided != null and guided["step"] == "Observe", "dialogue reaches the observation")
+		assert(dialogue.get_node("Text").text.contains(texts.tr_key("guided-observe")))
+		press(table, texts.tr_key("guided-void-no"))
+		guided = JSON.parse_string(table.app.guided())
+		if guided["step"] != "Complete":
+			# A wrong answer does not advance; retry with the other one.
+			assert(guided["correct"] == false and dialogue.get_node("Text").text.contains(texts.tr_key("guided-wrong")))
+			press(table, texts.tr_key("guided-retry"))
+			press(table, texts.tr_key("guided-void-yes"))
+			guided = JSON.parse_string(table.app.guided())
+		assert(guided["step"] == "Complete" and guided["observation"] != null)
+		assert(dialogue.get_node("Text").text.contains(texts.tr_key("guided-complete")))
+		assert(dialogue.get_node("Text").text.contains(texts.tr_key(
+			"guided-proves-void" if guided["observation"]["proves_void"] else "guided-only-card")))
+		press(table, texts.tr_key("guided-return"))
+		assert(not dialogue.visible and table.app.guided() == "null")
+		reached_observation = true
+		if OS.has_environment("GODOT_SCREENSHOT_DIALOGUE"):
+			root.get_texture().get_image().save_png(OS.get_environment("GODOT_SCREENSHOT_DIALOGUE") + "-" + lang + ".png")
+	assert(reached_observation, "no supported guided dialogue in the series")
+	var answered := false
+	view = await next_card_choice(table, true)
+	while view != null and not answered:
+		table._show()
+		assert(entry.visible and entry.get_node("Abstich").text == texts.tr_key("live-abstich-start"))
+		entry.get_node("Abstich").pressed.emit()
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		var abstich = JSON.parse_string(table.app.live_abstich())
+		assert(abstich is Dictionary and dialogue.visible)
+		assert(abstich["evidence"] == null and abstich["response"] == null)
+		assert(dialogue.get_node("Text").text.contains(texts.tr_key("live-abstich-title")))
+		# The question holds game actions until return; nothing is playable.
+		for node in table.get_node("Layout/Hand").get_children():
+			assert(node.disabled)
+		for candidate in abstich["candidates"]:
+			press(table, table._card(int(candidate)))
+			abstich = JSON.parse_string(table.app.live_abstich())
+			assert(abstich["evidence"] == null and abstich["response"] == null)
+			if abstich["id"] != null and abstich["id"]["opponent"] != null:
+				assert(dialogue.get_node("Text").text.contains(texts.tr_key("live-abstich-definition")))
+				break
+		if abstich["id"] != null and abstich["id"]["opponent"] != null:
+			press(table, texts.tr_key("focus-possible"))
+			abstich = JSON.parse_string(table.app.live_abstich())
+			assert(abstich["response"] != null and abstich["evidence"] != null)
+			var text: String = dialogue.get_node("Text").text
+			assert(text.contains(texts.tr_key("focus-boundary-note")))
+			for other in ["de", "en", lang]:
+				texts.load_language(other)
+				table._show()
+				assert(dialogue.get_node("Text").text.contains(texts.tr_key("live-abstich-title")))
+			answered = true
+			if OS.has_environment("GODOT_SCREENSHOT_DIALOGUE"):
+				root.get_texture().get_image().save_png(OS.get_environment("GODOT_SCREENSHOT_DIALOGUE") + "-abstich-" + lang + ".png")
+		press(table, texts.tr_key("live-abstich-return"))
+		assert(not dialogue.visible and table.app.live_abstich() == "null")
+		var again = table.get_node("Layout/Hand").get_children().filter(
+			func(node): return not node.is_queued_for_deletion() and not node.disabled)
+		assert(again.size() >= 2, "legal cards return after the question")
+		if not answered:
+			view = await next_card_choice(table, true)
+	assert(answered, "no supported Abstich question in the series")
+	table.queue_free()
+	await process_frame
+	for file in ["user://interaction-dialogue.cfg", "user://interaction-dialogue-history.json"]:
+		if FileAccess.file_exists(file):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(file))
+
+# Coach mode and warnings: both persist, texts follow the language, a held
+# action blocks other moves until proceed or reconsider, and the analysis of a
+# real game never fails the session.
+func coach_flow(lang: String) -> void:
+	var path := "user://interaction-coach.cfg"
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = path
+	root.add_child(table)
+	assert(table.coach_level == "OnRequest" and not table.coach_warnings)
+	var selector = table.get_node("Layout/CoachLevel")
+	var warnings = table.get_node("Layout/CoachWarnings")
+	assert(selector.item_count == 4 and selector.selected == 1)
+	selector.select(2)
+	selector.item_selected.emit(2)
+	warnings.button_pressed = true
+	assert(table.coach_level == "Important" and table.coach_warnings and not table.failed)
+	var coach_view: Dictionary = JSON.parse_string(table.app.view())["coach"]["settings"]
+	assert(coach_view["level"] == "Important" and coach_view["warnings"] == true)
+	table.queue_free()
+	await process_frame
+	table = load("res://main.tscn").instantiate()
+	table.settings_path = path
+	root.add_child(table)
+	assert(table.coach_level == "Important" and table.coach_warnings)
+	selector = table.get_node("Layout/CoachLevel")
+	warnings = table.get_node("Layout/CoachWarnings")
+	assert(selector.selected == 2 and warnings.button_pressed)
+	coach_view = JSON.parse_string(table.app.view())["coach"]["settings"]
+	assert(coach_view["level"] == "Important" and coach_view["warnings"] == true)
+	assert(table.texts.load_language(lang))
+	table._show()
+	for j in range(4):
+		assert(selector.get_item_text(j) == table.texts.tr_key(table.COACH_LEVEL_KEYS[j]))
+	assert(warnings.text == table.texts.tr_key("setting-coach-warnings"))
+	# A held action (shown from a permitted-view sample) offers the right choices.
+	var box = table.get_node("Layout/CoachBox")
+	var sample := {"bid": 18, "hand_game": null, "coach": {"pending": {"Checking": {"action": "Pass"}}}}
+	assert(table._show_coach(sample) and box.visible)
+	assert(not box.get_node("Controls/Proceed").visible)
+	assert(box.get_node("Message").text == table.texts.tr_key("coach-checking", {"action": table.texts.tr_key("button-pass")}))
+	sample["coach"]["pending"] = {"Warning": {"action": "Pass", "warning": {}}}
+	assert(table._show_coach(sample))
+	assert(box.get_node("Controls/Proceed").visible)
+	assert(box.get_node("Controls/Proceed").text == table.texts.tr_key("button-coach-proceed"))
+	assert(box.get_node("Controls/Reconsider").text == table.texts.tr_key("button-coach-reconsider"))
+	assert(box.get_node("Message").text.contains(table.texts.tr_key("coach-warning-title")))
+	sample["coach"]["pending"] = null
+	assert(not table._show_coach(sample) and not box.visible)
+	# Play a seeded series with warnings on; a held action must resolve.
+	var deadline := Time.get_ticks_msec() + 120000
+	var held := 0
+	var view: Dictionary = JSON.parse_string(table.app.view())
+	while not view["series_finished"] and Time.get_ticks_msec() < deadline:
+		await process_frame
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		view = JSON.parse_string(table.app.view())
+		var pending = view["coach"]["pending"]
+		if pending != null:
+			held += 1
+			assert(box.visible)
+			assert(table.get_node("Layout/Scroll/Actions").get_children().filter(
+				func(button): return not button.is_queued_for_deletion()).is_empty())
+			if pending.has("Warning"):
+				box.get_node("Controls/Reconsider" if held % 2 == 0 else "Controls/Proceed").pressed.emit()
+			continue
+		if view["opponent_to_move"]:
+			continue
+		if not view["legal_actions"].is_empty():
+			table._act({"Act": view["legal_actions"][0]})
+		elif view["can_next_game"]:
+			table._act("NextGame")
+		else:
+			break
+	assert(view["series_finished"], "series did not finish with warnings on")
+	table.queue_free()
+	await process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
 func play_series(lang: String) -> void:
 	var table = load("res://main.tscn").instantiate()
 	table.settings_path = "user://interaction-settings.cfg"
@@ -696,3 +934,53 @@ func learning_flow(lang: String) -> void:
 	await process_frame
 	for file in [history, "user://interaction-learning-settings.cfg"]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(file))
+# Reizen dialogue: orientation, attempt, worked rule; the legal bids stay on
+# the table and nothing is bid by the dialogue.
+func reizen_dialogue_flow(lang: String) -> void:
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = "user://interaction-reizen.cfg"
+	table.learning_path = "user://interaction-reizen-history.json"
+	root.add_child(table)
+	assert(table.texts.load_language(lang))
+	var texts = table.texts
+	var entry = table.get_node("Layout/DialogueEntry")
+	var dialogue = table.get_node("Layout/Dialogue")
+	var deadline := Time.get_ticks_msec() + 60000
+	var view: Dictionary = {}
+	while Time.get_ticks_msec() < deadline:
+		await process_frame
+		view = JSON.parse_string(table.app.view())
+		if not view["opponent_to_move"] and not view["legal_actions"].is_empty():
+			break
+	assert(not view["opponent_to_move"] and not view["legal_actions"].is_empty())
+	table._show()
+	assert(entry.visible and not dialogue.visible)
+	entry.get_node("Guided").pressed.emit()
+	assert(not table.failed, table.get_node("Layout/Status").text)
+	var guided = JSON.parse_string(table.app.guided())
+	assert(guided is Dictionary and guided["reizen"] != null and guided["step"] == "Orient")
+	var text = dialogue.get_node("Text")
+	assert(text.text.contains(texts.tr_key("guided-bid-orient")))
+	assert(not text.text.contains(texts.tr_key("guided-bid-caveat")))
+	# Whichever orientation is wrong can be retried; then the threshold attempt.
+	press(table, texts.tr_key("guided-bid-holds"))
+	guided = JSON.parse_string(table.app.guided())
+	if guided["step"] == "Orient":
+		assert(guided["correct"] == false and text.text.contains(texts.tr_key("guided-wrong")))
+		press(table, texts.tr_key("guided-retry"))
+		press(table, texts.tr_key("guided-bid-asks"))
+		guided = JSON.parse_string(table.app.guided())
+	assert(guided["step"] == "Threshold")
+	press(table, texts.tr_key("guided-reveal"))
+	guided = JSON.parse_string(table.app.guided())
+	assert(guided["bid_rule"] != null and text.text.contains(texts.tr_key("guided-bid-caveat")))
+	for other in ["de", "en", lang]:
+		texts.load_language(other)
+		table._show()
+		assert(text.text.contains(texts.tr_key("guided-bid-caveat")))
+		assert(dialogue_buttons(table).back().text == texts.tr_key("guided-return"))
+	# The legal bids are still those of the permitted view.
+	assert(JSON.parse_string(table.app.view())["legal_actions"] == view["legal_actions"])
+	press(table, texts.tr_key("guided-return"))
+	assert(not dialogue.visible and table.app.guided() == "null")
+	table.queue_free()

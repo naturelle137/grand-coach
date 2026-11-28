@@ -6,8 +6,9 @@ use std::time::{Duration, Instant};
 
 use gui_godot::adapter::{Adapter, AdapterError};
 use skat_app::{
-    AppError, AssistSettings, Command, CountingState, Level, OpponentEngine, Opponents,
-    SeriesLength, Session, SessionConfig, TableDisplay, TableView,
+    AppError, AppEvent, AssistSettings, CoachEvent, CoachLevel, CoachSettings, Command,
+    CountingState, Level, OpponentEngine, Opponents, SeriesLength, Session, SessionConfig,
+    TableDisplay, TableView,
 };
 
 fn config(seed: u64) -> SessionConfig {
@@ -535,6 +536,154 @@ fn damaged_learning_file_is_left_unchanged() {
     std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
 }
 
+fn coach(level: CoachLevel, warnings: bool) -> Command {
+    Command::SetCoach(CoachSettings {
+        level,
+        warnings,
+        ..CoachSettings::default()
+    })
+}
+
+/// Waits (bounded) for the coach worker and applies its result.
+fn finish_coach(adapter: &mut Adapter) -> Vec<AppEvent> {
+    let end = Instant::now() + Duration::from_secs(120);
+    while Instant::now() < end {
+        if let Some(events) = adapter.poll_coach().unwrap() {
+            return serde_json::from_str(&events).unwrap();
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    panic!("coach did not finish");
+}
+
+/// Adapter and direct session in lockstep up to a human card decision with a
+/// weak option; returns both and that option, warnings switched on.
+fn weak_position() -> (Adapter, Session, skat_app::Action) {
+    for seed in 0..60 {
+        let cfg = config(seed);
+        let mut adapter = Adapter::new(&json(&cfg)).unwrap();
+        let mut direct = Session::new(cfg);
+        loop {
+            let v = view(&adapter);
+            if v.series_finished || v.can_next_game {
+                break;
+            }
+            if v.opponent_to_move {
+                assert!(adapter.start_opponent());
+                finish_opponent(&mut adapter).expect("move applied");
+                direct.run_opponents();
+                continue;
+            }
+            let late = v.tricks_played >= 5 && v.legal_actions.len() >= 2;
+            if late {
+                direct.execute(coach(CoachLevel::Off, true)).unwrap();
+                let result = direct
+                    .coach_job()
+                    .expect("warnings need analysis")
+                    .run(None);
+                let weak = result.explanation().and_then(|e| {
+                    e.options
+                        .iter()
+                        .find(|o| o.judgement == skat_app::coach_model::Judgement::Weak)
+                        .map(|o| o.action)
+                });
+                if let Some(weak) = weak {
+                    direct.finish_coach(result).unwrap();
+                    adapter
+                        .execute_json(&command(coach(CoachLevel::Off, true)))
+                        .unwrap();
+                    return (adapter, direct, weak);
+                }
+                direct.execute(coach(CoachLevel::Off, false)).unwrap();
+            }
+            let action = v.legal_actions[0];
+            direct.execute(Command::Act(action)).unwrap();
+            adapter
+                .execute_json(&command(Command::Act(action)))
+                .unwrap();
+        }
+    }
+    panic!("no weak option found");
+}
+
+/// Holds a weak action with its warning; returns the state before the move.
+fn warned(adapter: &mut Adapter, weak: skat_app::Action) -> TableView {
+    let before = view(adapter);
+    let events: Vec<AppEvent> =
+        serde_json::from_str(&adapter.execute_json(&command(Command::Act(weak))).unwrap()).unwrap();
+    // The action is held until the worker finished its analysis.
+    assert_eq!(
+        events,
+        vec![AppEvent::Coach(CoachEvent::Checking { action: weak })]
+    );
+    assert!(adapter.start_coach());
+    assert!(!adapter.start_coach(), "one analysis at a time");
+    assert_eq!(
+        finish_coach(adapter),
+        vec![AppEvent::Coach(CoachEvent::Warned { action: weak })]
+    );
+    before
+}
+
+#[test]
+fn coach_settings_travel_and_the_warning_shows_only_the_permitted_view() {
+    let (mut adapter, mut direct, weak) = weak_position();
+    assert_eq!(
+        view(&adapter).coach.settings,
+        CoachSettings {
+            level: CoachLevel::Off,
+            warnings: true,
+            ..CoachSettings::default()
+        }
+    );
+    let before = warned(&mut adapter, weak);
+    direct.execute(Command::Act(weak)).unwrap();
+    // The warning is what skat-app shows the human: no other cards, and no
+    // name of a better option.
+    let held = view(&adapter);
+    assert_eq!(held, direct.view());
+    assert!(held.open_cards.is_none());
+    assert_eq!(held.hand, before.hand);
+    assert_eq!(held.current_trick, before.current_trick);
+    // Another action waits for the answer; reconsider leaves the game as it was.
+    assert_eq!(
+        adapter.execute_json(&command(Command::Act(before.legal_actions[0]))),
+        Err(AdapterError::App(AppError::ActionPending))
+    );
+    adapter.execute_json(&command(Command::Reconsider)).unwrap();
+    let after = view(&adapter);
+    assert!(after.coach.pending.is_none());
+    assert_eq!(after.hand, before.hand);
+    assert_eq!(after.legal_actions, before.legal_actions);
+}
+
+#[test]
+fn proceed_plays_the_held_action_once() {
+    let (mut adapter, _direct, weak) = weak_position();
+    let before = warned(&mut adapter, weak);
+    adapter
+        .execute_json(&command(Command::ProceedAnyway))
+        .unwrap();
+    let after = view(&adapter);
+    assert!(after.coach.pending.is_none());
+    assert_eq!(after.hand.len(), before.hand.len() - 1);
+    assert_eq!(
+        adapter.execute_json(&command(Command::ProceedAnyway)),
+        Err(AdapterError::App(AppError::NothingPending))
+    );
+}
+
+#[test]
+fn a_restart_discards_a_running_coach_analysis() {
+    let (mut adapter, _direct, weak) = weak_position();
+    adapter.execute_json(&command(Command::Act(weak))).unwrap();
+    assert!(adapter.start_coach());
+    adapter.restart(&json(&config(3))).unwrap();
+    assert!(!adapter.coach_busy());
+    std::thread::sleep(Duration::from_millis(50));
+    assert_eq!(adapter.poll_coach(), Ok(None));
+}
+
 #[test]
 fn same_deal_practice_parks_the_series_and_keeps_cards_private() {
     let mut adapter = Adapter::new(&json(&config(31))).unwrap();
@@ -707,6 +856,243 @@ fn training_and_history_equal_the_direct_skat_app_result() {
     std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
 }
 
+/// Advances the adapter and a direct session in lockstep (first legal action)
+/// to the first human card choice among at least two cards.
+fn to_card_choice(adapter: &mut Adapter, session: &mut Session) {
+    for _ in 0..2000 {
+        let v = view(adapter);
+        if v.opponent_to_move {
+            assert!(adapter.start_opponent());
+            finish_opponent(adapter).expect("move applied");
+            session.run_opponents();
+            continue;
+        }
+        assert_eq!(v, session.view());
+        let plays = v
+            .legal_actions
+            .iter()
+            .filter(|a| matches!(a, skat_app::Action::Play(_)))
+            .count();
+        if plays >= 2 {
+            return;
+        }
+        let next = match v.legal_actions.first() {
+            Some(&a) => Command::Act(a),
+            None => Command::NextGame,
+        };
+        adapter.execute_json(&command(next)).unwrap();
+        session.execute(next).unwrap();
+    }
+    panic!("no card choice reached");
+}
+
+/// Session and generation counters are process-global, so equal sessions
+/// differ in them; everything else must be identical.
+fn plain(text: &str) -> serde_json::Value {
+    fn strip(v: &mut serde_json::Value) {
+        match v {
+            serde_json::Value::Object(m) => {
+                m.remove("lineage");
+                m.remove("generation");
+                if let Some(serde_json::Value::Array(b)) = m.get_mut("boundary") {
+                    b.remove(0); // (lineage, game, actions)
+                }
+                m.values_mut().for_each(strip);
+            }
+            serde_json::Value::Array(a) => a.iter_mut().for_each(strip),
+            _ => {}
+        }
+    }
+    let mut v = serde_json::from_str(text).unwrap();
+    strip(&mut v);
+    v
+}
+
+/// The adapter's and the direct session's own identity for the open dialogue.
+fn guided_ids(adapter: &Adapter, session: &Session) -> (skat_app::GuidedId, skat_app::GuidedId) {
+    let wire: Option<skat_app::GuidedView> = serde_json::from_str(&adapter.guided_json()).unwrap();
+    (wire.unwrap().id, session.guided().unwrap().id)
+}
+
+/// Equivalent commands on both sides: events, dialogue and question views
+/// must be equal.
+fn both(
+    adapter: &mut Adapter,
+    session: &mut Session,
+    wire: Command,
+    direct: Command,
+) -> Result<(), AppError> {
+    let direct = session.execute(direct);
+    let wire = adapter.execute_json(&command(wire));
+    let outcome = match (direct, wire) {
+        (Ok(events), Ok(text)) => {
+            assert_eq!(
+                plain(&text),
+                plain(&serde_json::to_string(&events).unwrap())
+            );
+            Ok(())
+        }
+        (Err(e), Err(AdapterError::App(w))) => {
+            assert_eq!(e, w);
+            Err(e)
+        }
+        other => panic!("diverged: {other:?}"),
+    };
+    assert_eq!(
+        plain(&adapter.guided_json()),
+        plain(&serde_json::to_string(&session.guided()).unwrap())
+    );
+    assert_eq!(
+        plain(&adapter.live_abstich_json()),
+        plain(&serde_json::to_string(&session.live_abstich()).unwrap())
+    );
+    assert_eq!(view(adapter), session.view());
+    outcome
+}
+
+fn same(adapter: &mut Adapter, session: &mut Session, c: Command) -> Result<(), AppError> {
+    both(adapter, session, c, c)
+}
+
+fn guided_view(adapter: &Adapter) -> Option<skat_app::GuidedView> {
+    serde_json::from_str(&adapter.guided_json()).unwrap()
+}
+
+/// Lets the opponents move on both sides until the human acts again.
+fn settle(adapter: &mut Adapter, session: &mut Session) {
+    while view(adapter).opponent_to_move {
+        assert!(adapter.start_opponent());
+        finish_opponent(adapter).expect("move applied");
+    }
+    session.run_opponents();
+}
+
+#[test]
+fn guided_dialogue_runs_to_observation_with_the_permitted_view_only() {
+    let mut adapter = Adapter::new(&json(&config(21))).unwrap();
+    let mut session = Session::new(config(21));
+    to_card_choice(&mut adapter, &mut session);
+    assert_eq!(adapter.guided_json(), "null");
+
+    same(&mut adapter, &mut session, Command::StartGuided).unwrap();
+    let opened = guided_view(&adapter).unwrap();
+    let permitted = view(&adapter);
+    // Everything the dialogue names stays inside the permitted human view.
+    assert!(
+        opened
+            .legal_cards
+            .iter()
+            .all(|c| permitted.hand.contains(c))
+    );
+    assert!(opened.rule.is_none() && opened.figures.is_none() && opened.observation.is_none());
+    assert!(!adapter.guided_json().contains("seed"));
+    assert_ne!(
+        opened.step,
+        skat_app::GuidedStep::Unsupported,
+        "fixture supports a dialogue"
+    );
+
+    // Reveal is deliberate and shows the worked answer, never plays it.
+    let (wire, direct) = guided_ids(&adapter, &session);
+    both(
+        &mut adapter,
+        &mut session,
+        Command::Guided(wire, skat_app::GuidedAction::Reveal),
+        Command::Guided(direct, skat_app::GuidedAction::Reveal),
+    )
+    .unwrap();
+    assert_eq!(view(&adapter).legal_actions, permitted.legal_actions);
+
+    // A stale response is refused identically and changes nothing.
+    let mut stale = serde_json::to_value(wire).unwrap();
+    stale["actions"] = 999.into();
+    let stale: skat_app::GuidedId = serde_json::from_value(stale).unwrap();
+    let command = Command::Guided(stale, skat_app::GuidedAction::Return);
+    assert!(same(&mut adapter, &mut session, command).is_err());
+
+    // Playing any legal card is still free; the dialogue then observes the result.
+    let play = *permitted
+        .legal_actions
+        .iter()
+        .find(|a| matches!(a, skat_app::Action::Play(_)))
+        .unwrap();
+    same(&mut adapter, &mut session, Command::Act(play)).unwrap();
+    settle(&mut adapter, &mut session);
+    let mut steps = Vec::new();
+    for _ in 0..4 {
+        let Some(g) = guided_view(&adapter) else {
+            break;
+        };
+        steps.push(g.step);
+        if g.step == skat_app::GuidedStep::Observe {
+            let (wire, direct) = guided_ids(&adapter, &session);
+            let answer = skat_app::GuidedAction::Answer(skat_app::GuidedAnswer::Void(false));
+            both(
+                &mut adapter,
+                &mut session,
+                Command::Guided(wire, answer),
+                Command::Guided(direct, answer),
+            )
+            .unwrap();
+        } else {
+            break;
+        }
+    }
+    assert_eq!(
+        steps,
+        [
+            skat_app::GuidedStep::Observe,
+            skat_app::GuidedStep::Complete
+        ],
+        "the dialogue reaches the real observation after the learner's own card"
+    );
+}
+
+#[test]
+fn live_abstich_question_matches_the_direct_session_and_hides_evidence_until_answered() {
+    let mut adapter = Adapter::new(&json(&config(21))).unwrap();
+    let mut session = Session::new(config(21));
+    to_card_choice(&mut adapter, &mut session);
+    let open = |adapter: &Adapter| -> Option<skat_app::LiveAbstichView> {
+        serde_json::from_str(&adapter.live_abstich_json()).unwrap()
+    };
+    assert!(open(&adapter).is_none());
+    same(&mut adapter, &mut session, Command::StartLiveAbstich).unwrap();
+    let permitted = view(&adapter);
+    let first = open(&adapter).unwrap();
+    assert!(first.evidence.is_none() && first.response.is_none());
+    assert!(first.candidates.iter().all(|c| permitted.hand.contains(c)));
+    let mut answered = false;
+    for &card in &first.candidates {
+        let wire = Command::SelectLiveAbstich(first.boundary, card);
+        let direct = Command::SelectLiveAbstich(session.live_abstich().unwrap().boundary, card);
+        both(&mut adapter, &mut session, wire, direct).unwrap();
+        let selected = open(&adapter).unwrap();
+        // Selecting never plays the card and never reveals certainty.
+        assert!(selected.evidence.is_none() && selected.response.is_none());
+        assert_eq!(view(&adapter).legal_actions, permitted.legal_actions);
+        if let Some(id) = selected.id.filter(|id| id.opponent.is_some()) {
+            let answer = skat_app::LiveAbstichAction::Answer(skat_app::FocusAnswer::Possible);
+            let direct_id = session.live_abstich().unwrap().id.unwrap();
+            both(
+                &mut adapter,
+                &mut session,
+                Command::LiveAbstich(id, answer),
+                Command::LiveAbstich(direct_id, answer),
+            )
+            .unwrap();
+            let settled = open(&adapter).unwrap();
+            assert!(settled.response.is_some() && settled.evidence.is_some());
+            answered = true;
+            break;
+        }
+    }
+    assert!(answered, "a supported candidate was answered");
+    same(&mut adapter, &mut session, Command::CloseLiveAbstich).unwrap();
+    assert!(open(&adapter).is_none());
+    assert_eq!(view(&adapter).legal_actions, permitted.legal_actions);
+}
+
 /// Goldfish, Mephisto and God Mode through the adapter equal the direct
 /// `skat-app` result at every step, and only God Mode (D-62) carries the real
 /// deal (`open_cards`) in the view; the others stay the closed permitted view.
@@ -763,4 +1149,72 @@ fn opponent_mode_opening_views_match_skat_app() {
             opponents == Opponents::GodMode
         );
     }
+}
+
+#[test]
+fn reizen_dialogue_matches_the_direct_session_and_stays_in_the_permitted_view() {
+    // First seed whose first human decision is a bidding action.
+    let seed = (1..200u64)
+        .find(|&s| {
+            let mut a = Adapter::new(&json(&config(s))).unwrap();
+            let mut d = Session::new(config(s));
+            settle(&mut a, &mut d);
+            view(&a)
+                .legal_actions
+                .iter()
+                .any(|x| matches!(x, skat_app::Action::Pass | skat_app::Action::Bid(_)))
+        })
+        .expect("a seed starts with a human bid");
+    let mut adapter = Adapter::new(&json(&config(seed))).unwrap();
+    let mut session = Session::new(config(seed));
+    settle(&mut adapter, &mut session);
+    let permitted = view(&adapter);
+
+    same(&mut adapter, &mut session, Command::StartGuided).unwrap();
+    let opened = guided_view(&adapter).unwrap();
+    let reizen = opened.reizen.expect("a Reizen dialogue");
+    assert_eq!(opened.step, skat_app::GuidedStep::Orient);
+    assert!(opened.bid_rule.is_none() && reizen.holds.is_none() && reizen.stake.is_none());
+    let wire = adapter.guided_json();
+    assert!(!wire.contains("seed") && !wire.contains("skat\""));
+
+    // A deliberate answer is checked identically; a wrong one can be retried.
+    let (id, direct) = guided_ids(&adapter, &session);
+    for holds in [true, false] {
+        let answer = skat_app::GuidedAction::Answer(skat_app::GuidedAnswer::Holds(holds));
+        both(
+            &mut adapter,
+            &mut session,
+            Command::Guided(id, answer),
+            Command::Guided(direct, answer),
+        )
+        .unwrap();
+        let g = guided_view(&adapter).unwrap();
+        if g.step != skat_app::GuidedStep::Orient {
+            break;
+        }
+        assert_eq!(g.correct, Some(false));
+        let retry = skat_app::GuidedAction::Retry;
+        both(
+            &mut adapter,
+            &mut session,
+            Command::Guided(id, retry),
+            Command::Guided(direct, retry),
+        )
+        .unwrap();
+    }
+    let after = guided_view(&adapter).unwrap();
+    assert_eq!(after.step, skat_app::GuidedStep::Threshold);
+
+    let reveal = skat_app::GuidedAction::Reveal;
+    both(
+        &mut adapter,
+        &mut session,
+        Command::Guided(id, reveal),
+        Command::Guided(direct, reveal),
+    )
+    .unwrap();
+    assert!(guided_view(&adapter).unwrap().bid_rule.is_some());
+    // The dialogue never acts: the legal choices are untouched.
+    assert_eq!(view(&adapter).legal_actions, permitted.legal_actions);
 }

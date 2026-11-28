@@ -61,6 +61,12 @@ layout_mode = 2
 [node name="Quiz" type="CheckBox" parent="Layout"]
 layout_mode = 2
 
+[node name="CoachLevel" type="OptionButton" parent="Layout"]
+layout_mode = 2
+
+[node name="CoachWarnings" type="CheckBox" parent="Layout"]
+layout_mode = 2
+
 [node name="Mode" type="OptionButton" parent="Layout"]
 layout_mode = 2
 
@@ -141,10 +147,48 @@ layout_mode = 2
 [node name="Off" type="Button" parent="Layout/QuizBox/Controls"]
 layout_mode = 2
 
+[node name="CoachBox" type="VBoxContainer" parent="Layout"]
+visible = false
+layout_mode = 2
+
+[node name="Message" type="Label" parent="Layout/CoachBox"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="Controls" type="HBoxContainer" parent="Layout/CoachBox"]
+layout_mode = 2
+
+[node name="Proceed" type="Button" parent="Layout/CoachBox/Controls"]
+layout_mode = 2
+
+[node name="Reconsider" type="Button" parent="Layout/CoachBox/Controls"]
+layout_mode = 2
+
 [node name="QuizFeedback" type="Label" parent="Layout"]
 visible = false
 layout_mode = 2
 autowrap_mode = 2
+
+[node name="DialogueEntry" type="HBoxContainer" parent="Layout"]
+visible = false
+layout_mode = 2
+
+[node name="Guided" type="Button" parent="Layout/DialogueEntry"]
+layout_mode = 2
+
+[node name="Abstich" type="Button" parent="Layout/DialogueEntry"]
+layout_mode = 2
+
+[node name="Dialogue" type="VBoxContainer" parent="Layout"]
+visible = false
+layout_mode = 2
+
+[node name="Text" type="Label" parent="Layout/Dialogue"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="Buttons" type="VBoxContainer" parent="Layout/Dialogue"]
+layout_mode = 2
 
 [node name="Cast" type="HBoxContainer" parent="Layout"]
 layout_mode = 2

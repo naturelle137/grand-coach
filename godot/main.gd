@@ -16,6 +16,8 @@ var engine := "Classic"
 var mode := "Levels"
 var counting_aid := false
 var quiz := false
+var coach_level := "OnRequest"
+var coach_warnings := false
 var learning_path := "user://learning-history.json"
 var quiz_id := ""
 var pending_setting := {}
@@ -25,6 +27,8 @@ var replay_total := 0
 var recording_save := false
 var training_active := false
 var discard_selection: Array[int] = []
+const COACH_LEVELS := ["Off", "OnRequest", "Important", "EveryMove"]
+const COACH_LEVEL_KEYS := ["coach-level-off", "coach-level-on-request", "coach-level-important", "coach-level-every-move"]
 const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
 const MODES := ["Levels", "Goldfish", "Mephisto", "GodMode"]
 const MODE_KEYS := ["mode-levels", "mode-goldfish", "mode-mephisto", "mode-god"]
@@ -43,6 +47,10 @@ func _ready() -> void:
 		open_display = settings.get_value("game", "open_display", false) == true
 		counting_aid = settings.get_value("assist", "counting_aid", false) == true
 		quiz = settings.get_value("assist", "quiz", false) == true
+		var saved_coach = settings.get_value("coach", "level", "OnRequest")
+		if saved_coach in COACH_LEVELS:
+			coach_level = saved_coach
+		coach_warnings = settings.get_value("coach", "warnings", false) == true
 		var saved_engine = settings.get_value("game", "engine", "Classic")
 		if saved_engine in ENGINES:
 			engine = saved_engine
@@ -74,6 +82,16 @@ func _ready() -> void:
 	$Layout/QuizBox/Controls/Skip.pressed.connect(_act.bind("SkipQuiz"))
 	$Layout/QuizBox/Controls/ShowHelp.pressed.connect(_act.bind("RestoreQuizHelp"))
 	$Layout/QuizBox/Controls/Off.pressed.connect(_quiz_off)
+	for key in COACH_LEVEL_KEYS:
+		$Layout/CoachLevel.add_item(texts.tr_key(key))
+	$Layout/CoachLevel.select(COACH_LEVELS.find(coach_level))
+	$Layout/CoachLevel.item_selected.connect(_coach_changed)
+	$Layout/CoachWarnings.button_pressed = coach_warnings
+	$Layout/CoachWarnings.toggled.connect(_coach_changed)
+	$Layout/CoachBox/Controls/Proceed.pressed.connect(_act.bind("ProceedAnyway"))
+	$Layout/CoachBox/Controls/Reconsider.pressed.connect(_act.bind("Reconsider"))
+	$Layout/DialogueEntry/Guided.pressed.connect(_act.bind("StartGuided"))
+	$Layout/DialogueEntry/Abstich.pressed.connect(_act.bind("StartLiveAbstich"))
 	for key in MODE_KEYS:
 		$Layout/Mode.add_item(texts.tr_key(key))
 	$Layout/Mode.select(MODES.find(mode))
@@ -345,6 +363,7 @@ func _start_series() -> void:
 		return
 	app.use_learning_file(ProjectSettings.globalize_path(learning_path))
 	_send_assist()
+	_send_coach()
 	_show()
 
 # Assistance (D-64) is set on every new session; changing it never changes
@@ -360,6 +379,23 @@ func _assist_changed(_enabled: bool) -> void:
 	_save_setting("assist", "counting_aid", counting_aid)
 	_save_setting("assist", "quiz", quiz)
 	_send_assist()
+	_show()
+
+# Coach mode and warnings (D-08, D-09) are set on every new session; changing
+# them never changes the game, so it needs no restart. A held action is
+# withdrawn by skat-app when warnings go off.
+func _send_coach() -> void:
+	var result := app.execute(JSON.stringify({"SetCoach": {
+		"level": coach_level, "warnings": coach_warnings,
+		"show_figures": false, "focus": null}}))
+	_report_error(result)
+
+func _coach_changed(_value: Variant) -> void:
+	coach_level = COACH_LEVELS[$Layout/CoachLevel.selected]
+	coach_warnings = $Layout/CoachWarnings.button_pressed
+	_save_setting("coach", "level", coach_level)
+	_save_setting("coach", "warnings", coach_warnings)
+	_send_coach()
 	_show()
 
 func _quiz_off() -> void:
@@ -464,6 +500,12 @@ func _apply_setting() -> void:
 func _process(_delta: float) -> void:
 	if failed or replay_active or training_active:
 		return
+	var coach_events := app.poll_coach()
+	if coach_events != "":
+		if not _report_error(coach_events):
+			_show()
+	elif coach_warnings:
+		app.start_coach()
 	var events := app.poll_opponent()
 	if events != "":
 		if not _report_error(events):
@@ -685,6 +727,11 @@ func _show() -> void:
 		for j in range(LEVELS.size()):
 			selector.set_item_text(j, "%s %s" % [selector.tooltip_text, texts.tr_key("level-" + LEVELS[j].to_lower())])
 	$Layout/Engine.tooltip_text = texts.tr_key("opponent-engine")
+	$Layout/CoachLevel.tooltip_text = texts.tr_key("setting-coach-level")
+	for j in range(COACH_LEVELS.size()):
+		$Layout/CoachLevel.set_item_text(j, texts.tr_key(COACH_LEVEL_KEYS[j]))
+	$Layout/CoachWarnings.text = texts.tr_key("setting-coach-warnings")
+	$Layout/CoachWarnings.tooltip_text = texts.tr_key("setting-coach-warnings-description")
 	$Layout/Mode.tooltip_text = texts.tr_key("mode-levels")
 	for j in range(MODES.size()):
 		$Layout/Mode.set_item_text(j, texts.tr_key(MODE_KEYS[j]))
@@ -711,6 +758,9 @@ func _show() -> void:
 		$Layout/Table.text += "\n%s %s" % [texts.tr_key("label-own-skat"), ", ".join(skat_cards)]
 	_show_sheet(view)
 	var holding := _show_assist(view["assist"])
+	holding = _show_coach(view) or holding
+	# An open Abstich question refuses game actions until the learner returns.
+	holding = _show_dialogue(view, holding) or holding
 	$Layout/OpenCards.text = _open_cards(view["open_cards"])
 	$Layout/OpenCards.visible = view["open_cards"] != null
 	_clear($Layout/Hand)
@@ -884,6 +934,29 @@ func _show_assist(assist: Dictionary) -> bool:
 		$Layout/QuizFeedback.text = "\n".join(lines)
 	return question != null
 
+# Warning before a weak move: the coach part of the permitted view holds the
+# action; the player proceeds or reconsiders. Returns true while it is held.
+func _show_coach(view: Dictionary) -> bool:
+	var pending = view["coach"]["pending"]
+	var box := $Layout/CoachBox
+	box.visible = pending != null
+	if pending == null:
+		return false
+	var state: String = pending.keys()[0]
+	var action = pending[state]["action"]
+	var label := _label(action, int(view["bid"]), view["hand_game"])
+	var proceed := box.get_node("Controls/Proceed")
+	if state == "Warning":
+		box.get_node("Message").text = "%s\n%s" % [texts.tr_key("coach-warning-title"),
+			texts.tr_key("coach-warning-text", {"action": label})]
+		proceed.text = texts.tr_key("button-coach-proceed")
+		proceed.visible = true
+	else:
+		box.get_node("Message").text = texts.tr_key("coach-checking", {"action": label})
+		proceed.visible = false
+	box.get_node("Controls/Reconsider").text = texts.tr_key("button-coach-reconsider")
+	return true
+
 func _class_name(follow: Variant) -> String:
 	if follow is Dictionary:
 		return texts.tr_key("suit-" + str(follow["Farbe"]).to_lower())
@@ -990,3 +1063,247 @@ func _feedback_lines(feedback: Dictionary) -> Array[String]:
 		lines.append(texts.tr_key("quiz-skipped", {"expected": expected}))
 	lines.append_array(_derivation_lines(feedback["derivation"]))
 	return lines
+
+# Guided dialogue and live Abstich question (D-64, #131, #13): the session owns
+# every step, answer and piece of evidence; this only words the permitted views
+# and sends the learner's explicit responses. Neither ever plays a card.
+func _show_dialogue(view: Dictionary, holding: bool) -> bool:
+	var guided = JSON.parse_string(app.guided())
+	var abstich = JSON.parse_string(app.live_abstich())
+	var plays: Array = view["legal_actions"].filter(func(a): return a is Dictionary and a.has("Play"))
+	var bids: Array = view["legal_actions"].filter(func(a):
+		return str(a) == "Pass" or (a is Dictionary and a.has("Bid")))
+	var entry: bool = not view["opponent_to_move"] and not holding \
+		and not (plays.is_empty() and bids.is_empty()) and guided == null and abstich == null
+	$Layout/DialogueEntry.visible = entry
+	$Layout/DialogueEntry/Guided.text = texts.tr_key("guided-start")
+	$Layout/DialogueEntry/Abstich.text = texts.tr_key("live-abstich-start")
+	$Layout/DialogueEntry/Abstich.disabled = plays.size() < 2
+	var box := $Layout/Dialogue
+	_clear(box.get_node("Buttons"))
+	box.visible = guided != null or abstich != null
+	if guided is Dictionary:
+		_show_guided(guided, view)
+	elif abstich is Dictionary:
+		_show_abstich(abstich, view)
+	return abstich is Dictionary
+
+func _dialogue_button(label: String, command: Variant, pressed := false) -> void:
+	var button := Button.new()
+	button.text = label
+	button.toggle_mode = pressed
+	button.button_pressed = pressed
+	button.pressed.connect(_act.bind(command))
+	$Layout/Dialogue/Buttons.add_child(button)
+
+func _seat_name(seat: Variant) -> String:
+	return texts.tr_key("seat-" + str(seat).to_lower())
+
+func _guided_command(guided: Dictionary, action: Variant) -> Variant:
+	return {"Guided": [guided["id"], action]}
+
+func _guided_prompt(guided: Dictionary) -> String:
+	var task = guided.get("task")
+	var step: String = guided["step"]
+	if step == "Orient":
+		return texts.tr_key("guided-orient")
+	if step == "Check":
+		return texts.tr_key("guided-check")
+	if step == "Narrow" or step == "Threshold":
+		if task == "UnderPartner":
+			return texts.tr_key("guided-under")
+		if task == "Fallback":
+			for flag in [["overtake_forced", "guided-forced-early-attempt"],
+					["decline_last", "guided-decline-last-attempt"],
+					["decline_early", "guided-decline-early-attempt"],
+					["decline", "guided-decline-attempt"]]:
+				if guided.get(flag[0], false):
+					return texts.tr_key(flag[1])
+			return texts.tr_key("guided-fallback-attempt")
+		if task == "FeedPartner":
+			return texts.tr_key("guided-feed-attempt")
+		if task == "WinEarly":
+			return texts.tr_key("guided-early-attempt")
+		return texts.tr_key("guided-win")
+	return texts.tr_key({"Act": "guided-act", "Waiting": "guided-waiting",
+		"Observe": "guided-observe", "Complete": "guided-complete"}.get(step, "guided-unsupported"))
+
+# Rule answer after the deliberate reveal; mirrors the egui wording per branch.
+func _guided_rule(guided: Dictionary) -> String:
+	var rule = guided["rule"]
+	var key := "guided-rule-win"
+	match rule["branch"]:
+		"UnderPartner": key = "guided-rule-under"
+		"FeedPartner": key = "guided-rule-feed" if rule["last"] else "guided-rule-feed-early"
+		"WinEarly": key = "guided-rule-early"
+		"Fallback":
+			if guided.get("overtake_forced", false): key = "guided-rule-forced-early"
+			elif guided.get("decline_last", false): key = "guided-rule-decline-last"
+			elif guided.get("decline_early", false): key = "guided-rule-decline-early"
+			elif not rule["partner_ahead"]: key = "guided-rule-decline"
+			else: key = "guided-rule-fallback"
+	var cards: Array[String] = []
+	for card in rule["candidates"]:
+		cards.append(_card(int(card)))
+	return "%s\n%s\n%s" % [texts.tr_key("guided-rule-card", {"card": _card(int(rule["card"]))}),
+		texts.tr_key(key), texts.tr_key("guided-candidates", {"cards": ", ".join(cards)})]
+
+func _source_line(source: Variant) -> String:
+	if source is Dictionary and source.has("Trick"):
+		var trick: Dictionary = source["Trick"]
+		return texts.tr_key("guided-source", {"trick": int(trick["index"]) + 1,
+			"seat": _seat_name(trick["seat"]), "card": _card(int(trick["card"]))})
+	return ""
+
+func _show_guided(guided: Dictionary, view: Dictionary) -> void:
+	var contract = view["contract"]
+	var null_game: bool = contract is Dictionary and str(contract["game"]) == "Null"
+	# Reizen, Skataufnahme, Drücken, Ansage, Kontra/Re, lead and Null dialogues
+	# are not worded in this frontend yet; the learner returns to the table.
+	var covered: bool = guided.get("preplay") == null \
+		and guided.get("kontra") == null and guided.get("kontra_exclusion") == null \
+		and guided.get("lead") == null and not null_game and guided["step"] != "Unsupported"
+	var lines: Array[String] = [texts.tr_key("guided-title")]
+	if guided.get("reizen") is Dictionary:
+		_show_reizen(guided, lines)
+		$Layout/Dialogue/Text.text = "\n".join(lines)
+		return
+	if not covered:
+		lines.append(texts.tr_key("guided-unsupported"))
+		_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
+		$Layout/Dialogue/Text.text = "\n".join(lines)
+		return
+	var step: String = guided["step"]
+	lines.append(_guided_prompt(guided))
+	if guided["correct"] == false:
+		lines.append(texts.tr_key("guided-wrong"))
+		_dialogue_button(texts.tr_key("guided-retry"), _guided_command(guided, "Retry"))
+	if guided["rule"] != null and step == "Act":
+		lines.append(_guided_rule(guided))
+	for source in [guided["observed_source"]] if step in ["Observe", "Complete"] else []:
+		lines.append(_source_line(source))
+	var observation = guided["observation"]
+	if observation != null:
+		lines.append(texts.tr_key("guided-proves-void" if observation["proves_void"] else "guided-only-card"))
+		if observation["winner"] != null:
+			lines.append(texts.tr_key("guided-winner", {"seat": _seat_name(observation["winner"])}))
+	if step in ["Orient", "Check"]:
+		for seat in ["Vorhand", "Mittelhand", "Hinterhand"]:
+			_dialogue_button(_seat_name(seat), _guided_command(guided, {"Answer": {"Seat": seat}}))
+		if step == "Check":
+			_dialogue_button(texts.tr_key("guided-none"), _guided_command(guided, {"Answer": {"Seat": null}}))
+	if step == "Narrow" or step == "Threshold":
+		for card in guided["legal_cards"]:
+			_dialogue_button(texts.tr_key("guided-consider", {"card": _card(int(card))}),
+				_guided_command(guided, {"Answer": {"Card": int(card)}}))
+	if step == "Observe":
+		for answer in [["guided-void-yes", true], ["guided-void-no", false]]:
+			_dialogue_button(texts.tr_key(answer[0]), _guided_command(guided, {"Answer": {"Void": answer[1]}}))
+	if step in ["Orient", "Check", "Narrow", "Observe"]:
+		_dialogue_button(texts.tr_key("guided-reveal"), _guided_command(guided, "Reveal"))
+	_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
+	$Layout/Dialogue/Text.text = "\n".join(lines)
+
+# `CardSet` crosses the wire as a bit mask (one bit per card); only its size is shown.
+# Reizen dialogue: orientation (hold or name a bid), Easy's ceiling attempt, the
+# rule and then any legal bidding action in the table's own buttons.
+func _show_reizen(guided: Dictionary, lines: Array[String]) -> void:
+	var r: Dictionary = guided["reizen"]
+	var step: String = guided["step"]
+	var current := int(r["current"])
+	lines.append(texts.tr_key("guided-bid-current-none") if current == 0
+		else texts.tr_key("guided-bid-current", {"bid": current}))
+	var stake = r.get("stake")
+	if step == "Orient":
+		lines.append(texts.tr_key("guided-bid-orient"))
+	elif step == "Threshold" and stake != null:
+		lines.append(texts.tr_key("guided-bid-threshold-hold" if r.get("holds") == true
+			else "guided-bid-threshold-ask", {"value": int(stake)}))
+	elif step == "Threshold":
+		lines.append(texts.tr_key("guided-bid-threshold-none", {"bid": current}))
+	elif step == "Act":
+		lines.append(texts.tr_key("guided-bid-act"))
+	else:
+		lines.append(texts.tr_key("guided-unsupported"))
+	if guided["correct"] == false:
+		lines.append(texts.tr_key("guided-wrong"))
+		_dialogue_button(texts.tr_key("guided-retry"), _guided_command(guided, "Retry"))
+	var answers: Array = []
+	if step == "Orient":
+		answers = [["guided-bid-holds", {"Holds": true}], ["guided-bid-asks", {"Holds": false}]]
+	elif step == "Threshold":
+		answers = [["guided-bid-within-yes", {"Within": true}], ["guided-bid-within-no", {"Within": false}]]
+	for answer in answers:
+		_dialogue_button(texts.tr_key(answer[0]), _guided_command(guided, {"Answer": answer[1]}))
+	var rule = guided.get("bid_rule")
+	if rule is Dictionary:
+		lines.append(texts.tr_key("guided-bid-rule", {"action": _label(rule["action"], current, null)}))
+		var branch: String = str(rule["branch"])
+		if branch == "Weak":
+			lines.append(texts.tr_key("guided-bid-weak"))
+		else:
+			var game = rule["game"]
+			var name: String = texts.tr_key("suit-" + str(game["Farbe"]).to_lower()) \
+				if game is Dictionary else texts.tr_key("game-" + str(game).to_lower())
+			lines.append(texts.tr_key("guided-bid-game", {"game": name, "ceiling": int(rule["ceiling"])}))
+			lines.append(texts.tr_key("guided-bid-branch-" + branch.to_lower()))
+		var value = rule.get("stake")
+		if value == null:
+			lines.append(texts.tr_key("guided-bid-no-value"))
+		else:
+			lines.append(texts.tr_key("guided-bid-within" if int(value) <= int(rule["ceiling"])
+				else "guided-bid-above", {"value": int(value), "ceiling": int(rule["ceiling"])}))
+		lines.append(texts.tr_key("guided-bid-caveat"))
+	if step in ["Orient", "Threshold"]:
+		_dialogue_button(texts.tr_key("guided-unknown"), _guided_command(guided, "Reveal"))
+		_dialogue_button(texts.tr_key("guided-reveal"), _guided_command(guided, "Reveal"))
+	_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
+
+func _card_count(mask: Variant) -> int:
+	var bits := int(mask)
+	var count := 0
+	while bits != 0:
+		count += bits & 1
+		bits >>= 1
+	return count
+
+func _show_abstich(abstich: Dictionary, view: Dictionary) -> void:
+	var lines: Array[String] = [texts.tr_key("live-abstich-title"), texts.tr_key("live-abstich-note")]
+	var identity = abstich["id"]
+	if abstich["unsupported"]:
+		lines.append(texts.tr_key("live-abstich-unsupported"))
+	if not abstich["unsupported"] or identity != null:
+		lines.append(texts.tr_key("live-abstich-select"))
+		for card in abstich["candidates"]:
+			_dialogue_button(_card(int(card)), {"SelectLiveAbstich": [abstich["boundary"], int(card)]},
+				identity != null and int(identity["card"]) == int(card))
+	if identity != null and identity["opponent"] != null:
+		var player := 0
+		for info in view["players"]:
+			if info["seat"] == identity["opponent"]:
+				player = int(info["player"])
+		lines.append(texts.tr_key("live-abstich-question",
+			{"card": _card(int(identity["card"])), "player": _player(player)}))
+		lines.append(texts.tr_key("live-abstich-definition"))
+	var response = abstich["response"]
+	if response != null:
+		lines.append(texts.tr_key({"Correct": "live-response-correct",
+			"OverstatedCertainty": "live-response-overstated", "DeniedPossibility": "live-response-denied",
+			"UnderstatedCertainty": "live-response-understated",
+			"Skipped": "live-response-skipped"}.get(str(response), "live-response-unsupported")))
+	var evidence = abstich["evidence"]
+	if evidence != null:
+		lines.append(texts.tr_key("focus-possible" if evidence["certainty"] == "Possible" else "focus-certain"))
+		lines.append(texts.tr_key("focus-abstich-evidence", {"seat": _seat_name(evidence["seat"]),
+			"suit": _suit_name(int(evidence["card"]) / 8), "cards": _card_count(evidence["suit_unseen"]),
+			"trumps": _card_count(evidence["trumpf_unseen"])}))
+		lines.append(texts.tr_key("focus-boundary-note"))
+	if abstich["assisted"]:
+		lines.append(texts.tr_key("live-abstich-assisted"))
+	if identity != null and identity["opponent"] != null and response == null:
+		for answer in [["focus-possible", "Possible"], ["focus-certain", "Certain"], ["focus-absent", "Absent"]]:
+			_dialogue_button(texts.tr_key(answer[0]), {"LiveAbstich": [identity, {"Answer": answer[1]}]})
+		_dialogue_button(texts.tr_key("live-abstich-help"), {"LiveAbstich": [identity, "Help"]})
+		_dialogue_button(texts.tr_key("quiz-skip"), {"LiveAbstich": [identity, "Skip"]})
+	_dialogue_button(texts.tr_key("live-abstich-return"), "CloseLiveAbstich")
+	$Layout/Dialogue/Text.text = "\n".join(lines)
