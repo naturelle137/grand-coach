@@ -12,6 +12,7 @@ func run() -> void:
 		await assist_flow(lang)
 	for lang in ["de", "en"]:
 		await dialogue_flow(lang)
+		await reizen_dialogue_flow(lang)
 	for lang in ["de", "en"]:
 		await play_series(lang)
 	print("Godot interaction: German and English bidding, cards, dialogues, next game and finished series")
@@ -760,3 +761,54 @@ func check_recording(table: Node, lang: String) -> void:
 	assert(not table.replay_active)
 	DirAccess.remove_absolute(absolute)
 	await process_frame
+
+# Reizen dialogue: orientation, attempt, worked rule; the legal bids stay on
+# the table and nothing is bid by the dialogue.
+func reizen_dialogue_flow(lang: String) -> void:
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = "user://interaction-reizen.cfg"
+	table.learning_path = "user://interaction-reizen-history.json"
+	root.add_child(table)
+	assert(table.texts.load_language(lang))
+	var texts = table.texts
+	var entry = table.get_node("Layout/DialogueEntry")
+	var dialogue = table.get_node("Layout/Dialogue")
+	var deadline := Time.get_ticks_msec() + 60000
+	var view: Dictionary = {}
+	while Time.get_ticks_msec() < deadline:
+		await process_frame
+		view = JSON.parse_string(table.app.view())
+		if not view["opponent_to_move"] and not view["legal_actions"].is_empty():
+			break
+	assert(not view["opponent_to_move"] and not view["legal_actions"].is_empty())
+	table._show()
+	assert(entry.visible and not dialogue.visible)
+	entry.get_node("Guided").pressed.emit()
+	assert(not table.failed, table.get_node("Layout/Status").text)
+	var guided = JSON.parse_string(table.app.guided())
+	assert(guided is Dictionary and guided["reizen"] != null and guided["step"] == "Orient")
+	var text = dialogue.get_node("Text")
+	assert(text.text.contains(texts.tr_key("guided-bid-orient")))
+	assert(not text.text.contains(texts.tr_key("guided-bid-caveat")))
+	# Whichever orientation is wrong can be retried; then the threshold attempt.
+	press(table, texts.tr_key("guided-bid-holds"))
+	guided = JSON.parse_string(table.app.guided())
+	if guided["step"] == "Orient":
+		assert(guided["correct"] == false and text.text.contains(texts.tr_key("guided-wrong")))
+		press(table, texts.tr_key("guided-retry"))
+		press(table, texts.tr_key("guided-bid-asks"))
+		guided = JSON.parse_string(table.app.guided())
+	assert(guided["step"] == "Threshold")
+	press(table, texts.tr_key("guided-reveal"))
+	guided = JSON.parse_string(table.app.guided())
+	assert(guided["bid_rule"] != null and text.text.contains(texts.tr_key("guided-bid-caveat")))
+	for other in ["de", "en", lang]:
+		texts.load_language(other)
+		table._show()
+		assert(text.text.contains(texts.tr_key("guided-bid-caveat")))
+		assert(dialogue_buttons(table).back().text == texts.tr_key("guided-return"))
+	# The legal bids are still those of the permitted view.
+	assert(JSON.parse_string(table.app.view())["legal_actions"] == view["legal_actions"])
+	press(table, texts.tr_key("guided-return"))
+	assert(not dialogue.visible and table.app.guided() == "null")
+	table.queue_free()
