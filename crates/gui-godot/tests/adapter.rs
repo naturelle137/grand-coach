@@ -572,3 +572,102 @@ fn recording_round_trip_exposes_only_the_human_historical_view() {
     assert!(adapter.replay_json(recording.actions.len() + 1).is_err());
     std::fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn training_and_history_equal_the_direct_skat_app_result() {
+    use skat_app::{
+        AssistanceLevel, LearningHistory, TrainingCommand, TrainingSession, TrainingTopic,
+        TrainingView,
+    };
+    let path = temp_file("training");
+    let mut adapter = Adapter::new(&json(&config(3))).unwrap();
+    adapter.use_learning_file(path.clone());
+    let game_before = adapter.view_json();
+    assert_eq!(adapter.training_view_json(), None);
+    let level = AssistanceLevel::AnswerBeforeReveal;
+    adapter
+        .start_training(
+            &serde_json::to_string(&TrainingTopic::TrumpfOutside).unwrap(),
+            &serde_json::to_string(&level).unwrap(),
+        )
+        .unwrap();
+
+    let mut direct = TrainingSession::new(TrainingTopic::TrumpfOutside, level);
+    let mut history = LearningHistory::new();
+    let mut attempt = None;
+    let mut presented = None;
+    let mut record = |session: &mut TrainingSession| {
+        if presented != Some(session.presentation()) {
+            presented = Some(session.presentation());
+            attempt = None;
+        }
+        let events = session.take_events();
+        let id =
+            *attempt.get_or_insert_with(|| history.begin_attempt(session.attempt_kind()).unwrap());
+        if !events.is_empty() {
+            history.record(id, &events).unwrap();
+        }
+    };
+    record(&mut direct);
+    for command in [
+        TrainingCommand::Help,
+        TrainingCommand::Answer(2),
+        TrainingCommand::Retry,
+        TrainingCommand::Skip,
+        TrainingCommand::Next,
+    ] {
+        adapter
+            .training_command_json(&serde_json::to_string(&command).unwrap())
+            .unwrap();
+        direct.execute(command).unwrap();
+        record(&mut direct);
+        let wire = adapter.training_view_json().unwrap();
+        assert_eq!(wire, serde_json::to_string(&direct.view()).unwrap());
+    }
+    // A refused command leaves the training and the history unchanged.
+    let before = (
+        adapter.training_view_json(),
+        adapter.learning_summary_json(),
+    );
+    assert!(matches!(
+        adapter.training_command_json(&serde_json::to_string(&TrainingCommand::Retry).unwrap()),
+        Err(AdapterError::Training(_))
+    ));
+    assert_eq!(
+        before,
+        (
+            adapter.training_view_json(),
+            adapter.learning_summary_json()
+        )
+    );
+
+    // Statistics equal the direct summary and the file reads back unchanged.
+    assert_eq!(
+        adapter.learning_summary_json(),
+        serde_json::to_string(&history.summary()).unwrap()
+    );
+    let mut reopened = Adapter::new(&json(&config(3))).unwrap();
+    reopened.use_learning_file(path.clone());
+    assert_eq!(
+        reopened.learning_summary_json(),
+        adapter.learning_summary_json()
+    );
+    assert!(adapter.learning_events() > 0);
+
+    // Permitted view only: the training's own hand, no deal or other hands,
+    // and the running game is untouched.
+    let wire: serde_json::Value =
+        serde_json::from_str(&adapter.training_view_json().unwrap()).unwrap();
+    let keys: Vec<&String> = wire.as_object().unwrap().keys().collect();
+    for hidden in ["deal", "hands", "skat", "state", "seats"] {
+        assert!(
+            !keys.iter().any(|k| *k == hidden),
+            "{hidden} crossed the wire"
+        );
+    }
+    let _: TrainingView = serde_json::from_value(wire).unwrap();
+    assert_eq!(adapter.view_json(), game_before);
+    adapter.stop_training();
+    assert_eq!(adapter.training_view_json(), None);
+    std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+}

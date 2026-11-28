@@ -13,9 +13,10 @@ use std::thread;
 
 use serde::Serialize;
 use skat_app::{
-    AppError, AppEvent, AttemptId, AttemptKind, Cancel, Command, GameRecording, LearningFileError,
-    LearningHistory, OpponentMove, PlayerId, RecordingEnd, RecordingFileError, RetrievalEvent,
-    Session, SessionConfig,
+    AppError, AppEvent, AssistanceLevel, AttemptId, AttemptKind, Cancel, Command, GameRecording,
+    LearningFileError, LearningHistory, OpponentMove, PlayerId, RecordingEnd, RecordingFileError,
+    RetrievalEvent, Session, SessionConfig, TrainingCommand, TrainingFixture, TrainingSession,
+    TrainingTopic,
 };
 
 /// Structured failure at the boundary, serialised as `{"error": ...}`.
@@ -31,6 +32,10 @@ pub enum AdapterError {
     NoRecording,
     /// `skat-app` rejected the command; the session is unchanged.
     App(AppError),
+    /// No training is running.
+    NoTraining,
+    /// The training refused the command; it is unchanged.
+    Training(skat_app::TrainingError),
 }
 
 impl AdapterError {
@@ -59,6 +64,15 @@ pub struct Adapter {
     in_flight: bool,
     learning: Learning,
     replay: Option<GameRecording>,
+    training: Option<Training>,
+}
+
+/// A focused counting training outside the game (D-71) and the learning
+/// attempt of its current presentation.
+struct Training {
+    session: TrainingSession,
+    attempt: Option<AttemptId>,
+    presented: Option<(TrainingFixture, u32)>,
 }
 
 /// The learning history (D-70) and the attempt of the running series. The
@@ -83,20 +97,30 @@ impl Learning {
                 _ => None,
             })
             .collect();
-        if retrieval.is_empty() {
+        let mut attempt = self.attempt;
+        self.record_attempt(&mut attempt, AttemptKind::Series, &retrieval);
+        self.attempt = attempt;
+    }
+
+    /// Records `events` in the attempt held in `attempt`, beginning one of
+    /// `kind` first when there is none.
+    fn record_attempt(
+        &mut self,
+        attempt: &mut Option<AttemptId>,
+        kind: AttemptKind,
+        events: &[RetrievalEvent],
+    ) {
+        if events.is_empty() {
             return;
         }
-        let attempt = match self.attempt {
+        let id = match *attempt {
             Some(id) => id,
-            None => match self.history.begin_attempt(AttemptKind::Series) {
-                Ok(id) => *self.attempt.insert(id),
+            None => match self.history.begin_attempt(kind) {
+                Ok(id) => *attempt.insert(id),
                 Err(_) => return,
             },
         };
-        if self
-            .history
-            .record(attempt, &retrieval)
-            .is_ok_and(|r| r.added > 0)
+        if self.history.record(id, events).is_ok_and(|r| r.added > 0)
             && !self.damaged
             && let Some(path) = &self.path
         {
@@ -132,6 +156,7 @@ impl Adapter {
             in_flight: false,
             learning: Learning::default(),
             replay: None,
+            training: None,
         })
     }
 
@@ -170,6 +195,77 @@ impl Adapter {
     /// Number of recorded retrieval events (question, answer, skip, help).
     pub fn learning_events(&self) -> usize {
         self.learning.history.events().len()
+    }
+
+    /// The descriptive overview of the learning history as JSON
+    /// (`LearningSummary`), computed by `skat-app` from the same history the
+    /// egui frontend reads.
+    pub fn learning_summary_json(&self) -> String {
+        serde_json::to_string(&self.learning.history.summary()).expect("plain data serialises")
+    }
+
+    /// Enters a focused counting training of `topic_json` with the support
+    /// `assistance_json`. The running game is not touched.
+    pub fn start_training(
+        &mut self,
+        topic_json: &str,
+        assistance_json: &str,
+    ) -> Result<(), AdapterError> {
+        let topic: TrainingTopic =
+            serde_json::from_str(topic_json).map_err(|e| AdapterError::Invalid(e.to_string()))?;
+        let assistance: AssistanceLevel = serde_json::from_str(assistance_json)
+            .map_err(|e| AdapterError::Invalid(e.to_string()))?;
+        self.training = Some(Training {
+            session: TrainingSession::new(topic, assistance),
+            attempt: None,
+            presented: None,
+        });
+        self.record_training();
+        Ok(())
+    }
+
+    /// Executes a serialised [`TrainingCommand`]; a refused one changes nothing.
+    pub fn training_command_json(&mut self, command_json: &str) -> Result<(), AdapterError> {
+        let command: TrainingCommand =
+            serde_json::from_str(command_json).map_err(|e| AdapterError::Invalid(e.to_string()))?;
+        let training = self.training.as_mut().ok_or(AdapterError::NoTraining)?;
+        training
+            .session
+            .execute(command)
+            .map_err(AdapterError::Training)?;
+        self.record_training();
+        Ok(())
+    }
+
+    /// Leaves the training; the history keeps its events.
+    pub fn stop_training(&mut self) {
+        self.training = None;
+    }
+
+    /// The running training's `TrainingView` as JSON, if one runs.
+    pub fn training_view_json(&self) -> Option<String> {
+        self.training
+            .as_ref()
+            .map(|t| serde_json::to_string(&t.session.view()).expect("plain data serialises"))
+    }
+
+    /// Records the events of the current presentation, one attempt each.
+    fn record_training(&mut self) {
+        let Some(training) = self.training.as_mut() else {
+            return;
+        };
+        let presented = training.session.presentation();
+        if training.presented != Some(presented) {
+            training.presented = Some(presented);
+            training.attempt = None;
+        }
+        let events = training.session.take_events();
+        let kind = training.session.attempt_kind();
+        let mut attempt = training.attempt;
+        self.learning.record_attempt(&mut attempt, kind, &events);
+        if let Some(training) = self.training.as_mut() {
+            training.attempt = attempt;
+        }
     }
 
     /// Generation of the current session; changes on every restart.

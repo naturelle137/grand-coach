@@ -90,6 +90,60 @@ impl SkatApp {
             .map_or(0, |a| a.learning_events() as i64)
     }
 
+    /// The learning history overview (`LearningSummary` JSON).
+    #[func]
+    fn learning_summary(&self) -> GString {
+        self.adapter
+            .as_ref()
+            .map(|a| GString::from(a.learning_summary_json().as_str()))
+            .unwrap_or_default()
+    }
+
+    /// Starts a focused counting training (`TrainingTopic`, `AssistanceLevel`
+    /// JSON). Returns `""` on success, else an error JSON.
+    #[func]
+    fn start_training(&mut self, topic_json: GString, assistance_json: GString) -> GString {
+        let Some(adapter) = self.adapter.as_mut() else {
+            return GString::from(r#"{"error":"NoSession"}"#);
+        };
+        adapter
+            .start_training(&topic_json.to_string(), &assistance_json.to_string())
+            .err()
+            .map(|e| error_text(&e))
+            .unwrap_or_default()
+    }
+
+    /// Executes a `TrainingCommand` JSON. Returns `""` or an error JSON.
+    #[func]
+    fn training_command(&mut self, command_json: GString) -> GString {
+        let Some(adapter) = self.adapter.as_mut() else {
+            return GString::from(r#"{"error":"NoSession"}"#);
+        };
+        adapter
+            .training_command_json(&command_json.to_string())
+            .err()
+            .map(|e| error_text(&e))
+            .unwrap_or_default()
+    }
+
+    /// The running training's view JSON, or `""`.
+    #[func]
+    fn training_view(&self) -> GString {
+        self.adapter
+            .as_ref()
+            .and_then(Adapter::training_view_json)
+            .map(|v| GString::from(v.as_str()))
+            .unwrap_or_default()
+    }
+
+    /// Leaves the training.
+    #[func]
+    fn stop_training(&mut self) {
+        if let Some(adapter) = self.adapter.as_mut() {
+            adapter.stop_training();
+        }
+    }
+
     /// Save a completed game to a new local file.
     #[func]
     fn save_recording(&self, path: GString) -> GString {

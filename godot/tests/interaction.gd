@@ -9,6 +9,8 @@ func run() -> void:
 	for lang in ["de", "en"]:
 		await assist_flow(lang)
 	for lang in ["de", "en"]:
+		await learning_flow(lang)
+	for lang in ["de", "en"]:
 		await play_series(lang)
 	print("Godot interaction: German and English bidding, cards, next game and finished series")
 	quit(0)
@@ -480,3 +482,95 @@ func check_recording(table: Node, lang: String) -> void:
 	assert(not table.replay_active)
 	DirAccess.remove_absolute(absolute)
 	await process_frame
+
+# History, statistics and focused training: the views are skat-app's; the
+# test compares the shown text with the adapter's own data.
+func learning_flow(lang: String) -> void:
+	var history := "user://interaction-learning-" + lang + ".json"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(history))
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = "user://interaction-learning-settings.cfg"
+	table.learning_path = history
+	root.add_child(table)
+	assert(table.texts.load_language(lang))
+	table._show()
+	assert(table.get_node("Layout/LearningButtons/History").text == table.texts.tr_key("learning-open"))
+	assert(table.get_node("Layout/LearningButtons/Training").text == table.texts.tr_key("training-open"))
+	table.get_node("Layout/LearningButtons/History").pressed.emit()
+	var summary: Label = table.get_node("LearningWindow/Content/Scroll/Summary")
+	assert(summary.text.contains(table.texts.tr_key("learning-empty")))
+	await process_frame
+	table.get_node("LearningWindow").hide()
+	var game_before: String = table.app.view()
+	table.get_node("Layout/LearningButtons/Training").pressed.emit()
+	await process_frame
+	assert(table.training_active and table.app.training_view() == "")
+	var text: Label = table.get_node("TrainingWindow/Content/Scroll/Text")
+	assert(text.text.contains(table.texts.tr_key("training-intro")))
+	assert(not table.get_node("TrainingWindow/Content/Controls").visible)
+	for topic in ["Trumpf", "Voids"]:
+		table.get_node("TrainingWindow/Content/Topics/" + topic).pressed.emit()
+		var view: Dictionary = JSON.parse_string(table.app.training_view())
+		assert(view["topic"] == ("TrumpfOutside" if topic == "Trumpf" else "ProvenVoids") and view["feedback"] == null)
+		assert(text.text.contains(table._question_text(view["question"])))
+		assert(text.text.contains(table.texts.tr_key("training-isolation")))
+		assert(table.get_node("TrainingWindow/Content/Controls/Retry").disabled)
+	table.get_node("TrainingWindow/Content/Controls/Help").pressed.emit()
+	var helped: Dictionary = JSON.parse_string(table.app.training_view())
+	assert(helped["help"] != null and text.text.contains(table._derivation_lines(helped["help"])[0]))
+	var expected: int = table._expected(helped["help"])
+	table.get_node("TrainingWindow/Content/Controls/Value").value = expected
+	table.get_node("TrainingWindow/Content/Controls/Answer").pressed.emit()
+	var settled: Dictionary = JSON.parse_string(table.app.training_view())
+	assert(settled["feedback"] != null and settled["assisted"])
+	assert(text.text.contains(table._feedback_lines(settled["feedback"])[0]))
+	assert(not table.get_node("TrainingWindow/Content/Controls/Next").disabled)
+	table.get_node("TrainingWindow/Content/Controls/Next").pressed.emit()
+	var next: Dictionary = JSON.parse_string(table.app.training_view())
+	assert(next["position"][0] == 2 and next["feedback"] == null)
+	table.get_node("TrainingWindow/Content/Controls/Skip").pressed.emit()
+	table.get_node("TrainingWindow/Content/Controls/Retry").pressed.emit()
+	assert(not table.failed)
+	table.texts.load_language("de" if lang == "en" else "en")
+	table.texts.load_language(lang)
+	table._show()
+	assert(table.get_node("TrainingWindow/Content/Controls/Answer").text == table.texts.tr_key("quiz-submit"))
+	if OS.has_environment("GODOT_LEARNING_SCREENSHOTS"):
+		await process_frame
+		table.get_node("TrainingWindow").popup_centered()
+		await process_frame
+		await RenderingServer.frame_post_draw
+		assert(table.get_node("TrainingWindow").get_texture().get_image().save_png(OS.get_environment("GODOT_LEARNING_SCREENSHOTS").path_join("training-" + lang + ".png")) == OK)
+	table.get_node("TrainingWindow/Content/Close").pressed.emit()
+	assert(not table.training_active and table.app.training_view() == "")
+	assert(table.app.view() == game_before, "the running game is untouched")
+	await process_frame
+	# The statistics read the history file the training wrote.
+	var recorded: int = table.app.learning_events()
+	assert(recorded > 0 and FileAccess.file_exists(history))
+	table.get_node("Layout/LearningButtons/History").pressed.emit()
+	await process_frame
+	var rows: Dictionary = JSON.parse_string(table.app.learning_summary())
+	assert(rows["totals"]["opportunities"] >= 3 and rows["totals"]["help"] >= 1 and rows["totals"]["skips"] >= 1)
+	assert(summary.text.contains(table.texts.tr_key("learning-context-training")))
+	assert(summary.text.contains(table.texts.tr_key("learning-topic-trumpf")))
+	assert(summary.text.contains(table.texts.tr_key("learning-topic-voids")))
+	assert(summary.text.contains(table.texts.tr_key("learning-observed", {"count": int(rows["totals"]["opportunities"]), "attempts": int(rows["attempts"])})) or summary.text.contains(table.texts.tr_key("learning-limited", {"count": int(rows["totals"]["opportunities"])})))
+	if OS.has_environment("GODOT_LEARNING_SCREENSHOTS"):
+		await process_frame
+		await RenderingServer.frame_post_draw
+		assert(table.get_node("LearningWindow").get_texture().get_image().save_png(OS.get_environment("GODOT_LEARNING_SCREENSHOTS").path_join("history-" + lang + ".png")) == OK)
+	await process_frame
+	table.get_node("LearningWindow/Content/Close").pressed.emit()
+	table.queue_free()
+	await process_frame
+	# A new run reads the same file unchanged.
+	table = load("res://main.tscn").instantiate()
+	table.settings_path = "user://interaction-learning-settings.cfg"
+	table.learning_path = history
+	root.add_child(table)
+	assert(table.app.learning_events() == recorded)
+	table.queue_free()
+	await process_frame
+	for file in [history, "user://interaction-learning-settings.cfg"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(file))

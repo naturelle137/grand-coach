@@ -22,9 +22,12 @@ var replay_active := false
 var replay_index := 0
 var replay_total := 0
 var recording_save := false
+var training_active := false
 var discard_selection: Array[int] = []
 const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
 const ENGINES := ["Classic", "Neural", "PrePlay", "Hybrid"]
+const LEARNING_TOPICS := {"TrumpfOutside": "learning-topic-trumpf", "ProvenVoids": "learning-topic-voids", "AugenWon": "learning-topic-augen", "ClassPlayed": "learning-topic-played"}
+const LEARNING_CONTEXTS := {"Series": "learning-context-series", "Practice": "learning-context-practice", "PracticeRetry": "learning-context-retry", "Training": "learning-context-training", "TrainingRepeat": "learning-context-training-repeat"}
 const ENGINE_KEYS := ["engine-classic", "mode-neural", "mode-pre-play", "mode-hybrid"]
 
 func _ready() -> void:
@@ -82,7 +85,153 @@ func _ready() -> void:
 	$Replay.close_requested.connect(_replay_close)
 	$Replay/Content/Navigation/Previous.pressed.connect(_replay_step.bind(-1))
 	$Replay/Content/Navigation/Next.pressed.connect(_replay_step.bind(1))
+	$Layout/LearningButtons/History.pressed.connect(_history_open)
+	$Layout/LearningButtons/Training.pressed.connect(_training_open)
+	$LearningWindow.close_requested.connect($LearningWindow.hide)
+	$LearningWindow/Content/Close.pressed.connect($LearningWindow.hide)
+	$TrainingWindow.close_requested.connect(_training_close)
+	$TrainingWindow/Content/Close.pressed.connect(_training_close)
+	$TrainingWindow/Content/Topics/Trumpf.pressed.connect(_training_start.bind("TrumpfOutside"))
+	$TrainingWindow/Content/Topics/Voids.pressed.connect(_training_start.bind("ProvenVoids"))
+	$TrainingWindow/Content/Controls/Answer.pressed.connect(_training_answer)
+	$TrainingWindow/Content/Controls/Help.pressed.connect(_training_command.bind("Help"))
+	$TrainingWindow/Content/Controls/Skip.pressed.connect(_training_command.bind("Skip"))
+	$TrainingWindow/Content/Controls/Retry.pressed.connect(_training_command.bind("Retry"))
+	$TrainingWindow/Content/Controls/Next.pressed.connect(_training_command.bind("Next"))
 	_start_series()
+
+# Learning history (D-70): the overview is skat-app's summary of the history
+# file; only the wording happens here.
+func _history_open() -> void:
+	_history_show()
+	$LearningWindow.popup_centered.call_deferred()
+
+func _history_show() -> void:
+	var raw: String = app.learning_summary()
+	var summary = JSON.parse_string(raw) if raw != "" else null
+	$LearningWindow.title = texts.tr_key("learning-title")
+	$LearningWindow/Content/Close.text = texts.tr_key("learning-close")
+	var lines: Array[String] = [texts.tr_key("learning-descriptive")]
+	if not summary is Dictionary or summary["rows"].is_empty():
+		lines.append(texts.tr_key("learning-empty"))
+	else:
+		var totals: Dictionary = summary["totals"]
+		if summary["observations"] == "Limited":
+			lines.append(texts.tr_key("learning-limited", {"count": int(totals["opportunities"])}))
+		else:
+			lines.append(texts.tr_key("learning-observed", {"count": int(totals["opportunities"]), "attempts": int(summary["attempts"])}))
+		if summary["full"]:
+			lines.append(texts.tr_key("learning-full"))
+		for row in summary["rows"]:
+			var c: Dictionary = row["counts"]
+			lines.append(" · ".join([
+				texts.tr_key(LEARNING_TOPICS[row["topic"]]) + " (" + texts.tr_key(LEARNING_CONTEXTS[row["context"]]) + ")",
+				texts.tr_key("learning-col-opportunities") + " " + str(int(c["opportunities"])),
+				texts.tr_key("learning-col-answers") + " " + texts.tr_key("learning-of-exact", {"count": int(c["answers"]), "exact": int(c["correct"])}),
+				texts.tr_key("learning-col-unaided") + " " + texts.tr_key("learning-of-exact", {"count": int(c["unaided_answers"]), "exact": int(c["unaided_correct"])}),
+				texts.tr_key("learning-col-help") + " " + str(int(c["help"])),
+				texts.tr_key("learning-col-skips") + " " + str(int(c["skips"]))]))
+		lines.append(texts.tr_key("learning-legend"))
+	$LearningWindow/Content/Scroll/Summary.text = "\n".join(lines)
+
+# Focused counting training outside the game: skat-app's TrainingSession,
+# seen from one seat. The running game waits unchanged.
+func _training_open() -> void:
+	training_active = true
+	app.stop_training()
+	_training_show()
+	$TrainingWindow.popup_centered.call_deferred()
+
+func _training_close() -> void:
+	training_active = false
+	app.stop_training()
+	$TrainingWindow.hide()
+
+# A refused training command leaves training and game unchanged; it is only shown.
+func _training_error(result: String) -> bool:
+	var parsed = JSON.parse_string(result)
+	if parsed is Dictionary and parsed.has("error"):
+		$Layout/Status.text = JSON.stringify(parsed["error"])
+		return true
+	return false
+
+func _training_start(topic: String) -> void:
+	if not _training_error(app.start_training(JSON.stringify(topic), JSON.stringify("AnswerBeforeReveal"))):
+		_training_show()
+
+func _training_command(command: Variant) -> void:
+	if not _training_error(app.training_command(JSON.stringify(command))):
+		_training_show()
+
+func _training_answer() -> void:
+	_training_command({"Answer": int($TrainingWindow/Content/Controls/Value.value)})
+
+func _training_show() -> void:
+	var window := $TrainingWindow
+	window.title = texts.tr_key("training-title")
+	window.get_node("Content/Close").text = texts.tr_key("training-return")
+	window.get_node("Content/Topics/Trumpf").text = texts.tr_key("training-start-trumpf")
+	window.get_node("Content/Topics/Voids").text = texts.tr_key("training-start-voids")
+	var controls := window.get_node("Content/Controls")
+	controls.get_node("Answer").text = texts.tr_key("quiz-submit")
+	controls.get_node("Help").text = texts.tr_key("retrieval-help")
+	controls.get_node("Skip").text = texts.tr_key("quiz-skip")
+	controls.get_node("Retry").text = texts.tr_key("training-retry")
+	controls.get_node("Next").text = texts.tr_key("training-next")
+	var raw: String = app.training_view()
+	var view = JSON.parse_string(raw) if raw != "" else null
+	controls.visible = view is Dictionary
+	var text := window.get_node("Content/Scroll/Text")
+	if not view is Dictionary:
+		text.text = "\n".join([texts.tr_key("training-isolation"), texts.tr_key("training-intro"),
+			texts.tr_key("training-note-trumpf"), texts.tr_key("training-note-voids"), texts.tr_key("training-practice-only")])
+		return
+	var settled = view["feedback"] != null
+	controls.get_node("Answer").disabled = settled
+	controls.get_node("Skip").disabled = settled
+	controls.get_node("Value").editable = not settled
+	controls.get_node("Help").disabled = settled or view["help"] != null
+	controls.get_node("Retry").disabled = not settled
+	controls.get_node("Next").disabled = not settled
+	var seat: String = texts.tr_key("seat-" + str(view["seat"]).to_lower())
+	var declarer: String = texts.tr_key("seat-" + str(view["declarer"]).to_lower())
+	var contract: Dictionary = view["contract"]
+	var game := " · ".join(_contract_parts(contract["game"], contract["hand"], contract))
+	var hand: Array[String] = []
+	for card in view["hand"]:
+		hand.append(_card(int(card)))
+	var tricks: Array[String] = []
+	for trick in view["tricks"]:
+		var played: Array[String] = []
+		for entry in trick["cards"]:
+			played.append(texts.tr_key("seat-" + str(entry[0]).to_lower()) + " " + _card(int(entry[1])))
+		tricks.append(", ".join(played))
+	var lines: Array[String] = [
+		texts.tr_key("training-banner", {"topic": texts.tr_key(LEARNING_TOPICS[view["topic"]]), "position": int(view["position"][0]), "count": int(view["position"][1]), "presentation": int(view["presentation"])}),
+		texts.tr_key("training-isolation"),
+		texts.tr_key("training-contract", {"game": game, "bid": int(view["bid"]), "declarer": declarer}),
+		texts.tr_key("training-role-declarer" if view["seat"] == view["declarer"] else "training-role-defender", {"seat": seat, "declarer": declarer}),
+		texts.tr_key("training-hand") + ": " + ", ".join(hand)]
+	if view["own_skat"] != null:
+		var skat: Array[String] = []
+		for card in view["own_skat"]:
+			skat.append(_card(int(card)))
+		lines.append(texts.tr_key("training-discard") + ": " + ", ".join(skat))
+	else:
+		lines.append(texts.tr_key("training-skat-unknown"))
+	lines.append(texts.tr_key("training-tricks") + ": " + "; ".join(tricks))
+	lines.append(texts.tr_key("training-table") + ": " + (texts.tr_key("training-you-lead") if view["current_trick"].is_empty() else ", ".join(view["current_trick"].map(func(e): return texts.tr_key("seat-" + str(e[0]).to_lower()) + " " + _card(int(e[1]))))))
+	lines.append(texts.tr_key("training-question") + ": " + _question_text(view["question"]))
+	if view["help"] != null:
+		lines.append_array(_derivation_lines(view["help"]))
+		lines.append(texts.tr_key("retrieval-assisted"))
+	if settled:
+		lines.append(texts.tr_key("training-result"))
+		lines.append_array(_feedback_lines(view["feedback"]))
+		if view["assisted"]:
+			lines.append(texts.tr_key("training-was-assisted"))
+	lines.append(texts.tr_key("training-fixture-note", {"version": int(view["task"]["version"])}))
+	text.text = "\n".join(lines)
 
 func _recording_consent() -> void:
 	$RecordingConsent.dialog_text = texts.tr_key("record-export-warning")
@@ -277,7 +426,7 @@ func _apply_setting() -> void:
 	_start_series()
 
 func _process(_delta: float) -> void:
-	if failed or replay_active:
+	if failed or replay_active or training_active:
 		return
 	var events := app.poll_opponent()
 	if events != "":
@@ -479,6 +628,12 @@ func _show() -> void:
 		return
 	$Layout/RecordingFiles/SaveRecording.text = texts.tr_key("record-save")
 	$Layout/RecordingFiles/OpenRecording.text = texts.tr_key("record-open")
+	$Layout/LearningButtons/History.text = texts.tr_key("learning-open")
+	$Layout/LearningButtons/Training.text = texts.tr_key("training-open")
+	if $LearningWindow.visible:
+		_history_show()
+	if training_active:
+		_training_show()
 	$Layout/RecordingFiles/SaveRecording.disabled = not (view["can_next_game"] or view["series_finished"])
 	$Layout/Language.tooltip_text = texts.tr_key("setting-language")
 	$Layout/KontraRe.text = texts.tr_key("option-kontra-re")
