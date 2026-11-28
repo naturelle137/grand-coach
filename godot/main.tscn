@@ -3,7 +3,7 @@
 
 [ext_resource type="Script" path="res://main.gd" id="1"]
 
-[node name="Main" type="Control"]
+[node name="Main" type="ScrollContainer"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -12,15 +12,35 @@ script = ExtResource("1")
 
 [node name="ConfirmRestart" type="ConfirmationDialog" parent="."]
 
+[node name="History" type="AcceptDialog" parent="."]
+
+[node name="Scroll" type="ScrollContainer" parent="History"]
+custom_minimum_size = Vector2(900, 400)
+
+[node name="Summary" type="Label" parent="History/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+
 [node name="Layout" type="VBoxContainer" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = 16.0
-offset_right = -16.0
-offset_bottom = -16.0
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PracticeControls" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="Practice" type="Button" parent="Layout/PracticeControls"]
+layout_mode = 2
+
+[node name="Return" type="Button" parent="Layout/PracticeControls"]
+layout_mode = 2
+
+[node name="HistoryButton" type="Button" parent="Layout/PracticeControls"]
+layout_mode = 2
+
+[node name="PracticeNotice" type="Label" parent="Layout"]
+layout_mode = 2
+autowrap_mode = 2
 
 [node name="Table" type="Label" parent="Layout"]
 layout_mode = 2
@@ -40,6 +60,14 @@ layout_mode = 2
 
 [node name="Quiz" type="CheckBox" parent="Layout"]
 layout_mode = 2
+
+[node name="Mode" type="OptionButton" parent="Layout"]
+layout_mode = 2
+
+[node name="ModeNote" type="Label" parent="Layout"]
+visible = false
+layout_mode = 2
+autowrap_mode = 2
 
 [node name="Engine" type="OptionButton" parent="Layout"]
 layout_mode = 2
@@ -143,6 +171,7 @@ layout_mode = 2
 layout_mode = 2
 
 [node name="Scroll" type="ScrollContainer" parent="Layout"]
+custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
 size_flags_vertical = 3
 
