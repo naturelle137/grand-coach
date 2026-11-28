@@ -182,6 +182,18 @@ impl Adapter {
         serde_json::to_string(&self.session.view()).expect("plain data serialises")
     }
 
+    /// The explicitly entered guided dialogue (`Option<GuidedView>`) as JSON;
+    /// `null` when none is open.
+    pub fn guided_json(&self) -> String {
+        serde_json::to_string(&self.session.guided()).expect("plain data serialises")
+    }
+
+    /// The explicitly entered live Abstich question (`Option<LiveAbstichView>`)
+    /// as JSON; `null` when none is open.
+    pub fn live_abstich_json(&self) -> String {
+        serde_json::to_string(&self.session.live_abstich()).expect("plain data serialises")
+    }
+
     /// Resource keys of the figure catalogue, indexed by `FigureId`, so a
     /// frontend resolves the view's cast to names and portraits (D-72).
     pub fn figure_keys_json() -> String {
