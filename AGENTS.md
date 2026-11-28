@@ -42,8 +42,9 @@ implementation details belong in code/PRs. Keep documents short.
 
 ## Tech stack
 
-Rust (Cargo workspace), GUI with egui. Later additionally Godot via
-godot-rust/gdext (D-11).
+Rust (Cargo workspace), migrating the GUI to Godot via godot-rust/gdext
+(D-11). Godot is the intended sole frontend; keep egui working until the
+existing product's functional and accessibility parity is verified.
 
 ## Architecture (crates)
 

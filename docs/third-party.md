@@ -65,7 +65,7 @@ All are used unchanged from crates.io; versions are pinned in `Cargo.lock`.
 | `resvg`, `usvg` | via `egui_extras` (SVG rendering, D-33) | Apache-2.0 OR MIT |
 | `tiny-skia`, `tiny-skia-path` | via `resvg` | BSD-3-Clause |
 | `winit`, `glutin`, `glow` and their platform crates | via `eframe` | MIT OR Apache-2.0 (some also Zlib) |
-| `fluent-bundle`, `fluent-syntax`, `intl-memoizer`, `intl_pluralrules`, `unic-langid` | `gui-egui` (translations, D-32) | MIT OR Apache-2.0 |
+| `fluent-bundle`, `fluent-syntax`, `intl-memoizer`, `intl_pluralrules`, `unic-langid` | `gui-egui`, `gui-godot` (translations, D-32) | MIT OR Apache-2.0 |
 | `self_cell` | via `fluent-bundle` | Apache-2.0 OR GPL-2.0-only (used under Apache-2.0) |
 | `egui_kittest`, `kittest` | `gui-egui` tests only (headless UI tests) | MIT OR Apache-2.0 |
 | `burn` 0.22.1 and its crates (`burn-core`, `burn-nn`, `burn-flex`, `burn-tensor`, `burn-pack`, …) | `skat-nn` (model definition, CPU inference with Flex; D-11) | MIT OR Apache-2.0 |
