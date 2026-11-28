@@ -44,8 +44,8 @@ adapter contract only, `open` = not started.
 | Guided dialogues and Abstich question | open | |
 | Score sheet, series result, series figures | done | `sheet_and_series_result_cross_the_wire_like_the_egui_view_model` and `cast_resolves_to_catalogue_keys_like_the_egui_view_model` compare the adapter with `skat-app`. `interaction.gd` `check_sheet` verified the sheet, ranking, figure names and portraits in German and English on Godot 4.4.1, headless and with a rendered display. |
 | Save/open recordings, replay window, comments, review, hindsight | open | |
-| Same-deal practice | open | |
-| Learning history, statistics, focused training | open | |
+| Same-deal practice | open | The current deal can be practised and retried in isolation, then the unchanged series resumed. `same_deal_practice_parks_the_series_and_keeps_cards_private` checks the hand, closed view and return; `interaction.gd` exercises both languages. Selection of earlier recordings and comparison remain open. |
+| Learning history, statistics, focused training | open | The counting-history overview shows the descriptive `skat-app` counts by topic and context. `quiz_events_reach_the_persistent_learning_history` checks the saved summary; `interaction.gd` exercises the overview in both languages. Other history sections and focused training remain open. |
 | Settings persistence | open | The language selector persists in `user://settings.cfg`; `godot/tests/interaction.gd` verifies both languages after recreating the scene. The optional Kontra/Re checkbox and both opponent levels persist in the same file and start a new series after confirmation; `interaction.gd` checks both values, all four levels, both seats and both languages on Godot 4.4.1. The open-display checkbox persists the same way and shows all hands and the Skat from the permitted open view; `interaction.gd` checks both values and languages. The counting-aid and quiz checkboxes persist in the same file (`[assist]`). Other settings remain open. |
 | Linux and Windows 11 export, launch smoke, performance | open | |
 
