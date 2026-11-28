@@ -41,6 +41,14 @@ layout_mode = 2
 [node name="Quiz" type="CheckBox" parent="Layout"]
 layout_mode = 2
 
+[node name="Mode" type="OptionButton" parent="Layout"]
+layout_mode = 2
+
+[node name="ModeNote" type="Label" parent="Layout"]
+visible = false
+layout_mode = 2
+autowrap_mode = 2
+
 [node name="Engine" type="OptionButton" parent="Layout"]
 layout_mode = 2
 
