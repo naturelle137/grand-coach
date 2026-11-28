@@ -6,12 +6,44 @@ func _initialize() -> void:
 
 func run() -> void:
 	await settings_persistence()
+	await bidding_reachable()
 	for lang in ["de", "en"]:
 		await assist_flow(lang)
 	for lang in ["de", "en"]:
 		await play_series(lang)
 	print("Godot interaction: German and English bidding, cards, next game and finished series")
 	quit(0)
+
+func bidding_reachable() -> void:
+	root.size = Vector2i(1152, 648)
+	for mode in ["Levels", "GodMode"]:
+		for lang in ["de", "en"]:
+			for choice in range(2):
+				var table = load("res://main.tscn").instantiate()
+				table.settings_path = "user://reachability-settings.cfg"
+				root.add_child(table)
+				table.texts.load_language(lang)
+				table.mode = mode
+				table._start_series()
+				for i in range(600):
+					if not JSON.parse_string(table.app.view())["opponent_to_move"]:
+						break
+					await create_timer(0.1).timeout
+				await process_frame
+				await process_frame
+				var actions = table.get_node("Layout/Scroll/Actions")
+				assert(actions.get_child_count() == 2)
+				table.ensure_control_visible(actions.get_parent())
+				await process_frame
+				assert(table.get_node("Layout/Scroll").size.y >= 100)
+				for button in actions.get_children():
+					var bounds: Rect2 = button.get_global_rect()
+					assert(bounds.position.y >= 0 and bounds.end.y <= table.size.y)
+				var before: String = table.app.view()
+				actions.get_child(choice).pressed.emit()
+				assert(table.app.view() != before)
+				table.queue_free()
+				await process_frame
 
 func settings_persistence() -> void:
 	var path := "user://interaction-settings.cfg"
