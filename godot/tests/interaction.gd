@@ -303,6 +303,12 @@ func play_series(lang: String) -> void:
 		if view["series_finished"]:
 			check_sheet(table, view)
 			assert(saw_bid and saw_play and saw_next and saw_card_click and saw_discard and actions.is_empty())
+			if OS.has_environment("GODOT_SHEET_SCREENSHOTS"):
+				table.texts.load_language(lang)
+				table._show()
+				await process_frame
+				await RenderingServer.frame_post_draw
+				assert(root.get_texture().get_image().save_png(OS.get_environment("GODOT_SHEET_SCREENSHOTS").path_join(lang + ".png")) == OK)
 			table.queue_free()
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(table.settings_path))
 			return
@@ -353,6 +359,7 @@ func check_sheet(table: Node, view: Dictionary) -> void:
 		var series: Dictionary = view["series_result"]
 		var text: String = table.get_node("Layout/Series").text
 		assert(table.get_node("Layout/Series").visible)
+		assert(table.get_node("Layout/Status").text == table.texts.tr_key("series-finished", {"games": int(series["games"])}))
 		assert(text.begins_with(table.texts.tr_key("series-finished", {"games": int(series["games"])})))
 		assert(text.split("\n").size() == 4)
 		var best := int(series["ranking"][0])
