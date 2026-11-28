@@ -61,6 +61,12 @@ layout_mode = 2
 [node name="Quiz" type="CheckBox" parent="Layout"]
 layout_mode = 2
 
+[node name="CoachLevel" type="OptionButton" parent="Layout"]
+layout_mode = 2
+
+[node name="CoachWarnings" type="CheckBox" parent="Layout"]
+layout_mode = 2
+
 [node name="ShowFigures" type="CheckBox" parent="Layout"]
 layout_mode = 2
 
@@ -142,6 +148,23 @@ layout_mode = 2
 layout_mode = 2
 
 [node name="Off" type="Button" parent="Layout/QuizBox/Controls"]
+layout_mode = 2
+
+[node name="CoachBox" type="VBoxContainer" parent="Layout"]
+visible = false
+layout_mode = 2
+
+[node name="Message" type="Label" parent="Layout/CoachBox"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="Controls" type="HBoxContainer" parent="Layout/CoachBox"]
+layout_mode = 2
+
+[node name="Proceed" type="Button" parent="Layout/CoachBox/Controls"]
+layout_mode = 2
+
+[node name="Reconsider" type="Button" parent="Layout/CoachBox/Controls"]
 layout_mode = 2
 
 [node name="QuizFeedback" type="Label" parent="Layout"]
