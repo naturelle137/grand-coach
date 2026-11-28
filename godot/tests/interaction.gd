@@ -11,6 +11,7 @@ func run() -> void:
 		await practice_history_flow(lang)
 		await assist_flow(lang)
 	for lang in ["de", "en"]:
+		await coach_flow(lang)
 		await dialogue_flow(lang)
 		await reizen_dialogue_flow(lang)
 	for lang in ["de", "en"]:
@@ -519,6 +520,86 @@ func dialogue_flow(lang: String) -> void:
 	for file in ["user://interaction-dialogue.cfg", "user://interaction-dialogue-history.json"]:
 		if FileAccess.file_exists(file):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(file))
+
+# Coach mode and warnings: both persist, texts follow the language, a held
+# action blocks other moves until proceed or reconsider, and the analysis of a
+# real game never fails the session.
+func coach_flow(lang: String) -> void:
+	var path := "user://interaction-coach.cfg"
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = path
+	root.add_child(table)
+	assert(table.coach_level == "OnRequest" and not table.coach_warnings)
+	var selector = table.get_node("Layout/CoachLevel")
+	var warnings = table.get_node("Layout/CoachWarnings")
+	assert(selector.item_count == 4 and selector.selected == 1)
+	selector.select(2)
+	selector.item_selected.emit(2)
+	warnings.button_pressed = true
+	assert(table.coach_level == "Important" and table.coach_warnings and not table.failed)
+	var coach_view: Dictionary = JSON.parse_string(table.app.view())["coach"]["settings"]
+	assert(coach_view["level"] == "Important" and coach_view["warnings"] == true)
+	table.queue_free()
+	await process_frame
+	table = load("res://main.tscn").instantiate()
+	table.settings_path = path
+	root.add_child(table)
+	assert(table.coach_level == "Important" and table.coach_warnings)
+	selector = table.get_node("Layout/CoachLevel")
+	warnings = table.get_node("Layout/CoachWarnings")
+	assert(selector.selected == 2 and warnings.button_pressed)
+	coach_view = JSON.parse_string(table.app.view())["coach"]["settings"]
+	assert(coach_view["level"] == "Important" and coach_view["warnings"] == true)
+	assert(table.texts.load_language(lang))
+	table._show()
+	for j in range(4):
+		assert(selector.get_item_text(j) == table.texts.tr_key(table.COACH_LEVEL_KEYS[j]))
+	assert(warnings.text == table.texts.tr_key("setting-coach-warnings"))
+	# A held action (shown from a permitted-view sample) offers the right choices.
+	var box = table.get_node("Layout/CoachBox")
+	var sample := {"bid": 18, "hand_game": null, "coach": {"pending": {"Checking": {"action": "Pass"}}}}
+	assert(table._show_coach(sample) and box.visible)
+	assert(not box.get_node("Controls/Proceed").visible)
+	assert(box.get_node("Message").text == table.texts.tr_key("coach-checking", {"action": table.texts.tr_key("button-pass")}))
+	sample["coach"]["pending"] = {"Warning": {"action": "Pass", "warning": {}}}
+	assert(table._show_coach(sample))
+	assert(box.get_node("Controls/Proceed").visible)
+	assert(box.get_node("Controls/Proceed").text == table.texts.tr_key("button-coach-proceed"))
+	assert(box.get_node("Controls/Reconsider").text == table.texts.tr_key("button-coach-reconsider"))
+	assert(box.get_node("Message").text.contains(table.texts.tr_key("coach-warning-title")))
+	sample["coach"]["pending"] = null
+	assert(not table._show_coach(sample) and not box.visible)
+	# Play a seeded series with warnings on; a held action must resolve.
+	var deadline := Time.get_ticks_msec() + 120000
+	var held := 0
+	var view: Dictionary = JSON.parse_string(table.app.view())
+	while not view["series_finished"] and Time.get_ticks_msec() < deadline:
+		await process_frame
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		view = JSON.parse_string(table.app.view())
+		var pending = view["coach"]["pending"]
+		if pending != null:
+			held += 1
+			assert(box.visible)
+			assert(table.get_node("Layout/Scroll/Actions").get_children().filter(
+				func(button): return not button.is_queued_for_deletion()).is_empty())
+			if pending.has("Warning"):
+				box.get_node("Controls/Reconsider" if held % 2 == 0 else "Controls/Proceed").pressed.emit()
+			continue
+		if view["opponent_to_move"]:
+			continue
+		if not view["legal_actions"].is_empty():
+			table._act({"Act": view["legal_actions"][0]})
+		elif view["can_next_game"]:
+			table._act("NextGame")
+		else:
+			break
+	assert(view["series_finished"], "series did not finish with warnings on")
+	table.queue_free()
+	await process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 func play_series(lang: String) -> void:
 	var table = load("res://main.tscn").instantiate()

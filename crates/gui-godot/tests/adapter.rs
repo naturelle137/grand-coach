@@ -6,8 +6,9 @@ use std::time::{Duration, Instant};
 
 use gui_godot::adapter::{Adapter, AdapterError};
 use skat_app::{
-    AppError, AssistSettings, Command, CountingState, Level, OpponentEngine, Opponents,
-    SeriesLength, Session, SessionConfig, TableDisplay, TableView,
+    AppError, AppEvent, AssistSettings, CoachEvent, CoachLevel, CoachSettings, Command,
+    CountingState, Level, OpponentEngine, Opponents, SeriesLength, Session, SessionConfig,
+    TableDisplay, TableView,
 };
 
 fn config(seed: u64) -> SessionConfig {
@@ -533,6 +534,154 @@ fn damaged_learning_file_is_left_unchanged() {
     adapter.execute_json(&command(Command::SkipQuiz)).unwrap();
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "not json");
     std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+}
+
+fn coach(level: CoachLevel, warnings: bool) -> Command {
+    Command::SetCoach(CoachSettings {
+        level,
+        warnings,
+        ..CoachSettings::default()
+    })
+}
+
+/// Waits (bounded) for the coach worker and applies its result.
+fn finish_coach(adapter: &mut Adapter) -> Vec<AppEvent> {
+    let end = Instant::now() + Duration::from_secs(120);
+    while Instant::now() < end {
+        if let Some(events) = adapter.poll_coach().unwrap() {
+            return serde_json::from_str(&events).unwrap();
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    panic!("coach did not finish");
+}
+
+/// Adapter and direct session in lockstep up to a human card decision with a
+/// weak option; returns both and that option, warnings switched on.
+fn weak_position() -> (Adapter, Session, skat_app::Action) {
+    for seed in 0..60 {
+        let cfg = config(seed);
+        let mut adapter = Adapter::new(&json(&cfg)).unwrap();
+        let mut direct = Session::new(cfg);
+        loop {
+            let v = view(&adapter);
+            if v.series_finished || v.can_next_game {
+                break;
+            }
+            if v.opponent_to_move {
+                assert!(adapter.start_opponent());
+                finish_opponent(&mut adapter).expect("move applied");
+                direct.run_opponents();
+                continue;
+            }
+            let late = v.tricks_played >= 5 && v.legal_actions.len() >= 2;
+            if late {
+                direct.execute(coach(CoachLevel::Off, true)).unwrap();
+                let result = direct
+                    .coach_job()
+                    .expect("warnings need analysis")
+                    .run(None);
+                let weak = result.explanation().and_then(|e| {
+                    e.options
+                        .iter()
+                        .find(|o| o.judgement == skat_app::coach_model::Judgement::Weak)
+                        .map(|o| o.action)
+                });
+                if let Some(weak) = weak {
+                    direct.finish_coach(result).unwrap();
+                    adapter
+                        .execute_json(&command(coach(CoachLevel::Off, true)))
+                        .unwrap();
+                    return (adapter, direct, weak);
+                }
+                direct.execute(coach(CoachLevel::Off, false)).unwrap();
+            }
+            let action = v.legal_actions[0];
+            direct.execute(Command::Act(action)).unwrap();
+            adapter
+                .execute_json(&command(Command::Act(action)))
+                .unwrap();
+        }
+    }
+    panic!("no weak option found");
+}
+
+/// Holds a weak action with its warning; returns the state before the move.
+fn warned(adapter: &mut Adapter, weak: skat_app::Action) -> TableView {
+    let before = view(adapter);
+    let events: Vec<AppEvent> =
+        serde_json::from_str(&adapter.execute_json(&command(Command::Act(weak))).unwrap()).unwrap();
+    // The action is held until the worker finished its analysis.
+    assert_eq!(
+        events,
+        vec![AppEvent::Coach(CoachEvent::Checking { action: weak })]
+    );
+    assert!(adapter.start_coach());
+    assert!(!adapter.start_coach(), "one analysis at a time");
+    assert_eq!(
+        finish_coach(adapter),
+        vec![AppEvent::Coach(CoachEvent::Warned { action: weak })]
+    );
+    before
+}
+
+#[test]
+fn coach_settings_travel_and_the_warning_shows_only_the_permitted_view() {
+    let (mut adapter, mut direct, weak) = weak_position();
+    assert_eq!(
+        view(&adapter).coach.settings,
+        CoachSettings {
+            level: CoachLevel::Off,
+            warnings: true,
+            ..CoachSettings::default()
+        }
+    );
+    let before = warned(&mut adapter, weak);
+    direct.execute(Command::Act(weak)).unwrap();
+    // The warning is what skat-app shows the human: no other cards, and no
+    // name of a better option.
+    let held = view(&adapter);
+    assert_eq!(held, direct.view());
+    assert!(held.open_cards.is_none());
+    assert_eq!(held.hand, before.hand);
+    assert_eq!(held.current_trick, before.current_trick);
+    // Another action waits for the answer; reconsider leaves the game as it was.
+    assert_eq!(
+        adapter.execute_json(&command(Command::Act(before.legal_actions[0]))),
+        Err(AdapterError::App(AppError::ActionPending))
+    );
+    adapter.execute_json(&command(Command::Reconsider)).unwrap();
+    let after = view(&adapter);
+    assert!(after.coach.pending.is_none());
+    assert_eq!(after.hand, before.hand);
+    assert_eq!(after.legal_actions, before.legal_actions);
+}
+
+#[test]
+fn proceed_plays_the_held_action_once() {
+    let (mut adapter, _direct, weak) = weak_position();
+    let before = warned(&mut adapter, weak);
+    adapter
+        .execute_json(&command(Command::ProceedAnyway))
+        .unwrap();
+    let after = view(&adapter);
+    assert!(after.coach.pending.is_none());
+    assert_eq!(after.hand.len(), before.hand.len() - 1);
+    assert_eq!(
+        adapter.execute_json(&command(Command::ProceedAnyway)),
+        Err(AdapterError::App(AppError::NothingPending))
+    );
+}
+
+#[test]
+fn a_restart_discards_a_running_coach_analysis() {
+    let (mut adapter, _direct, weak) = weak_position();
+    adapter.execute_json(&command(Command::Act(weak))).unwrap();
+    assert!(adapter.start_coach());
+    adapter.restart(&json(&config(3))).unwrap();
+    assert!(!adapter.coach_busy());
+    std::thread::sleep(Duration::from_millis(50));
+    assert_eq!(adapter.poll_coach(), Ok(None));
 }
 
 #[test]
