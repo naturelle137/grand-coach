@@ -109,4 +109,24 @@ impl SkatApp {
             Err(e) => error_text(&e),
         }
     }
+
+    /// Starts the due coach analysis on a worker thread.
+    #[func]
+    fn start_coach(&mut self) -> bool {
+        self.adapter.as_mut().is_some_and(Adapter::start_coach)
+    }
+
+    /// Collects a finished coach analysis: events JSON (a held action may now
+    /// be played or warned about), `""` if nothing changed, or an error JSON.
+    #[func]
+    fn poll_coach(&mut self) -> GString {
+        let Some(adapter) = self.adapter.as_mut() else {
+            return GString::new();
+        };
+        match adapter.poll_coach() {
+            Ok(Some(events)) => GString::from(events.as_str()),
+            Ok(None) => GString::new(),
+            Err(e) => error_text(&e),
+        }
+    }
 }

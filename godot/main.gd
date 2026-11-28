@@ -15,10 +15,14 @@ var levels := ["Easy", "Easy"]
 var engine := "Classic"
 var counting_aid := false
 var quiz := false
+var coach_level := "OnRequest"
+var coach_warnings := false
 var learning_path := "user://learning-history.json"
 var quiz_id := ""
 var pending_setting := {}
 var discard_selection: Array[int] = []
+const COACH_LEVELS := ["Off", "OnRequest", "Important", "EveryMove"]
+const COACH_LEVEL_KEYS := ["coach-level-off", "coach-level-on-request", "coach-level-important", "coach-level-every-move"]
 const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
 const ENGINES := ["Classic", "Neural", "PrePlay", "Hybrid"]
 const ENGINE_KEYS := ["engine-classic", "mode-neural", "mode-pre-play", "mode-hybrid"]
@@ -34,6 +38,10 @@ func _ready() -> void:
 		open_display = settings.get_value("game", "open_display", false) == true
 		counting_aid = settings.get_value("assist", "counting_aid", false) == true
 		quiz = settings.get_value("assist", "quiz", false) == true
+		var saved_coach = settings.get_value("coach", "level", "OnRequest")
+		if saved_coach in COACH_LEVELS:
+			coach_level = saved_coach
+		coach_warnings = settings.get_value("coach", "warnings", false) == true
 		var saved_engine = settings.get_value("game", "engine", "Classic")
 		if saved_engine in ENGINES:
 			engine = saved_engine
@@ -60,6 +68,14 @@ func _ready() -> void:
 	$Layout/QuizBox/Controls/Skip.pressed.connect(_act.bind("SkipQuiz"))
 	$Layout/QuizBox/Controls/ShowHelp.pressed.connect(_act.bind("RestoreQuizHelp"))
 	$Layout/QuizBox/Controls/Off.pressed.connect(_quiz_off)
+	for key in COACH_LEVEL_KEYS:
+		$Layout/CoachLevel.add_item(texts.tr_key(key))
+	$Layout/CoachLevel.select(COACH_LEVELS.find(coach_level))
+	$Layout/CoachLevel.item_selected.connect(_coach_changed)
+	$Layout/CoachWarnings.button_pressed = coach_warnings
+	$Layout/CoachWarnings.toggled.connect(_coach_changed)
+	$Layout/CoachBox/Controls/Proceed.pressed.connect(_act.bind("ProceedAnyway"))
+	$Layout/CoachBox/Controls/Reconsider.pressed.connect(_act.bind("Reconsider"))
 	for key in ENGINE_KEYS:
 		$Layout/Engine.add_item(texts.tr_key(key))
 	$Layout/Engine.select(ENGINES.find(engine))
@@ -86,6 +102,7 @@ func _start_series() -> void:
 		return
 	app.use_learning_file(ProjectSettings.globalize_path(learning_path))
 	_send_assist()
+	_send_coach()
 	_show()
 
 # Assistance (D-64) is set on every new session; changing it never changes
@@ -101,6 +118,23 @@ func _assist_changed(_enabled: bool) -> void:
 	_save_setting("assist", "counting_aid", counting_aid)
 	_save_setting("assist", "quiz", quiz)
 	_send_assist()
+	_show()
+
+# Coach mode and warnings (D-08, D-09) are set on every new session; changing
+# them never changes the game, so it needs no restart. A held action is
+# withdrawn by skat-app when warnings go off.
+func _send_coach() -> void:
+	var result := app.execute(JSON.stringify({"SetCoach": {
+		"level": coach_level, "warnings": coach_warnings,
+		"show_figures": false, "focus": null}}))
+	_report_error(result)
+
+func _coach_changed(_value: Variant) -> void:
+	coach_level = COACH_LEVELS[$Layout/CoachLevel.selected]
+	coach_warnings = $Layout/CoachWarnings.button_pressed
+	_save_setting("coach", "level", coach_level)
+	_save_setting("coach", "warnings", coach_warnings)
+	_send_coach()
 	_show()
 
 func _quiz_off() -> void:
@@ -188,6 +222,12 @@ func _apply_setting() -> void:
 func _process(_delta: float) -> void:
 	if failed:
 		return
+	var coach_events := app.poll_coach()
+	if coach_events != "":
+		if not _report_error(coach_events):
+			_show()
+	elif coach_warnings:
+		app.start_coach()
 	var events := app.poll_opponent()
 	if events != "":
 		if not _report_error(events):
@@ -396,6 +436,11 @@ func _show() -> void:
 		for j in range(LEVELS.size()):
 			selector.set_item_text(j, "%s %s" % [selector.tooltip_text, texts.tr_key("level-" + LEVELS[j].to_lower())])
 	$Layout/Engine.tooltip_text = texts.tr_key("opponent-engine")
+	$Layout/CoachLevel.tooltip_text = texts.tr_key("setting-coach-level")
+	for j in range(COACH_LEVELS.size()):
+		$Layout/CoachLevel.set_item_text(j, texts.tr_key(COACH_LEVEL_KEYS[j]))
+	$Layout/CoachWarnings.text = texts.tr_key("setting-coach-warnings")
+	$Layout/CoachWarnings.tooltip_text = texts.tr_key("setting-coach-warnings-description")
 	$Layout/CountingAid.text = texts.tr_key("setting-aid")
 	$Layout/CountingAid.tooltip_text = texts.tr_key("setting-aid-description")
 	$Layout/Quiz.text = texts.tr_key("setting-quiz")
@@ -415,6 +460,7 @@ func _show() -> void:
 		$Layout/Table.text += "\n%s %s" % [texts.tr_key("label-own-skat"), ", ".join(skat_cards)]
 	_show_sheet(view)
 	var holding := _show_assist(view["assist"])
+	holding = _show_coach(view) or holding
 	$Layout/OpenCards.text = _open_cards(view["open_cards"])
 	$Layout/OpenCards.visible = view["open_cards"] != null
 	_clear($Layout/Hand)
@@ -586,6 +632,29 @@ func _show_assist(assist: Dictionary) -> bool:
 		lines.append_array(_feedback_lines(feedback))
 		$Layout/QuizFeedback.text = "\n".join(lines)
 	return question != null
+
+# Warning before a weak move: the coach part of the permitted view holds the
+# action; the player proceeds or reconsiders. Returns true while it is held.
+func _show_coach(view: Dictionary) -> bool:
+	var pending = view["coach"]["pending"]
+	var box := $Layout/CoachBox
+	box.visible = pending != null
+	if pending == null:
+		return false
+	var state: String = pending.keys()[0]
+	var action = pending[state]["action"]
+	var label := _label(action, int(view["bid"]), view["hand_game"])
+	var proceed := box.get_node("Controls/Proceed")
+	if state == "Warning":
+		box.get_node("Message").text = "%s\n%s" % [texts.tr_key("coach-warning-title"),
+			texts.tr_key("coach-warning-text", {"action": label})]
+		proceed.text = texts.tr_key("button-coach-proceed")
+		proceed.visible = true
+	else:
+		box.get_node("Message").text = texts.tr_key("coach-checking", {"action": label})
+		proceed.visible = false
+	box.get_node("Controls/Reconsider").text = texts.tr_key("button-coach-reconsider")
+	return true
 
 func _class_name(follow: Variant) -> String:
 	if follow is Dictionary:
