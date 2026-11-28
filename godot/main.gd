@@ -400,7 +400,7 @@ func _show() -> void:
 		if view["can_next_game"]:
 			_add_button(texts.tr_key("button-next-game"), "NextGame")
 		elif view["legal_actions"].is_empty():
-			$Layout/Status.text = texts.tr_key("series-finished", {"games": view["game_number"]}) if view["series_finished"] else ""
+			$Layout/Status.text = texts.tr_key("series-finished", {"games": int(view["game_number"])}) if view["series_finished"] else ""
 
 # Drücken: the player marks two hand cards and confirms; the resulting mask
 # must be one of the legal Discard actions of the view.
