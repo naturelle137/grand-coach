@@ -494,7 +494,9 @@ and Neural (`GRAND_COACH_PACKAGE_NEURAL`, the package smoke's learned
 opponent), each closing itself after the screenshot, and polls their `ps` RSS
 every 0.25 s (`gui.jsonl`, `gui_rss`). That is the GUI-process RSS of the
 smoke scenario, not of an interactive played game; the sampled maximum is not
-a kernel peak. Windows is recorded with native tools, not this driver.
+a kernel peak. A GUI process that has not exited 60 seconds after the requested
+delay is stopped and the run is invalid. Windows is recorded with native tools,
+not this driver.
 
 Proxy validation of the procedure (2026-11-27, Intel Core i9-10900K, 10 cores
 / 20 threads, **not the target**, so no target evidence; RC built from
