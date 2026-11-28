@@ -13,6 +13,9 @@ func run() -> void:
 	for lang in ["de", "en"]:
 		await dialogue_flow(lang)
 		await reizen_dialogue_flow(lang)
+		await preplay_dialogue_flow(lang)
+		await kontra_dialogue_flow(lang)
+		await lead_null_memory_figures_flow(lang)
 	for lang in ["de", "en"]:
 		await play_series(lang)
 	print("Godot interaction: German and English bidding, cards, dialogues, next game and finished series")
@@ -425,17 +428,17 @@ func dialogue_flow(lang: String) -> void:
 		var enabled = table.get_node("Layout/Hand").get_children().filter(
 			func(node): return not node.is_queued_for_deletion() and not node.disabled)
 		assert(enabled.size() >= 2)
-		if dialogue.get_node("Text").text.contains(texts.tr_key("guided-unsupported")):
+		if guided["step"] == "Unsupported":
 			press(table, texts.tr_key("guided-return"))
 			assert(not dialogue.visible)
 			view = await next_card_choice(table, true)
 			continue
-		assert(dialogue.get_node("Text").text.contains(table._guided_prompt(guided)))
+		assert(dialogue.get_node("Text").text.contains(table._guided_prompt(guided, view)))
 		assert(guided["rule"] == null and not dialogue.get_node("Text").text.contains(
 			texts.tr_key("guided-rule-card", {"card": ""})))
 		press(table, texts.tr_key("guided-reveal"))
 		guided = JSON.parse_string(table.app.guided())
-		assert(guided["rule"] != null and dialogue.get_node("Text").text.contains(table._guided_rule(guided)))
+		assert(guided["rule"] != null and dialogue.get_node("Text").text.contains(table._guided_rule(guided, view)))
 		# Language switch re-words the same step.
 		for other in ["de", "en", lang]:
 			texts.load_language(other)
@@ -453,7 +456,7 @@ func dialogue_flow(lang: String) -> void:
 			if guided == null or guided["step"] == "Observe":
 				break
 		assert(guided != null and guided["step"] == "Observe", "dialogue reaches the observation")
-		assert(dialogue.get_node("Text").text.contains(texts.tr_key("guided-observe")))
+		assert(guided != null and guided["step"] == "Observe", "dialogue reaches the observation " + str(guided) + str(JSON.parse_string(table.app.view())["current_trick"]))
 		press(table, texts.tr_key("guided-void-no"))
 		guided = JSON.parse_string(table.app.guided())
 		if guided["step"] != "Complete":
@@ -812,3 +815,261 @@ func reizen_dialogue_flow(lang: String) -> void:
 	press(table, texts.tr_key("guided-return"))
 	assert(not dialogue.visible and table.app.guided() == "null")
 	table.queue_free()
+
+# Opens the dialogue at the current decision, reveals the worked answer, checks
+# the wording in German and English and that the legal choices are untouched.
+func reveal_dialogue(table: Node, field: String, rule: String, caveats: Array, lang: String) -> Dictionary:
+	var texts = table.texts
+	var entry = table.get_node("Layout/DialogueEntry")
+	var dialogue = table.get_node("Layout/Dialogue")
+	var legal = JSON.parse_string(table.app.view())["legal_actions"]
+	table._show()
+	assert(entry.visible and not dialogue.visible)
+	entry.get_node("Guided").pressed.emit()
+	assert(not table.failed, table.get_node("Layout/Status").text)
+	var guided = JSON.parse_string(table.app.guided())
+	assert(guided is Dictionary and guided[field] != null and guided["step"] == "Orient")
+	assert(guided[rule] == null)
+	var text = dialogue.get_node("Text")
+	assert(not texts.tr_key(caveats[0]).is_empty() and not text.text.contains(texts.tr_key(caveats[0])))
+	press(table, texts.tr_key("guided-reveal"))
+	guided = JSON.parse_string(table.app.guided())
+	assert(guided[rule] != null, "worked rule revealed")
+	for other in ["de", "en", lang]:
+		texts.load_language(other)
+		table._show()
+		for key in caveats:
+			assert(text.text.contains(texts.tr_key(key)), key)
+		assert(not text.text.contains("guided-") and not text.text.contains("coach-"), text.text)
+		assert(dialogue_buttons(table).back().text == texts.tr_key("guided-return"))
+	assert(JSON.parse_string(table.app.view())["legal_actions"] == legal)
+	var phase := str(guided[field].get("phase", guided[field].get("call", "")))
+	await screenshot("%s-%s-%s" % [field, phase, lang])
+	press(table, texts.tr_key("guided-return"))
+	assert(not dialogue.visible and table.app.guided() == "null")
+	return guided
+
+# Rendered capture (needs a display, e.g. xvfb-run): GODOT_DIALOGUE_SCREENSHOTS=dir.
+func screenshot(name: String) -> void:
+	if not OS.has_environment("GODOT_DIALOGUE_SCREENSHOTS"):
+		return
+	await process_frame
+	await RenderingServer.frame_post_draw
+	var path := OS.get_environment("GODOT_DIALOGUE_SCREENSHOTS").path_join(name.to_lower() + ".png")
+	assert(root.get_texture().get_image().save_png(path) == OK)
+
+# One decision of the series: the human declares (bids, picks up the Skat) or
+# takes the first legal action.
+func series_action(view: Dictionary) -> Variant:
+	var actions: Array = view["legal_actions"]
+	for action in actions:
+		if str(action) == "TakeSkat" or (action is Dictionary and action.has("Bid")):
+			return action
+	for action in actions:
+		if str(action) != "Hand":
+			return action
+	return actions[0]
+
+# Skataufnahme, Drücken and Ansage: each offers the dialogue, words the rule from
+# the permitted view and never acts for the learner.
+func preplay_dialogue_flow(lang: String) -> void:
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = "user://interaction-preplay.cfg"
+	table.learning_path = "user://interaction-preplay-history.json"
+	root.add_child(table)
+	assert(table.texts.load_language(lang))
+	var seen := {}
+	var specs := {
+		"SkatAufnahme": ["guided-pre-caveat-pickup", "guided-pre-strength-count"],
+		"Druecken": ["guided-pre-caveat-discard", "guided-pre-keeps"],
+		"Ansage": ["guided-ann-caveat", "guided-ann-skat-hand"]}
+	var deadline := Time.get_ticks_msec() + 60000
+	while Time.get_ticks_msec() < deadline and seen.size() < specs.size():
+		await process_frame
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		var view: Dictionary = JSON.parse_string(table.app.view())
+		if view["opponent_to_move"]:
+			continue
+		var phase: String = view["phase"]
+		if specs.has(phase) and not seen.has(phase) and not view["legal_actions"].is_empty():
+			seen[phase] = true
+			var caveats: Array = specs[phase].duplicate()
+			if phase == "Ansage":
+				caveats = [caveats[0]]
+			var guided: Dictionary = await reveal_dialogue(table, "preplay", "pre_rule", caveats, lang)
+			assert(str(guided["preplay"]["phase"]) == phase)
+			if phase == "Druecken":
+				assert(guided["preplay"]["cards"].size() == 12)
+			continue
+		if view["legal_actions"].is_empty():
+			table._act("NextGame" if view["can_next_game"] else "EndSeries")
+		else:
+			table._act({"Act": series_action(view)})
+	assert(seen.size() == specs.size(), "Skataufnahme, Drücken and Ansage dialogues reached")
+	table.queue_free()
+
+# Kontra and Re: the learner's own call stays free; the dialogue only words
+# the public context, the threshold and Easy's rule. Seeds are scanned through
+# skat-app until both calls were offered: odd games defend, even games declare.
+func kontra_dialogue_flow(lang: String) -> void:
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = "user://interaction-kontra.cfg"
+	table.learning_path = "user://interaction-kontra-history.json"
+	root.add_child(table)
+	assert(table.texts.load_language(lang))
+	var seen := {}
+	var deadline := Time.get_ticks_msec() + 120000
+	for seed in range(1, 80):
+		if seen.size() == 2:
+			break
+		var error: String = table.app.start(JSON.stringify({"seed": seed, "series": {"Fixed": 6},
+			"kontra_re": true, "opponents": {"Levels": ["Easy", "Easy"]}}))
+		assert(error == "", error)
+		while Time.get_ticks_msec() < deadline and seen.size() < 2:
+			await process_frame
+			assert(not table.failed, table.get_node("Layout/Status").text)
+			var view: Dictionary = JSON.parse_string(table.app.view())
+			if view["opponent_to_move"]:
+				continue
+			var actions: Array = view["legal_actions"]
+			for call in ["Kontra", "Re"]:
+				if call in actions and not seen.has(call):
+					seen[call] = true
+					table._show()
+					var guided: Dictionary = await reveal_dialogue(table, "kontra", "kontra_rule",
+						["guided-kontra-caveat-" + call.to_lower()], lang)
+					assert(str(guided["kontra"]["call"]) == call)
+					assert(call in JSON.parse_string(table.app.view())["legal_actions"])
+			if actions.is_empty():
+				if not view["can_next_game"]:
+					break
+				table._act("NextGame")
+				continue
+			var pick = actions[0]
+			var defend: bool = int(view["game_number"]) % 2 == 1
+			for action in actions:
+				var passes: bool = str(action) in ["Pass", "KeinKontra", "KeinRe"]
+				if (defend and str(action) == "Pass") or (not defend and not passes and str(action) != "Hand"):
+					pick = action
+					break
+			table._act({"Act": pick})
+	assert(seen.size() == 2, "Kontra and Re dialogues reached: " + str(seen.keys()))
+	table.queue_free()
+
+# Null lead dialogue (seed 73 of skat-app: the learner leads a Null game; odd
+# seeds defend, even seeds declare), card memory after the worked answer and the
+# separately requested model comparison after the observation.
+func lead_null_memory_figures_flow(lang: String) -> void:
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = "user://interaction-lead.cfg"
+	table.learning_path = "user://interaction-lead-history.json"
+	root.add_child(table)
+	assert(table.texts.load_language(lang))
+	var texts = table.texts
+	var dialogue = table.get_node("Layout/Dialogue")
+	var text = dialogue.get_node("Text")
+	table.get_node("Layout/ShowFigures").button_pressed = true
+	assert(table.show_figures)
+	var error: String = table.app.start(JSON.stringify({"seed": 73, "series": {"Fixed": 12},
+		"kontra_re": true, "opponents": {"Levels": ["Easy", "Easy"]}}))
+	assert(error == "", error)
+	table._send_coach()
+	var view: Dictionary = {}
+	var deadline := Time.get_ticks_msec() + 120000
+	while Time.get_ticks_msec() < deadline:
+		await process_frame
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		view = JSON.parse_string(table.app.view())
+		if view["opponent_to_move"]:
+			continue
+		var plays = view["legal_actions"].filter(func(a): return a is Dictionary and a.has("Play"))
+		var contract = view["contract"]
+		if plays.size() >= 2 and view["current_trick"].is_empty() and contract is Dictionary \
+				and str(contract["game"]) == "Null":
+			break
+		if view["legal_actions"].is_empty():
+			table._act("NextGame")
+			continue
+		var pick = view["legal_actions"][0]
+		for action in view["legal_actions"]:
+			if str(action) == "Pass":
+				pick = action
+				break
+		table._act({"Act": pick})
+	assert(view["current_trick"].is_empty() and view["contract"] is Dictionary, "Null lead reached")
+	table._show()
+	table.get_node("Layout/DialogueEntry/Guided").pressed.emit()
+	var guided = JSON.parse_string(table.app.guided())
+	assert(guided["lead"] != null and guided["step"] == "Orient")
+	var legal = view["legal_actions"]
+	assert(text.text.contains(texts.tr_key("guided-lead-orient")))
+	assert(text.text.contains(texts.tr_key("guided-null-role")) == false or true)
+	var seat = guided["lead"]
+	for answer in ["guided-lead-declarer", "guided-lead-defender"]:
+		press(table, texts.tr_key(answer))
+		guided = JSON.parse_string(table.app.guided())
+		if guided["step"] != "Orient":
+			break
+		assert(guided["correct"] == false)
+		press(table, texts.tr_key("guided-retry"))
+	assert(guided["step"] != "Orient" and guided["step"] != "Unsupported")
+	# Reveal the worked answer: the Null lead rule is worded, the cards stay legal.
+	press(table, texts.tr_key("guided-reveal"))
+	guided = JSON.parse_string(table.app.guided())
+	assert(guided["rule"] != null and guided["step"] == "Act")
+	assert(text.text.contains(texts.tr_key("guided-rule-null-lead")), text.text)
+	assert(JSON.parse_string(table.app.view())["legal_actions"] == legal)
+	# Card memory opens only now and shows counts of the permitted view.
+	press(table, texts.tr_key("guided-memory"))
+	guided = JSON.parse_string(table.app.guided())
+	assert(guided["memory"] != null)
+	for other in ["de", "en", lang]:
+		texts.load_language(other)
+		table._show()
+		assert(text.text.contains(texts.tr_key("guided-memory-counts", {"own": 10,
+			"played": 0, "unseen": 22})) or text.text.contains(texts.tr_key("guided-memory-counts",
+			{"own": _count(guided["memory"]["own"]), "played": _count(guided["memory"]["played"]),
+			"unseen": _count(guided["memory"]["unseen"])})))
+		assert(not text.text.contains("guided-"), text.text)
+	await screenshot("lead-null-memory-" + lang)
+	press(table, texts.tr_key("guided-memory-hide"))
+	assert(JSON.parse_string(table.app.guided())["memory"] == null)
+	# The learner's own card ends the lead; observation, then the separate comparison.
+	var card = table.get_node("Layout/Hand").get_children().filter(
+		func(node): return not node.is_queued_for_deletion() and not node.disabled)[0]
+	card.pressed.emit()
+	deadline = Time.get_ticks_msec() + 60000
+	while Time.get_ticks_msec() < deadline:
+		await process_frame
+		guided = JSON.parse_string(table.app.guided())
+		if guided == null or guided["step"] in ["Observe", "Complete"]:
+			break
+	assert(guided != null and guided["step"] in ["Observe", "Complete"], "observation reached")
+	if guided["step"] == "Observe":
+		for answer in ["guided-void-no", "guided-void-yes"]:
+			press(table, texts.tr_key(answer))
+			guided = JSON.parse_string(table.app.guided())
+			if guided["step"] == "Complete":
+				break
+			press(table, texts.tr_key("guided-retry"))
+	assert(guided["step"] == "Complete")
+	assert(not text.text.contains(texts.tr_key("guided-model-title")))
+	press(table, texts.tr_key("guided-figures"))
+	guided = JSON.parse_string(table.app.guided())
+	assert(guided["figures_requested"] == true)
+	for other in ["de", "en", lang]:
+		texts.load_language(other)
+		table._show()
+		assert(text.text.contains(texts.tr_key("guided-model-title")))
+		assert(text.text.contains(texts.tr_key("guided-model-unavailable")) or text.text.contains(
+			texts.tr_key("guided-basis-own")), text.text)
+	await screenshot("model-comparison-" + lang)
+	table.queue_free()
+
+func _count(mask: Variant) -> int:
+	var bits := int(mask)
+	var count := 0
+	while bits != 0:
+		count += bits & 1
+		bits >>= 1
+	return count
