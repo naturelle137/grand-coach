@@ -233,6 +233,164 @@ fn dropping_a_busy_adapter_is_safe() {
     drop(adapter);
 }
 
+/// Issue #444: the Reizen, Skat, Drücken and Ansage phases, driven the way
+/// GDScript does it: raw JSON of a legal action wrapped as `{"Act": ...}`.
+mod declarer_flow {
+    use super::*;
+    use serde_json::{Value, json};
+    use skat_app::{Action, Announcement, Card, CardSet, GameType, Phase};
+
+    /// An action that is not legal in `legal` (an action of another phase).
+    fn illegal_for(legal: &[Action]) -> Action {
+        [
+            Action::Hold,
+            Action::Pass,
+            Action::Bid(18),
+            Action::Hand,
+            Action::TakeSkat,
+            Action::Discard(CardSet::EMPTY),
+            Action::Announce(Announcement::plain(GameType::Grand)),
+            Action::Play(Card::from_index(0).unwrap()),
+        ]
+        .into_iter()
+        .find(|a| !legal.contains(a))
+        .expect("some action is illegal")
+    }
+
+    /// Highest bid, else Hold, else the last action (Pass).
+    fn bid_to_win(actions: &[Action]) -> usize {
+        let bid = actions
+            .iter()
+            .rposition(|a| matches!(a, Action::Bid(_) | Action::Hold));
+        bid.unwrap_or(actions.len() - 1)
+    }
+
+    fn raw_actions(adapter: &Adapter) -> Vec<Value> {
+        let view: Value = serde_json::from_str(&adapter.view_json()).unwrap();
+        view["legal_actions"].as_array().unwrap().clone()
+    }
+
+    fn act_raw(adapter: &mut Adapter, action: &Value) -> Result<String, AdapterError> {
+        adapter.execute_json(&json!({ "Act": action }).to_string())
+    }
+
+    /// Every phase rejects an illegal action with a structured error and
+    /// leaves the session unchanged.
+    fn assert_rejects(adapter: &mut Adapter) {
+        let v = view(adapter);
+        let bad = illegal_for(&v.legal_actions);
+        let before = adapter.view_json();
+        let err = adapter
+            .execute_json(&command(Command::Act(bad)))
+            .unwrap_err();
+        assert!(
+            matches!(err, AdapterError::App(AppError::Rule(_))),
+            "{:?} in {:?}: {err:?}",
+            bad,
+            v.phase
+        );
+        assert!(err.to_json().starts_with(r#"{"error":{"App":{"Rule""#));
+        assert_eq!(adapter.view_json(), before);
+    }
+
+    #[test]
+    fn every_declarer_phase_converts_commands_and_rejects_illegal_ones() {
+        let mut seen = std::collections::BTreeSet::new();
+        let (mut took_skat, mut hand, mut ouvert) = (false, false, false);
+        for seed in 1..200 {
+            let mut adapter = Adapter::new(&json(&config(seed))).unwrap();
+            for _ in 0..400 {
+                let v = view(&adapter);
+                if v.series_finished || v.phase == Phase::Spiel {
+                    break;
+                }
+                if v.opponent_to_move {
+                    adapter.start_opponent();
+                    finish_opponent(&mut adapter);
+                    continue;
+                }
+                if v.legal_actions.is_empty() {
+                    adapter.execute_json(&command(Command::NextGame)).unwrap();
+                    continue;
+                }
+                seen.insert(format!("{:?}", v.phase));
+                assert_rejects(&mut adapter);
+                let raw = raw_actions(&adapter);
+                assert_eq!(raw.len(), v.legal_actions.len());
+                let pick = match v.phase {
+                    Phase::Reizen => bid_to_win(&v.legal_actions),
+                    Phase::SkatAufnahme => {
+                        // Alternate Hand and Skat pickup over the seeds.
+                        let want = if seed % 2 == 0 {
+                            Action::Hand
+                        } else {
+                            Action::TakeSkat
+                        };
+                        let i = v.legal_actions.iter().position(|a| *a == want);
+                        hand |= i.is_some() && want == Action::Hand;
+                        took_skat |= i.is_some() && want == Action::TakeSkat;
+                        i.unwrap_or(0)
+                    }
+                    Phase::Ansage => {
+                        let i = v
+                            .legal_actions
+                            .iter()
+                            .position(|a| matches!(a, Action::Announce(x) if x.ouvert));
+                        ouvert |= i.is_some();
+                        i.unwrap_or(0)
+                    }
+                    _ => 0,
+                };
+                act_raw(&mut adapter, &raw[pick]).unwrap();
+            }
+        }
+        for phase in ["Reizen", "SkatAufnahme", "Druecken", "Ansage"] {
+            assert!(seen.contains(phase), "{phase} not reached: {seen:?}");
+        }
+        assert!(took_skat && hand && ouvert, "{took_skat} {hand} {ouvert}");
+    }
+
+    #[test]
+    fn discard_masks_in_the_view_are_exactly_two_held_cards() {
+        for seed in 1..200 {
+            let mut adapter = Adapter::new(&json(&config(seed))).unwrap();
+            for _ in 0..400 {
+                let v = view(&adapter);
+                if v.series_finished || v.phase == Phase::Spiel {
+                    break;
+                }
+                if v.opponent_to_move {
+                    adapter.start_opponent();
+                    finish_opponent(&mut adapter);
+                    continue;
+                }
+                if v.phase == Phase::Druecken {
+                    assert_eq!(v.hand.len(), 12);
+                    for a in &v.legal_actions {
+                        let Action::Discard(set) = a else {
+                            panic!("only Discard in Drücken: {a:?}")
+                        };
+                        assert_eq!(set.iter().count(), 2);
+                        assert!(set.iter().all(|c| v.hand.contains(&c)));
+                    }
+                    return;
+                }
+                let cmd = if v.legal_actions.is_empty() {
+                    Command::NextGame
+                } else if v.phase == Phase::Reizen {
+                    Command::Act(v.legal_actions[bid_to_win(&v.legal_actions)])
+                } else if v.phase == Phase::SkatAufnahme {
+                    Command::Act(Action::TakeSkat)
+                } else {
+                    Command::Act(v.legal_actions[0])
+                };
+                adapter.execute_json(&command(cmd)).unwrap();
+            }
+        }
+        panic!("no Drücken phase reached");
+    }
+}
+
 #[test]
 fn engine_selection_travels_over_the_wire_and_classic_is_omitted() {
     assert!(!json(&config(3)).contains("engine"));
