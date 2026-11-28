@@ -6,6 +6,7 @@ func _initialize() -> void:
 
 func run() -> void:
 	await settings_persistence()
+	await bidding_reachable()
 	for lang in ["de", "en"]:
 		await practice_history_flow(lang)
 		await assist_flow(lang)
@@ -13,6 +14,37 @@ func run() -> void:
 		await play_series(lang)
 	print("Godot interaction: German and English bidding, cards, next game and finished series")
 	quit(0)
+
+func bidding_reachable() -> void:
+	root.size = Vector2i(1152, 648)
+	for mode in ["Levels", "GodMode"]:
+		for lang in ["de", "en"]:
+			for choice in range(2):
+				var table = load("res://main.tscn").instantiate()
+				table.settings_path = "user://reachability-settings.cfg"
+				root.add_child(table)
+				table.texts.load_language(lang)
+				table.mode = mode
+				table._start_series()
+				for i in range(600):
+					if not JSON.parse_string(table.app.view())["opponent_to_move"]:
+						break
+					await create_timer(0.1).timeout
+				await process_frame
+				await process_frame
+				var actions = table.get_node("Layout/Scroll/Actions")
+				assert(actions.get_child_count() == 2)
+				table.ensure_control_visible(actions.get_parent())
+				await process_frame
+				assert(table.get_node("Layout/Scroll").size.y >= 100)
+				for button in actions.get_children():
+					var bounds: Rect2 = button.get_global_rect()
+					assert(bounds.position.y >= 0 and bounds.end.y <= table.size.y)
+				var before: String = table.app.view()
+				actions.get_child(choice).pressed.emit()
+				assert(table.app.view() != before)
+				table.queue_free()
+				await process_frame
 
 func practice_history_flow(lang: String) -> void:
 	var table = load("res://main.tscn").instantiate()
@@ -137,6 +169,7 @@ func settings_persistence() -> void:
 	reset.load(path)
 	reset.set_value("game", "engine", "Classic")
 	reset.save(path)
+	await opponent_modes(path)
 	for player in range(2):
 		for index in range(4):
 			var table = load("res://main.tscn").instantiate()
@@ -165,6 +198,64 @@ func settings_persistence() -> void:
 			table.queue_free()
 			await process_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+# Goldfish, Mephisto and God Mode: the selector persists, restarts the series,
+# discloses the mode in both languages and shows every card only in God Mode.
+func opponent_modes(path: String) -> void:
+	for index in range(4):
+		var table = load("res://main.tscn").instantiate()
+		table.settings_path = path
+		root.add_child(table)
+		var selector = table.get_node("Layout/Mode")
+		selector.select(index)
+		selector.item_selected.emit(index)
+		assert(selector.selected == table.MODES.find(table.mode))
+		assert(table.get_node("ConfirmRestart").visible)
+		table.get_node("ConfirmRestart").confirmed.emit()
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		table.queue_free()
+		await process_frame
+		table = load("res://main.tscn").instantiate()
+		table.settings_path = path
+		root.add_child(table)
+		selector = table.get_node("Layout/Mode")
+		var mode: String = table.MODES[index]
+		assert(selector.selected == index and table.mode == mode)
+		assert(not table.failed, table.get_node("Layout/Status").text)
+		var view: Dictionary = JSON.parse_string(table.app.view())
+		var god := mode == "GodMode"
+		assert((view["open_cards"] != null) == god and table.get_node("Layout/OpenCards").visible == god)
+		var note = table.get_node("Layout/ModeNote")
+		for lang in ["de", "en"]:
+			table.texts.load_language(lang)
+			table._show()
+			assert(selector.get_item_text(index) == table.texts.tr_key(table.MODE_KEYS[index]))
+			assert(note.visible == (index > 0))
+			if god:
+				assert(note.text.contains(table.texts.tr_key("option-open-display-god")))
+				assert(note.text.contains(table.texts.tr_key("mode-god-description")))
+				assert(table.get_node("Layout/OpenCards").text.begins_with(table.texts.tr_key("mode-god")))
+			for child in table.get_node("Layout/Opponents").get_children():
+				assert(child.disabled == (index > 0))
+		table.queue_free()
+		await process_frame
+	# A learned engine needs individual levels and takes the mode back to them.
+	var table = load("res://main.tscn").instantiate()
+	table.settings_path = path
+	root.add_child(table)
+	table.get_node("Layout/Mode").select(2)
+	table.get_node("Layout/Mode").item_selected.emit(2)
+	table.get_node("ConfirmRestart").confirmed.emit()
+	table.get_node("Layout/Engine").item_selected.emit(1)
+	table.get_node("ConfirmRestart").confirmed.emit()
+	assert(table.mode == "Levels" and table.engine == "Neural" and not table.failed)
+	table.queue_free()
+	await process_frame
+	var reset = ConfigFile.new()
+	reset.load(path)
+	reset.set_value("game", "mode", "Levels")
+	reset.set_value("game", "engine", "Classic")
+	reset.save(path)
 
 # Counting aid and quiz: settings persist, a question holds the move and hides
 # the aid, and answer, help and skip reach the learning history.

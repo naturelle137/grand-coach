@@ -13,6 +13,7 @@ var kontra_re := false
 var open_display := false
 var levels := ["Easy", "Easy"]
 var engine := "Classic"
+var mode := "Levels"
 var counting_aid := false
 var quiz := false
 var learning_path := "user://learning-history.json"
@@ -24,6 +25,8 @@ var replay_total := 0
 var recording_save := false
 var discard_selection: Array[int] = []
 const LEVELS := ["Rookie", "Easy", "Medium", "Strong"]
+const MODES := ["Levels", "Goldfish", "Mephisto", "GodMode"]
+const MODE_KEYS := ["mode-levels", "mode-goldfish", "mode-mephisto", "mode-god"]
 const ENGINES := ["Classic", "Neural", "PrePlay", "Hybrid"]
 const ENGINE_KEYS := ["engine-classic", "mode-neural", "mode-pre-play", "mode-hybrid"]
 
@@ -41,6 +44,11 @@ func _ready() -> void:
 		var saved_engine = settings.get_value("game", "engine", "Classic")
 		if saved_engine in ENGINES:
 			engine = saved_engine
+		var saved_mode = settings.get_value("game", "mode", "Levels")
+		if saved_mode in MODES:
+			mode = saved_mode
+		if mode != "Levels":
+			engine = "Classic"  # learned engines need individual levels
 		for i in range(2):
 			var level = settings.get_value("game", "level_%d" % i, "Easy")
 			if level in LEVELS:
@@ -64,6 +72,10 @@ func _ready() -> void:
 	$Layout/QuizBox/Controls/Skip.pressed.connect(_act.bind("SkipQuiz"))
 	$Layout/QuizBox/Controls/ShowHelp.pressed.connect(_act.bind("RestoreQuizHelp"))
 	$Layout/QuizBox/Controls/Off.pressed.connect(_quiz_off)
+	for key in MODE_KEYS:
+		$Layout/Mode.add_item(texts.tr_key(key))
+	$Layout/Mode.select(MODES.find(mode))
+	$Layout/Mode.item_selected.connect(_mode_changed)
 	for key in ENGINE_KEYS:
 		$Layout/Engine.add_item(texts.tr_key(key))
 	$Layout/Engine.select(ENGINES.find(engine))
@@ -197,10 +209,22 @@ func _replay_cards(cards: Array) -> String:
 			names.append(_card(int(card)))
 	return ", ".join(names)
 
+# Disclosure of what the selected mode lets the human or the opponents see.
+# God Mode is stated apart from the open-display option (D-62).
+func _mode_note() -> String:
+	match mode:
+		"Goldfish":
+			return texts.tr_key("mode-goldfish-description")
+		"Mephisto":
+			return texts.tr_key("option-open-display-mephisto")
+		"GodMode":
+			return "%s %s" % [texts.tr_key("mode-god-description"), texts.tr_key("option-open-display-god")]
+	return ""
+
 func _start_series() -> void:
 	var config := {"seed": 1, "series": {"Fixed": 3}, "kontra_re": kontra_re,
 		"display": "Open" if open_display else "Closed",
-		"opponents": {"Levels": levels}}
+		"opponents": {"Levels": levels} if mode == "Levels" else mode}
 	if engine != "Classic":
 		config["engine"] = engine
 	failed = false
@@ -257,6 +281,11 @@ func _open_display_changed(enabled: bool) -> void:
 	pending_setting = {"open_display": enabled}
 	_confirm_restart()
 
+func _mode_changed(index: int) -> void:
+	$Layout/Mode.select(MODES.find(mode))
+	pending_setting = {"mode": MODES[index]}
+	_confirm_restart()
+
 func _engine_changed(index: int) -> void:
 	$Layout/Engine.select(ENGINES.find(engine))
 	pending_setting = {"engine": ENGINES[index]}
@@ -284,8 +313,20 @@ func _confirm_restart() -> void:
 	$ConfirmRestart.popup_centered()
 
 func _apply_setting() -> void:
-	if pending_setting.has("engine"):
+	if pending_setting.has("mode"):
+		mode = pending_setting["mode"]
+		$Layout/Mode.select(MODES.find(mode))
+		_save_setting("game", "mode", mode)
+		if mode != "Levels" and engine != "Classic":
+			engine = "Classic"
+			$Layout/Engine.select(0)
+			_save_setting("game", "engine", engine)
+	elif pending_setting.has("engine"):
 		engine = pending_setting["engine"]
+		if engine != "Classic" and mode != "Levels":
+			mode = "Levels"
+			$Layout/Mode.select(0)
+			_save_setting("game", "mode", mode)
 		$Layout/Engine.select(ENGINES.find(engine))
 		_save_setting("game", "engine", engine)
 		for i in range(2):
@@ -530,6 +571,13 @@ func _show() -> void:
 		for j in range(LEVELS.size()):
 			selector.set_item_text(j, "%s %s" % [selector.tooltip_text, texts.tr_key("level-" + LEVELS[j].to_lower())])
 	$Layout/Engine.tooltip_text = texts.tr_key("opponent-engine")
+	$Layout/Mode.tooltip_text = texts.tr_key("mode-levels")
+	for j in range(MODES.size()):
+		$Layout/Mode.set_item_text(j, texts.tr_key(MODE_KEYS[j]))
+	$Layout/ModeNote.text = _mode_note()
+	$Layout/ModeNote.visible = $Layout/ModeNote.text != ""
+	for i in range(2):
+		$Layout/Opponents.get_child(i).disabled = mode != "Levels"
 	$Layout/CountingAid.text = texts.tr_key("setting-aid")
 	$Layout/CountingAid.tooltip_text = texts.tr_key("setting-aid-description")
 	$Layout/Quiz.text = texts.tr_key("setting-quiz")
@@ -662,7 +710,8 @@ func _discard_refresh(discards: Dictionary) -> void:
 func _open_cards(open: Variant) -> String:
 	if not open is Dictionary:
 		return ""
-	var lines: Array[String] = [texts.tr_key("label-open-cards")]
+	# God Mode is labelled apart from the open display.
+	var lines: Array[String] = [texts.tr_key("mode-god" if mode == "GodMode" else "label-open-cards")]
 	for i in range(3):
 		var names: Array[String] = []
 		for card in open["hands"][i]:

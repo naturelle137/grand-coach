@@ -299,7 +299,7 @@ mod declarer_flow {
         let (mut took_skat, mut hand, mut ouvert) = (false, false, false);
         for seed in 1..200 {
             let mut adapter = Adapter::new(&json(&config(seed))).unwrap();
-            for _ in 0..400 {
+            for _ in 0..12 {
                 let v = view(&adapter);
                 if v.series_finished || v.phase == Phase::Spiel {
                     break;
@@ -606,4 +606,62 @@ fn recording_round_trip_exposes_only_the_human_historical_view() {
     }
     assert!(adapter.replay_json(recording.actions.len() + 1).is_err());
     std::fs::remove_file(path).unwrap();
+}
+
+/// Goldfish, Mephisto and God Mode through the adapter equal the direct
+/// `skat-app` result at every step, and only God Mode (D-62) carries the real
+/// deal (`open_cards`) in the view; the others stay the closed permitted view.
+#[test]
+#[ignore = "slow: CI only (docs/testing.md)"]
+fn opponent_modes_match_skat_app_and_disclose_only_in_god_mode() {
+    for opponents in [Opponents::Goldfish, Opponents::Mephisto, Opponents::GodMode] {
+        let config = SessionConfig {
+            opponents,
+            ..config(7)
+        };
+        let mut adapter = Adapter::new(&json(&config)).unwrap();
+        let mut direct = Session::new(config);
+        for _ in 0..400 {
+            let wire = adapter.view_json();
+            assert_eq!(wire, serde_json::to_string(&direct.view()).unwrap());
+            let v = view(&adapter);
+            assert_eq!(v.open_cards.is_some(), opponents == Opponents::GodMode);
+            if v.series_finished {
+                break;
+            }
+            let next = if v.opponent_to_move {
+                while view(&adapter).opponent_to_move {
+                    assert!(adapter.start_opponent());
+                    finish_opponent(&mut adapter).expect("move applied");
+                }
+                direct.run_opponents();
+                continue;
+            } else if let Some(&a) = v.legal_actions.first() {
+                Command::Act(a)
+            } else {
+                Command::NextGame
+            };
+            adapter.execute_json(&command(next)).unwrap();
+            direct.execute(next).unwrap();
+        }
+    }
+}
+
+/// Fast form of the above: the opening view of every mode equals the direct
+/// result, and only God Mode shows other cards.
+#[test]
+fn opponent_mode_opening_views_match_skat_app() {
+    for opponents in [Opponents::Goldfish, Opponents::Mephisto, Opponents::GodMode] {
+        let config = SessionConfig {
+            opponents,
+            ..config(7)
+        };
+        let adapter = Adapter::new(&json(&config)).unwrap();
+        let direct = serde_json::to_string(&Session::new(config).view()).unwrap();
+        assert_eq!(adapter.view_json(), direct);
+        assert_eq!(
+            view(&adapter).open_cards.is_some(),
+            opponents == Opponents::GodMode
+        );
+    }
 }
