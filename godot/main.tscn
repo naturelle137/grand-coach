@@ -253,3 +253,67 @@ layout_mode = 2
 
 [node name="Next" type="Button" parent="Replay/Content/Navigation"]
 layout_mode = 2
+
+[node name="LearningButtons" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="Training" type="Button" parent="Layout/LearningButtons"]
+layout_mode = 2
+
+[node name="TrainingWindow" type="Window" parent="."]
+exclusive = true
+title = "Counting training"
+size = Vector2i(760, 560)
+visible = false
+
+[node name="Content" type="VBoxContainer" parent="TrainingWindow"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
+
+[node name="Scroll" type="ScrollContainer" parent="TrainingWindow/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Text" type="Label" parent="TrainingWindow/Content/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+
+[node name="Topics" type="HBoxContainer" parent="TrainingWindow/Content"]
+layout_mode = 2
+
+[node name="Trumpf" type="Button" parent="TrainingWindow/Content/Topics"]
+layout_mode = 2
+
+[node name="Voids" type="Button" parent="TrainingWindow/Content/Topics"]
+layout_mode = 2
+
+[node name="Controls" type="HBoxContainer" parent="TrainingWindow/Content"]
+layout_mode = 2
+
+[node name="Value" type="SpinBox" parent="TrainingWindow/Content/Controls"]
+layout_mode = 2
+max_value = 11.0
+
+[node name="Answer" type="Button" parent="TrainingWindow/Content/Controls"]
+layout_mode = 2
+
+[node name="Help" type="Button" parent="TrainingWindow/Content/Controls"]
+layout_mode = 2
+
+[node name="Skip" type="Button" parent="TrainingWindow/Content/Controls"]
+layout_mode = 2
+
+[node name="Retry" type="Button" parent="TrainingWindow/Content/Controls"]
+layout_mode = 2
+
+[node name="Next" type="Button" parent="TrainingWindow/Content/Controls"]
+layout_mode = 2
+
+[node name="Close" type="Button" parent="TrainingWindow/Content"]
+layout_mode = 2
