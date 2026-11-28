@@ -7,4 +7,5 @@
 //! behaviour never lives here (AGENTS.md hard rules).
 
 pub mod adapter;
+pub mod localization;
 pub mod node;

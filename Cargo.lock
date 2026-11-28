@@ -4028,6 +4028,7 @@ dependencies = [
 name = "gui-godot"
 version = "1.0.0-rc.1"
 dependencies = [
+ "fluent-bundle",
  "godot",
  "serde",
  "serde_json",

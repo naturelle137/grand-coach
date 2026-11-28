@@ -5,6 +5,7 @@ func _initialize() -> void:
 	run.call_deferred()
 
 func run() -> void:
+	localization()
 	await settings_persistence()
 	await bidding_reachable()
 	for lang in ["de", "en"]:
@@ -78,6 +79,17 @@ func practice_history_flow(lang: String) -> void:
 	assert(JSON.parse_string(table.app.view()) == original)
 	table.queue_free()
 	await process_frame
+
+func localization() -> void:
+	var texts = load("res://i18n.gd").new()
+	for lang in ["de", "en"]:
+		assert(texts.load_language(lang))
+		var zero: String = texts.tr_key("coach-lesson-remaining-trumpf-own", {"count": 0, "cards": "Kreuz-Bube"})
+		var one: String = texts.tr_key("coach-lesson-remaining-trumpf-own", {"count": 1, "cards": "Kreuz-Bube"})
+		assert(zero != one and "Kreuz-Bube" in one and not "->" in one)
+		assert(not "Kreuz-Bube" in zero)
+	assert(not texts.load_language("fr"))
+	assert(texts.language == "en")
 
 func settings_persistence() -> void:
 	var path := "user://interaction-settings.cfg"

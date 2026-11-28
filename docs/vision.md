@@ -100,6 +100,9 @@ The rule engine owns legal actions and scoring. Analysis works from the
 acting seat's view. Opponents choose actions and the coach explains shared
 analysis results. Only explicitly privileged modes receive concealed cards.
 Frontends access sessions through the plain-data `skat-app` interface.
+Godot is the intended sole frontend. During the migration, the egui app
+remains usable until Godot's functional and accessibility parity, shared
+user data and Linux/Windows packaging are verified.
 
 See the [core architecture](architecture.md), [implementation status and next
 work](roadmap.md) and [binding decisions](decisions.md).
