@@ -1025,15 +1025,19 @@ func reveal_dialogue(table: Node, field: String, rule: String, caveats: Array, l
 		assert(dialogue_buttons(table).back().text == texts.tr_key("guided-return"))
 	assert(JSON.parse_string(table.app.view())["legal_actions"] == legal)
 	var phase := str(guided[field].get("phase", guided[field].get("call", "")))
-	await screenshot("%s-%s-%s" % [field, phase, lang])
+	await screenshot(table, "%s-%s-%s" % [field, phase, lang])
 	press(table, texts.tr_key("guided-return"))
 	assert(not dialogue.visible and table.app.guided() == "null")
 	return guided
 
 # Rendered capture (needs a display, e.g. xvfb-run): GODOT_DIALOGUE_SCREENSHOTS=dir.
-func screenshot(name: String) -> void:
+func screenshot(table: Node, name: String) -> void:
 	if not OS.has_environment("GODOT_DIALOGUE_SCREENSHOTS"):
 		return
+	await process_frame
+	# Scroll the dialogue to the top of the view so the capture shows it.
+	var dlg: Control = table.get_node("Layout/Dialogue")
+	table.scroll_vertical += int(dlg.global_position.y - table.global_position.y)
 	await process_frame
 	await RenderingServer.frame_post_draw
 	var path := OS.get_environment("GODOT_DIALOGUE_SCREENSHOTS").path_join(name.to_lower() + ".png")
@@ -1212,7 +1216,7 @@ func lead_null_memory_figures_flow(lang: String) -> void:
 			{"own": _count(guided["memory"]["own"]), "played": _count(guided["memory"]["played"]),
 			"unseen": _count(guided["memory"]["unseen"])})))
 		assert(not text.text.contains("guided-"), text.text)
-	await screenshot("lead-null-memory-" + lang)
+	await screenshot(table, "lead-null-memory-" + lang)
 	press(table, texts.tr_key("guided-memory-hide"))
 	assert(JSON.parse_string(table.app.guided())["memory"] == null)
 	# The learner's own card ends the lead; observation, then the separate comparison.
@@ -1244,7 +1248,7 @@ func lead_null_memory_figures_flow(lang: String) -> void:
 		assert(text.text.contains(texts.tr_key("guided-model-title")))
 		assert(text.text.contains(texts.tr_key("guided-model-unavailable")) or text.text.contains(
 			texts.tr_key("guided-basis-own")), text.text)
-	await screenshot("model-comparison-" + lang)
+	await screenshot(table, "model-comparison-" + lang)
 	table.queue_free()
 
 func _count(mask: Variant) -> int:
