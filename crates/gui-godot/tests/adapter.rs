@@ -1219,6 +1219,32 @@ fn reizen_dialogue_matches_the_direct_session_and_stays_in_the_permitted_view() 
     assert_eq!(view(&adapter).legal_actions, permitted.legal_actions);
 }
 
+/// Adapter and direct session in lockstep up to the first human card
+/// decision with a choice, coach on request.
+fn card_decision() -> (Adapter, Session) {
+    let cfg = config(7);
+    let mut adapter = Adapter::new(&json(&cfg)).unwrap();
+    let mut direct = Session::new(cfg);
+    loop {
+        let v = view(&adapter);
+        assert!(!v.series_finished && !v.can_next_game, "no card decision");
+        if v.opponent_to_move {
+            assert!(adapter.start_opponent());
+            finish_opponent(&mut adapter).expect("move applied");
+            direct.run_opponents();
+            continue;
+        }
+        if v.tricks_played >= 1 && v.legal_actions.len() >= 2 {
+            return (adapter, direct);
+        }
+        let action = v.legal_actions[0];
+        direct.execute(Command::Act(action)).unwrap();
+        adapter
+            .execute_json(&command(Command::Act(action)))
+            .unwrap();
+    }
+}
+
 /// Scans seeds with a direct session (first non-Pass legal action) for the
 /// first human decision the probe accepts; returns the seed and the commands
 /// leading there, so adapter and direct session can replay them in lockstep.
@@ -1392,6 +1418,44 @@ fn skat_pickup_discard_and_announce_dialogues_match_the_direct_session() {
         assert!(done.pre_rule.is_some(), "{phase:?}: worked rule revealed");
         assert!(done.preplay.unwrap().game.is_some());
     }
+}
+
+#[test]
+fn hints_and_note_show_only_the_permitted_view_and_never_delay_the_decision() {
+    let (mut adapter, mut direct) = card_decision();
+    adapter
+        .execute_json(&command(Command::RequestAdvice))
+        .unwrap();
+    direct.execute(Command::RequestAdvice).unwrap();
+    assert!(view(&adapter).coach.analysing);
+    assert!(adapter.start_coach());
+    finish_coach(&mut adapter);
+    let result = direct.coach_job().expect("advice due").run(None);
+    direct.finish_coach(result).unwrap();
+    let advised = view(&adapter);
+    assert!(matches!(
+        advised.coach.advice,
+        skat_app::Advice::Ready(_) | skat_app::Advice::Provisional(_)
+    ));
+    assert_eq!(advised.coach, direct.view().coach);
+    assert!(advised.open_cards.is_none());
+    // The hints name the options in neutral order and no ranking.
+    assert!(!adapter.view_json().contains("\"best\""));
+    // Moving on: the note comes from the separate review slot.
+    let action = advised.legal_actions[0];
+    adapter
+        .execute_json(&command(Command::Act(action)))
+        .unwrap();
+    direct.execute(Command::Act(action)).unwrap();
+    assert!(adapter.start_review());
+    assert!(!adapter.start_review(), "one review at a time");
+    finish_coach(&mut adapter);
+    let result = direct.coach_review_job().expect("review due").run(None);
+    direct.finish_coach(result).unwrap();
+    let noted = view(&adapter);
+    let last = noted.coach.last_move.as_ref().expect("note on the move");
+    assert!(last.note.is_some());
+    assert_eq!(noted.coach, direct.view().coach);
 }
 
 #[test]

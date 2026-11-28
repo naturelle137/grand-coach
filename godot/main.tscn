@@ -167,6 +167,26 @@ layout_mode = 2
 [node name="Reconsider" type="Button" parent="Layout/CoachBox/Controls"]
 layout_mode = 2
 
+[node name="CoachHelp" type="HBoxContainer" parent="Layout"]
+visible = false
+layout_mode = 2
+
+[node name="Ask" type="Button" parent="Layout/CoachHelp"]
+layout_mode = 2
+
+[node name="Hide" type="Button" parent="Layout/CoachHelp"]
+layout_mode = 2
+
+[node name="CoachAdvice" type="Label" parent="Layout"]
+visible = false
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="CoachNote" type="Label" parent="Layout"]
+visible = false
+layout_mode = 2
+autowrap_mode = 2
+
 [node name="QuizFeedback" type="Label" parent="Layout"]
 visible = false
 layout_mode = 2
