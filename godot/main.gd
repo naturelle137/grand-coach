@@ -88,6 +88,8 @@ func _ready() -> void:
 	$Layout/CoachWarnings.toggled.connect(_coach_changed)
 	$Layout/CoachBox/Controls/Proceed.pressed.connect(_act.bind("ProceedAnyway"))
 	$Layout/CoachBox/Controls/Reconsider.pressed.connect(_act.bind("Reconsider"))
+	$Layout/DialogueEntry/Guided.pressed.connect(_act.bind("StartGuided"))
+	$Layout/DialogueEntry/Abstich.pressed.connect(_act.bind("StartLiveAbstich"))
 	for key in MODE_KEYS:
 		$Layout/Mode.add_item(texts.tr_key(key))
 	$Layout/Mode.select(MODES.find(mode))
@@ -643,6 +645,8 @@ func _show() -> void:
 	_show_sheet(view)
 	var holding := _show_assist(view["assist"])
 	holding = _show_coach(view) or holding
+	# An open Abstich question refuses game actions until the learner returns.
+	holding = _show_dialogue(view, holding) or holding
 	$Layout/OpenCards.text = _open_cards(view["open_cards"])
 	$Layout/OpenCards.visible = view["open_cards"] != null
 	_clear($Layout/Hand)
@@ -945,3 +949,187 @@ func _feedback_lines(feedback: Dictionary) -> Array[String]:
 		lines.append(texts.tr_key("quiz-skipped", {"expected": expected}))
 	lines.append_array(_derivation_lines(feedback["derivation"]))
 	return lines
+
+# Guided dialogue and live Abstich question (D-64, #131, #13): the session owns
+# every step, answer and piece of evidence; this only words the permitted views
+# and sends the learner's explicit responses. Neither ever plays a card.
+func _show_dialogue(view: Dictionary, holding: bool) -> bool:
+	var guided = JSON.parse_string(app.guided())
+	var abstich = JSON.parse_string(app.live_abstich())
+	var plays: Array = view["legal_actions"].filter(func(a): return a is Dictionary and a.has("Play"))
+	var entry: bool = not view["opponent_to_move"] and not holding and not plays.is_empty() \
+		and guided == null and abstich == null
+	$Layout/DialogueEntry.visible = entry
+	$Layout/DialogueEntry/Guided.text = texts.tr_key("guided-start")
+	$Layout/DialogueEntry/Abstich.text = texts.tr_key("live-abstich-start")
+	$Layout/DialogueEntry/Abstich.disabled = plays.size() < 2
+	var box := $Layout/Dialogue
+	_clear(box.get_node("Buttons"))
+	box.visible = guided != null or abstich != null
+	if guided is Dictionary:
+		_show_guided(guided, view)
+	elif abstich is Dictionary:
+		_show_abstich(abstich, view)
+	return abstich is Dictionary
+
+func _dialogue_button(label: String, command: Variant, pressed := false) -> void:
+	var button := Button.new()
+	button.text = label
+	button.toggle_mode = pressed
+	button.button_pressed = pressed
+	button.pressed.connect(_act.bind(command))
+	$Layout/Dialogue/Buttons.add_child(button)
+
+func _seat_name(seat: Variant) -> String:
+	return texts.tr_key("seat-" + str(seat).to_lower())
+
+func _guided_command(guided: Dictionary, action: Variant) -> Variant:
+	return {"Guided": [guided["id"], action]}
+
+func _guided_prompt(guided: Dictionary) -> String:
+	var task = guided.get("task")
+	var step: String = guided["step"]
+	if step == "Orient":
+		return texts.tr_key("guided-orient")
+	if step == "Check":
+		return texts.tr_key("guided-check")
+	if step == "Narrow" or step == "Threshold":
+		if task == "UnderPartner":
+			return texts.tr_key("guided-under")
+		if task == "Fallback":
+			for flag in [["overtake_forced", "guided-forced-early-attempt"],
+					["decline_last", "guided-decline-last-attempt"],
+					["decline_early", "guided-decline-early-attempt"],
+					["decline", "guided-decline-attempt"]]:
+				if guided.get(flag[0], false):
+					return texts.tr_key(flag[1])
+			return texts.tr_key("guided-fallback-attempt")
+		if task == "FeedPartner":
+			return texts.tr_key("guided-feed-attempt")
+		if task == "WinEarly":
+			return texts.tr_key("guided-early-attempt")
+		return texts.tr_key("guided-win")
+	return texts.tr_key({"Act": "guided-act", "Waiting": "guided-waiting",
+		"Observe": "guided-observe", "Complete": "guided-complete"}.get(step, "guided-unsupported"))
+
+# Rule answer after the deliberate reveal; mirrors the egui wording per branch.
+func _guided_rule(guided: Dictionary) -> String:
+	var rule = guided["rule"]
+	var key := "guided-rule-win"
+	match rule["branch"]:
+		"UnderPartner": key = "guided-rule-under"
+		"FeedPartner": key = "guided-rule-feed" if rule["last"] else "guided-rule-feed-early"
+		"WinEarly": key = "guided-rule-early"
+		"Fallback":
+			if guided.get("overtake_forced", false): key = "guided-rule-forced-early"
+			elif guided.get("decline_last", false): key = "guided-rule-decline-last"
+			elif guided.get("decline_early", false): key = "guided-rule-decline-early"
+			elif not rule["partner_ahead"]: key = "guided-rule-decline"
+			else: key = "guided-rule-fallback"
+	var cards: Array[String] = []
+	for card in rule["candidates"]:
+		cards.append(_card(int(card)))
+	return "%s\n%s\n%s" % [texts.tr_key("guided-rule-card", {"card": _card(int(rule["card"]))}),
+		texts.tr_key(key), texts.tr_key("guided-candidates", {"cards": ", ".join(cards)})]
+
+func _source_line(source: Variant) -> String:
+	if source is Dictionary and source.has("Trick"):
+		var trick: Dictionary = source["Trick"]
+		return texts.tr_key("guided-source", {"trick": int(trick["index"]) + 1,
+			"seat": _seat_name(trick["seat"]), "card": _card(int(trick["card"]))})
+	return ""
+
+func _show_guided(guided: Dictionary, view: Dictionary) -> void:
+	var contract = view["contract"]
+	var null_game: bool = contract is Dictionary and str(contract["game"]) == "Null"
+	# Reizen, Skataufnahme, Drücken, Ansage, Kontra/Re, lead and Null dialogues
+	# are not worded in this frontend yet; the learner returns to the table.
+	var covered: bool = guided.get("reizen") == null and guided.get("preplay") == null \
+		and guided.get("kontra") == null and guided.get("kontra_exclusion") == null \
+		and guided.get("lead") == null and not null_game and guided["step"] != "Unsupported"
+	var lines: Array[String] = [texts.tr_key("guided-title")]
+	if not covered:
+		lines.append(texts.tr_key("guided-unsupported"))
+		_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
+		$Layout/Dialogue/Text.text = "\n".join(lines)
+		return
+	var step: String = guided["step"]
+	lines.append(_guided_prompt(guided))
+	if guided["correct"] == false:
+		lines.append(texts.tr_key("guided-wrong"))
+		_dialogue_button(texts.tr_key("guided-retry"), _guided_command(guided, "Retry"))
+	if guided["rule"] != null and step == "Act":
+		lines.append(_guided_rule(guided))
+	for source in [guided["observed_source"]] if step in ["Observe", "Complete"] else []:
+		lines.append(_source_line(source))
+	var observation = guided["observation"]
+	if observation != null:
+		lines.append(texts.tr_key("guided-proves-void" if observation["proves_void"] else "guided-only-card"))
+		if observation["winner"] != null:
+			lines.append(texts.tr_key("guided-winner", {"seat": _seat_name(observation["winner"])}))
+	if step in ["Orient", "Check"]:
+		for seat in ["Vorhand", "Mittelhand", "Hinterhand"]:
+			_dialogue_button(_seat_name(seat), _guided_command(guided, {"Answer": {"Seat": seat}}))
+		if step == "Check":
+			_dialogue_button(texts.tr_key("guided-none"), _guided_command(guided, {"Answer": {"Seat": null}}))
+	if step == "Narrow" or step == "Threshold":
+		for card in guided["legal_cards"]:
+			_dialogue_button(texts.tr_key("guided-consider", {"card": _card(int(card))}),
+				_guided_command(guided, {"Answer": {"Card": int(card)}}))
+	if step == "Observe":
+		for answer in [["guided-void-yes", true], ["guided-void-no", false]]:
+			_dialogue_button(texts.tr_key(answer[0]), _guided_command(guided, {"Answer": {"Void": answer[1]}}))
+	if step in ["Orient", "Check", "Narrow", "Observe"]:
+		_dialogue_button(texts.tr_key("guided-reveal"), _guided_command(guided, "Reveal"))
+	_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
+	$Layout/Dialogue/Text.text = "\n".join(lines)
+
+# `CardSet` crosses the wire as a bit mask (one bit per card); only its size is shown.
+func _card_count(mask: Variant) -> int:
+	var bits := int(mask)
+	var count := 0
+	while bits != 0:
+		count += bits & 1
+		bits >>= 1
+	return count
+
+func _show_abstich(abstich: Dictionary, view: Dictionary) -> void:
+	var lines: Array[String] = [texts.tr_key("live-abstich-title"), texts.tr_key("live-abstich-note")]
+	var identity = abstich["id"]
+	if abstich["unsupported"]:
+		lines.append(texts.tr_key("live-abstich-unsupported"))
+	if not abstich["unsupported"] or identity != null:
+		lines.append(texts.tr_key("live-abstich-select"))
+		for card in abstich["candidates"]:
+			_dialogue_button(_card(int(card)), {"SelectLiveAbstich": [abstich["boundary"], int(card)]},
+				identity != null and int(identity["card"]) == int(card))
+	if identity != null and identity["opponent"] != null:
+		var player := 0
+		for info in view["players"]:
+			if info["seat"] == identity["opponent"]:
+				player = int(info["player"])
+		lines.append(texts.tr_key("live-abstich-question",
+			{"card": _card(int(identity["card"])), "player": _player(player)}))
+		lines.append(texts.tr_key("live-abstich-definition"))
+	var response = abstich["response"]
+	if response != null:
+		lines.append(texts.tr_key({"Correct": "live-response-correct",
+			"OverstatedCertainty": "live-response-overstated", "DeniedPossibility": "live-response-denied",
+			"UnderstatedCertainty": "live-response-understated",
+			"Skipped": "live-response-skipped"}.get(str(response), "live-response-unsupported")))
+	var evidence = abstich["evidence"]
+	if evidence != null:
+		lines.append(texts.tr_key("focus-possible" if evidence["certainty"] == "Possible" else "focus-certain"))
+		lines.append(texts.tr_key("focus-abstich-evidence", {"seat": _seat_name(evidence["seat"]),
+			"suit": _suit_name(int(evidence["card"]) / 8), "cards": _card_count(evidence["suit_unseen"]),
+			"trumps": _card_count(evidence["trumpf_unseen"])}))
+		lines.append(texts.tr_key("focus-boundary-note"))
+	if abstich["assisted"]:
+		lines.append(texts.tr_key("live-abstich-assisted"))
+	if identity != null and identity["opponent"] != null and response == null:
+		for answer in [["focus-possible", "Possible"], ["focus-certain", "Certain"], ["focus-absent", "Absent"]]:
+			_dialogue_button(texts.tr_key(answer[0]), {"LiveAbstich": [identity, {"Answer": answer[1]}]})
+		_dialogue_button(texts.tr_key("live-abstich-help"), {"LiveAbstich": [identity, "Help"]})
+		_dialogue_button(texts.tr_key("quiz-skip"), {"LiveAbstich": [identity, "Skip"]})
+	_dialogue_button(texts.tr_key("live-abstich-return"), "CloseLiveAbstich")
+	$Layout/Dialogue/Text.text = "\n".join(lines)

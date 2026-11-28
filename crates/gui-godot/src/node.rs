@@ -55,6 +55,24 @@ impl SkatApp {
             .unwrap_or_default()
     }
 
+    /// The open guided dialogue as JSON (`GuidedView` or `null`).
+    #[func]
+    fn guided(&self) -> GString {
+        self.adapter
+            .as_ref()
+            .map(|a| GString::from(a.guided_json().as_str()))
+            .unwrap_or_default()
+    }
+
+    /// The open live Abstich question as JSON (`LiveAbstichView` or `null`).
+    #[func]
+    fn live_abstich(&self) -> GString {
+        self.adapter
+            .as_ref()
+            .map(|a| GString::from(a.live_abstich_json().as_str()))
+            .unwrap_or_default()
+    }
+
     /// Figure catalogue keys as a JSON array, indexed by the view's `FigureId`.
     #[func]
     fn figure_keys(&self) -> GString {

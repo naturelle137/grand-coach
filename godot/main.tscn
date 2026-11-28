@@ -169,6 +169,27 @@ visible = false
 layout_mode = 2
 autowrap_mode = 2
 
+[node name="DialogueEntry" type="HBoxContainer" parent="Layout"]
+visible = false
+layout_mode = 2
+
+[node name="Guided" type="Button" parent="Layout/DialogueEntry"]
+layout_mode = 2
+
+[node name="Abstich" type="Button" parent="Layout/DialogueEntry"]
+layout_mode = 2
+
+[node name="Dialogue" type="VBoxContainer" parent="Layout"]
+visible = false
+layout_mode = 2
+
+[node name="Text" type="Label" parent="Layout/Dialogue"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="Buttons" type="VBoxContainer" parent="Layout/Dialogue"]
+layout_mode = 2
+
 [node name="Cast" type="HBoxContainer" parent="Layout"]
 layout_mode = 2
 
