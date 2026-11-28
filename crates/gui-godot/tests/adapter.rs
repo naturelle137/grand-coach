@@ -1051,3 +1051,71 @@ fn opponent_mode_opening_views_match_skat_app() {
         );
     }
 }
+
+#[test]
+fn reizen_dialogue_matches_the_direct_session_and_stays_in_the_permitted_view() {
+    // First seed whose first human decision is a bidding action.
+    let seed = (1..200u64)
+        .find(|&s| {
+            let mut a = Adapter::new(&json(&config(s))).unwrap();
+            let mut d = Session::new(config(s));
+            settle(&mut a, &mut d);
+            view(&a)
+                .legal_actions
+                .iter()
+                .any(|x| matches!(x, skat_app::Action::Pass | skat_app::Action::Bid(_)))
+        })
+        .expect("a seed starts with a human bid");
+    let mut adapter = Adapter::new(&json(&config(seed))).unwrap();
+    let mut session = Session::new(config(seed));
+    settle(&mut adapter, &mut session);
+    let permitted = view(&adapter);
+
+    same(&mut adapter, &mut session, Command::StartGuided).unwrap();
+    let opened = guided_view(&adapter).unwrap();
+    let reizen = opened.reizen.expect("a Reizen dialogue");
+    assert_eq!(opened.step, skat_app::GuidedStep::Orient);
+    assert!(opened.bid_rule.is_none() && reizen.holds.is_none() && reizen.stake.is_none());
+    let wire = adapter.guided_json();
+    assert!(!wire.contains("seed") && !wire.contains("skat\""));
+
+    // A deliberate answer is checked identically; a wrong one can be retried.
+    let (id, direct) = guided_ids(&adapter, &session);
+    for holds in [true, false] {
+        let answer = skat_app::GuidedAction::Answer(skat_app::GuidedAnswer::Holds(holds));
+        both(
+            &mut adapter,
+            &mut session,
+            Command::Guided(id, answer),
+            Command::Guided(direct, answer),
+        )
+        .unwrap();
+        let g = guided_view(&adapter).unwrap();
+        if g.step != skat_app::GuidedStep::Orient {
+            break;
+        }
+        assert_eq!(g.correct, Some(false));
+        let retry = skat_app::GuidedAction::Retry;
+        both(
+            &mut adapter,
+            &mut session,
+            Command::Guided(id, retry),
+            Command::Guided(direct, retry),
+        )
+        .unwrap();
+    }
+    let after = guided_view(&adapter).unwrap();
+    assert_eq!(after.step, skat_app::GuidedStep::Threshold);
+
+    let reveal = skat_app::GuidedAction::Reveal;
+    both(
+        &mut adapter,
+        &mut session,
+        Command::Guided(id, reveal),
+        Command::Guided(direct, reveal),
+    )
+    .unwrap();
+    assert!(guided_view(&adapter).unwrap().bid_rule.is_some());
+    // The dialogue never acts: the legal choices are untouched.
+    assert_eq!(view(&adapter).legal_actions, permitted.legal_actions);
+}

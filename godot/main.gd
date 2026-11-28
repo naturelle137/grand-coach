@@ -957,8 +957,10 @@ func _show_dialogue(view: Dictionary, holding: bool) -> bool:
 	var guided = JSON.parse_string(app.guided())
 	var abstich = JSON.parse_string(app.live_abstich())
 	var plays: Array = view["legal_actions"].filter(func(a): return a is Dictionary and a.has("Play"))
-	var entry: bool = not view["opponent_to_move"] and not holding and not plays.is_empty() \
-		and guided == null and abstich == null
+	var bids: Array = view["legal_actions"].filter(func(a):
+		return str(a) == "Pass" or (a is Dictionary and a.has("Bid")))
+	var entry: bool = not view["opponent_to_move"] and not holding \
+		and not (plays.is_empty() and bids.is_empty()) and guided == null and abstich == null
 	$Layout/DialogueEntry.visible = entry
 	$Layout/DialogueEntry/Guided.text = texts.tr_key("guided-start")
 	$Layout/DialogueEntry/Abstich.text = texts.tr_key("live-abstich-start")
@@ -1044,10 +1046,14 @@ func _show_guided(guided: Dictionary, view: Dictionary) -> void:
 	var null_game: bool = contract is Dictionary and str(contract["game"]) == "Null"
 	# Reizen, Skataufnahme, Drücken, Ansage, Kontra/Re, lead and Null dialogues
 	# are not worded in this frontend yet; the learner returns to the table.
-	var covered: bool = guided.get("reizen") == null and guided.get("preplay") == null \
+	var covered: bool = guided.get("preplay") == null \
 		and guided.get("kontra") == null and guided.get("kontra_exclusion") == null \
 		and guided.get("lead") == null and not null_game and guided["step"] != "Unsupported"
 	var lines: Array[String] = [texts.tr_key("guided-title")]
+	if guided.get("reizen") is Dictionary:
+		_show_reizen(guided, lines)
+		$Layout/Dialogue/Text.text = "\n".join(lines)
+		return
 	if not covered:
 		lines.append(texts.tr_key("guided-unsupported"))
 		_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
@@ -1085,6 +1091,60 @@ func _show_guided(guided: Dictionary, view: Dictionary) -> void:
 	$Layout/Dialogue/Text.text = "\n".join(lines)
 
 # `CardSet` crosses the wire as a bit mask (one bit per card); only its size is shown.
+# Reizen dialogue: orientation (hold or name a bid), Easy's ceiling attempt, the
+# rule and then any legal bidding action in the table's own buttons.
+func _show_reizen(guided: Dictionary, lines: Array[String]) -> void:
+	var r: Dictionary = guided["reizen"]
+	var step: String = guided["step"]
+	var current := int(r["current"])
+	lines.append(texts.tr_key("guided-bid-current-none") if current == 0
+		else texts.tr_key("guided-bid-current", {"bid": current}))
+	var stake = r.get("stake")
+	if step == "Orient":
+		lines.append(texts.tr_key("guided-bid-orient"))
+	elif step == "Threshold" and stake != null:
+		lines.append(texts.tr_key("guided-bid-threshold-hold" if r.get("holds") == true
+			else "guided-bid-threshold-ask", {"value": int(stake)}))
+	elif step == "Threshold":
+		lines.append(texts.tr_key("guided-bid-threshold-none", {"bid": current}))
+	elif step == "Act":
+		lines.append(texts.tr_key("guided-bid-act"))
+	else:
+		lines.append(texts.tr_key("guided-unsupported"))
+	if guided["correct"] == false:
+		lines.append(texts.tr_key("guided-wrong"))
+		_dialogue_button(texts.tr_key("guided-retry"), _guided_command(guided, "Retry"))
+	var answers: Array = []
+	if step == "Orient":
+		answers = [["guided-bid-holds", {"Holds": true}], ["guided-bid-asks", {"Holds": false}]]
+	elif step == "Threshold":
+		answers = [["guided-bid-within-yes", {"Within": true}], ["guided-bid-within-no", {"Within": false}]]
+	for answer in answers:
+		_dialogue_button(texts.tr_key(answer[0]), _guided_command(guided, {"Answer": answer[1]}))
+	var rule = guided.get("bid_rule")
+	if rule is Dictionary:
+		lines.append(texts.tr_key("guided-bid-rule", {"action": _label(rule["action"], current, null)}))
+		var branch: String = str(rule["branch"])
+		if branch == "Weak":
+			lines.append(texts.tr_key("guided-bid-weak"))
+		else:
+			var game = rule["game"]
+			var name: String = texts.tr_key("suit-" + str(game["Farbe"]).to_lower()) \
+				if game is Dictionary else texts.tr_key("game-" + str(game).to_lower())
+			lines.append(texts.tr_key("guided-bid-game", {"game": name, "ceiling": int(rule["ceiling"])}))
+			lines.append(texts.tr_key("guided-bid-branch-" + branch.to_lower()))
+		var value = rule.get("stake")
+		if value == null:
+			lines.append(texts.tr_key("guided-bid-no-value"))
+		else:
+			lines.append(texts.tr_key("guided-bid-within" if int(value) <= int(rule["ceiling"])
+				else "guided-bid-above", {"value": int(value), "ceiling": int(rule["ceiling"])}))
+		lines.append(texts.tr_key("guided-bid-caveat"))
+	if step in ["Orient", "Threshold"]:
+		_dialogue_button(texts.tr_key("guided-unknown"), _guided_command(guided, "Reveal"))
+		_dialogue_button(texts.tr_key("guided-reveal"), _guided_command(guided, "Reveal"))
+	_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
+
 func _card_count(mask: Variant) -> int:
 	var bits := int(mask)
 	var count := 0
