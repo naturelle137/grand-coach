@@ -164,6 +164,8 @@ func play_series(lang: String) -> void:
 	var saw_next := false
 	var saw_card_click := false
 	var saw_discard := false
+	var saw_announce := false
+	var saw_skat := false
 	var captured := false
 	var deadline := Time.get_ticks_msec() + 60000
 	while Time.get_ticks_msec() < deadline:
@@ -199,10 +201,19 @@ func play_series(lang: String) -> void:
 		var actions: Array = view["legal_actions"]
 		var buttons = table.get_node("Layout/Scroll/Actions").get_children().filter(
 			func(button): return not button.is_queued_for_deletion())
-		assert(buttons.size() == actions.size() + int(view["can_next_game"]))
+		var announces = actions.filter(func(a): return a is Dictionary and a.has("Announce"))
+		var picker_rows := 3 if not announces.is_empty() else 0
+		assert(buttons.size() == actions.size() - announces.size() + picker_rows + int(view["can_next_game"]))
+		if not announces.is_empty():
+			announce(table, view, announces)
+			saw_announce = true
+			continue
+		if view["own_skat"] is Array:
+			saw_skat = true
+			assert(table.texts.tr_key("label-own-skat") in table.get_node("Layout/Table").text)
 		if view["series_finished"]:
 			check_sheet(table, view)
-			assert(saw_bid and saw_play and saw_next and saw_card_click and saw_discard and actions.is_empty())
+			assert(saw_bid and saw_play and saw_next and saw_card_click and saw_discard and saw_announce and saw_skat and actions.is_empty())
 			if OS.has_environment("GODOT_SHEET_SCREENSHOTS"):
 				table.texts.load_language(lang)
 				table._show()
@@ -305,3 +316,18 @@ func discard(table: Node, view: Dictionary, discards: Array) -> void:
 	assert(not table.failed, table.get_node("Layout/Status").text)
 	assert(JSON.parse_string(table.app.view())["phase"] != "Druecken" and table.discard_selection.is_empty())
 	await process_frame
+
+# Ansage: the picker lists exactly the legal announcements, in both languages.
+func announce(table: Node, view: Dictionary, announces: Array) -> void:
+	var picker: OptionButton = table.get_node("Layout/Scroll/Actions/AnnouncePicker")
+	assert(picker.item_count == announces.size())
+	for lang in ["de", "en"]:
+		table.texts.load_language(lang)
+		table._show()
+		picker = table.get_node("Layout/Scroll/Actions/AnnouncePicker")
+		assert(table.get_node("Layout/Scroll/Actions/AnnounceLabel").text == table.texts.tr_key("label-announce"))
+		for i in range(announces.size()):
+			assert(picker.get_item_text(i) == table._label(announces[i], 0, view["hand_game"]))
+	picker.select(picker.item_count - 1)
+	table.get_node("Layout/Scroll/Actions/ConfirmAnnounce").pressed.emit()
+	assert(not table.failed, table.get_node("Layout/Status").text)
