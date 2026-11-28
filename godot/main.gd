@@ -14,6 +14,7 @@ var open_display := false
 var levels := ["Easy", "Easy"]
 var engine := "Classic"
 var mode := "Levels"
+var show_figures := false
 var counting_aid := false
 var quiz := false
 var coach_level := "OnRequest"
@@ -45,6 +46,7 @@ func _ready() -> void:
 		open_display = settings.get_value("game", "open_display", false) == true
 		counting_aid = settings.get_value("assist", "counting_aid", false) == true
 		quiz = settings.get_value("assist", "quiz", false) == true
+		show_figures = settings.get_value("assist", "figures", false) == true
 		var saved_coach = settings.get_value("coach", "level", "OnRequest")
 		if saved_coach in COACH_LEVELS:
 			coach_level = saved_coach
@@ -76,6 +78,8 @@ func _ready() -> void:
 	$Layout/CountingAid.toggled.connect(_assist_changed)
 	$Layout/Quiz.button_pressed = quiz
 	$Layout/Quiz.toggled.connect(_assist_changed)
+	$Layout/ShowFigures.button_pressed = show_figures
+	$Layout/ShowFigures.toggled.connect(_figures_changed)
 	$Layout/QuizBox/Controls/Answer.pressed.connect(_answer_quiz)
 	$Layout/QuizBox/Controls/Skip.pressed.connect(_act.bind("SkipQuiz"))
 	$Layout/QuizBox/Controls/ShowHelp.pressed.connect(_act.bind("RestoreQuizHelp"))
@@ -264,6 +268,12 @@ func _send_assist() -> void:
 		"counting_aid": counting_aid, "quiz": quiz}}))
 	_report_error(result)
 
+func _figures_changed(enabled: bool) -> void:
+	show_figures = enabled
+	_save_setting("assist", "figures", show_figures)
+	_send_coach()
+	_show()
+
 func _assist_changed(_enabled: bool) -> void:
 	counting_aid = $Layout/CountingAid.button_pressed
 	quiz = $Layout/Quiz.button_pressed
@@ -278,7 +288,7 @@ func _assist_changed(_enabled: bool) -> void:
 func _send_coach() -> void:
 	var result := app.execute(JSON.stringify({"SetCoach": {
 		"level": coach_level, "warnings": coach_warnings,
-		"show_figures": false, "focus": null}}))
+		"show_figures": show_figures, "focus": null}}))
 	_report_error(result)
 
 func _coach_changed(_value: Variant) -> void:
@@ -631,6 +641,7 @@ func _show() -> void:
 	$Layout/CountingAid.text = texts.tr_key("setting-aid")
 	$Layout/CountingAid.tooltip_text = texts.tr_key("setting-aid-description")
 	$Layout/Quiz.text = texts.tr_key("setting-quiz")
+	$Layout/ShowFigures.text = texts.tr_key("setting-coach-figures")
 	$Layout/Quiz.tooltip_text = texts.tr_key("setting-quiz-description")
 	for j in range(ENGINES.size()):
 		$Layout/Engine.set_item_text(j, texts.tr_key(ENGINE_KEYS[j]))
@@ -1178,10 +1189,8 @@ func _show_dialogue(view: Dictionary, holding: bool) -> bool:
 	var guided = JSON.parse_string(app.guided())
 	var abstich = JSON.parse_string(app.live_abstich())
 	var plays: Array = view["legal_actions"].filter(func(a): return a is Dictionary and a.has("Play"))
-	var bids: Array = view["legal_actions"].filter(func(a):
-		return str(a) == "Pass" or (a is Dictionary and a.has("Bid")))
 	var entry: bool = not view["opponent_to_move"] and not holding \
-		and not (plays.is_empty() and bids.is_empty()) and guided == null and abstich == null
+		and not view["legal_actions"].is_empty() and guided == null and abstich == null
 	$Layout/DialogueEntry.visible = entry
 	$Layout/DialogueEntry/Guided.text = texts.tr_key("guided-start")
 	$Layout/DialogueEntry/Abstich.text = texts.tr_key("live-abstich-start")
@@ -1209,13 +1218,27 @@ func _seat_name(seat: Variant) -> String:
 func _guided_command(guided: Dictionary, action: Variant) -> Variant:
 	return {"Guided": [guided["id"], action]}
 
-func _guided_prompt(guided: Dictionary) -> String:
+func _guided_prompt(guided: Dictionary, view: Dictionary) -> String:
 	var task = guided.get("task")
 	var step: String = guided["step"]
+	var ctx := _null_context(view)
+	var lead = guided.get("lead")
+	var is_null: bool = ctx["null"]
 	if step == "Orient":
-		return texts.tr_key("guided-orient")
+		return texts.tr_key("guided-lead-orient" if lead != null else "guided-orient")
 	if step == "Check":
+		if lead != null and is_null: return texts.tr_key("guided-null-lead-candidates")
+		if guided.get("lead_trumpf", false): return texts.tr_key("guided-draw-trumpf")
+		if lead != null: return texts.tr_key("guided-lead-master")
 		return texts.tr_key("guided-check")
+	if step == "Observe":
+		if guided.get("lead_trumpf", false): return texts.tr_key("guided-draw-trumpf-observe")
+		if lead != null: return texts.tr_key("guided-lead-observe")
+	if step == "Narrow":
+		if lead != null and is_null: return texts.tr_key("guided-null-lead-attempt")
+		if guided.get("lead_trumpf", false): return texts.tr_key("guided-draw-trumpf-attempt")
+		if guided.get("lead_fallback", false): return texts.tr_key("guided-lead-fallback-attempt")
+		if lead != null: return texts.tr_key("guided-lead-attempt")
 	if step == "Narrow" or step == "Threshold":
 		if task == "UnderPartner":
 			return texts.tr_key("guided-under")
@@ -1231,29 +1254,109 @@ func _guided_prompt(guided: Dictionary) -> String:
 			return texts.tr_key("guided-feed-attempt")
 		if task == "WinEarly":
 			return texts.tr_key("guided-early-attempt")
+		if task == "Null" and ctx["partner_lead"]:
+			return texts.tr_key("guided-null-partner-attempt")
+		if task == "Null" and guided.get("null_forced", false):
+			if ctx["defender"]:
+				return texts.tr_key("guided-null-defender-forced-attempt")
+			return texts.tr_key("guided-null-middle-forced-attempt" if ctx["trick"] == 1
+				else "guided-null-forced-attempt")
+		if task == "Null":
+			return texts.tr_key("guided-null-attempt")
 		return texts.tr_key("guided-win")
 	return texts.tr_key({"Act": "guided-act", "Waiting": "guided-waiting",
 		"Observe": "guided-observe", "Complete": "guided-complete"}.get(step, "guided-unsupported"))
 
-# Rule answer after the deliberate reveal; mirrors the egui wording per branch.
-func _guided_rule(guided: Dictionary) -> String:
+# Public Null/seat facts of the table the dialogue words (no state of its own).
+func _null_context(view: Dictionary) -> Dictionary:
+	var contract = view["contract"]
+	var is_null: bool = contract is Dictionary and str(contract["game"]) == "Null"
+	var trick: Array = view["current_trick"]
+	var declarer = view["declarer"]
+	var defender: bool = null and declarer != null and int(declarer) != 0
+	return {"null": is_null, "defender": defender, "trick": trick.size(),
+		"declarer_human": declarer != null and int(declarer) == 0,
+		"partner_lead": defender and trick.size() == 1 and int(trick[0]["player"]) != int(declarer),
+		"ouvert": contract is Dictionary and contract["ouvert"] == true}
+
+func _card_list(cards: Array) -> String:
+	var names: Array[String] = []
+	for card in cards:
+		names.append(_card(int(card)))
+	return ", ".join(names)
+
+# Rule answer after the deliberate reveal; mirrors the egui wording per branch,
+# the collapsed details included as plain lines.
+func _guided_rule(guided: Dictionary, view: Dictionary) -> String:
 	var rule = guided["rule"]
+	var ctx := _null_context(view)
+	var branch: String = rule["branch"]
+	var lead = guided.get("lead")
+	var last: bool = rule["last"]
+	var losers_empty: bool = rule["losers"].is_empty()
+	var lead_rule: bool = branch in ["LeadMaster", "DrawTrumpf"]
 	var key := "guided-rule-win"
-	match rule["branch"]:
-		"UnderPartner": key = "guided-rule-under"
-		"FeedPartner": key = "guided-rule-feed" if rule["last"] else "guided-rule-feed-early"
-		"WinEarly": key = "guided-rule-early"
-		"Fallback":
-			if guided.get("overtake_forced", false): key = "guided-rule-forced-early"
-			elif guided.get("decline_last", false): key = "guided-rule-decline-last"
-			elif guided.get("decline_early", false): key = "guided-rule-decline-early"
-			elif not rule["partner_ahead"]: key = "guided-rule-decline"
-			else: key = "guided-rule-fallback"
-	var cards: Array[String] = []
-	for card in rule["candidates"]:
-		cards.append(_card(int(card)))
-	return "%s\n%s\n%s" % [texts.tr_key("guided-rule-card", {"card": _card(int(rule["card"]))}),
-		texts.tr_key(key), texts.tr_key("guided-candidates", {"cards": ", ".join(cards)})]
+	if branch == "DrawTrumpf": key = "guided-rule-draw-trumpf"
+	elif branch == "LeadMaster": key = "guided-rule-lead"
+	elif branch == "Fallback" and lead != null: key = "guided-rule-lead-fallback"
+	elif branch == "UnderPartner": key = "guided-rule-under"
+	elif branch == "Fallback":
+		if guided.get("overtake_forced", false): key = "guided-rule-forced-early"
+		elif guided.get("decline_last", false): key = "guided-rule-decline-last"
+		elif guided.get("decline_early", false): key = "guided-rule-decline-early"
+		elif not rule["partner_ahead"]: key = "guided-rule-decline"
+		else: key = "guided-rule-fallback"
+	elif branch == "FeedPartner": key = "guided-rule-feed" if last else "guided-rule-feed-early"
+	elif branch == "WinEarly": key = "guided-rule-early"
+	elif branch == "Null":
+		var defender: bool = ctx["defender"]
+		var partner: bool = ctx["partner_lead"]
+		if lead != null: key = "guided-rule-null-lead"
+		elif defender and not last and losers_empty and not partner: key = "guided-rule-null-defender-forced-middle"
+		elif defender and last and losers_empty and not partner: key = "guided-rule-null-defender-forced-last"
+		elif defender and last: key = "guided-rule-null-defender-last"
+		elif partner: key = "guided-rule-null-partner"
+		elif defender: key = "guided-rule-null-defender"
+		elif losers_empty: key = "guided-rule-null-forced" if last else "guided-rule-null-middle-forced"
+		else: key = "guided-rule-null" if last else "guided-rule-null-middle"
+	var lines: Array[String] = []
+	var cards := _card_list(rule["candidates"])
+	if lead_rule:
+		lines.append(texts.tr_key(key, {"card": _card(int(rule["card"]))}))
+		lines.append(texts.tr_key("guided-draw-trumpf-candidates-risk" if branch == "DrawTrumpf"
+			else "guided-lead-candidates-risk", {"cards": cards}))
+	else:
+		lines.append(texts.tr_key("guided-rule-card", {"card": _card(int(rule["card"]))}))
+		lines.append(texts.tr_key(key))
+	if branch == "UnderPartner" and ctx["ouvert"]:
+		lines.append(texts.tr_key("guided-under-ouvert"))
+	if branch == "Fallback" and lead != null and ctx["ouvert"]:
+		lines.append(texts.tr_key("guided-lead-fallback-ouvert"))
+	var condition = guided.get("early_condition")
+	if condition != null:
+		var contract = view["contract"]
+		var suit: bool = contract is Dictionary and contract["game"] is Dictionary
+		lines.append(texts.tr_key(("guided-suit-early-" if suit else "guided-early-")
+			+ ("trumpf" if str(condition) == "Trumpf" else "master")))
+	if branch == "DrawTrumpf":
+		lines.append_array([texts.tr_key("guided-draw-trumpf-conservative"), texts.tr_key("guided-lead-empty")])
+	elif branch == "LeadMaster":
+		lines.append_array([texts.tr_key("guided-lead-conservative"), texts.tr_key("guided-lead-empty")])
+	elif branch == "Null" and lead != null:
+		lines.append_array([texts.tr_key("guided-null-lead-order"), texts.tr_key("guided-null-lead-empty")])
+	elif branch == "FeedPartner" and not last:
+		lines.append(texts.tr_key("guided-feed-early-order"))
+	elif branch == "Null" and not last and not ctx["partner_lead"]:
+		lines.append(texts.tr_key("guided-null-middle-forced-order" if losers_empty else "guided-null-middle-order"))
+	if not lead_rule:
+		lines.append(texts.tr_key("guided-candidates", {"cards": cards}))
+	if branch == "Null" and lead == null and not ctx["defender"]:
+		var winners := _card_list(rule["winners"])
+		if rule["winners"].is_empty():
+			lines.append(texts.tr_key("guided-null-no-winners" if last else "guided-null-middle-no-winners"))
+		else:
+			lines.append(texts.tr_key("guided-null-winners" if last else "guided-null-middle-winners", {"cards": winners}))
+	return "\n".join(lines)
 
 func _source_line(source: Variant) -> String:
 	if source is Dictionary and source.has("Trick"):
@@ -1263,53 +1366,422 @@ func _source_line(source: Variant) -> String:
 	return ""
 
 func _show_guided(guided: Dictionary, view: Dictionary) -> void:
-	var contract = view["contract"]
-	var null_game: bool = contract is Dictionary and str(contract["game"]) == "Null"
-	# Reizen, Skataufnahme, Drücken, Ansage, Kontra/Re, lead and Null dialogues
-	# are not worded in this frontend yet; the learner returns to the table.
-	var covered: bool = guided.get("preplay") == null \
-		and guided.get("kontra") == null and guided.get("kontra_exclusion") == null \
-		and guided.get("lead") == null and not null_game and guided["step"] != "Unsupported"
 	var lines: Array[String] = [texts.tr_key("guided-title")]
 	if guided.get("reizen") is Dictionary:
 		_show_reizen(guided, lines)
-		$Layout/Dialogue/Text.text = "\n".join(lines)
-		return
-	if not covered:
-		lines.append(texts.tr_key("guided-unsupported"))
-		_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
-		$Layout/Dialogue/Text.text = "\n".join(lines)
-		return
-	var step: String = guided["step"]
-	lines.append(_guided_prompt(guided))
+	elif guided.get("preplay") is Dictionary:
+		_show_preplay(guided, view, lines)
+	elif guided.get("kontra") is Dictionary:
+		_show_kontra(guided, view, lines)
+	else:
+		_show_card_play(guided, view, lines)
+	$Layout/Dialogue/Text.text = "\n".join(lines)
+
+func _retry_lines(guided: Dictionary, lines: Array[String]) -> void:
 	if guided["correct"] == false:
 		lines.append(texts.tr_key("guided-wrong"))
 		_dialogue_button(texts.tr_key("guided-retry"), _guided_command(guided, "Retry"))
-	if guided["rule"] != null and step == "Act":
-		lines.append(_guided_rule(guided))
-	for source in [guided["observed_source"]] if step in ["Observe", "Complete"] else []:
-		lines.append(_source_line(source))
-	var observation = guided["observation"]
-	if observation != null:
-		lines.append(texts.tr_key("guided-proves-void" if observation["proves_void"] else "guided-only-card"))
-		if observation["winner"] != null:
-			lines.append(texts.tr_key("guided-winner", {"seat": _seat_name(observation["winner"])}))
-	if step in ["Orient", "Check"]:
+
+func _reveal_buttons(guided: Dictionary, steps: Array) -> void:
+	if guided["step"] in steps:
+		_dialogue_button(texts.tr_key("guided-unknown"), _guided_command(guided, "Reveal"))
+		_dialogue_button(texts.tr_key("guided-reveal"), _guided_command(guided, "Reveal"))
+
+func _game_name(game: Variant) -> String:
+	return texts.tr_key("suit-" + str(game["Farbe"]).to_lower()) if game is Dictionary \
+		else texts.tr_key("game-" + str(game).to_lower())
+
+func _skat_line(skat: Variant) -> String:
+	if int(skat) == 0:
+		return texts.tr_key("guided-ann-skat-hand")
+	var cards: Array[String] = []
+	for i in range(32):
+		if int(skat) & (1 << i):
+			cards.append(_card(i))
+	return texts.tr_key("guided-ann-skat-known", {"cards": ", ".join(cards)})
+
+# Card play: follow-trick, lead and Null branches, observation and memory.
+func _show_card_play(guided: Dictionary, view: Dictionary, lines: Array[String]) -> void:
+	var step: String = guided["step"]
+	var ctx := _null_context(view)
+	var is_null: bool = ctx["null"]
+	var lead = guided.get("lead")
+	var contract = view["contract"]
+	var position: int = ctx["trick"]
+	var declarer = view["declarer"]
+	var active: bool = step in ["Orient", "Check", "Narrow", "Act"]
+	if step == "Unsupported" and guided.get("kontra_exclusion") != null:
+		lines.append(texts.tr_key({"OuvertRound": "guided-unsupported-kontra-ouvert-round",
+			"Ouvert": "guided-unsupported-kontra-ouvert",
+			"Restricted": "guided-unsupported-kontra"}[str(guided["kontra_exclusion"])]))
+		_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
+		return
+	if guided.get("feed_partner") != null and active and declarer != null and int(declarer) != 0 \
+			and position == 2 and contract is Dictionary and not is_null:
+		lines.append(texts.tr_key("guided-feed-role", {"seat": _seat_name(guided["feed_partner"])}))
+	if contract is Dictionary and contract["ouvert"] == true and not is_null and step == "Act" \
+			and guided["rule"] != null and guided["rule"]["branch"] == "FeedPartner":
+		lines.append(texts.tr_key("guided-feed-ouvert-view"))
+	if ctx["defender"] and active:
+		if lead != null:
+			lines.append(texts.tr_key("guided-null-ouvert-defender-lead-role" if ctx["ouvert"]
+				else "guided-null-defender-lead-role"))
+		elif position == 2:
+			lines.append(texts.tr_key("guided-null-defender-last-role"))
+		elif ctx["partner_lead"]:
+			lines.append(texts.tr_key("guided-null-partner-role"))
+		else:
+			lines.append(texts.tr_key("guided-null-defender-role"))
+	if is_null and ctx["declarer_human"] and (position == 2 or (position == 1 and step == "Orient")):
+		lines.append(texts.tr_key("guided-null-middle-role" if position == 1 else "guided-null-role"))
+	if step == "Unsupported" and view["phase"] == "Spiel" and contract is Dictionary \
+			and not guided["legal_cards"].is_empty():
+		lines.append(texts.tr_key("guided-unsupported-card", {
+			"game": " · ".join(_contract_parts(contract["game"], contract["hand"] == true, contract)),
+			"position": texts.tr_key(["guided-unsupported-lead", "guided-unsupported-second",
+				"guided-unsupported-last"][mini(position, 2)])}))
+		if contract["ouvert"] == true and view["declarer_cards"] != null:
+			lines.append(texts.tr_key("guided-unsupported-revealed"))
+	else:
+		lines.append(_guided_prompt(guided, view))
+	_retry_lines(guided, lines)
+	if lead != null and step == "Orient":
+		for answer in [["guided-lead-declarer", true], ["guided-lead-defender", false]]:
+			_dialogue_button(texts.tr_key(answer[0]),
+				_guided_command(guided, {"Answer": {"Lead": {"seat": lead, "declarer": answer[1]}}}))
+	if lead != null and step in ["Check", "Narrow"]:
+		var farbe: bool = contract is Dictionary and contract["game"] is Dictionary
+		if is_null: lines.append(texts.tr_key("guided-null-lead-ranks"))
+		elif guided.get("lead_fallback", false): lines.append(texts.tr_key("guided-lead-fallback-definition"))
+		elif guided.get("lead_trumpf", false): lines.append(texts.tr_key("guided-draw-trumpf-definition"))
+		elif farbe: lines.append(texts.tr_key("guided-lead-suit-definition"))
+		else: lines.append(texts.tr_key("guided-lead-definition"))
+		if is_null:
+			if ctx["defender"]:
+				lines.append(texts.tr_key("guided-null-ouvert-defender-lead-limit" if ctx["ouvert"]
+					else "guided-null-defender-lead-limit"))
+			else:
+				lines.append(texts.tr_key("guided-null-lead-limit"))
+		elif guided.get("lead_fallback", false): lines.append(texts.tr_key("guided-lead-fallback-risk"))
+		elif guided.get("lead_trumpf", false): lines.append(texts.tr_key("guided-draw-trumpf-risk"))
+		else: lines.append(texts.tr_key("guided-lead-risk"))
+	if lead == null and step in ["Orient", "Check"]:
 		for seat in ["Vorhand", "Mittelhand", "Hinterhand"]:
 			_dialogue_button(_seat_name(seat), _guided_command(guided, {"Answer": {"Seat": seat}}))
 		if step == "Check":
 			_dialogue_button(texts.tr_key("guided-none"), _guided_command(guided, {"Answer": {"Seat": null}}))
-	if step == "Narrow" or step == "Threshold":
+	if step == "Narrow" or (lead != null and step == "Check"):
 		for card in guided["legal_cards"]:
 			_dialogue_button(texts.tr_key("guided-consider", {"card": _card(int(card))}),
 				_guided_command(guided, {"Answer": {"Card": int(card)}}))
+	if guided.get("evidence") != null and guided["correct"] == false and step == "Orient":
+		lines.append(_source_line(guided["evidence"]))
+	if guided["rule"] != null and step == "Act":
+		lines.append(_guided_rule(guided, view))
+		var open: bool = guided.get("memory") != null
+		_dialogue_button(texts.tr_key("guided-memory-hide" if open else "guided-memory"),
+			_guided_command(guided, {"Memory": not open}))
+	var memory = guided.get("memory")
+	if memory is Dictionary:
+		lines.append(texts.tr_key("guided-memory-counts", {"own": _card_count(memory["own"]),
+			"played": _card_count(memory["played"]), "unseen": _card_count(memory["unseen"])}))
+		lines.append(texts.tr_key("guided-known-skat", {"count": _card_count(memory["skat"])})
+			if memory["skat"] != null else texts.tr_key("guided-unknown-skat"))
+		if memory["trumpf"] != null:
+			lines.append(texts.tr_key("guided-trumpf", {"count": int(memory["trumpf"]["outside"])}))
+	if not guided.get("lead_replies", []).is_empty():
+		var replies: Array[String] = []
+		for source in guided["lead_replies"]:
+			replies.append(_source_line(source))
+		lines.append("; ".join(replies))
+	if lead == null and step in ["Observe", "Complete"] and guided["observed_source"] != null:
+		lines.append(_source_line(guided["observed_source"]))
 	if step == "Observe":
 		for answer in [["guided-void-yes", true], ["guided-void-no", false]]:
 			_dialogue_button(texts.tr_key(answer[0]), _guided_command(guided, {"Answer": {"Void": answer[1]}}))
-	if step in ["Orient", "Check", "Narrow", "Observe"]:
-		_dialogue_button(texts.tr_key("guided-reveal"), _guided_command(guided, "Reveal"))
+	var observation = guided["observation"]
+	if observation != null:
+		var deduction := texts.tr_key("guided-null-proves-void" if observation["proves_void"] and is_null
+			else ("guided-proves-void" if observation["proves_void"] else "guided-only-card"))
+		var winner := ""
+		if observation["winner"] != null:
+			winner = texts.tr_key("guided-winner", {"seat": _seat_name(observation["winner"])})
+		lines.append((deduction + " " + winner).strip_edges() if lead != null else deduction)
+		if lead == null and winner != "":
+			lines.append(winner)
+	_reveal_buttons(guided, ["Orient", "Check", "Narrow", "Observe"])
+	_figures_part(guided, view, lines)
 	_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
-	$Layout/Dialogue/Text.text = "\n".join(lines)
+
+# Separately requested model comparison of the original decision (opt-in
+# "figures" setting); the numbers come from skat-app, never from here.
+func _figures_part(guided: Dictionary, view: Dictionary, lines: Array[String]) -> void:
+	if guided["step"] == "Complete" and show_figures and not guided.get("figures_requested", false):
+		_dialogue_button(texts.tr_key("guided-figures"), _guided_command(guided, "Figures"))
+	if not guided.get("figures_requested", false):
+		return
+	lines.append(texts.tr_key("guided-model-title"))
+	var hints = guided.get("figures")
+	if hints == null:
+		lines.append(texts.tr_key("guided-model-unavailable"))
+		return
+	var id: Dictionary = guided["id"]
+	var budget = guided.get("budget")
+	lines.append(texts.tr_key("guided-budget", {"samples": int(budget["samples"]) if budget != null else 0,
+		"nodes": int(budget["nodes_per_task"]) if budget != null else 0,
+		"game": int(id["game"]), "actions": int(id["actions"])}))
+	lines.append(texts.tr_key("coach-basis-real-deal" if str(guided["basis"]) == "RealDeal"
+		else "guided-basis-own"))
+	var party := texts.tr_key({"Bidder": "coach-party-own", "Declarer": "coach-party-declarer",
+		"Defender": "coach-party-defenders"}.get(str(hints["role"]), "coach-party-own"))
+	for figure in hints["figures"] if hints["figures"] != null else []:
+		lines.append(_label(figure["action"], int(view["bid"]), view["hand_game"]))
+		var e = figure["estimate"]
+		if e == null:
+			lines.append(texts.tr_key("coach-judgement-not-evaluated"))
+			continue
+		var text := texts.tr_key("coach-metric-win", {"party": party,
+			"chance": "%.0f %%" % (float(e["win_chance"]) * 100.0)}) + " · " \
+			+ texts.tr_key("coach-metric-score", {"score": "%+.1f" % float(e["expected_score"]),
+			"se": "%.1f" % float(e["score_std_error"])})
+		if str(hints["role"]) != "Declarer":
+			text += " · " + texts.tr_key("coach-metric-game-points",
+				{"points": "%+.1f" % float(e["expected_game_points"])})
+		lines.append(text)
+
+# Skataufnahme, Drücken and Ansage: candidate branch, threshold, card or value
+# attempt, then Easy's actual Hand/pickup, discard or announcement.
+func _show_preplay(guided: Dictionary, view: Dictionary, lines: Array[String]) -> void:
+	var p: Dictionary = guided["preplay"]
+	var step: String = guided["step"]
+	var phase: String = str(p["phase"])
+	var pickup: bool = phase == "SkatAufnahme"
+	var ansage: bool = phase == "Ansage"
+	var game = p.get("game")
+	var name: String = _game_name(game) if game != null else ""
+	if p.get("bid") != null:
+		lines.append(texts.tr_key("guided-ann-public-hand" if p.get("hand_game") == true
+			else "guided-ann-public-pickup", {"bid": int(p["bid"])}))
+	if step == "Orient":
+		lines.append(texts.tr_key("guided-ann-orient" if ansage else
+			("guided-pre-orient-pickup" if pickup else "guided-pre-orient-discard")))
+	elif step == "Threshold" and game != null:
+		if ansage:
+			lines.append(texts.tr_key("guided-ann-threshold", {"game": name, "bid": int(p["bid"])}))
+		elif pickup:
+			lines.append(texts.tr_key("guided-pre-threshold-pickup",
+				{"game": name, "threshold": int(p["threshold"])}))
+		else:
+			lines.append(texts.tr_key("guided-pre-threshold-discard", {"game": name}))
+	elif step == "Act":
+		lines.append(texts.tr_key("guided-ann-act" if ansage else
+			("guided-pre-act-pickup" if pickup else "guided-pre-act-discard")))
+	else:
+		lines.append(texts.tr_key("guided-unsupported"))
+	_retry_lines(guided, lines)
+	var answers: Array = []
+	if step == "Orient":
+		for branch in ["Grand", "Suit", "Null", "Weak"]:
+			answers.append([texts.tr_key("guided-pre-" + branch.to_lower()), {"Game": branch}])
+	elif step == "Threshold" and pickup:
+		answers = [[texts.tr_key("guided-pre-hand-yes"), {"Within": true}],
+			[texts.tr_key("guided-pre-hand-no"), {"Within": false}]]
+	elif step == "Threshold" and ansage:
+		answers = [[texts.tr_key("guided-ann-fits-yes"), {"Within": true}],
+			[texts.tr_key("guided-ann-fits-no"), {"Within": false}]]
+	elif step == "Threshold":
+		for card in p["cards"]:
+			answers.append([texts.tr_key("guided-pre-consider", {"card": _card(int(card))}),
+				{"Card": int(card)}])
+	for answer in answers:
+		_dialogue_button(answer[0], _guided_command(guided, {"Answer": answer[1]}))
+	var rule = guided.get("pre_rule")
+	if rule is Dictionary:
+		_pre_rule_lines(rule, ansage, pickup, view, lines)
+	_reveal_buttons(guided, ["Orient", "Threshold"])
+	_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
+
+func _pre_rule_lines(rule: Dictionary, ansage: bool, pickup: bool, view: Dictionary,
+		lines: Array[String]) -> void:
+	var kind: String = rule.keys()[0]
+	var r: Dictionary = rule[kind]
+	var game = r["preferred"] if kind == "Announce" else r["game"]
+	lines.append(texts.tr_key("guided-bid-rule", {"action": _label(r["action"], int(view["bid"]), view["hand_game"])}))
+	if r["fallback"]:
+		lines.append(texts.tr_key("guided-pre-fallback"))
+	lines.append(texts.tr_key("guided-ann-preferred" if ansage else "guided-pre-game", {"game": _game_name(game)}))
+	lines.append(texts.tr_key("guided-pre-branch-" + str(r["branch"]).to_lower()))
+	if kind == "Pickup":
+		if str(r["branch"]) == "Null":
+			lines.append(texts.tr_key("guided-pre-strength-null"))
+		else:
+			lines.append(texts.tr_key("guided-pre-strength-hand" if int(r["strength"]) >= int(r["threshold"])
+				else "guided-pre-strength-pickup", {"strength": int(r["strength"]), "threshold": int(r["threshold"])}))
+			lines.append(texts.tr_key("guided-pre-strength-count"))
+	elif kind == "Discard":
+		lines.append(texts.tr_key("guided-pre-keeps-null" if str(r["branch"]) == "Null" else "guided-pre-keeps"))
+		var put := 0
+		for reason in r["reasons"]:
+			var card := int(reason[0])
+			put |= 1 << card
+			var keep = reason[1]
+			var args := {"card": _card(card)}
+			if keep is Dictionary:
+				args["length"] = int(keep["Side"]["suit"])
+				lines.append(texts.tr_key("guided-pre-keep-side", args))
+			else:
+				lines.append(texts.tr_key({"Null": "guided-pre-keep-null", "Trumpf": "guided-pre-keep-trumpf",
+					"Ass": "guided-pre-keep-ass", "GuardedTen": "guided-pre-keep-ten"}[str(keep)], args))
+		var ties: Array[String] = []
+		for i in range(32):
+			if int(r["eligible"]) & (1 << i) and not put & (1 << i):
+				ties.append(_card(i))
+		if not ties.is_empty():
+			lines.append(texts.tr_key("guided-pre-tie", {"cards": ", ".join(ties)}))
+	else:
+		_announce_lines(r, lines)
+	lines.append(texts.tr_key("guided-pre-caveat-pickup" if pickup else
+		("guided-ann-caveat" if ansage else "guided-pre-caveat-discard")))
+
+# Easy's announcement: preferred value against the bid, the fitting candidates
+# with the strength tie-break, the Null ouvert condition and every fallback.
+func _announce_lines(r: Dictionary, lines: Array[String]) -> void:
+	lines.append(_skat_line(r["skat"]))
+	var values := {"value": int(r["value"]), "bid": int(r["bid"])}
+	lines.append(texts.tr_key("guided-ann-fits" if r["fits"] else "guided-ann-short", values))
+	if r["no_fit"]:
+		lines.append(texts.tr_key("guided-ann-no-fit", {"bid": int(r["bid"])}))
+	elif not r["fits"]:
+		var fitting: Array[String] = []
+		var top = null
+		for c in r["candidates"]:
+			if c["game"] == r["game"] and top == null:
+				top = c
+			if c["fits"]:
+				fitting.append(texts.tr_key("guided-ann-candidate", {"game": _game_name(c["game"]),
+					"value": int(c["value"]), "strength": int(c["strength"])}))
+		lines.append(texts.tr_key("guided-ann-candidates", {"games": ", ".join(fitting)}))
+		var tied: Array[String] = []
+		for c in r["candidates"]:
+			if c["fits"] and top != null and int(c["strength"]) == int(top["strength"]):
+				tied.append(_game_name(c["game"]))
+		lines.append(texts.tr_key("guided-ann-tie", {"games": ", ".join(tied), "game": _game_name(r["game"])})
+			if tied.size() > 1 else texts.tr_key("guided-ann-strongest", {"game": _game_name(r["game"])}))
+	if r["null_risks"] != null:
+		lines.append(texts.tr_key("guided-ann-ouvert") if int(r["null_risks"]) == 0
+			else texts.tr_key("guided-ann-null-plain", {"count": int(r["null_risks"])}))
+	if r["plain"]:
+		lines.append(texts.tr_key("guided-ann-plain"))
+
+# Kontra and Re: public factor and threshold attempt, then Easy's actual call
+# and the next public transition after the learner's own call or card.
+func _show_kontra(guided: Dictionary, view: Dictionary, lines: Array[String]) -> void:
+	var k: Dictionary = guided["kontra"]
+	var step: String = guided["step"]
+	var re: bool = str(k["call"]) == "Re"
+	var game = k["game"]
+	var is_null: bool = str(game) == "Null"
+	var grand: bool = str(game) == "Grand"
+	var ouvert_round: bool = k["ouvert_round"]
+	var contract = view["contract"]
+	var by_game := func(farbe: String, g: String, n: String) -> String:
+		return n if is_null else (g if grand else farbe)
+	var pick := func(kontra: String, re_key: String) -> String:
+		return re_key if re else kontra
+	if not step in ["Waiting", "Complete"]:
+		lines.append(texts.tr_key("guided-kontra-public-re" if re else "guided-kontra-public-kontra",
+			{"game": _game_name(game)}))
+	if ouvert_round:
+		lines.append(texts.tr_key("guided-kontra-ouvert-before"))
+	elif contract is Dictionary and contract["ouvert"] == true:
+		lines.append(texts.tr_key("guided-kontra-ouvert-view"))
+	var figures := {"factor": int(k["factor"]) if k["factor"] != null else 0,
+		"threshold": int(k["threshold"]) if k["threshold"] != null else 0}
+	if step == "Orient":
+		lines.append(texts.tr_key("guided-kontra-orient-re" if re else "guided-kontra-orient-kontra"))
+	elif step == "Threshold" and ouvert_round:
+		lines.append(texts.tr_key("guided-kontra-ouvert-question"))
+	elif step == "Threshold":
+		lines.append(texts.tr_key(pick.call(
+			by_game.call("guided-kontra-threshold-kontra", "guided-kontra-threshold-kontra-grand",
+				"guided-kontra-threshold-kontra-null"),
+			by_game.call("guided-kontra-threshold-re", "guided-kontra-threshold-re-grand",
+				"guided-kontra-threshold-re-null")), figures))
+	elif step == "Act":
+		lines.append(texts.tr_key("guided-kontra-ouvert-act" if ouvert_round else
+			("guided-kontra-act-re" if re else "guided-kontra-act-kontra")))
+	elif step == "Waiting":
+		lines.append(texts.tr_key("guided-kontra-waiting"))
+	elif step == "Complete":
+		lines.append(texts.tr_key("guided-kontra-complete"))
+	else:
+		lines.append(texts.tr_key("guided-unsupported-kontra"))
+	_retry_lines(guided, lines)
+	var answers: Array = []
+	if step == "Orient":
+		for factor in [1, 2, 4]:
+			answers.append([texts.tr_key("guided-kontra-factor-button", {"factor": factor}), {"Factor": factor}])
+	elif step == "Threshold" and ouvert_round:
+		answers = [[texts.tr_key("guided-kontra-ouvert-yes"), {"Applies": true}],
+			[texts.tr_key("guided-kontra-ouvert-no"), {"Applies": false}]]
+	elif step == "Threshold" and is_null:
+		answers = [[texts.tr_key("guided-kontra-applies-yes"), {"Applies": true}],
+			[texts.tr_key("guided-kontra-applies-no"), {"Applies": false}]]
+	elif step == "Threshold":
+		answers = [[texts.tr_key("guided-kontra-yes"), {"Within": true}],
+			[texts.tr_key("guided-kontra-no"), {"Within": false}]]
+	for answer in answers:
+		_dialogue_button(answer[0], _guided_command(guided, {"Answer": answer[1]}))
+	var rule = guided.get("kontra_rule")
+	if rule is Dictionary:
+		lines.append(texts.tr_key("guided-bid-rule", {"action": _label(rule["action"], int(view["bid"]), view["hand_game"])}))
+		if re and not is_null:
+			lines.append(_skat_line(rule["skat"]))
+		var wants: bool = rule["wants"]
+		var key := ""
+		if is_null: key = "guided-kontra-count-re-null" if re else "guided-kontra-count-kontra-null"
+		elif not re and not wants and grand: key = "guided-kontra-count-kontra-grand"
+		elif not re: key = "guided-kontra-count-kontra-" + ("yes" if wants else "no")
+		else: key = "guided-kontra-count-re-" + ("yes" if wants else "no")
+		lines.append(texts.tr_key("guided-kontra-ouvert-rule") if ouvert_round else
+			texts.tr_key(key, {"count": int(rule["count"]), "threshold": int(rule["threshold"])}))
+		if rule["card"] != null:
+			lines.append(texts.tr_key("guided-kontra-card", {"card": _card(int(rule["card"]["card"]))}))
+		lines.append(texts.tr_key("guided-kontra-fact-factor" if not re or is_null
+			else "guided-pre-strength-count"))
+		if not ouvert_round:
+			lines.append(texts.tr_key(pick.call(
+				by_game.call("guided-kontra-caveat-kontra", "guided-kontra-caveat-kontra-grand",
+					"guided-kontra-caveat-null"),
+				by_game.call("guided-kontra-caveat-re", "guided-kontra-caveat-re", "guided-kontra-caveat-null"))))
+	var observation = guided.get("kontra_observation")
+	if observation != null:
+		lines.append_array(_kontra_observation_lines(observation))
+	_reveal_buttons(guided, ["Orient", "Threshold"])
+	_figures_part(guided, view, lines)
+	_dialogue_button(texts.tr_key("guided-return"), _guided_command(guided, "Return"))
+
+func _level_factor(level: Variant) -> int:
+	return {"None": 1, "Kontra": 2, "Re": 4}.get(str(level), 1)
+
+func _kontra_observation_lines(observation: Variant) -> Array[String]:
+	if str(observation) == "DeclinedCall":
+		return [texts.tr_key("guided-kontra-ouvert-declined")]
+	var kind: String = observation.keys()[0]
+	var o: Dictionary = observation[kind]
+	var factor := _level_factor(o["level"])
+	match kind:
+		"Reply":
+			return [texts.tr_key("guided-kontra-reply-re" if o["re"] else "guided-kontra-reply-kein-re",
+				{"seat": _seat_name(o["seat"]), "factor": factor})]
+		"Resumed":
+			return [texts.tr_key("guided-kontra-resumed", {"seat": _seat_name(o["seat"]),
+				"card": _card(int(o["card"])), "factor": factor})]
+	var out: Array[String] = [texts.tr_key("guided-kontra-declined", {"card": _card(int(o["card"])),
+		"trick": int(o["trick"]) + 1, "factor": factor})]
+	if o["winner"] != null:
+		out.append(texts.tr_key("guided-winner", {"seat": _seat_name(o["winner"])}))
+	return out
 
 # `CardSet` crosses the wire as a bit mask (one bit per card); only its size is shown.
 # Reizen dialogue: orientation (hold or name a bid), Easy's ceiling attempt, the
