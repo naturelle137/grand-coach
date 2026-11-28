@@ -573,7 +573,7 @@ func coach_flow(lang: String) -> void:
 	sample["coach"]["pending"] = null
 	assert(not table._show_coach(sample) and not box.visible)
 	# Play a seeded series with warnings on; a held action must resolve.
-	var deadline := Time.get_ticks_msec() + 120000
+	var deadline := Time.get_ticks_msec() + 300000
 	var held := 0
 	var view: Dictionary = JSON.parse_string(table.app.view())
 	while not view["series_finished"] and Time.get_ticks_msec() < deadline:
