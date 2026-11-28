@@ -57,6 +57,7 @@ godot --headless --editor --path godot --import --quit # register the extension 
 godot --path godot                  # Godot 4.4+, from the repository root
 cargo test -p gui-godot             # adapter contract tests, no Godot needed
 godot --headless --path godot --script res://tests/interaction.gd # interaction smoke; a failed assert prints SCRIPT ERROR (exit code stays 0)
+scripts/godot-headless.sh           # build, pinned checksum-verified Godot 4.4.1, DE/EN run; fails on SCRIPT ERROR (CI `portable`)
 ```
 
 The `.gdextension` file loads the library from `target/`. Export presets,
